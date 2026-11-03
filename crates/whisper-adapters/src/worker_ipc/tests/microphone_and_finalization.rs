@@ -331,7 +331,7 @@
                 }
             }
             assert!(refresh_events <= 4);
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(60));
         }
         let telemetry_deadline = Instant::now() + Duration::from_secs(2);
         while Instant::now() < telemetry_deadline && !(saw_counters && saw_meter && saw_spectrum) {
@@ -341,12 +341,36 @@
                 .unwrap()
                 .capture
                 .enqueue_test_block(vec![0.0; 960]);
-            if let Some(Ok(event)) = runtime.poll() {
-                saw_counters |= matches!(event, ImportEvent::LiveCounters { .. });
-                saw_meter |= matches!(event, ImportEvent::MicrophoneMeter(_));
-                saw_spectrum |= matches!(event, ImportEvent::MicrophoneSpectrum(_));
+            match runtime.poll() {
+                Some(Ok(event)) => {
+                    saw_counters |= matches!(event, ImportEvent::LiveCounters { .. });
+                    saw_meter |= matches!(event, ImportEvent::MicrophoneMeter(_));
+                    saw_spectrum |= matches!(event, ImportEvent::MicrophoneSpectrum(_));
+                    assert!(
+                        runtime.live.is_some(),
+                        "runtime.live disappeared after telemetry poll event {event:?}; \
+                         flags: counters={saw_counters}, meter={saw_meter}, spectrum={saw_spectrum}"
+                    );
+                }
+                Some(Err(error)) => panic!(
+                    "legacy telemetry poll failed: {error:?}; live_present={}, active={:?}, \
+                     transport_present={}",
+                    runtime.live.is_some(),
+                    runtime.active.as_ref().map(|active| (
+                        active.job_id,
+                        active.generation,
+                        active.instance_id,
+                        active.backend,
+                    )),
+                    runtime.transport.is_some(),
+                ),
+                None => assert!(
+                    runtime.live.is_some(),
+                    "runtime.live disappeared after telemetry poll returned None; \
+                     flags: counters={saw_counters}, meter={saw_meter}, spectrum={saw_spectrum}"
+                ),
             }
-            thread::sleep(Duration::from_millis(5));
+            thread::sleep(Duration::from_millis(60));
         }
         assert!(
             saw_counters,
@@ -425,7 +449,7 @@
                 }
             }
             assert!(refresh_events <= 4);
-            thread::sleep(Duration::from_millis(5));
+            thread::sleep(Duration::from_millis(60));
         }
         assert!(saw_text, "mock worker confirmed text did not progress");
         assert!(saw_confirmed, "window confirmation did not progress");

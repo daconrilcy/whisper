@@ -144,11 +144,19 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     $release = $false
     $noRun = $false
     $list = $false
+    $exact = $false
+    $testFilter = $null
     for ($i = 1; $i -lt $normalizedArgs.Count; $i++) {
         $arg = $normalizedArgs[$i]
         if ($arg -eq '--') {
-            if ($sub -ne 'test' -or $i -ne ($normalizedArgs.Count - 2) -or $normalizedArgs[$i + 1] -cne '--list') { throw 'Only cargo test -- --list is allowed after --.' }
-            $list = $true
+            if ($sub -ne 'test' -or $i -ne ($normalizedArgs.Count - 2)) { throw 'Only the allowlisted cargo test options are allowed after --.' }
+            if ($normalizedArgs[$i + 1] -ceq '--list') {
+                $list = $true
+            } elseif ($normalizedArgs[$i + 1] -ceq '--exact') {
+                $exact = $true
+            } else {
+                throw 'Only cargo test -- --list or the approved exact microphone test is allowed after --.'
+            }
             $i++
             continue
         }
@@ -221,9 +229,24 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
             if ($sub -ne 'metadata') { throw '--no-deps is only allowed with cargo metadata.' }
             continue
         }
+        if ($isTest -and $arg -ceq 'worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end') {
+            if ($null -ne $testFilter) { throw 'Only one test filter is allowed.' }
+            $testFilter = $arg
+            continue
+        }
         if ($arg -match '^-[A-Za-z]') { throw "Unrecognized Cargo option: $arg" }
         if ($arg.StartsWith('-')) { throw "Unrecognized Cargo option: $arg" }
         throw "Unrecognized Cargo argument: $arg"
+    }
+    if ($exact -or $null -ne $testFilter) {
+        # The only exact-filter exception authorized for level 1 is this one micro regression test.
+        $expectedExact = @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+        if (-not $exact -or $null -eq $testFilter -or $list -or $sub -cne 'test' -or $hasWorkspace -or $packages.Count -ne 1 -or $packages[0] -cne 'whisper-adapters' -or $features.Count -gt 0 -or $release -or $noRun -or $normalizedArgs.Count -ne $expectedExact.Count) {
+            throw 'Only the approved exact microphone test selection is allowed.'
+        }
+        for ($exactIndex = 0; $exactIndex -lt $expectedExact.Count; $exactIndex++) {
+            if ($normalizedArgs[$exactIndex] -cne $expectedExact[$exactIndex]) { throw 'Only the approved exact microphone test selection is allowed.' }
+        }
     }
     if ($sub -eq 'test') {
         if ($list -and $noRun) { throw 'cargo test --no-run cannot be combined with --list.' }
@@ -333,7 +356,7 @@ function Assert-OfflineCache([string]$CacheRoot) {
 }
 
 function Invoke-SelfTests {
-    $members = @('whisper-core','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
+    $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
     if ($singletonJsonArgs.Count -ne 1 -or $singletonJsonArgs[0] -cne 'test') { throw 'Self-test did not preserve a singleton JSON Cargo argv.' }
     $positive = @(
@@ -349,6 +372,8 @@ function Invoke-SelfTests {
         @('test','--workspace'),
         @('test'),
         @('test','--','--list'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact'),
+        @('test','--offline','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--locked'),
         @('test','-p','whisper-worker-common','--','--list'),
         @('clippy','--workspace','--all-targets'),
         @('check','--workspace','--release')
@@ -374,6 +399,21 @@ function Invoke-SelfTests {
     $negative += ,@('test','--workspace','--no-run','--','--list')
     $negative += ,@('test','-p','whisper-worker-cpu','--','--ignored')
     $negative += ,@('test','-p','whisper-worker-cpu','--','--list','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--nocapture')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+    $negative += ,@('test','-p','whisper-worker-cpu','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','whisper-worker-common','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+    $negative += ,@('test','--workspace','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--release','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--no-run','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--features','native-tests','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--list')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end_typo','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::Microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
+    $negative += ,@('test','-p','whisper-adapters','microphone_legacy_live_pump','--','--exact')
+    $negative += ,@('check','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
     $negative += ,@('test','-p','whisper-worker-gpu')
     $negative += ,@('test','-p','whisper-worker-gpu','--no-run')
     $pCount = 1

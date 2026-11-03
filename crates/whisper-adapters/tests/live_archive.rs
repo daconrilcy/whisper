@@ -1,18 +1,24 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
+};
 use whisper_adapters::{archive::LiveArchive, staging::PcmStaging};
 use whisper_core::{
     ComputeChoice, Generation, JobConfig, JobId, LanguageChoice, LiveRequest, SegmentId,
     SourceRange, ports::WorkerSegment,
 };
 
+static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
+
 fn test_root() -> std::path::PathBuf {
     std::env::temp_dir().join(format!(
-        "whisper-live-archive-{}-{}",
+        "whisper-live-archive-{}-{}-{}",
         std::process::id(),
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed)
     ))
 }
 
