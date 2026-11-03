@@ -11,6 +11,9 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+#[cfg(test)]
+mod test_support;
+
 pub const SYNC_EVERY_FRAMES: usize = 25;
 pub const MAX_PENDING_FRAMES: usize = 50;
 const HEADER: &[u8] = b"WHISPCM1\0\x80\x3e\0\0\x01\0";

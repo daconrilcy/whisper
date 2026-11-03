@@ -408,6 +408,43 @@ Seconde revue indépendante de 5b demandée avec ces preuves.
 Verdict final 5b : **CLEAN**, deux revues et une correction, R-5B-1 clos,
 V-5B-1 satisfait, aucune requête ouverte. Ce verdict ne clôt pas B.
 
+## Support de preuve d'ordre F6, séparé de 6a
+
+5b commité dans `3bbb95fd7d6132d93c2d04c3ce332df04e27a161`.
+Support exclusivement cfg(test) autorisé dans la session : déclaration de
+module dans staging.rs et nouveau staging/test_support.rs. L'enveloppe du
+JoinHandle attend le vrai writer, puis appelle l'observateur. Aucun champ,
+Drop, writer_loop, nouveau trait ou comportement normalement compilé modifié.
+L'oracle 6a stockera le résultat du probe dans un état externe vérifié par
+le test ; une panique dans l'observateur seule ne prouverait pas l'échec,
+car le Drop existant ignore le résultat de join.
+
+Candidat support gelé avant N1 `6-support-*` et revue indépendante ; aucun
+test 6a ou changement de logique Stop F6 engagé dans ce commit de support.
+
+N1 support initiale verte (721/148, Structure 917/917, SelfTest 35/79,
+fmt et Clippy), avec un avertissement dead_code non masqué en attente
+d'utilisation 6a. Revue initiale : R-6SUP-1, la fonction libre du module
+privé serait inaccessible depuis les tests sibling de poll. Correction
+dans le périmètre autorisé : méthode `pub(crate)` de PcmWriter, définie
+dans ce même support cfg(test), module restant privé. Aucun champ/Drop/
+writer_loop modifié ; nouvelle validation avant commit et seconde revue.
+
+Correction appliquée : méthode `PcmWriter::observe_shutdown` pub(crate),
+module privé inchangé. N1 corrigée exécutée par la session principale sous
+`6-support-method-*`, wrappers `.log` à la racine B : tous codes 0,
+SelfTest 35/79, Structure 917/917, fmt, Clippy et tests défaut/common/CPU/
+Parakeet CPU. Total **721 réussites, 148 ignorés** ; avertissement temporaire
+de helper inutilisé visible, non masqué. Diff-check réussi.
+
+La fermeture indépendante de R-6SUP-1/V-6SUP-1 a été temporairement
+interrompue par une limite d'utilisation du coordinateur. Le même coordinateur
+a repris avec le même reviewer, sans changement de modèle ni responsable.
+Verdict final indépendant : **CLEAN**, deux revues, une correction,
+R-6SUP-1 clos et V-6SUP-1 satisfait. Aucune nouvelle requête ouverte.
+Les commits 5a/5b déjà CLEAN restent inchangés. Le support sera commité
+séparément avant toute caractérisation 6a.
+
 ## Famille 5 — Stop avant activation et reprise d'import
 
 **5a.** Ajouter des tests séparés sous `worker_ipc/runtime/poll/`, verts sur
