@@ -1,5 +1,5 @@
-Avancée : familles 1 et 2 caractérisées et extraites, N1 verte (691 réussites, 148 ignorés), quatre revues CLEAN.
-Blocage : aucun ; familles 3 et 4 restent à réaliser dans A.
+Avancée : familles 1 et 2 extraites ; caractérisation 3a revue CLEAN, N1 verte (702 réussites, 148 ignorés).
+Blocage : aucun ; extractions 3b et famille 4 restent à réaliser dans A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -300,7 +300,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   vert avant (log `20261103T000540434-c39db7324b3e4ac0b9456809680105d5`),
   rouge pendant (log `20261103T000557411-f96f2fd2dbf941a59419a9ebe727ef64`),
   puis vert après restauration exacte ; aucun diff produit résiduel.
-- 2b : trois handlers distincts dans `poll/segments.rs`, 36/45/29 lignes
+- 2b (`2c90586e`) : trois handlers distincts dans `poll/segments.rs`, 36/45/29 lignes
   physiques ; lints locaux Clippy <= 100 lignes et <= 25 de complexité PASS.
   Sorties explicites préfixe suivant/suppression/rejet, erreur de mapping
   immédiate, Segment et End vers traitement final ; ordre End conservé.
@@ -313,3 +313,22 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T034649829-3ff9e629749b40c591075325548b15e8`, CPU
   `20261103T034658041-ea4c3283d9f240578a9831f382cb5ef1`, Parakeet CPU
   `20261103T034712151-17419834e3e54268925cfef948a2afe7`.
+- 3a : onze nouveaux tests ; revue CLEAN après une correction R3A-1
+  (Ready fait passer le live existant de worker_ready=false à true).
+  L'erreur d'envoi BeginImport est atteinte par APIs existantes : arrêt du
+  faux worker, commande sonde, observation du canal Disconnected, puis Ready
+  injecté ; aucun point d'injection produit ajouté. N1 finale 702/0/148,
+  Structure 898/898, SelfTest/PE/fmt/Clippy/diff-check PASS. Logs scratch :
+  Clippy `20261103T041731126-5e2f165089154fc0bd74efb7b5ba7c26`, défaut
+  `20261103T041740053-7b82447c8f564ee69a20140f382fe529`, common
+  `20261103T041825954-6ae4a9eed6994d448bf21fa318d4dd1e`, CPU
+  `20261103T041832771-6155bc1718f8485c87235d7c2c0f8978`, Parakeet CPU
+  `20261103T041844046-0619b36be48a44ac953a7cfaa76fcf98`.
+  Mutation F3 : condition `if auto_gpu_import && !self.publication_gate.is_cancelled()`
+  réduite temporairement à `if auto_gpu_import` ; détecteur
+  `poll_cancelled_auto_gpu_ready_never_sends_begin_import_before_stop_barrier`
+  rouge, trace worker BeginImport puis Stop au lieu de Stop seul, aucune
+  autre défaillance (log `20261103T040306936-773842e1c1ad4423bb2e578cc6ce6c6f`).
+  Condition restaurée exactement, détecteur vert dans la N1 finale. Une
+  tentative de filtre individuel avait été refusée par la garde avant le
+  test ; la preuve a utilisé la sélection N1 complète autorisée, garde inchangée.

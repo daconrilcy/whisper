@@ -14,6 +14,7 @@ use whisper_core::{
     ipc::{BackendKind, WorkerEvent},
 };
 
+mod readiness_admission;
 mod resume_and_segments;
 
 static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
