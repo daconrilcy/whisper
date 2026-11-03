@@ -785,6 +785,56 @@ La campagne N2 requiert une **autorisation distincte** avant exécution ; un
 profil existant ne vaut pas preuve que le scénario demandé a été qualifié.
 Rapporter les éventuelles références manquantes. Aucun démarrage de C.
 
+## Exécution du complément N2 — état suspendu le 3 novembre 2026
+
+Avancée : quatre corps reprise/direct réussis ; banc et profils relus CLEAN.
+Blocage : garde native interrompue avant résultat de l'import long français.
+Décision : aucune relance ni clôture B avant arbitrage ; C non commencé.
+
+Le banc de qualification est versionné dans `1be46656`. N1 : 734 réussites,
+zéro échec, 149 ignorés ; SelfTest, Structure 931, format et Clippy réussis.
+La garde native SelfTest et les quatre Preflight sont réussis. PE non concerné.
+Les ressources copiées restent conservées ; runtime : 21 fichiers,
+3 196 008 875 octets ; espace libre avant campagne : 596,79 Gio.
+Le calcul préparatoire de taille sur des dictionnaires PowerShell a été
+corrigé avant tout Preflight ; les fichiers eux-mêmes étaient intacts.
+
+La référence locale `codex/poll-n2-reference`, `00c2d87e`, applique seulement
+le commit du banc à `6316a54b` : quatre fichiers de qualification, 325 ajouts,
+aucune modification du code de production. Le nouveau test direct et les
+profils sont identiques au candidat B `1be46656`. Le registre et la déclaration
+ne sont pas globalement identiques : les 23 tests B restent absents de la
+référence. Le même reviewer confirme ce périmètre et les quatre reçus PASS.
+L'association aux HEAD est enregistrée par l'orchestration ; les result.json
+de la garde n'embarquent pas l'identité Git.
+
+| Corps | Référence pré-B | B | Durées du corps, hors compilation |
+| --- | --- | --- | --- |
+| Reprise interrompue | e21ec5ec42f1416ab5904a072beb6935 PASS | 3725c5b343c84d42a6fbd4bdd412f743 PASS | 13,21 s / 13,35 s |
+| Direct Turbo CPU | e81f38f6d83a47c79708a29f59d4a7cd PASS | ab895bb662ac4de8b8131450e80578fd PASS | 42,44 s / 42,54 s |
+
+Reprise : transcripteur contrôlé, modèle réel vérifié ; direct : vrai worker
+CPU épinglé identique, capture simulée de deux secondes. Aucune qualification
+du microphone physique, de la fenêtre Windows ou de la qualité lexicale.
+Les durées sont descriptives, sans conclusion statistique de performance.
+
+Lancement PersonalLongCpu `3e531a3c5634426b84938340fa0516e7` interrompu par
+la garde le 3 novembre à 15:33:48 UTC : deux événements Changed, à la racine
+`target/parakeet-tests/refacto-poll-b` et dans
+`5a-corrected-adapters/temp/tmp/archive/cleanup-test-58400-1793697636390224000/latest/destination/.whisper-publications/reservations`.
+L'origine n'est pas établie. Une énumération récursive en lecture des anciennes
+preuves était en cours ; cette simultanéité ne démontre pas une attribution.
+Le stderr contient seulement la compilation adapters, stdout est vide : aucun
+résultat de corps long. Aucun essai anglais ou Auto engagé. Aucun processus
+Cargo, rustc ou worker CPU/Parakeet CPU restant lors du contrôle après arrêt.
+Les preuves ne sont ni supprimées ni restaurées ; modèles et corpus conservés.
+
+Preuves : `target/n2-native/logs/<profil>-<identifiant>/`, et
+`target/parakeet-tests/refacto-poll-b/n2-*.log`, dont
+`n2-reference-source-comparison.log`. Retour effectué sur `refacto/poll` ;
+seuls `models/` et `sound example/` restent non suivis. Les trois corps N2
+restants sont NON EXÉCUTÉS avec succès ; aucune qualification N2 complète.
+
 ## Dette explicitement demandée
 
 Le helper d'archive A, `archive/test_support.rs`, remplace sous `cfg(test)` le
