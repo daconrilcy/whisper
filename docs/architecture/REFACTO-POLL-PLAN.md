@@ -1,5 +1,5 @@
-Avancée : famille 1 caractérisée et extraite, N1 verte (684 réussites, 148 ignorés), revues 1a et 1b CLEAN.
-Blocage : aucun ; familles 2 à 4 restent à réaliser dans A.
+Avancée : famille 1 extraite ; caractérisation 2a revue CLEAN, N1 verte (691 réussites, 148 ignorés).
+Blocage : aucun pour 2a ; extraction 2b et familles 3 à 4 restent à réaliser dans A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -275,3 +275,28 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261102T235804580-1c1a1e38ad72469a934c56d580016d69`, CPU
   `20261102T235810766-3afd07a9b8fe4c009d8ea945f65a3078`, Parakeet CPU
   `20261102T235822163-7a43d7303f2e4e5f9b305fe8e0f78ef2`.
+- 2a : sept nouveaux tests, mutation de sortie du préfixe identique
+  détectée puis restaurée. Une première N1 post-restauration a passé à
+  691/0/148. La revue a demandé de borner l'heure de disponibilité du segment
+  autour de poll (R2A-1) ; après cette correction, un test existant a échoué
+  sur l'absence de compteurs durables (`microphone_and_finalization.rs:351`,
+  log `20261103T001338306-cc2788864a7949a795a54f22417b1326`). Arrêt respecté.
+  Autorisation explicite reçue : un essai diagnostique des tests adapters,
+  puis seulement s'il passe la N1 complète et la reprise de revue 2a ; aucune
+  correction du test existant ou du produit autorisée par cet accord.
+  Diagnostic adapters PASS 379/0/124 ignorés, log
+  `20261103T033805875-eefe89ea84a749818799691aae52943b`. N1 suivante PASS
+  691/0/148, puis revue CLEAN, R2A-1 fermé après une correction. Échec micro
+  non reproduit lors du diagnostic et de la N1, cause inconnue ; aucun
+  contournement. Logs finaux scratch : Clippy
+  `20261103T033933636-c6900a60bdee4979b2a157f8f087fb10`, défaut
+  `20261103T033944593-2eb67fcbe3464e0d989fc6bef9fb12ec`, common
+  `20261103T034010047-28231f72f8724ce19067e0bbabf44b7f`, CPU
+  `20261103T034017059-e753d61a12814d3a95e70574d5c6644a`, Parakeet CPU
+  `20261103T034030601-aafa491ce12044e58da563db4b60fb00`.
+  Mutation F2 : `return None` du préfixe égal remplacé temporairement par
+  `Some(Err(...))` ; détecteur
+  `poll_consumes_matching_resume_segment_without_emitting_or_consuming_next_event`
+  vert avant (log `20261103T000540434-c39db7324b3e4ac0b9456809680105d5`),
+  rouge pendant (log `20261103T000557411-f96f2fd2dbf941a59419a9ebe727ef64`),
+  puis vert après restauration exacte ; aucun diff produit résiduel.

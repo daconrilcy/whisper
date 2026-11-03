@@ -14,6 +14,8 @@ use whisper_core::{
     ipc::{BackendKind, WorkerEvent},
 };
 
+mod resume_and_segments;
+
 static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
 
 struct TestRoot(PathBuf);
