@@ -1,6 +1,6 @@
 Avancée : familles 1 à 4 caractérisées et extraites, huit revues CLEAN, N1 finale verte (710 réussites, 148 ignorés).
 Blocage : aucun sur le candidat final A ; réserves historiques micro/PE consignées ci-dessous.
-Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
+Décision : clôture du sous-lot A et arrêt ; B, C et N2 restent à engager séparément, aucun push.
 
 # REFACTO-POLL — cartographie et plan accepté
 
@@ -367,7 +367,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T072434178-d24d09b39257420981bb97b2302401a9`, CPU
   `20261103T072446047-072a4dccdbb542ce9f825492fc0a65d1`, Parakeet CPU
   `20261103T072504838-c30adb9b06ca4df98f52d0f28e5713b2`.
-- 4b : blocs MP3/fenêtres extraits dans `poll/live_windows.rs`, 37/66 lignes
+- 4b (`804362de`) : blocs MP3/fenêtres extraits dans `poll/live_windows.rs`, 37/66 lignes
   physiques, lints locaux <=100/25 PASS. Identité MP3 redondante et branche
   unreachable conservées, sorties immédiates séparées du traitement final.
   Revue indépendante CLEAN sans correction ; diff 82 suppressions/135 ajouts,
@@ -382,3 +382,16 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T073102431-8d518de6f4fe47b981344ef17f37f595`, CPU
   `20261103T073115277-a87b49c8699c4a12904abf605dd314ed`, Parakeet CPU
   `20261103T073142298-a0312ed95b0747c8ac976c6ca65f1b04`.
+
+## Clôture de A
+
+[Bilan d'une page](REFACTO-POLL-A-BILAN.md) relu indépendamment CLEAN et figé
+à son commit de clôture. Archive :
+`target/parakeet-tests/refacto-poll-a/archive/REFACTO-POLL-A-logs-20261103.zip`,
+828 journaux, 1 529 749 octets ; nombre et SHA-256 de chaque entrée comparés
+aux sources par la session principale. SHA-256 de l'archive :
+`0D923DD18B9E31D860B496741342E2352A68A19810CE74EE2FC7C630A299FF44`,
+nombre/taille/hash d'archive aussi vérifiés par le relecteur documentaire.
+Aucune cible Cargo ni cache isolé propre au lot créé, aucune suppression de
+clôture ; caches partagés/persistant préservés, 620,77 Gio libres après
+archivage. Aucune poursuite B/C, recette N2, validation Windows ou publication.
