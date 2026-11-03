@@ -1,5 +1,5 @@
-Avancée : familles 1 à 3 caractérisées et extraites, N1 verte (702 réussites, 148 ignorés), six revues CLEAN.
-Blocage : aucun ; famille 4 reste à réaliser avant clôture de A.
+Avancée : familles 1 à 3 extraites et caractérisation 4a CLEAN, N1 verte (710 réussites, 148 ignorés).
+Blocage : aucun ; extraction 4b reste à réaliser avant clôture de A.
 Décision : démarrage du sous-lot A autorisé ; arrêt obligatoire à sa clôture, B et C restent à engager séparément.
 
 # REFACTO-POLL — cartographie et plan accepté
@@ -25,6 +25,14 @@ nouveaux fichiers sous `worker_ipc/runtime/poll/`, déclarations `mod`
 nécessaires, `docs/architecture/`. Les tests nouveaux sont sous `poll/`,
 dans des fichiers séparés. Aucun autre agent ne modifie `worker_ipc/`
 pendant le lot ; vérifier les activités concurrentes pertinentes avant écriture.
+
+Extension explicitement autorisée dans la même session pour 4a : dans
+`crates/whisper-adapters/src/archive.rs`, déclaration d'un module exclusivement
+`#[cfg(test)]` ; nouveau `crates/whisper-adapters/src/archive/test_support.rs`,
+helper remplaçant le handle MP3 par une ouverture en lecture seule du même
+fichier. Ce support provoque une vraie erreur I/O dans append_mp3_packet
+inchangé, sans nouveau champ/branche produit, permission/ACL ou modification
+du comportement compilé normalement. Aucun autre changement archive autorisé.
 
 Interdits : modifier un test existant, manifeste, Cargo.lock, signature publique
 ou autre module de production ; corriger un bug rencontré ; renommer,
@@ -332,7 +340,7 @@ qualification supplémentaire ni nouvel outillage de campagne.
   Condition restaurée exactement, détecteur vert dans la N1 finale. Une
   tentative de filtre individuel avait été refusée par la garde avant le
   test ; la preuve a utilisé la sélection N1 complète autorisée, garde inchangée.
-- 3b : ACK, attestation et Ready extraits dans `poll/readiness.rs`, handlers
+- 3b (`360ac380`) : ACK, attestation et Ready extraits dans `poll/readiness.rs`, handlers
   23/23/89 lignes physiques ; deux lints locaux <=100/25 PASS. Paramètres
   d'attestation regroupés sans clone/Box/allocation supplémentaire ; contrôles
   de sortie et appels conservés à leur emplacement. Revue indépendante CLEAN
@@ -344,3 +352,18 @@ qualification supplémentaire ni nouvel outillage de campagne.
   `20261103T042527759-eaf8f7faa9b341daad58b9191e75c0ee`, CPU
   `20261103T042530582-29ae6e3cb7704de094fad0671afda57d`, Parakeet CPU
   `20261103T042539271-e0b022d6d10f4671b59e97f1eebc2f1e`.
+- 4a : huit nouveaux tests ; helper archive exclusivement cfg(test) autorisé
+  séparément et ajouté sans changer append_mp3_packet. Revue CLEAN après une
+  correction R4A-1 (tail PCM 160, durable 0 avant poll puis 160 après erreur)
+  et R4A-2 (attendre la sortie réussie du faux worker avant lecture Stop).
+  N1 finale 710/0/148, Structure 906/906, SelfTest/PE/fmt/Clippy/diff-check PASS.
+  La preuve PE a été complétée par --no-run, scan des quatre harnais CPU et
+  cinq Parakeet CPU, puis leurs tests. Les preuves PE antérieures à ce
+  complément étaient partielles (harnais principal, ou binaire produit dans
+  le premier handoff 4a) ; aucune équivalence rétroactive n'est affirmée.
+  Derniers logs scratch : Clippy
+  `20261103T072347543-99c099b7364f44699dff833abeedf0e3`, défaut
+  `20261103T072358741-e6a2e970279d4c8fb107c0b5fb65a5b8`, common
+  `20261103T072434178-d24d09b39257420981bb97b2302401a9`, CPU
+  `20261103T072446047-072a4dccdbb542ce9f825492fc0a65d1`, Parakeet CPU
+  `20261103T072504838-c30adb9b06ca4df98f52d0f28e5713b2`.

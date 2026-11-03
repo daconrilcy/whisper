@@ -16,6 +16,7 @@ use whisper_core::{
 
 mod readiness_admission;
 mod resume_and_segments;
+mod window_confirmations;
 
 static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
 
