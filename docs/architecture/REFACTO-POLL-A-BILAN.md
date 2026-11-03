@@ -42,3 +42,5 @@ en famille 5.
 Aucune cible/cache isolé propre au lot ; caches partagés/persistant préservés.
 Aucune suppression de clôture ; 620,77 Gio libres après archivage.
 Ce bilan est figé à son commit de clôture.
+
+[Complément de levée des réserves](REFACTO-POLL-A-RESERVES.md)

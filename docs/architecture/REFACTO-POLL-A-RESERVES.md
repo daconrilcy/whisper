@@ -1,69 +1,43 @@
-Avancée : levée des réserves A demandée le 3 novembre 2026 ; deux corrections de tests explicitement autorisées.
-Blocage : vérifications et corrections à réaliser ; le bilan A figé n'est pas réécrit.
-Décision : correction de l'attente micro et nouvelle couverture GPU manuel, sans extraction B/C ni N2 ni push.
+Avancée : corrections autorisées revues CLEAN ; neuf reprises PE réussies ; N1 finale 711 réussites / 148 ignorés / zéro échec.
+Blocage : aucun constat courant ; l'attribution causale de l'incident micro ancien reste non établie.
+Décision : clôture de la levée technique des réserves A ; B, C, N2 et push non commencés.
 
-# REFACTO-POLL-A — complément de levée des réserves
+# REFACTO-POLL-A — complément du 3 novembre 2026
 
-## Périmètre accepté et plan d'exécution
+[Bilan historique figé](REFACTO-POLL-A-BILAN.md) : `918cb5fe`.
+Plan accepté : `5bd997b8` ; correctifs : `f58e39c0`, branche `refacto/poll`,
+worktree `C:/wt/poll`. Les anciennes constatations restent conservées.
 
-Demande : « fais les actions nécessaires pour lever toutes les réserves ».
-Accord complémentaire explicite : corriger uniquement l'attente bornée du test
-micro existant pour attendre aussi les compteurs durables ; ajouter un nouveau
-test du choix CPU après échec GPU manuel sous `poll/tests/` et son entrée au
-registre ; conserver le test GPU existant et ne pas commencer B/C.
+| Réserve | Action et résultat |
+| --- | --- |
+| Attente micro | Boucle bornée à 2 s attendant désormais compteurs, niveau et spectre ; délai et assertions inchangés. Défaut d'attente corrigé, test vert, revue CLEAN. |
+| Choix CPU après échec GPU manuel | [Nouveau test](../../crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/manual_gpu_choice.rs) : candidat valide, Failed corrélé du faux worker, Stop/Stopped et sortie, AwaitingCpuChoice, requête conservée, aucun CPU automatique. Ancien test GPU de préflight intact. |
+| Preuves PE partielles | Reprises datées sur les neuf révisions ci-dessous : tous les harnais contrôlés avant leurs tests, zéro échec. Couverture complétée sans reconstituer les anciens contrôles. |
+| Relances fmt antérieures | Écart historique consigné ; contrôles courants complets et correction relue. Aucune trace effacée, aucune dérogation permanente ajoutée. |
 
-Base de reprise : `918cb5fe`, branche `refacto/poll`, worktree `C:/wt/poll`.
-Chemins Rust autorisés :
-`crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs`
-(condition de la boucle d'attente uniquement), nouveaux tests sous
-`crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/`, déclaration de
-module nécessaire dans `poll/tests.rs`, nouvelles entrées uniquement dans
-`ci/tests-baseline.txt`. Aucun produit, manifeste, dépendance, ancien test GPU
-ou seuil de contrôle n'est modifié. Implémentation déléguée à rust_implementer,
-revue indépendante via rust_review_coordinator, deux cycles maximum.
+**Reprises PE.** Base `9cd15ca6`, puis `69fda611`, `c0456006`, `6ff324fc`,
+`2c90586e`, `df2fefb9`, `360ac380`, `69809a26`, `804362de`. Pour chacune :
+no-run gardé, scans des quatre harnais CPU avant 12 réussites/9 ignorés ;
+no-run puis scans des cinq harnais Parakeet avant 26 réussites/11 ignorés.
+Total : **81 scans PASS, 342 réussites workers / 180 ignorés**. Révisions,
+commandes, codes et journaux figurent dans `replay-<révision>.stdout.log`.
+Sources workers/core/manifestes/gardes identiques sur l'intervalle ; retour
+sur la branche sans changement d'historique avant les corrections.
 
-1. **Diagnostic micro minimal.** Une sélection adapters sous la garde sur le
-   code d'origine ; lecture du résultat, sans prendre un succès pour une preuve
-   de robustesse. Hypothèse étayée : la boucle attend meter/spectrum mais peut
-   s'arrêter avant le compteur asynchrone. Budget diagnostic : trois essais ou
-   trente minutes, aucun outillage supplémentaire.
-2. **Complément PE par reprise.** Worktree propre, une seule activité d'écriture
-   et aucun Cargo actif : la session principale peut sélectionner successivement
-   en mode détaché la base `9cd15ca6` et les huit commits Na/Nb de A, puis remet
-   la branche de reprise. Pour chaque révision : no-run gardé CPU/Parakeet CPU,
-   scan de tous leurs harnais avant leurs tests, sorties/codes conservés. Les
-   entrées workers/core/manifestes/gardes sont identiques entre ces révisions ;
-   la reprise produit une preuve nouvelle datée, pas un ancien contrôle fictif.
-   Aucun nouveau worktree, aucune modification de source ou d'historique.
-3. **Corrections ciblées.** Ajouter saw_counters à l'attente existante en gardant
-   son délai et ses assertions ; nouveau test traversant poll après un Failed
-   GPU manuel corrélé, son Stop/sortie worker puis AwaitingCpuChoice, avec états
-   et absence de lancement CPU automatique vérifiés. Aucune correction produit.
-4. **Validation et revue.** N1 permanente complète sous garde : fmt, Clippy,
-   Structure/SelfTest, tests défaut/common/CPU/Parakeet ; PE de tous les harnais
-   avant les deux sélections workers. Référence A : 710 réussites/148 ignorés.
-   Seuls les nouveaux tests augmentent ce compte ; aucun test n'est perdu.
-   Si un échec inattendu existant/produit/préflight apparaît, arrêt et arbitrage.
-5. **Clôture.** Consigner résultats, portée de la levée et limites historiques
-   ici, archiver les petits journaux avec vérification nombre/SHA-256 ; ajouter
-   seulement un lien à ce complément dans le bilan figé ; commit local et arrêt.
+**Validation actuelle.** Défaut 662/127 ignorés, common 11/1, CPU 12/9,
+Parakeet CPU 26/11 : **711 réussites / 148 ignorés**, zéro échec. Fmt, Clippy,
+Structure 907/907, SelfTest 33/64, fixtures PE 4/15 et neuf harnais : PASS.
+Revue indépendante CLEAN, aucun constat ouvert. Aucun code produit modifié ;
+une seule condition du test micro et un nouveau test GPU, plus raccord/registre.
 
-Racine des journaux/temporaires : `target/parakeet-tests/refacto-poll-reserves/`.
-Garde N1 existante, cible Cargo partagée et cache persistant existants préservés,
-offline/locked et environnement isolé ; espace libre vérifié avant campagne.
+**Portée.** Le diagnostic initial adapters a passé (398 réussites/124 ignorés).
+Il ne prouve pas la cause de l'ancien échec. La correction supprime le défaut
+d'attente identifié, sans attribuer rétroactivement cet incident à ce défaut.
+Les reprises PE sont de nouvelles validations. Aucun matériel GPU, modèle
+natif ou fenêtre Windows qualifié ici ; témoin PE réel facultatif non exécuté.
 
-## Critères de fermeture
-
-- Micro : attente des trois observations, borne inchangée, aucune assertion
-  supprimée ; revue de la synchronisation et N1 verte, cause historique distinguée
-  de la correction du défaut d'attente observé dans le test.
-- GPU manuel : véritable branche d'attente de choix couverte par nouveau test,
-  ancien test de préflight inchangé ; aucune extraction de famille 5.
-- PE : résultats nouveaux attribués aux neuf révisions, harnais intégralement
-  contrôlés avant exécution ; aucune qualification rétroactive des anciens logs.
-- Écarts fmt : faits historiques conservés, validations courantes complètes et
-  arrêt sur échec appliqué ; aucun effacement de trace ou dérogation permanente.
-
-## Résultats
-
-À compléter par la session principale après les opérations autorisées.
+**Rétention.** [Journaux](../../target/parakeet-tests/refacto-poll-reserves/archive/REFACTO-POLL-A-reserves-20261103.zip) :
+261 fichiers, arborescence conservée, nombre et SHA-256 de chaque entrée
+vérifiés ; archive 357 709 octets. Aucune suppression de clôture ; caches
+partagés/persistant préservés, 620,77 Gio libres après archivage.
+Ce complément est figé à son commit de clôture.
