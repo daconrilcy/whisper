@@ -334,7 +334,7 @@
             thread::sleep(Duration::from_millis(10));
         }
         let telemetry_deadline = Instant::now() + Duration::from_secs(2);
-        while Instant::now() < telemetry_deadline && !(saw_meter && saw_spectrum) {
+        while Instant::now() < telemetry_deadline && !(saw_counters && saw_meter && saw_spectrum) {
             runtime
                 .live
                 .as_mut()
