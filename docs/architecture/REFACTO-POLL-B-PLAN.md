@@ -1,6 +1,6 @@
-Avancée : 5a et 5b CLEAN, deux mutations F5 détectées ; N1 finale 721/148.
-Blocage : aucun sur la famille 5 ; support de preuve d'ordre F6 puis 6a/6b à réaliser.
-Décision : commiter 5b puis poursuivre B autorisé ; pas de C, N2 sur autorisation distincte.
+Avancée : 6a CLEAN, treize nouveaux tests verts, deux mutations détectées ; N1 734/148.
+Blocage : aucun sur la caractérisation ; extraction 6b à réaliser avec seuils et ordre préservés.
+Décision : commiter 6a puis extraire 6b ; pas de C, N2 seulement après autorisation distincte.
 
 # REFACTO-POLL — sous-lot B
 
@@ -445,6 +445,135 @@ R-6SUP-1 clos et V-6SUP-1 satisfait. Aucune nouvelle requête ouverte.
 Les commits 5a/5b déjà CLEAN restent inchangés. Le support sera commité
 séparément avant toute caractérisation 6a.
 
+Support commité dans `692ce032d59530538fa90acb387502971e29df04`.
+
+## Atteignabilité F6 et arbitrage avant 6a
+
+Audit lecture seule des affectations de recovery/barrier, du transport et
+de la confirmation. Dans worker_start.rs, les passages live vers
+AutoRetryPending/AwaitingChoicePending affectent simultanément
+`barrier_m = Some(inference_sequence.saturating_sub(1))` et ferment
+l'admission. La séquence d'inférence ne décroît pas ; le démarrage CPU
+remet ensemble recovery à None et barrier_m à None. Les erreurs de transport
+live passent par ce même traitement de panne. Une barrière absente ou
+supérieure au watermark n'est donc pas produite par ces parcours normaux.
+
+La confirmation transmet à persist_window_finished le compteur durable
+réel, et l'archive refuse un fragment au-delà de ce compteur avant de
+modifier le préfixe confirmé. Le compteur durable ne décroît pas :
+`confirmed <= durable` reste invariant. Les branches négatives de barrière
+et couverture sont défensives ; aucun état incohérent n'est créé par les
+parcours normaux examinés. Les erreurs des gates de campagne sont également
+inaccessibles en N1 standard, où ces gates sont des no-op.
+
+Une mutation sur un préfixe valide qui saute toute la reprise et publie
+serait détectable, mais ne prouverait pas spécifiquement le rejet d'une
+barrière invalide. Supprimer seulement le contrôle de barrière entraîne
+une reprise CPU, pas la publication exigée. Ne pas présenter ces variantes
+comme preuve suffisante du critère demandé.
+
+Proposition d'exception limitée, soumise à l'utilisateur : dans les seuls
+nouveaux tests sous poll/, construire normalement le préfixe durable et
+confirmé, puis altérer sous cfg(test) l'état privé de fixture pour une
+barrière absente/hors borne ou une couverture supérieure au durable réel.
+Aucun champ, helper, hook ou branche de production ajouté. Chaque test
+défensif annonce cette corruption contrôlée et attend StorageCorrupt sans
+publication. Pour la mutation obligatoire, faire passer le cas à barrière
+invalide vers la publication existante tout en gardant le préfixe publiable ;
+le test doit constater son échec, avec Published et exports effectivement
+créés sous mutant, puis restauration exacte des sources. Les autres branches
+inatteignables restent documentées sans fixture artificielle.
+
+Alternative : maintenir strictement l'interdiction des fixtures artificielles
+et adapter explicitement le critère de mutation de barrière ; ne pas lui
+attribuer une preuve invalide. Aucun test 6a écrit ni campagne lancée pendant
+cette vérification d'atteignabilité. Worktree propre après le commit support.
+
+**Arbitrage reçu :** l'utilisateur autorise ces seules fixtures défensives
+et la suite 6a/6b. Exception limitée aux nouveaux tests sous poll/ : état
+privé de fixture volontairement incohérent pour barrière absente/hors borne
+ou couverture au-delà du durable, sans code de production ajouté. Les tests
+attendent StorageCorrupt et l'absence de publication ; leur nature défensive
+est annoncée explicitement, distincte des parcours normaux. Les autres
+branches inatteignables restent documentées sans test artificiel. L'exigence
+de mutation produisant une publication malgré barrière invalide est maintenue.
+
+## Oracle d'ordre M1 confirmé avant écriture 6a
+
+Le premier probe envisagé live/transport n'est pas utilisable : la mise en
+attente des Stopped corrélés attend déjà `transport.try_wait() != None`.
+Le worker est donc sorti avant le nettoyage. Aucun observer transport ou
+processus auxiliaire n'est ajouté pour contourner ce contrat.
+
+L'alternative live/live_archive reste dans la mutation autorisée. Dans
+LiveArchive::prepare, le verrou de groupe est testé avant la création des
+fichiers pending ; le test existant de writer unique couvre déjà le conflit
+dans un même processus. Pendant le callback PCM, une préparation du même
+groupe renvoie `Recoverable: another live archive writer owns the passage`
+tant que live_archive existe. Après inversion des retraits, le verrou est
+libéré ; la préparation échoue plus loin sur create_new existant, avec une
+autre erreur. Le callback conserve le booléen de conflit, et le test l'exige
+après poll. Cette preuve porte sur les durées de vie réelles, sans trace
+textuelle des affectations ni nouveau point de production.
+
+## État d'exécution 6a
+
+Treize nouveaux tests dans `poll/tests/active_live_stop.rs`, déclaration de
+module et treize entrées nouvelles du registre. Scope de production intact.
+SelfTest 35/79 et Structure **930 tests/930 entrées** réussis. Arrêt sur
+fmt --check : la seule différence demandée est le déplacement de
+`mod active_live_stop;` avant `mod manual_gpu_choice;` dans poll/tests.rs.
+Aucun format automatique appliqué, aucune édition ou relance après ce
+résultat ; aucun Clippy ou test candidat exécuté, aucune mutation.
+Preuve : `6a-fmt/scratch/20261103T110731562-16cdf2f322f24f5cb0fcf4b7edada0b9/`.
+Revue initiale en lecture seule sur le candidat gelé. Correction proposée :
+ce seul déplacement, puis reprise des vérifications, mutations et revue.
+
+Autorisation précise reçue pour le déplacement de déclaration uniquement,
+puis la reprise 6a. Déplacement appliqué, candidat gelé de nouveau pour
+les contrôles sous racines fraîches `6a-retry-*` et la revue en lecture seule.
+
+Baseline 6a verte : SelfTest 35/79, Structure 930/930, fmt, Clippy workspace/
+all-targets, adapters (342 réussites unitaires, zéro échec, 48 ignorés) et
+suite N1 complète. Clippy signale 39 avertissements adapters, dont un import
+LiveRequest inutilisé dans le nouveau fichier ; aucun allow ni référence
+ajouté pour le masquer. Revue initiale : aucun défaut de code, seulement
+les prérequis de preuves M1/M2 et N1 finale.
+
+Mutations F6 exécutées séparément sous garde, puis restaurées exactement :
+
+- **M1**, inversion live_archive/live dans le nettoyage de failure mémorisée :
+  seul `poll_stopped_live_failure_keeps_archive_lock_until_writer_shutdown`
+  échoue, sur le booléen externe indiquant que le verrou n'est plus détenu.
+  Harnais : 341 réussites, un échec, 48 ignorés. Preuve
+  `6a-m1-live-archive/scratch/20261103T111145504-75c404ca2c254725b03ac3b8f2dd4273/`.
+- **M2**, laisser le seul watermark présent mais hors borne atteindre la
+  publication : seul `poll_stopped_live_defensive_barrier_past_sequence_rejects_publishable_prefix`
+  échoue après **Ok(Published), artifacts_published=true**. Harnais :
+  341 réussites, un échec, 48 ignorés. Preuve
+  `6a-m2-past-barrier/scratch/20261103T111322646-3d88dde2bf9f4d0da16634b1bd148d18/`.
+  Une première variante plus large détectait également l'absence de barrière ;
+  elle a été restaurée puis affinée pour isoler le cas hors borne.
+
+Ces échecs sont les effets exigés par les mutations, aucun échec étranger
+signalé. Production restaurée à HEAD, diff-check réussi. N1 après restauration
+en cours avant fermeture indépendante et commit Na6 ; aucune extraction.
+
+N1 après restauration terminée : SelfTest 35/79, Structure 930/930, format,
+workspace Clippy avant retrait du seul import inutilisé ; après ce retrait,
+format et Clippy ciblé adapters/all-targets de nouveau verts, aucun warning
+nouveau dans le fichier 6a. Suite finale `6a-final-clean-*` : défaut 685/127,
+common 11/1, CPU 12/9, Parakeet CPU 26/11, soit **734 réussites et 148 ignorés**.
+Les treize tests sont inclus et verts dans le défaut. Production identique
+à HEAD, diff-check réussi. Une répétition adapters-confirm a seulement servi
+à obtenir explicitement le code de sortie après une session initiale dont
+le retour n'était pas affiché ; aucun échec de la première n'était signalé.
+Preuves finales transmises au même reviewer, sans nouveau cycle de code.
+
+Verdict final 6a : **CLEAN**, deux revues et une correction ; V-6A-1,
+V-6A-2 et V-6A-N1 satisfaits, aucun constat ou demande ouvert. L'avis
+ne clôt pas B et n'est pas présenté comme validation N2.
+
 ## Famille 5 — Stop avant activation et reprise d'import
 
 **5a.** Ajouter des tests séparés sous `worker_ipc/runtime/poll/`, verts sur
@@ -493,12 +622,14 @@ Deux mutations locales non commitées obligatoires :
 `staging/test_support.rs`. Il envelopperait le JoinHandle existant du vrai
 PcmWriter : attendre sa terminaison, puis appeler un observateur avant le
 retour de son vrai Drop. Aucun nouveau champ ni changement de writer_loop,
-Drop ou comportement compilé normalement. Un faux worker ayant envoyé Stopped
-resterait disponible pour répondre à une requête fichier sous le TEMP isolé
-du lot. Lors du retrait de live, l'observateur attendrait cette réponse avec
-un délai borné. L'inversion avec le retrait de transport tuerait et attendrait
-le worker avant cette observation, faisant échouer le test. Vérifier la réponse
-écrite par le worker, pas seulement la présence de la requête. Ce support fera
+Drop ou comportement compilé normalement. Le probe de worker initialement
+envisagé ne peut pas distinguer live/transport : poll diffère Stopped jusqu'à
+la sortie du processus. L'oracle retenu utilise l'API d'archive existante :
+pendant le retrait de live, une seconde préparation du même groupe doit
+refuser le verrou détenu par live_archive. Inverser live_archive et live
+libère ce verrou avant l'observation, et le test échoue après poll sur un
+résultat externe du callback. Ces deux retraits sont dans la liste autorisée
+pour M1 ; aucun nouveau point d'injection n'est ajouté. Ce support fait
 l'objet d'un changement séparé de Na, relu indépendamment, après réussite
 des 100 répétitions. Aucun nouveau trait n'est autorisé par cette extension.
 

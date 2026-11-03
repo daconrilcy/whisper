@@ -14,6 +14,7 @@ use whisper_core::{
     ipc::{BackendKind, WorkerEvent},
 };
 
+mod active_live_stop;
 mod manual_gpu_choice;
 mod readiness_admission;
 mod resume_and_segments;
