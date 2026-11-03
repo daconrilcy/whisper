@@ -835,6 +835,54 @@ Preuves : `target/n2-native/logs/<profil>-<identifiant>/`, et
 seuls `models/` et `sound example/` restent non suivis. Les trois corps N2
 restants sont NON EXÉCUTÉS avec succès ; aucune qualification N2 complète.
 
+## Reprise autorisée et résultats finaux N2
+
+Après l'arrêt, trois vérifications en lecture seule ont été autorisées et
+effectuées : reçus/observateur, chemins/attributs, chronologie/processus.
+Aucune jonction sur les chemins concernés. Le dossier reservations a conservé
+LastWrite 09:20:36 UTC et porte LastAccess 15:33:48 UTC ; son fichier JSON
+conserve LastWrite 09:20:36 UTC. Ces éléments ne prouvent pas l'origine des
+événements. La garde observe LastWrite/Size/noms, pas LastAccess. L'événement
+reste d'origine inconnue ; aucune modification de garde ou de preuve.
+
+L'utilisateur a ensuite expressément autorisé les trois corps restants,
+garde inchangée, nouveaux journaux seulement sous target/n2-native, sans
+parcours récursif des anciennes preuves pendant les essais et arrêt sur échec.
+Cette reprise est réussie. L'observation de processus git add lors du départ
+n'établit aucun conflit pertinent ni lien avec l'incident ; aucun processus
+Git interrompu et aucune exemption déduite de son origine.
+
+| Cas B | Corps actuel | Dernière référence historique | Reçu |
+| --- | ---: | ---: | --- |
+| Import français long | 168,57 s | 175,79 s, 1d30690e | PersonalLongCpu-20f0b556fa8247809038aa986b07ad0a |
+| Import anglais long | 187,17 s | 195,44 s, 1d30690e | même profil, deuxième corps |
+| Auto sans candidat GPU | 41,55 s | 26,14 s, 5a53d776 | PersonalAutoFallback-d2da2d209c86464782b55a25767721e1 |
+
+Les sept corps autorisés ont donc un reçu PASS : deux pré-B, cinq B. Les
+tests longs et Auto vérifient leurs publications ; aucune WER ni écoute
+humaine ajoutée. L'écart Auto de +15,41 s est rapporté sans cause établie,
+sans conclusion statistique ou promesse de vitesse. L'incident interrompu
+reste conservé ; il n'est pas transformé rétrospectivement en test réussi.
+
+N1 de clôture sous closing-* : défaut 685/128, common 11/1, CPU 12/9,
+Parakeet CPU 26/11, soit 734 réussites, 149 ignorés, zéro échec ; Structure
+931/931, silent-return-patterns=0. Source Rust inchangée depuis 1be46656.
+Archive des petites preuves :
+`target/parakeet-tests/refacto-poll-b/archive/REFACTO-POLL-B-logs-20261103.zip`,
+1 517 entrées, 20 320 244 octets sources, 3 611 058 octets compressés ; nombre
+et SHA-256 de chaque entrée vérifiés, arborescence relative conservée.
+
+La commande de suppression du seul cache isolé N2 a été refusée par l'outil,
+motif « blocked by policy », avant exécution. Aucun contournement. Contrôle
+en lecture seule : `C:/wt/poll/target/n2-native/cargo-home`, 22 419 fichiers,
+651 937 640 octets, aucun reparse dans ses ancêtres ou contenu, aucun processus
+Cargo/rustc/rustdoc/cmake/ninja/cl/worker actif. Le cache est conservé ;
+commande utilisateur de suppression du seul chemin :
+`Remove-Item -LiteralPath 'C:\wt\poll\target\n2-native\cargo-home' -Recurse -Force`.
+Recontrôler l'absence de campagne active immédiatement avant exécution.
+Les caches partagés et persistants, modèles, corpus, WAV, sorties et preuves
+restent conservés. Aucune suppression effectuée ; espace libre : 586,41 Gio.
+
 ## Dette explicitement demandée
 
 Le helper d'archive A, `archive/test_support.rs`, remplace sous `cfg(test)` le
