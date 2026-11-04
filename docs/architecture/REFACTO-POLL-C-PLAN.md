@@ -1,5 +1,5 @@
-Avancée : 7a commis ; extraction 7b validée CLEAN après deux cycles de revue.
-Blocage : aucun pour 7b ; famille 8 et clôture C restent à réaliser.
+Avancée : 7a/7b commis ; 8a validé après fermeture ciblée de la dernière réserve.
+Blocage : aucun pour 8a ; extraction 8b et clôture C restent à réaliser.
 Décision : exécuter C selon le plan accepté, sans simplification ni fusion, en commits locaux seulement.
 
 # REFACTO-POLL — sous-lot C
@@ -751,3 +751,180 @@ cycle maintenues : ordre, sorties et nettoyages conservés. PE supplémentaire :
 non concerné (aucun worker, manifeste, lock, .cargo ou script de compilation
 touché). Le warning large_enum_variant demeure non bloquant ; poll reste
 transitoirement à 242 lignes jusqu'à 8b. Cette validation ne clôt pas C.
+
+## Caractérisation 8a — en cours
+
+7b commité localement sous 985f40e9, trois chemins exacts. Même implémenteur
+chargé de caractériser le routage restant et le traitement final commun sur
+leur logique inchangée : mapping branches/tests parent existants/lacunes,
+puis nouveaux fichiers sous poll/tests/, déclarations et nouvelles entrées
+de registre seulement. Aucun code produit, test existant ou garde modifié ;
+arrêt si nouveau point d'injection requis. N1 complète puis revue indépendante
+8a, deux cycles maximum. Les livrables 7a et 7b restent clos.
+
+Mapping initial 8a de l'implémenteur : Progress/observations/phases et
+Stopped/fermeture phases ont des tests parent existants, mais le drapeau de
+télémétrie après résultat non terminal et l'état après Stopped normal restent
+à isoler. Failed corrélé est testé surtout sur les phases, pas sur l'erreur
+exacte et l'état ; Failed résiduel et événement inattendu exigent d'abord
+la vérification d'atteignabilité après filtrage. L'erreur worker corrélée
+pendant live manque de caractérisation parent sur stop capture/drain/failure/
+Stop transport/None puis terminal. Les sorties immédiates famille 7 sont
+couvertes ; ajouter l'oracle du passage au traitement commun si nécessaire.
+Supports existants uniquement ; pas d'état impossible ou nouveau seam pour
+forcer un ordre d'effacement non observable. Limites à documenter au lieu
+d'inventer un test artificiel.
+
+Joignabilité relevée : Failed corrélé atteint handle_worker_failure ; Failed
+identifié étranger est filtré, Failed partiel consommé par ProtocolMismatch.
+L'arm Failed résiduel tardif est donc inatteignable, conservé sans test
+artificiel. CudaAvailable sans identité atteint le fallback StaleResponse.
+L'ordre exact des quatre retraits du Stopped normal n'est pas observable
+par les supports existants et reste un objet de revue du déplacement.
+
+Cinq cas ajoutés dans le nouveau terminal_routing.rs, déclarés et enregistrés :
+Failed corrélé, CudaAvailable inattendu, Stopped normal, erreur live différée,
+Progress puis télémétrie. Aucun code produit ni test existant modifié.
+SelfTest 35/79 et Structure 951/951 passent (166 native-gated recensés,
+zéro retour silencieux). Format s'arrête : mod terminal_routing doit suivre
+mod stop_recovery, plutôt que mod direct_live_poll. Aucun Clippy ni test
+Cargo lancé ; aucune correction ou relance depuis l'arrêt. Preuve :
+8a-fmt/scratch/20261104T091631861-f93937c3d3a1493dbd2c9307eba99234/.
+Proposition : déplacer cette seule déclaration puis reprendre N1 et revue.
+
+L'utilisateur autorise le seul déplacement de mod terminal_routing après
+mod stop_recovery, puis la reprise N1 et revue indépendante 8a. Même auteur,
+corps des tests et production inchangés, nouvelles racines 8a-orderfix-*,
+arrêt au premier nouvel échec.
+
+Reprise 8a-orderfix : SelfTest 35/79, Structure 951/951 et format réussis.
+Clippy s'arrête Cargo 101 sur E0505, terminal_routing.rs:188 :
+LiveArchive::prepare(&request.destination, request) emprunte le chemin en
+déplaçant la requête. Aucun test N1 lancé, aucun changement après arrêt.
+Preuve : 8a-orderfix-clippy/scratch/20261104T091737611-dcb857893e7f477a818b6f26ef66c8d3/.
+Correction proposée : passer request.destination.clone() au lieu de
+&request.destination, suivant les fixtures d'archive existantes, sans modifier
+les assertions ou le produit ; reprise N1 et revue après arbitrage.
+
+L'utilisateur autorise cette seule copie du chemin de destination dans le
+nouveau test, puis N1 et revue indépendante 8a. Même implémenteur, aucune
+assertion ni production modifiée, nouvelles racines 8a-borrowfix-*, arrêt
+au premier nouvel échec.
+
+Après correction d'emprunt : SelfTest 35/79, Structure 951/951, format et
+Clippy réussis. La sélection défaut s'arrête Cargo 101 : 359 réussites,
+3 échecs, 49 ignorés dans le harnais adapters ; les sélections suivantes
+ne sont pas lancées. Nouveaux cas en échec :
+poll_nonterminal_progress_returns_before_due_live_meter_telemetry (Meter
+attendu au poll suivant), poll_normal_stopped_releases_pending_attempt_state
+(réouverture StorageUnavailable, pending passage file exists),
+poll_live_failed_drains_and_sends_stop_before_deferring_failure
+(stop_requested attendu true, observé false). Import BackendKind inutilisé
+également signalé. Preuve :
+8a-borrowfix-default/scratch/20261104T091856496-278dc13aeacc46bfb026b10ced447f91/.
+Aucune correction ou relance depuis l'arrêt. Diagnostic limité à trois
+vérifications statiques et revue indépendante 8a cycle 1 engagés pour
+confronter les oracles au comportement réel et grouper les corrections
+éventuelles avant arbitrage ; aucun échec présenté comme test passé.
+
+Revue 8a cycle 1 : R-8A-1 à 3 bloquants car Na doit être vert sur la logique
+d'origine ; aucun défaut de production établi. Corrections proposées sur
+les nouveaux tests seulement :
+- R-8A-1 : compiler/attacher le faux worker avant publication de la mesure,
+  puis prouver son Meter frais et conserver Progress/Meter corrélés et les
+  assertions telemetry_due. latest_at rejette les snapshots après 500 ms ;
+  la péremption pendant rustc est plausible d'après le code, non mesurée.
+- R-8A-2 : remplacer la seconde préparation d'archive par acquisition directe
+  du verrou group-<job>.writer.lock après retrait, sans supprimer le pending ;
+  conserver toutes les assertions d'état final.
+- R-8A-3 : vérifier probe valide avant puis invalidée après poll et flag
+  stop_requested=false exact ; conserver None, erreur, drain et Stop corrélé.
+V-8A-MATRIX reste ouvert : ajouter la vérification parent du terminal après
+le Stop et l'erreur live différée, au lieu de s'arrêter au marqueur Stop.
+Le Failed tardif est confirmé inatteignable, CudaAvailable testable. Retrait
+de l'import BackendKind inutilisé proposé dans le nouveau fichier. Après
+accord : N1 complète et seconde revue, aucun correctif produit ni support
+nouveau de production. Aucune correction encore appliquée.
+
+L'utilisateur autorise explicitement ce correctif groupé, limité aux nouveaux
+tests : fraîcheur de télémétrie, acquisition directe du verrou, invalidation
+réelle du probe, terminal ultérieur après Stop via supports existants et
+retrait de l'import inutilisé. Les identités, erreurs, drain et nettoyages
+restent stricts. Même implémenteur, production inchangée sur 985f40e9 ; N1
+complète puis seconde et dernière revue 8a, arrêt au premier nouvel échec.
+
+Correctif appliqué au seul nouveau terminal_routing.rs : snapshot publié
+après compilation du faux worker, verrou acquis directement par try_lock
+après nettoyage (pending préservé), probe valide avant puis invalidé après,
+flag false exact, import inutilisé retiré. Le faux worker reçoit Stop puis
+termine ; Stopped corrélé est injecté par l'API de test existante, et le
+parent poll restitue l'erreur différée avec les mêmes job/génération/message,
+puis retire live/transport/active/live_archive.
+
+Preuves sous 8a-reviewfix-* : SelfTest 35/79, Structure 951/951 (166
+native-gated recensés), format, Clippy et les cinq nouveaux tests passent.
+N1 : défaut 705/128, common 11/1, CPU 12/9, Parakeet CPU 26/11, soit
+754 réussites, zéro échec et 149 ignorés, sans sélection adapters doublée.
+Candidat figé transmis au même reviewer pour la seconde et dernière passe
+8a : R-8A-1 à 3, V-8A-N1 et V-8A-MATRIX. Aucun code produit modifié.
+
+### Matrice courante famille 8
+
+Tous les nouveaux tests ci-dessous résident dans poll/tests/terminal_routing.rs
+et traversent le parent poll ; leurs résultats verts sont dans 8a-reviewfix-default.
+
+| Branche | Test | Oracle et limite |
+| --- | --- | --- |
+| Progress et traitement final non terminal | poll_nonterminal_progress_returns_before_due_live_meter_telemetry | Progress exact, telemetry_due positionné, Meter frais au poll suivant puis flag effacé ; capture synthétique. |
+| Stopped normal | poll_normal_stopped_releases_pending_attempt_state | Stopped corrélé, états retirés, verrou acquis directement ; l'ordre des retraits relève de la revue du diff. |
+| Failed corrélé | poll_correlated_failed_returns_error_and_releases_attempt | Identité/erreur attendues et retrait de la tentative. |
+| Événement inattendu | poll_unexpected_identity_free_event_returns_stale_response | CudaAvailable sans identité produit StaleResponse, état conservé selon le comportement actuel. |
+| Erreur live différée puis terminal | poll_live_failed_drains_and_sends_stop_before_deferring_failure | None initial, probe invalidé, drain durable 320, erreur mémorisée, Stop reçu réellement ; Stopped corrélé par support existant puis erreur terminale exacte et nettoyage au parent. |
+| Failed résiduel tardif | Aucun test artificiel | Inatteignable après les filtres et le traitement amont des identités partielles ; branche conservée. |
+
+Les sorties immédiates et leurs priorités restent protégées par les tests
+7a inchangés ; leurs oracles ne sont pas remplacés par des tests de helpers.
+
+### Verdict 8a après deux cycles
+
+Le reviewer ferme R-8A-1 à 3, V-8A-N1 et V-8A-MATRIX. Cinq nouveaux tests
+passent ; N1 754 réussites, zéro échec, 149 ignorés ; Structure 951/951.
+Statut : LIVRÉ AVEC RÉSERVES, pas de commit 8a ni extraction 8b.
+
+R-8A-4 IMPORTANT reste ouvert : le faux worker écrit son marqueur Stop avant
+son return. Le parent attend seulement ce marqueur puis injecte Stopped et
+exige le terminal au premier poll. Or le processus peut encore être vivant ;
+la vraie barrière try_wait impose alors légitimement None. Course constatée
+statiquement, sans nouvel échec observé ni relance. Le marqueur n'est pas
+une preuve de sortie effective du processus.
+
+Correction minimale proposée : synchroniser le nouveau test sur la sortie
+effective du faux processus avec attente bornée et traitement des erreurs,
+puis conserver l'injection Stopped corrélée et l'assertion terminale stricte,
+ainsi que marqueur Stop, erreur et nettoyage. Aucun changement produit ou
+délai accru. La limite de deux cycles n'est pas remise à zéro : correction,
+N1 et UNE vérification indépendante supplémentaire ciblée sur R-8A-4
+nécessitent une décision exceptionnelle explicite ; aucun travail engagé
+sur cette proposition avant arbitrage.
+
+L'utilisateur autorise cette correction et l'unique vérification ciblée :
+attendre la sortie effective du faux worker de façon bornée avant Stopped,
+sans augmenter le délai ni assouplir les assertions ; N1 complète puis même
+reviewer sur R-8A-4 seulement. Deux cycles antérieurs conservés, aucune
+remise à zéro, aucun code produit changé. Même implémenteur, nouvelles
+racines 8a-exitfix-*, arrêt au premier échec ; 8b reste suspendu.
+
+Correction appliquée au seul nouveau test : après le marqueur, la même
+échéance totale de 3 secondes couvre l'attente try_wait jusqu'à Some(status),
+erreur et timeout font échouer, status.success exigé avant Stopped injecté.
+Assertions terminales inchangées. Preuves 8a-exitfix-* : SelfTest 35/79,
+Structure 951/951, format et Clippy réussis ; N1 défaut 705/128, common11/1,
+CPU12/9, Parakeet26/11, soit 754 réussites, zéro échec, 149 ignorés.
+Candidat figé transmis pour l'unique vérification ciblée R-8A-4 autorisée,
+sans nouvelle revue générale ; aucune production modifiée.
+
+Le même reviewer ferme R-8A-4 : try_wait fournit le vrai ExitStatus avant
+Stopped, erreurs/timeout/statut sont vérifiés dans la même échéance 3 s,
+assertions terminales conservées. N1 754/149/0 relue, Structure 951/951,
+Clippy terminé. Aucun nouveau cycle général ; tous les constats 8a sont
+fermés. Commit local 8a puis extraction 8b désormais possibles selon le plan.

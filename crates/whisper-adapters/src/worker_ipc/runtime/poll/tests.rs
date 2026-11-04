@@ -25,6 +25,7 @@ mod parakeet_poll;
 mod readiness_admission;
 mod resume_and_segments;
 mod stop_recovery;
+mod terminal_routing;
 mod transport_poll;
 mod window_confirmations;
 
