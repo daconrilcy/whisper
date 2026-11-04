@@ -48,7 +48,8 @@ Diagnostic uniquement, par `rust_implementer` :
 
 1. `crates/whisper-adapters/src/lib.rs` : déclarer le module de diagnostic natif.
 2. `crates/whisper-adapters/src/native_timing.rs` (nouveau) : traces structurées
-   opt-in, sous `native-tests` seulement ; absent du produit par défaut.
+   opt-in, appels produit sous `native-tests` seulement ; absent du produit par
+   défaut, module également compilable sous cfg(test) pour ses tests unitaires.
 3. `crates/whisper-adapters/src/native_timing/tests.rs` (nouveau si nécessaire) :
    tests unitaires séparés des fonctions pures de sérialisation/activation/racines,
    sans changer l'environnement global des tests ni modifier une politique produit.
