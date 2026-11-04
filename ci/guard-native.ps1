@@ -1479,18 +1479,36 @@ function Start-WatchState([object[]]$Specs) {
     return [pscustomobject]@{ queue=$queue; watchers=$watchers; subscriptions=$subscriptions }
 }
 
+function Get-WatcherObservation([object]$EventArgs, [string]$WatcherRoot) {
+    $isFileEvent = $EventArgs -is [IO.FileSystemEventArgs]
+    $isRename = $EventArgs -is [IO.RenamedEventArgs]
+    $name = if ($isFileEvent) { $EventArgs.Name } else { $null }
+    $oldName = if ($isRename) { $EventArgs.OldName } else { $null }
+    return [ordered]@{
+        watcher_root=$WatcherRoot; args_type=$EventArgs.GetType().FullName
+        name_applicable=$isFileEvent; raw_name=$name
+        name_is_null=($isFileEvent -and $null -eq $name)
+        name_is_empty=($isFileEvent -and $null -ne $name -and $name.Length -eq 0)
+        old_name_applicable=$isRename; raw_old_name=$oldName
+        old_name_is_null=($isRename -and $null -eq $oldName)
+        old_name_is_empty=($isRename -and $null -ne $oldName -and $oldName.Length -eq 0)
+    }
+}
+
 function Receive-WatcherEvents([object]$State) {
     if ($null -eq $State) { return }
     $subscribers = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($id in $State.subscriptions) { [void]$subscribers.Add([string]$id) }
     foreach ($eventRecord in @(Get-Event -ErrorAction SilentlyContinue | Where-Object { $subscribers.Contains([string]$_.SourceIdentifier) })) {
         $args = $eventRecord.SourceEventArgs
+        $observation = Get-WatcherObservation $args ([string]$eventRecord.Sender.Path)
+        $observation.source_identifier = [string]$eventRecord.SourceIdentifier
         if ($args -is [IO.ErrorEventArgs]) {
-            $State.queue.Enqueue([pscustomobject]@{ path=''; old_path=''; type='WatcherError'; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=$args.GetException().Message })
+            $State.queue.Enqueue([pscustomobject]@{ path=''; old_path=''; type='WatcherError'; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=$args.GetException().Message; raw_event=$observation })
         } else {
             $type = ($eventRecord.SourceIdentifier -split '-',3)[1]
             $oldPath = if ($args -is [IO.RenamedEventArgs]) { $args.OldFullPath } else { '' }
-            $State.queue.Enqueue([pscustomobject]@{ path=$args.FullPath; old_path=$oldPath; type=$type; at=[DateTimeOffset]::UtcNow.ToString('o'); detail='' })
+            $State.queue.Enqueue([pscustomobject]@{ path=$args.FullPath; old_path=$oldPath; type=$type; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=''; raw_event=$observation })
         }
         Remove-Event -EventIdentifier $eventRecord.EventIdentifier -ErrorAction SilentlyContinue
     }
@@ -1953,13 +1971,17 @@ function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]
     $event = $null
     while ($State.queue.TryDequeue([ref]$event)) {
         $disposition = Get-EventDisposition $event $AllowedRoots $ProtectedRoots $UserTemp
+        $rawEvent = if ($event.PSObject.Properties.Name -contains 'raw_event') { $event.raw_event } else { $null }
+        if ($Mode -ceq 'NativeBuild') {
+            Write-JsonLine (Join-Path $LogRoot 'watcher-events.jsonl') ([ordered]@{mode=$Mode;path=$event.path;old_path=$event.old_path;event=$event.type;event_at=$event.at;disposition=$disposition;raw_event=$rawEvent})
+        }
         if ($disposition -eq 'UNATTRIBUTED_TEMP') {
-            Write-JsonLine (Join-Path $LogRoot 'unattributed-temp.jsonl') ([ordered]@{ mode=$Mode; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); attribution='UNATTRIBUTED'; detail=$event.detail })
+            Write-JsonLine (Join-Path $LogRoot 'unattributed-temp.jsonl') ([ordered]@{ mode=$Mode; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); attribution='UNATTRIBUTED'; detail=$event.detail; raw_event=$rawEvent })
             $event = $null
             continue
         }
         if ($disposition -eq 'VIOLATION') {
-            $record = [ordered]@{ mode=$Mode; status='FAIL'; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); action='campaign-process-tree-terminated'; detail=$event.detail }
+            $record = [ordered]@{ mode=$Mode; status='FAIL'; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); action='campaign-process-tree-terminated'; detail=$event.detail; raw_event=$rawEvent }
             Write-JsonLine (Join-Path $LogRoot 'guard-events.jsonl') $record
             if ($null -ne $ProcessFamily) { Stop-VoxPopuliProcessFamily $ProcessFamily } else { Stop-CargoProcessTree $Process }
             throw "Native campaign guard stopped on $($event.type) at '$($event.path)' (event $($event.at)); see $LogRoot\guard-events.jsonl"
@@ -3534,6 +3556,28 @@ function Invoke-NativeBuildEntry {
         }
         $tempEvent=[pscustomobject]@{type='Changed';path=(Join-Path $root 'user-temp/unknown');old_path=''}
         if ((Get-EventDisposition $tempEvent @($root) @() (Join-Path $root 'user-temp')) -cne 'UNATTRIBUTED_TEMP') { throw 'Unknown real Temp policy changed.' }
+        $renameConstructor=[IO.RenamedEventArgs].GetConstructor([type[]]@([IO.WatcherChangeTypes],[string],[string],[string]))
+        foreach ($case in @(
+            @{label='complete';name='allowed\new.txt';old='allowed\old.tmp';disposition='ALLOWED';nameNull=$false;nameEmpty=$false;oldNull=$false},
+            @{label='missing-new';name=$null;old='allowed\old.tmp';disposition='VIOLATION';nameNull=$true;nameEmpty=$false;oldNull=$false},
+            @{label='empty-new';name='';old='allowed\old.tmp';disposition='VIOLATION';nameNull=$false;nameEmpty=$true;oldNull=$false},
+            @{label='missing-old';name='allowed\new.txt';old=$null;disposition='VIOLATION';nameNull=$false;nameEmpty=$false;oldNull=$true}
+        )) {
+            $constructorArgs=[object[]]@([IO.WatcherChangeTypes]::Renamed,[string]$root,$null,$null)
+            if ($null -ne $case.name) { $constructorArgs[2]=[string]$case.name }
+            if ($null -ne $case.old) { $constructorArgs[3]=[string]$case.old }
+            $renameArgs=$renameConstructor.Invoke($constructorArgs)
+            $raw=Get-WatcherObservation $renameArgs $root
+            if ($raw.name_is_null -ne $case.nameNull -or $raw.name_is_empty -ne $case.nameEmpty -or $raw.old_name_is_null -ne $case.oldNull) { throw "Raw rename observation failed: $($case.label)" }
+            $state=[pscustomobject]@{queue=[Collections.Concurrent.ConcurrentQueue[object]]::new();subscriptions=@()}
+            $state.queue.Enqueue([pscustomobject]@{type='Renamed';path=$renameArgs.FullPath;old_path=$renameArgs.OldFullPath;at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic raw-name control';raw_event=$raw})
+            $allowed=@((Join-Path $root 'allowed'))
+            if ($case.disposition -eq 'VIOLATION') {
+                Test-Rejects "raw rename remains blocking: $($case.label)" { Drain-WatcherEvents $state $allowed @() (Join-Path $root 'user-temp') $null 'NativeBuild' $root }
+            } else { Drain-WatcherEvents $state $allowed @() (Join-Path $root 'user-temp') $null 'NativeBuild' $root }
+            $receipt=Get-Content -LiteralPath (Join-Path $root 'watcher-events.jsonl') -Tail 1 | ConvertFrom-Json
+            if ($receipt.disposition -cne $case.disposition -or $receipt.raw_event.watcher_root -ine $root -or $receipt.raw_event.name_is_null -ne $case.nameNull -or $receipt.raw_event.old_name_is_null -ne $case.oldNull) { throw "Serialized raw rename receipt failed: $($case.label)" }
+        }
         $specs=[Collections.Generic.List[object]]::new(); Register-Watch $specs $root $true
         $live=Start-WatchState $specs
         try {
@@ -3545,13 +3589,15 @@ function Invoke-NativeBuildEntry {
                 Start-Sleep -Milliseconds 20
             }
             if (-not $observed) { throw 'Real native build watcher missed its in-root witness.' }
+            $realEvent=@($live.queue.ToArray() | Where-Object path -IEQ $marker)[0]
+            if ($realEvent.raw_event.watcher_root -ine $root -or $realEvent.raw_event.raw_name -cne 'live-watcher-marker.txt' -or $realEvent.raw_event.name_is_null -or $realEvent.raw_event.name_is_empty) { throw 'Real watcher raw event metadata differs from its witnessed file.' }
         } finally { Stop-WatchState $live }
         foreach ($probe in @('SelfTest','InvalidParent')) {
             $probeRoot=Join-Path $root $probe
             foreach ($child in @('temp','tmp','localappdata','appdata','userprofile','home')) { New-Item -ItemType Directory -Path (Join-Path $probeRoot $child) -Force | Out-Null }
             $null=Invoke-NativeBuildProcess $entry 'guard-negative' $probeRoot $cache $probe
         }
-        "PASS native DLL guard self-tests: profile/path/parent rejection, live existing watcher, script controls; no bootstrap/CMake. evidence=$root"
+        "PASS native DLL guard self-tests: profile/path/parent rejection, complete/null/empty raw renames with unchanged stops, live existing watcher metadata, script/manifest controls; no bootstrap/CMake. evidence=$root"
         return
     }
     if (-not $NativeBuildId) { throw 'Native DLL build identifier is required.' }

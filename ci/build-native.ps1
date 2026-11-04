@@ -37,6 +37,13 @@ function Assert-Version([string]$Name, [string]$Actual, [string]$Expected) {
     if ($Actual -cne $Expected) { throw "$Name version differs: expected $Expected, found $Actual. No automatic update or fallback." }
 }
 
+function Save-BuildManifest([Collections.IDictionary]$Value, [string]$Path) {
+    [void](Assert-Within $Path $run)
+    $pending = $Path + '.pending'
+    [IO.File]::WriteAllText($pending, (($Value | ConvertTo-Json -Depth 12) + "`n"), $utf8)
+    [IO.File]::Move($pending, $Path, $true)
+}
+
 function Clear-VcpkgEnvironment {
     foreach ($entry in Get-ChildItem Env: | Where-Object { $_.Name -match '^(X_)?VCPKG_' }) {
         Remove-Item -LiteralPath ('Env:' + $entry.Name)
@@ -231,6 +238,19 @@ if ($SelfTest) {
     try { Assert-EmptySourceDirectory (Join-Path $sourceFixture 'nonempty') } catch { $rejected=$true }
     if (-not $rejected -or (Get-Content -LiteralPath $keptFile -Raw).Trim() -cne 'must remain') { throw 'Source acquisition overwrite negative control failed.' }
     $rejects++
+    $run = Assert-Within (Join-Path $repo ('target/native-build/manifest-selftests/'+[guid]::NewGuid().ToString('N'))) $repo
+    New-Item -ItemType Directory -Path $run -Force | Out-Null
+    $testManifestPath=Join-Path $run 'manifest.json'
+    Save-BuildManifest ([ordered]@{status='STARTED';stage='ACQUIRE_SOURCES'}) $testManifestPath
+    $snapshot=Get-Content -LiteralPath $testManifestPath -Raw | ConvertFrom-Json
+    if ($snapshot.status -cne 'STARTED' -or $snapshot.stage -cne 'ACQUIRE_SOURCES') { throw 'Initial durable manifest was not readable.' }
+    Save-BuildManifest ([ordered]@{status='STARTED';stage='CONFIGURE';requestedOptions=@{GGML_CUDA='OFF'}}) $testManifestPath
+    $snapshot=Get-Content -LiteralPath $testManifestPath -Raw | ConvertFrom-Json
+    if ($snapshot.stage -cne 'CONFIGURE' -or $snapshot.requestedOptions.GGML_CUDA -cne 'OFF' -or (Test-Path -LiteralPath ($testManifestPath+'.pending'))) { throw 'Durable manifest replacement failed.' }
+    $rejected=$false
+    try { Save-BuildManifest @{status='INVALID'} ($run+'-outside.json') } catch { $rejected=$true }
+    if (-not $rejected -or (Test-Path -LiteralPath ($run+'-outside.json'))) { throw 'Manifest outside-root negative control failed.' }
+    $rejects++
     "PASS native script self-tests: negative controls=$rejects; no downloads or compilation."
     return
 }
@@ -266,6 +286,8 @@ $savedEnvironment = @{}
 foreach ($entry in Get-ChildItem Env:) { $savedEnvironment[$entry.Name] = $entry.Value }
 $manifest = [ordered]@{schemaVersion=1;status='STARTED';variant=$Variant;buildId=$BuildId;startedUtc=[DateTime]::UtcNow.ToString('o');configSha256=(Get-FileHash $configPath -Algorithm SHA256).Hash;sources=$config.sources;versions=$config.tools;tools=$tools;assumptions=$config.assumptions;determinism='MSVC /Brepro (C/C++, CUDA host compiler, linker); not a proof of binary reproducibility';output=$run}
 $manifestPath = Join-Path $run 'manifest.json'
+$manifest.stage = 'ACQUIRE_SOURCES'
+Save-BuildManifest $manifest $manifestPath
 try {
     foreach ($name in @('TEMP','TMP')) {
         $tempPath = Assert-Within (Join-Path $run 'temp') $run
@@ -282,8 +304,12 @@ try {
     $series = @(Get-Content -LiteralPath (Join-Path $nemo 'patches/series') | Where-Object { $_ -and -not $_.StartsWith('#') })
     if ($series.Count -ne 19) { throw "Expected 19 historical patches, found $($series.Count)." }
     $manifest.patches = @($series | ForEach-Object { $path=Assert-Within (Join-Path $nemo "patches/$_") $nemo; @{name=$_;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash} })
+    $manifest.stage = 'SOURCES_PREPARED'
+    Save-BuildManifest $manifest $manifestPath
     if ($PrepareOnly) { $manifest.status='SOURCES_PREPARED'; return }
     Import-BuildEnvironment $tools
+    $manifest.stage = 'BOOTSTRAP'
+    Save-BuildManifest $manifest $manifestPath
     if (Test-Path -LiteralPath (Join-Path $vcpkg 'vcpkg.exe')) {
         [void](Assert-VcpkgExecutable)
     } else {
@@ -310,6 +336,8 @@ try {
     $manifest.requestedOptions = $options
     $configure = @('-S',$nemo,'-B',$build,'-G','Ninja')
     foreach ($key in $options.Keys | Sort-Object) { $configure += "-D${key}=$($options[$key])" }
+    $manifest.stage = 'CONFIGURE'
+    Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake $configure 'configure'
     $effective = @{}
     foreach ($line in Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt')) {
@@ -319,6 +347,8 @@ try {
     foreach ($key in @('GGML_NATIVE','GGML_CUDA','CMAKE_BUILD_TYPE','VCPKG_TARGET_TRIPLET')) {
         if ($effective[$key] -cne $options[$key]) { throw "Effective CMake option differs: $key" }
     }
+    $manifest.stage = 'BUILD'
+    Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake @('--build',$build,'--parallel','4') 'build'
     $expected = @('ggml-base.dll','ggml-cpu.dll','ggml.dll','nemo_speech_asr.dll','nemo_speech_asr_c.dll')
     if ($Variant -eq 'gpu') { $expected += 'ggml-cuda.dll' }
@@ -338,7 +368,7 @@ try {
     throw
 } finally {
     $manifest.finishedUtc=[DateTime]::UtcNow.ToString('o')
-    $manifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+    Save-BuildManifest $manifest $manifestPath
     foreach ($entry in Get-ChildItem Env:) {
         if (-not $savedEnvironment.ContainsKey($entry.Name)) { Remove-Item -LiteralPath ('Env:' + $entry.Name) }
     }
