@@ -1,0 +1,660 @@
+Historical command/output extracts, read on 2026-11-04. These are not recovered source trees or a phase-0 archive.
+
+SOURCE rollout-2026-10-15T16-38-53-01a14000-72a0-7883-b1c4-6babae643bb0.jsonl.zst:2025 TIMESTAMP 2026-10-15T15:52:04.833Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command Get-Content target/parakeet-feasibility/spike02/bilan-brut.md
+OUTPUT
+Avancée : les deux builds natifs et le contrôle 01a du banc sont terminés.
+Blocage : les extraits français et anglais annotés ne sont pas encore fournis ; aucune inférence audio n'a été lancée.
+Décision : arrêter ici le temps actif de SPIKE-PARA-02 et préserver intégralement le banc.
+
+# SPIKE-PARA-02 — bilan brut, 15 octobre 2026, 17:51 Europe/Paris
+
+## Périmètre et versions
+
+- Racine exclusive d'écriture : `C:\dev\whisper\target\parakeet-feasibility\spike02\` ; état Git du dépôt inchangé.
+- Sources copiées de `spike01` : NeMo-Speech.cpp `6a3ca369370782acee0dd155e34394ba60b920c4`, sous-module llama.cpp `bd4f514db14d87fded667787a7a963bfbaa98e89`, vcpkg `9e593bb18ea69cc5095e012465dcd675a822ed0d`.
+- Outils : CMake 4.4.4, MSVC 14.44.35207, CUDA 12.9.86, rustc 1.98.1 ; pilote NVIDIA 581.29 ; GTX 1080 Ti, compute capability 6.1, UUID `GPU-99e636f6-45ac-0068-a378-7d7a8bca645e`.
+- Modèle source lu sous `C:\Users\cyril\Downloads\models\parakeet-tdt-0.6b-v3.q8_0.gguf` : 713 975 456 octets, SHA-256 recalculé `e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e`. Copie dans `runtime space\models` et nouveau hash identique (`preflight.txt`, `model_copy_hash.txt`). Aucun téléchargement de modèle ou d'audio.
+
+## Commandes de construction et ABI
+
+- CPU, une exécution de `run_cpu.ps1` : `build.ps1 -Backend cpu -Profile asr -BuildDir <spike02>\build-cpu -VcpkgRoot <spike02>\vcpkg -Jobs 4 -CMakeArgs '-DNEMO_SPEECH_BUILD_DIAR=OFF','-DNEMO_SPEECH_BUILD_CLI=OFF'`. Succès 17:37:01–17:43:22 (`cpu-build-state.txt`, `cpu-build.log`).
+- CUDA, une exécution de `run_cuda.ps1` : mêmes options avec `-Backend cuda -BuildDir <spike02>\build-cuda -CudaArch 61`. Succès 17:44:27–17:49:49 (`cuda-build-state.txt`, `cuda-build.log`). TEMP/TMP, téléchargements/cache vcpkg et cache XDG étaient redirigés sous `spike02` ; au plus quatre jobs.
+- ABI C obtenue dans `nemo_speech_asr_c.dll`, liée à `nemo_speech_asr.dll`. Les probes Rust depuis `runtime space\cpu\bin` et `runtime space\cuda\bin` trouvent les exports `version`, `last_error`, `create`, `destroy`, `recognize_f32`, `result_transcript`, `result_destroy`, lisent `nemo-speech-asr 0.2.0`, puis déchargent la DLL avec succès (`probe_cpu_result.txt`, `probe_cuda_result.txt`). Le chemin contient un espace. **Ceci prouve le chargement, pas une inférence.**
+- Correspondance C/Rust compilée des tailles/offsets (`layout_c_result.txt`, `layout_rust_result.txt`) : backend 16 octets, `gpu` 8 ; modèle 24 octets, `path` 8, `name` 16 ; recognizer 80 octets, `backend` 8, `model` 16, `batching` 72 ; préfixe options 32 octets, `language_code` 16, `enable_word_time_offsets` 25.
+- Première tentative de chargement CPU avec seulement les deux DLL NeMo : Win32 126 ; trois DLL ggml adjacentes nécessaires. Même erreur côté CUDA sans les DLL du toolkit. Les échecs sont conservés dans `load_failures.txt`. `ggml-cuda.dll` importe `cudart64_12.dll`, `cublas64_12.dll`, `nvcuda.dll` (`cuda_imports.txt`). Le banc privé contient les copies installées de `cudart64_12.dll`, `cublas64_12.dll`, `cublasLt64_12.dll` ; `nvcuda.dll` est fourni par le pilote système. La redistribution finale et le fonctionnement sur compte standard ne sont pas qualifiés.
+
+## Contrôles et limites
+
+- 01a **PASS pour ce banc et cet hôte** : SHA, version, layouts ABI, exports, chargement CPU et CUDA depuis chemin avec espaces, libération.
+- Contrôle négatif préalable de 01c **PASS séparément** : `wrapper.exe identity-check GPU-INTENTIONALLY-WRONG` retourne 1, indique l'UUID observé et `native_audio_calls=0` (`identity_wrong_result.txt`). Identité correcte : retour 0, `native_audio_calls=0` (`identity_match_result.txt`). Le wrapper autonome (`wrapper.rs`) possède DLL → recognizer → résultat, copie texte et erreur avant destruction, conserve PCM durant l'appel et fixe `language_code=NULL`. Aucune attestation d'inférence GPU n'en résulte.
+- 01b CPU, 01c inférence CUDA effective, 01d fenêtres et queue, 01e Auto langue FR/EN : **NOT RUN** faute d'extraits et textes de référence autorisés. Aucun audio n'a été envoyé à l'ABI.
+- Budget final à 17:51:19 : **14 016 230 661 octets** sous `spike02` (< 16 Gio = 17 179 869 184 octets) ; fichiers `.log` **70 597 055 octets** (< 128 Mio) ; deux builds sur deux, quatre jobs maximum, zéro inférence. Temps actif écoulé environ 19 minutes, sous 120 minutes. Aucun nettoyage récursif.
+
+
+SOURCE rollout-2026-10-15T17-07-01-01a1401a-31f7-7722-8e44-cab1252bc275.jsonl.zst:268 TIMESTAMP 2026-10-15T15:52:27.734Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command $evidenceNames=@('preflight.txt','model_copy_hash.txt','probe_cpu_result.txt','probe_cuda_result.txt','layout_c_build.txt','layout_c_result.txt','layout_rust_result.txt','load_failures.txt','identity_wrong_result.txt','identity_match_result.txt','cpu-build-state.txt','cuda-build-state.txt','cuda_imports.txt','run_cpu.ps1','run_cuda.ps1'); foreach($evidenceName in $evidenceNames){ Write-Output ('FILE '+$evidenceName); Get-Content -LiteralPath (Join-Path 'target/parakeet-feasibility/spike02' $evidenceName) }; Get-Content docs/cadrage/evo-parakeet.md | Select-Object -Skip 258 -First 14; rg -n 'SPIKE-PARA-02|NOT RUN|G-DESIGN|01a|01b|01c|01d|01e|RISK-T-02|PLANS' docs/cadrage/plan-evo-parakeet.md
+OUTPUT
+FILE preflight.txt
+2026-10-15T17:33:30.6233455+02:00 model=C:\Users\cyril\Downloads\models\parakeet-tdt-0.6b-v3.q8_0.gguf bytes=713975456 sha256=E3880D0AAAAF2C308EA2C35016B2B895C423EB3FDA924C1B463D1C19B7F4D32E
+FILE model_copy_hash.txt
+copy=C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\models\parakeet-tdt-0.6b-v3.q8_0.gguf bytes=713975456 sha256=E3880D0AAAAF2C308EA2C35016B2B895C423EB3FDA924C1B463D1C19B7F4D32E
+FILE probe_cpu_result.txt
+export=nemo_speech_asr_version
+native_version=nemo-speech-asr 0.2.0
+export=nemo_speech_asr_last_error
+export=nemo_speech_asr_create
+export=nemo_speech_asr_destroy
+export=nemo_speech_asr_recognize_f32
+export=nemo_speech_asr_result_transcript
+export=nemo_speech_asr_result_destroy
+unloaded=true path=\\?\C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin\nemo_speech_asr_c.dll
+exit=0
+FILE probe_cuda_result.txt
+export=nemo_speech_asr_version
+native_version=nemo-speech-asr 0.2.0
+export=nemo_speech_asr_last_error
+export=nemo_speech_asr_create
+export=nemo_speech_asr_destroy
+export=nemo_speech_asr_recognize_f32
+export=nemo_speech_asr_result_transcript
+export=nemo_speech_asr_result_destroy
+unloaded=true path=\\?\C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin\nemo_speech_asr_c.dll
+exit=0
+FILE layout_c_build.txt
+layout_c.c
+FILE layout_c_result.txt
+backend size=16 gpu_offset=8
+model size=24 path_offset=8 name_offset=16
+recognizer size=80 backend_offset=8 model_offset=16 batching_offset=72
+options_prefix size=32 language_offset=16 word_offsets_offset=25
+FILE layout_rust_result.txt
+backend size=16 gpu_offset=8
+model size=24 path_offset=8 name_offset=16
+recognizer size=80 backend_offset=8 model_offset=16 batching_offset=72
+options_prefix size=32 language_offset=16 word_offsets_offset=25
+FILE load_failures.txt
+CPU without ggml DLLs:
+
+thread 'main' (40536) panicked at C:\dev\whisper\target\parakeet-feasibility\spike02\probe_abi.rs:32:9:
+LoadLibraryExW failed with Win32 126
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+cpu_exit=101
+CUDA without toolkit runtime DLLs:
+
+thread 'main' (77448) panicked at C:\dev\whisper\target\parakeet-feasibility\spike02\probe_abi.rs:32:9:
+LoadLibraryExW failed with Win32 126
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+cuda_exit=101
+FILE identity_wrong_result.txt
+native_audio_calls=0
+ERROR: GPU identity mismatch expected=GPU-INTENTIONALLY-WRONG observed=GPU-99e636f6-45ac-0068-a378-7d7a8bca645e
+exit=1
+FILE identity_match_result.txt
+gpu_identity_preflight index=0 uuid=GPU-99e636f6-45ac-0068-a378-7d7a8bca645e name=NVIDIA GeForce GTX 1080 Ti compute_cap=6.1
+native_audio_calls=0
+exit=0
+FILE cpu-build-state.txt
+started=2026-10-15T17:37:01.7817131+02:00
+finished=2026-10-15T17:43:22.5345834+02:00 result=PASS
+FILE cuda-build-state.txt
+started=2026-10-15T17:44:27.8864133+02:00 cuda_arch=61
+finished=2026-10-15T17:49:49.0527633+02:00 result=PASS
+FILE cuda_imports.txt
+Microsoft (R) COFF/PE Dumper Version 14.44.35229.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+
+Dump of file C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin\ggml-cuda.dll
+
+File Type: DLL
+
+  Image has the following dependencies:
+
+    ggml-base.dll
+    cudart64_12.dll
+    cublas64_12.dll
+    nvcuda.dll
+    KERNEL32.dll
+    MSVCP140.dll
+    VCRUNTIME140_1.dll
+    VCRUNTIME140.dll
+    api-ms-win-crt-math-l1-1-0.dll
+    api-ms-win-crt-convert-l1-1-0.dll
+    api-ms-win-crt-environment-l1-1-0.dll
+    api-ms-win-crt-stdio-l1-1-0.dll
+    api-ms-win-crt-runtime-l1-1-0.dll
+    api-ms-win-crt-string-l1-1-0.dll
+    api-ms-win-crt-heap-l1-1-0.dll
+
+  Summary
+
+       1A000 .data
+        1000 .nvFatBi
+     117D000 .nv_fatb
+       23000 .pdata
+      477000 .rdata
+        1000 .reloc
+        1000 .rsrc
+      996000 .text
+FILE run_cpu.ps1
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$env:TEMP = Join-Path $root 'temp'
+$env:TMP = $env:TEMP
+$env:VCPKG_DOWNLOADS = Join-Path $root 'vcpkg-downloads'
+$env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $root 'vcpkg-binary-cache'
+$env:VCPKG_DISABLE_METRICS = '1'
+$env:VCPKG_MAX_CONCURRENCY = '4'
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '4'
+$env:GNUPGHOME = Join-Path $root 'gnupg'
+$env:XDG_CACHE_HOME = Join-Path $root 'cache'
+foreach ($dir in @($env:TEMP, $env:VCPKG_DOWNLOADS, $env:VCPKG_DEFAULT_BINARY_CACHE, $env:GNUPGHOME, $env:XDG_CACHE_HOME)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+}
+$source = Join-Path $root 'NeMo-Speech.cpp'
+$vendor = Join-Path $source 'scripts\windows\build.ps1'
+$build = Join-Path $root 'build-cpu'
+$vcpkg = Join-Path $root 'vcpkg'
+$log = Join-Path $root 'cpu-build.log'
+"started=$(Get-Date -Format o)" | Set-Content -LiteralPath (Join-Path $root 'cpu-build-state.txt')
+try {
+    & $vendor -Backend cpu -Profile asr -BuildDir $build -VcpkgRoot $vcpkg -Jobs 4 -CMakeArgs @('-DNEMO_SPEECH_BUILD_DIAR=OFF', '-DNEMO_SPEECH_BUILD_CLI=OFF') *> $log
+    if ($LASTEXITCODE -ne 0) { throw "Build returned $LASTEXITCODE" }
+    "finished=$(Get-Date -Format o) result=PASS" | Add-Content -LiteralPath (Join-Path $root 'cpu-build-state.txt')
+} catch {
+    "finished=$(Get-Date -Format o) result=FAIL error=$($_.Exception.Message)" | Add-Content -LiteralPath (Join-Path $root 'cpu-build-state.txt')
+    throw
+}
+FILE run_cuda.ps1
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$env:TEMP = Join-Path $root 'temp'
+$env:TMP = $env:TEMP
+$env:VCPKG_DOWNLOADS = Join-Path $root 'vcpkg-downloads'
+$env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $root 'vcpkg-binary-cache'
+$env:VCPKG_DISABLE_METRICS = '1'
+$env:VCPKG_MAX_CONCURRENCY = '4'
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '4'
+$env:GNUPGHOME = Join-Path $root 'gnupg'
+$env:XDG_CACHE_HOME = Join-Path $root 'cache'
+foreach ($dir in @($env:TEMP, $env:VCPKG_DOWNLOADS, $env:VCPKG_DEFAULT_BINARY_CACHE, $env:GNUPGHOME, $env:XDG_CACHE_HOME)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+}
+$source = Join-Path $root 'NeMo-Speech.cpp'
+$vendor = Join-Path $source 'scripts\windows\build.ps1'
+$build = Join-Path $root 'build-cuda'
+$vcpkg = Join-Path $root 'vcpkg'
+$log = Join-Path $root 'cuda-build.log'
+"started=$(Get-Date -Format o) cuda_arch=61" | Set-Content -LiteralPath (Join-Path $root 'cuda-build-state.txt')
+try {
+    & $vendor -Backend cuda -Profile asr -BuildDir $build -CudaArch '61' -VcpkgRoot $vcpkg -Jobs 4 -CMakeArgs @('-DNEMO_SPEECH_BUILD_DIAR=OFF', '-DNEMO_SPEECH_BUILD_CLI=OFF') *> $log
+    if ($LASTEXITCODE -ne 0) { throw "Build returned $LASTEXITCODE" }
+    "finished=$(Get-Date -Format o) result=PASS" | Add-Content -LiteralPath (Join-Path $root 'cuda-build-state.txt')
+} catch {
+    "finished=$(Get-Date -Format o) result=FAIL error=$($_.Exception.Message)" | Add-Content -LiteralPath (Join-Path $root 'cuda-build-state.txt')
+    throw
+}
+
+
+SOURCE rollout-2026-10-15T17-07-01-01a1401a-31f7-7722-8e44-cab1252bc275.jsonl.zst:282 TIMESTAMP 2026-10-15T15:52:49.859Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command rg -n 'recognition_options|language_code|size.*offsetof|offsetof|HAS_FIELD|STRUCT_HAS|word_time|out_of|exception|create\(' target/parakeet-feasibility/spike02/NeMo-Speech.cpp/src/asr/c_api.cpp | Select-Object -First 90; Get-Content target/parakeet-feasibility/spike02/layout_c_build.txt; rg -n 'NEMO_SPEECH_BUILD_ASR:|NEMO_SPEECH_BUILD_DIAR:|NEMO_SPEECH_BUILD_TTS:|NEMO_SPEECH_BUILD_CLI:|CMAKE_CUDA_ARCHITECTURES:|GGML_CUDA:|CMAKE_BUILD_TYPE:|CMAKE_CXX_COMPILER:|VCPKG_TARGET_TRIPLET:|CMAKE_INSTALL_PREFIX:' target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt; Get-Content target/parakeet-feasibility/spike02/cpu-build.log -Tail 18; Get-Content target/parakeet-feasibility/spike02/cuda-build.log -Tail 18; Get-ChildItem 'target/parakeet-feasibility/spike02/runtime space/cpu/bin' -File | Select-Object Name,Length; Get-ChildItem 'target/parakeet-feasibility/spike02/runtime space/cuda/bin' -File | Select-Object Name,Length; Get-ChildItem target/parakeet-feasibility/spike02/*.txt,target/parakeet-feasibility/spike02/*.exe,target/parakeet-feasibility/spike02/bilan-brut.md | Select-Object Name,LastWriteTime
+OUTPUT
+54:#define HAS_FIELD(ptr, type, member) \
+55:    ((ptr) != nullptr && (ptr)->size >= offsetof(type, member) + sizeof(((type*)nullptr)->member))
+67:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, backend) && c->backend) {
+69:        if (HAS_FIELD(b, nemo_speech_asr_backend_config, gpu))
+72:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, model) && c->model) {
+74:        if (HAS_FIELD(m, nemo_speech_asr_model_config, path))
+76:        if (HAS_FIELD(m, nemo_speech_asr_model_config, name))
+79:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, streaming) && c->streaming) {
+81:        if (HAS_FIELD(e, nemo_speech_asr_streaming_config, chunk_size))
+83:        if (HAS_FIELD(e, nemo_speech_asr_streaming_config, ctc_left_padding))
+85:        if (HAS_FIELD(e, nemo_speech_asr_streaming_config, ctc_right_padding))
+87:        if (HAS_FIELD(e, nemo_speech_asr_streaming_config, rnnt_right_context))
+90:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, decoder) && c->decoder) {
+92:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, kind))
+96:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, flashlight_lm))
+98:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, flashlight_lexicon))
+100:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, flashlight_tokenizer))
+102:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, beam_size) && d->beam_size > 0)
+104:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, beam_size_token) && d->beam_size_token > 0)
+106:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, beam_threshold) && d->beam_threshold > 0)
+108:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, lm_weight))
+110:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, word_insertion_score))
+112:        if (HAS_FIELD(d, nemo_speech_asr_decoder_config, max_boost) && d->max_boost > 0)
+117:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, vad) && c->vad) {
+119:        if (HAS_FIELD(v, nemo_speech_asr_vad_config, model_path))
+121:        if (HAS_FIELD(v, nemo_speech_asr_vad_config, enable_masking))
+123:        if (HAS_FIELD(v, nemo_speech_asr_vad_config, onset) && v->onset > 0)
+125:        if (HAS_FIELD(v, nemo_speech_asr_vad_config, offset) && v->offset > 0)
+128:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, endpointing) && c->endpointing) {
+130:        if (HAS_FIELD(e, nemo_speech_asr_endpointing_config, enable))
+132:        if (HAS_FIELD(e, nemo_speech_asr_endpointing_config, vad_based))
+134:        if (HAS_FIELD(e, nemo_speech_asr_endpointing_config, stop_history_eou_ms) &&
+138:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, postproc) && c->postproc) {
+140:        if (HAS_FIELD(p, nemo_speech_asr_postproc_config, profanity_list_path))
+142:        if (HAS_FIELD(p, nemo_speech_asr_postproc_config, itn_model_dir))
+144:        if (HAS_FIELD(p, nemo_speech_asr_postproc_config, pnc_model_path))
+147:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, diar) && c->diar) {
+149:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, model_path))
+151:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, chunk_frames) && d->chunk_frames > 0)
+153:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, right_context_frames) &&
+156:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, left_context_frames) &&
+159:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, fifo_frames) && d->fifo_frames > 0)
+161:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, spkcache_frames) && d->spkcache_frames > 0)
+163:        if (HAS_FIELD(d, nemo_speech_asr_diar_config, update_period_frames) &&
+167:    if (HAS_FIELD(c, nemo_speech_asr_recognizer_config, batching) && c->batching) {
+169:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, enable))
+171:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, max_batch_size) && b->max_batch_size > 0)
+173:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, max_queue_delay_us) &&
+176:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, max_queue_depth) &&
+179:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, ingress_cohort_delay_us) &&
+182:        if (HAS_FIELD(b, nemo_speech_asr_batching_config, state_arena_slots) &&
+190:to_options(const nemo_speech_asr_recognition_options* o) {
+194:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, max_alternatives) &&
+197:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, enable_word_time_offsets))
+198:        opts.enable_word_time_offsets = o->enable_word_time_offsets;
+199:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, enable_automatic_punctuation))
+201:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, verbatim_transcripts))
+203:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, profanity_filter))
+205:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, stop_history_eou_ms) &&
+208:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, enable_speaker_diarization))
+210:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, max_speaker_count) &&
+213:    if (HAS_FIELD(o, nemo_speech_asr_recognition_options, speech_context_count) &&
+230:lang_of(const nemo_speech_asr_recognition_options* o) {
+231:    return (HAS_FIELD(o, nemo_speech_asr_recognition_options, language_code))
+232:               ? str_or_empty(o->language_code)
+236:// Converts exceptions to status codes and last-error text.
+251:    catch (const std::exception& e) {
+265:nemo_speech_asr_recognition_options
+266:nemo_speech_asr_recognition_options_default(void) {
+267:    nemo_speech_asr_recognition_options o;
+275:nemo_speech_asr_create(
+300:    nemo_speech_asr_recognizer* recognizer, const nemo_speech_asr_recognition_options* options,
+320:    nemo_speech_asr_recognizer* recognizer, const nemo_speech_asr_recognition_options* options,
+465:    return a ? a->language_codes.size() : 0;
+468:nemo_speech_asr_result_language_code(const nemo_speech_asr_result* result, size_t alt, size_t i) {
+470:    return (a && i < a->language_codes.size()) ? a->language_codes[i].c_str() : "";
+485:nemo_speech_diar_create(const nemo_speech_diar_model_config* cfg, nemo_speech_diar_model** out) {
+490:        if (!cfg || !HAS_FIELD(cfg, nemo_speech_diar_model_config, model_path) ||
+495:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, preset) && cfg->preset && *cfg->preset)
+497:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, chunk_frames) && cfg->chunk_frames > 0)
+499:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, right_context_frames) &&
+502:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, left_context_frames) &&
+505:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, fifo_frames) && cfg->fifo_frames > 0)
+507:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, spkcache_frames) &&
+510:        if (HAS_FIELD(cfg, nemo_speech_diar_model_config, update_period_frames) &&
+514:        const int gpu = HAS_FIELD(cfg, nemo_speech_diar_model_config, gpu) ? cfg->gpu : 0;
+657:            if (HAS_FIELD(cfg, nemo_speech_diar_segmentation_config, onset) && cfg->onset > 0)
+659:            if (HAS_FIELD(cfg, nemo_speech_diar_segmentation_config, offset) && cfg->offset > 0)
+661:            if (HAS_FIELD(cfg, nemo_speech_diar_segmentation_config, pad_onset_sec) &&
+664:            if (HAS_FIELD(cfg, nemo_speech_diar_segmentation_config, pad_offset_sec) &&
+layout_c.c
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:64:CMAKE_BUILD_TYPE:STRING=Release
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:67:CMAKE_CXX_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:169:CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/nemo_speech
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:404:GGML_CUDA:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:682:NEMO_SPEECH_BUILD_ASR:BOOL=ON
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:685:NEMO_SPEECH_BUILD_CLI:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:688:NEMO_SPEECH_BUILD_DIAR:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:715:NEMO_SPEECH_BUILD_TTS:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:828:VCPKG_TARGET_TRIPLET:STRING=x64-windows-static-md
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:1185:_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=C:/Program Files (x86)/nemo_speech
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:64:CMAKE_BUILD_TYPE:STRING=Release
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:67:CMAKE_CUDA_ARCHITECTURES:UNINITIALIZED=61
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:91:CMAKE_CXX_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:193:CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/nemo_speech
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:667:GGML_CUDA:BOOL=ON
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:951:NEMO_SPEECH_BUILD_ASR:BOOL=ON
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:954:NEMO_SPEECH_BUILD_CLI:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:957:NEMO_SPEECH_BUILD_DIAR:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:984:NEMO_SPEECH_BUILD_TTS:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:1097:VCPKG_TARGET_TRIPLET:STRING=x64-windows-static-md
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:1632:_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=C:/Program Files (x86)/nemo_speech
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders/decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\types.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\itn.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\profanity.h
+Remarque : inclusion du fichier :      C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\unordered_set
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\runner.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\model.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\cache_aware_encoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\greedy_ctc_decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\rnnt_greedy_decoder.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\context_biasing.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_endpointer.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_masker.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\silero_vad.h
+[75/78] Linking CXX shared library bin\nemo_speech_asr.dll
+[76/78] Linking CXX static library src\core\nemo_speech_engine_registry.lib
+[77/78] Linking CXX shared library bin\nemo_speech_asr_c.dll
+==> done. Binaries in C:\dev\whisper\target\parakeet-feasibility\spike02\build-cpu\bin
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders/decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\types.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\itn.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\profanity.h
+Remarque : inclusion du fichier :      C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\unordered_set
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\runner.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\model.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\cache_aware_encoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\greedy_ctc_decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\rnnt_greedy_decoder.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\context_biasing.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_endpointer.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_masker.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\silero_vad.h
+[222/225] Linking CXX shared library bin\nemo_speech_asr.dll
+[223/225] Linking CXX static library src\core\nemo_speech_engine_registry.lib
+[224/225] Linking CXX shared library bin\nemo_speech_asr_c.dll
+==> done. Binaries in C:\dev\whisper\target\parakeet-feasibility\spike02\build-cuda\bin
+
+Name                         Length
+----                         ------
+ggml-base.dll                680960
+ggml-cpu.dll                 947200
+ggml.dll                      61952
+nemo_speech_asr_c.dll         56320
+nemo_speech_asr.dll         4192256
+cublas64_12.dll           102518272
+cublasLt64_12.dll         668673536
+cudart64_12.dll              583680
+ggml-base.dll                680960
+ggml-cpu.dll                 947200
+ggml-cuda.dll              33219072
+ggml.dll                      61952
+nemo_speech_asr_c.dll         56320
+nemo_speech_asr.dll         4209152
+cpu-build-state.txt               1
+cuda_imports.txt                  1
+cuda-build-state.txt              1
+identity_match_result.txt         1
+identity_wrong_result.txt         1
+layout_c_build.txt                1
+layout_c_result.txt               1
+layout_rust_result.txt            1
+load_failures.txt                 1
+model_copy_hash.txt               1
+preflight.txt                     1
+probe_cpu_result.txt              1
+probe_cuda_result.txt             1
+layout_c.exe                      1
+probe_abi.exe                     1
+wrapper.exe                       1
+bilan-brut.md                     1
+
+
+
+SOURCE rollout-2026-10-15T17-07-01-01a1401a-31f7-7722-8e44-cab1252bc275.jsonl.zst:298 TIMESTAMP 2026-10-15T15:53:29.784Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command $spikeEvidenceRoot=(Resolve-Path 'target/parakeet-feasibility/spike02').Path; $spikeFiles=Get-ChildItem -LiteralPath $spikeEvidenceRoot -File -Recurse -Force; [pscustomobject]@{root=$spikeEvidenceRoot;files=$spikeFiles.Count;bytes=($spikeFiles | Measure-Object Length -Sum).Sum;log_bytes=($spikeFiles | Where-Object Extension -eq '.log' | Measure-Object Length -Sum).Sum}; Get-ChildItem -LiteralPath $spikeEvidenceRoot -File | Select-Object Name,@{Name='Written';Expression={$_.LastWriteTime.ToString('o')}}; Get-Content target/parakeet-feasibility/spike02/NeMo-Speech.cpp/.git -ErrorAction SilentlyContinue; git -C target/parakeet-feasibility/spike02/NeMo-Speech.cpp rev-parse HEAD; git -C target/parakeet-feasibility/spike02/NeMo-Speech.cpp/external/llama.cpp rev-parse HEAD; git -C target/parakeet-feasibility/spike02/vcpkg rev-parse HEAD; Get-Content target/parakeet-feasibility/spike02/NeMo-Speech.cpp/.gitmodules
+OUTPUT
+
+6a3ca369370782acee0dd155e34394ba60b920c4
+fatal: cannot change to 'target/parakeet-feasibility/spike02/NeMo-Speech.cpp/external/llama.cpp': No such file or directory
+9e593bb18ea69cc5095e012465dcd675a822ed0d
+root                                               files          bytes   log_bytes
+----                                               -----          -----   ---------
+C:\dev\whisper\target\parakeet-feasibility\spike02 44417 14016235146,00 70597055,00
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[submodule "proto/riva-common"]
+	path = proto/riva-common
+	url = https://github.com/nvidia-riva/common.git
+[submodule "flashlight-text"]
+	path = third_party/flashlight-text
+	url = https://github.com/flashlight/text.git
+[submodule "kenlm"]
+	path = third_party/kenlm
+	url = https://github.com/kpu/kenlm.git
+[submodule "llama.cpp"]
+	path = llama.cpp
+	url = https://github.com/ggml-org/llama.cpp.git
+[submodule "open_jtalk"]
+	path = third_party/open_jtalk
+	url = https://github.com/r9y9/open_jtalk.git
+[submodule "cppjieba"]
+	path = third_party/cppjieba
+	url = https://github.com/yanyiwu/cppjieba.git
+[submodule "third_party/cpp-httplib"]
+	path = third_party/cpp-httplib
+	url = https://github.com/yhirose/cpp-httplib.git
+
+
+
+SOURCE rollout-2026-10-15T17-07-01-01a1401a-31f7-7722-8e44-cab1252bc275.jsonl.zst:305 TIMESTAMP 2026-10-15T15:53:46.173Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command [pscustomobject]@{spikeCreated=(Get-Item 'target/parakeet-feasibility/spike02').CreationTime.ToString('o');preflightWritten=(Get-Item 'target/parakeet-feasibility/spike02/preflight.txt').LastWriteTime.ToString('o');bilanWritten=(Get-Item 'target/parakeet-feasibility/spike02/bilan-brut.md').LastWriteTime.ToString('o')} | ConvertTo-Json; git -C target/parakeet-feasibility/spike02/NeMo-Speech.cpp/llama.cpp rev-parse HEAD; git -C target/parakeet-feasibility/spike02/NeMo-Speech.cpp status --short; git -C target/parakeet-feasibility/spike02/NeMo-Speech.cpp/llama.cpp status --short; rg -n 'CUDA|sm_61|compute_61|Cuda compilation|CUDA compiler|Found CUDAToolkit|4.4.4|14.44' target/parakeet-feasibility/spike02/cuda-build.log | Select-Object -First 16; Get-Content target/parakeet-feasibility/spike02/NeMo-Speech.cpp/src/asr/c_api.cpp | Select-Object -Skip 270 -First 50; rg -n 'native_audio_calls|identity-check|check_gpu_identity|read_wav|Api::load|RecognitionOptionsPrefix|DEFAULT_DIRS|AUDIO_CALLS|result_word' target/parakeet-feasibility/spike02/wrapper.rs target/parakeet-feasibility/spike02/probe_abi.rs target/parakeet-feasibility/spike02/layout_c.c
+OUTPUT
+{
+  "spikeCreated": "2026-10-15T17:33:30.0280349+02:00",
+  "preflightWritten": "2026-10-15T17:33:30.6317163+02:00",
+  "bilanWritten": "2026-10-15T17:53:44.4552315+02:00"
+}
+bd4f514db14d87fded667787a7a963bfbaa98e89
+7:==> cmake -S C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp -B C:\dev\whisper\target\parakeet-feasibility\spike02\build-cuda -G Ninja -DCMAKE_BUILD_TYPE=Release -DNEMO_SPEECH_BUILD_ASR=ON -DNEMO_SPEECH_BUILD_DIAR=ON -DNEMO_SPEECH_BUILD_TTS=OFF -DNEMO_SPEECH_BUILD_NMT=OFF -DNEMO_SPEECH_BUILD_HTTP=OFF -DNEMO_SPEECH_HTTP_TLS=OFF -DNEMO_SPEECH_BUILD_GRPC=OFF -DNEMO_SPEECH_WITH_FLASHLIGHT=OFF -DNEMO_SPEECH_WITH_NORM=OFF -DNEMO_SPEECH_TTS_WITH_JA=OFF -DNEMO_SPEECH_TTS_WITH_ZH=OFF -DNEMO_SPEECH_BUILD_TESTS=OFF -DBUILD_TESTING=OFF -DNEMO_SPEECH_BUILD_EXAMPLES=OFF -DNEMO_SPEECH_BUILD_TOOLS=OFF -DCMAKE_TOOLCHAIN_FILE=C:\dev\whisper\target\parakeet-feasibility\spike02\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DVCPKG_MANIFEST_FEATURES=asr -DVCPKG_INSTALLED_DIR=C:\dev\whisper\target\parakeet-feasibility\spike02\build-cuda\vcpkg_installed -DGGML_CUDA=ON -DGGML_VULKAN=OFF -DNEMO_SPEECH_CUBLAS_SHIM=OFF -DCMAKE_CUDA_ARCHITECTURES=61 -DNEMO_SPEECH_BUILD_DIAR=OFF -DNEMO_SPEECH_BUILD_CLI=OFF
+10:Compiler found: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+12:Compiler found: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+63:-- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+68:-- Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+71:-- Found CUDAToolkit: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/include (found version "12.9.86")
+84:-- Found assembler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+112:-- CUDA Toolkit found
+113:-- The CUDA compiler identification is NVIDIA 12.9.86 with host compiler MSVC 19.44.35229.0
+114:-- Detecting CUDA compiler ABI info
+115:-- Detecting CUDA compiler ABI info - done
+116:-- Check for working CUDA compiler: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/bin/nvcc.exe - skipped
+117:-- Detecting CUDA compile features
+118:-- Detecting CUDA compile features - done
+119:-- Using CMAKE_CUDA_ARCHITECTURES=61 CMAKE_CUDA_ARCHITECTURES_NATIVE=61-real
+122:-- Warning: NCCL not found, performance for multiple CUDA GPUs will be suboptimal
+
+
+SOURCE rollout-2026-10-15T17-32-26-01a14031-782e-75b2-bae0-02881808937c.jsonl.zst:283 TIMESTAMP 2026-10-15T15:36:33.612Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command git -C target\parakeet-feasibility\spike02\NeMo-Speech.cpp status --short; git -C target\parakeet-feasibility\spike02\NeMo-Speech.cpp rev-parse HEAD; git -C target\parakeet-feasibility\spike02\NeMo-Speech.cpp\llama.cpp rev-parse HEAD; git -C target\parakeet-feasibility\spike02\vcpkg rev-parse HEAD
+OUTPUT
+6a3ca369370782acee0dd155e34394ba60b920c4
+bd4f514db14d87fded667787a7a963bfbaa98e89
+9e593bb18ea69cc5095e012465dcd675a822ed0d
+
+
+SOURCE rollout-2026-10-15T17-32-26-01a14031-782e-75b2-bae0-02881808937c.jsonl.zst:472 TIMESTAMP 2026-10-15T15:43:01.457Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command Get-Date -Format o; Get-Content 'C:\dev\whisper\target\parakeet-feasibility\spike02\cpu-build.log' -Tail 8; $p='C:\dev\whisper\target\parakeet-feasibility\spike02'; $f=Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue; "bytes=$(($f | Measure-Object Length -Sum).Sum) logs=$(($f | Where-Object {$_.Extension -eq '.log'} | Measure-Object Length -Sum).Sum)"
+OUTPUT
+2026-10-15T17:42:59.9556639+02:00
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Applying 19 patches from C:/dev/whisper/target/parakeet-feasibility/spike02/NeMo-Speech.cpp/patches to llama.cpp in C:/dev/whisper/target/parakeet-feasibility/spike02/build-cpu/_deps/llama.cpp
+bytes=10372288125 logs=19985104
+
+
+SOURCE rollout-2026-10-15T17-32-26-01a14031-782e-75b2-bae0-02881808937c.jsonl.zst:624 TIMESTAMP 2026-10-15T15:45:35.339Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command Get-Date -Format o; Get-Content 'C:\dev\whisper\target\parakeet-feasibility\spike02\cuda-build.log' -Tail 5 -ErrorAction SilentlyContinue; $p='C:\dev\whisper\target\parakeet-feasibility\spike02'; $f=Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue; "bytes=$(($f | Measure-Object Length -Sum).Sum) logs=$(($f | Where-Object {$_.Extension -eq '.log'} | Measure-Object Length -Sum).Sum)"
+OUTPUT
+2026-10-15T17:45:33.6175276+02:00
+-- Performing Test HAS_AVX512_1
+-- Performing Test HAS_AVX512_1 - Failed
+-- Performing Test HAS_AVX512_2
+-- Performing Test HAS_AVX512_2 - Failed
+-- Adding CPU backend variant ggml-cpu: /arch:AVX2 GGML_AVX2;GGML_FMA;GGML_F16C
+bytes=12141209440 logs=21354091
+
+
+SOURCE rollout-2026-10-15T17-16-18-01a14022-b282-7a71-8a32-32923124b5d7.jsonl.zst:426 TIMESTAMP 2026-10-15T15:57:53.231Z
+COMMAND C:\Program Files\PowerShell\7\pwsh.exe -Command Get-Content target/parakeet-feasibility/spike02/cpu-build.log -Tail 32; Get-Content target/parakeet-feasibility/spike02/cuda-build.log -Tail 32; rg -n 'CMAKE_BUILD_TYPE:|CMAKE_CUDA_ARCHITECTURES:|CMAKE_CUDA_COMPILER:|CMAKE_C_COMPILER:|CMAKE_CXX_COMPILER:|GGML_CUDA:|NEMO_SPEECH_BUILD_(DIAR|CLI):|NEMO_SPEECH_ENABLE_(ASR|TTS):|NEMO_SPEECH_(WITH_ASR|WITH_TTS):' target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt; Get-ChildItem -LiteralPath target/parakeet-feasibility/spike02/NeMo-Speech.cpp -Force | Select-Object -First 12 Name,Mode; Get-ChildItem -LiteralPath 'target/parakeet-feasibility/spike02/runtime space/cpu/bin','target/parakeet-feasibility/spike02/runtime space/cuda/bin' -File | Select-Object Directory,Name,Length | Format-Table -AutoSize; rg -n 'lot.paths|ARCH-PARA-PREF|Auto|FollowProbe|L[1234] —' docs/cadrage/plan-evo-parakeet.md
+OUTPUT
+Remarque : inclusion du fichier :              C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\streambuf
+Remarque : inclusion du fichier :               C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xiosbase
+Remarque : inclusion du fichier :                C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\share.h
+Remarque : inclusion du fichier :                C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xlocale
+Remarque : inclusion du fichier :                 C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xfacet
+Remarque : inclusion du fichier :                 C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xlocinfo
+Remarque : inclusion du fichier :                  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\__msvc_xlocinfo_types.hpp
+Remarque : inclusion du fichier :                  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\clocale
+Remarque : inclusion du fichier :                   C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\locale.h
+Remarque : inclusion du fichier :        C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\rel_pos_attention.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\rope_transformer.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\transformer_encoder.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\features\fe.h
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc/pipeline.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders/decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\types.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\itn.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\profanity.h
+Remarque : inclusion du fichier :      C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\unordered_set
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\runner.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\model.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\cache_aware_encoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\greedy_ctc_decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\rnnt_greedy_decoder.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\context_biasing.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_endpointer.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_masker.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\silero_vad.h
+[75/78] Linking CXX shared library bin\nemo_speech_asr.dll
+[76/78] Linking CXX static library src\core\nemo_speech_engine_registry.lib
+[77/78] Linking CXX shared library bin\nemo_speech_asr_c.dll
+==> done. Binaries in C:\dev\whisper\target\parakeet-feasibility\spike02\build-cpu\bin
+Remarque : inclusion du fichier :              C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\streambuf
+Remarque : inclusion du fichier :               C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xiosbase
+Remarque : inclusion du fichier :                C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\share.h
+Remarque : inclusion du fichier :                C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xlocale
+Remarque : inclusion du fichier :                 C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xfacet
+Remarque : inclusion du fichier :                 C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\xlocinfo
+Remarque : inclusion du fichier :                  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\__msvc_xlocinfo_types.hpp
+Remarque : inclusion du fichier :                  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\clocale
+Remarque : inclusion du fichier :                   C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt\locale.h
+Remarque : inclusion du fichier :        C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\rel_pos_attention.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\rope_transformer.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\transformer_encoder.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\features\fe.h
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc/pipeline.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders/decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\types.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\itn.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\postproc\profanity.h
+Remarque : inclusion du fichier :      C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include\unordered_set
+Remarque : inclusion du fichier :    C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\runner.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\model.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\encoder\cache_aware_encoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\greedy_ctc_decoder.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\rnnt_greedy_decoder.h
+Remarque : inclusion du fichier :       C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\decoders\context_biasing.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_endpointer.h
+Remarque : inclusion du fichier :     C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\vad_masker.h
+Remarque : inclusion du fichier :      C:\dev\whisper\target\parakeet-feasibility\spike02\NeMo-Speech.cpp\src\asr\vad\silero_vad.h
+[222/225] Linking CXX shared library bin\nemo_speech_asr.dll
+[223/225] Linking CXX static library src\core\nemo_speech_engine_registry.lib
+[224/225] Linking CXX shared library bin\nemo_speech_asr_c.dll
+==> done. Binaries in C:\dev\whisper\target\parakeet-feasibility\spike02\build-cuda\bin
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:64:CMAKE_BUILD_TYPE:STRING=Release
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:67:CMAKE_CXX_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:88:CMAKE_C_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:404:GGML_CUDA:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:685:NEMO_SPEECH_BUILD_CLI:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cpu/CMakeCache.txt:688:NEMO_SPEECH_BUILD_DIAR:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:64:CMAKE_BUILD_TYPE:STRING=Release
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:67:CMAKE_CUDA_ARCHITECTURES:UNINITIALIZED=61
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:70:CMAKE_CUDA_COMPILER:FILEPATH=C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/bin/nvcc.exe
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:91:CMAKE_CXX_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:112:CMAKE_C_COMPILER:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:667:GGML_CUDA:BOOL=ON
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:954:NEMO_SPEECH_BUILD_CLI:BOOL=OFF
+target/parakeet-feasibility/spike02/build-cuda/CMakeCache.txt:957:NEMO_SPEECH_BUILD_DIAR:BOOL=OFF
+
+Name       Mode
+----       ----
+.git       d----
+.github    d----
+app        d----
+clients    d----
+cmake      d----
+config     d----
+conversion d----
+docker     d----
+docs       d----
+examples   d----
+include    d----
+kernels    d----
+
+
+Directory                                                                 Name                     Length
+---------                                                                 ----                     ------
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin  ggml-base.dll            680960
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin  ggml-cpu.dll             947200
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin  ggml.dll                  61952
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin  nemo_speech_asr_c.dll     56320
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cpu\bin  nemo_speech_asr.dll     4192256
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin cublas64_12.dll       102518272
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin cublasLt64_12.dll     668673536
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin cudart64_12.dll          583680
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin ggml-base.dll            680960
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin ggml-cpu.dll             947200
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin ggml-cuda.dll          33219072
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin ggml.dll                  61952
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin nemo_speech_asr_c.dll     56320
+C:\dev\whisper\target\parakeet-feasibility\spike02\runtime space\cuda\bin nemo_speech_asr.dll     4209152
+
+7:**Identité :** `P-PARA-DRAFT-02`. **Objectif produit :** ajouter Parakeet TDT 0.6B v3 à Turbo dans l'application Windows, pour import et micro, CPU/GPU/Auto calcul, avec catalogue fermé, Auto langue Parakeet seulement après qualification, acquisition finale et conservation des garanties audio et de sorties. **Parents Git :** `docs/cadrage/evo-parakeet.md` à `60c0134b` (résultat SPIKE-PARA-02 PARTIAL, revue à faire) et `docs/cadrage/evo-engine-capabilities.md` à `79f64a9a` (gate CAP-02/03, revue CLEAN). **Propriétaire du découpage :** `rust_plan_writer`, contributions `PLAN-PARA-DRAFT v0.2` et rapprochement L1–L4 en lecture seule ; auteur Git : session principale. **Statut :** DRAFT, non exécutable. Une modification du design parent impose de rapprocher ce plan du nouveau commit avant revue `PLANS READY`.
+9:Le choix DEC-PARA-19 retient la transcription multilingue sans langue imposée pour Parakeet. Il ne démontre pas que le GGUF et NeMo-Speech.cpp v0.2.0 intégrés la réalisent. Le manuel de ce couple reste `Unsupported` ; aucun parcours Parakeet ne démarre avant qualification d'Auto pour la configuration exacte. La restitution d'un identifiant de langue détectée est facultative et distincte. Les comparaisons de vitesse et de charge sont différées ; aucun seuil de perte de qualité n'est inventé.
+15:| G-DESIGN | `PARA-REV-01` : `RISK-T-01a` fermé sur le banc/hôte SPIKE-PARA-02 ; 01b, inférence/identité effective 01c, 01d et Auto 01e restent ouverts. Le banc autorisé a rendu `PARTIAL` en attente des extraits FR/EN, sans troisième build natif permis ; interprétation architecte faite, revue indépendante du design à faire. | Tous avant readiness |
+21:Le parent n'est pas `DESIGN READY` et la revue du plan révisé n'a pas eu lieu. Les lignes ci-dessous sont des **hypothèses de découpage**, pas des décisions structurantes cachées dans des tâches. `G-DESIGN` doit être fermé puis le design revu avant de convertir ces lots en `lot.paths` autorisés. Les gates `CODE` (dépendances et interfaces des lots précédents) et `EXECUTION` (autorisation précise des chemins, données, ressources et écritures) sont à contrôler avant chaque campagne. La source native C++/CUDA, le FFI Rust, leurs dépendances, essais et installations nécessitent les accords précis applicables dans la session d'exécution ; l'ancien SPIKE n'en donne pas de nouveaux.
+27:| L1 — catalogue et capacités | Turbo préservé ; deux modèles visibles, sélection/admission cohérentes, langues et préférences | 05/06/08/16 ; CAP-31–34 | Aucune |
+28:| L2 — import CPU | Premier parcours Parakeet complet WAV/MP3 → texte, TXT/SRT, modèle et CPU attestés | 01/02/09/12/13/16/18 | L1 |
+29:| L3 — GPU et Auto calcul | Inférence sur GPU attendu ; Auto reste sur le même modèle, replis bornés | 03/04/15/18 | L2 |
+30:| L4 — microphone | Blocs confirmés, dernière phrase, Stop/drainage, TXT/SRT/WAV et réemploi | 10–14/16–18 | L2 et L3 pour les combinaisons annoncées |
+32:| L6 — distribution | Installable par utilisateur courant ; paquet exact qualifié CPU/GPU, Auto langue compris | 07A/07F/16F ; CAP-34 | L3–L5 |
+39:### L1 — catalogue, capacités, langues et préférences (6 tâches)
+44:| L1.2 | Évaluation applicative unique des modèles et modes linguistiques ; ancienne langue libre ambiguë/périmée refusée avec choix explicite, sans substitution ; refus identique dans le widget et avant séance. | `crates/whisper-core/src/application.rs`, `ports.rs` ; tests Auto qualifié, manuel absent, aucun mode et valeur ancienne ambiguë (PARA-05/16, CAP-33). |
+46:| L1.4 | Migrer v1 vers v2 : Turbo exact vérifié ou intention du chemin historique connu → `ModelId::Turbo` ; le fichier manquant ne devient pas source alternative. Chemin inconnu/invérifiable → valeur diagnostique conservée, lancement bloqué et choix explicite. Préserver les champs v1 réellement stockés : dernier dossier audio, destination, préférence micro, identifiant GPU ; audio courant vide. Aucun calcul ne vient de v1 : créer la préférence v2 `Auto`/`FollowProbe`, avec sonde tardive et sauvegarde échouée contrôlées. | `crates/whisper-core/src/path_settings.rs`, `crates/whisper-adapters/src/path_settings.rs`, `crates/whisper-desktop/src/root.rs`, `ui.rs`, tests `crates/whisper-core/tests/model_preferences.rs` et `crates/whisper-adapters/tests/model_preferences.rs` ; migration/réouverture isolées (PARA-08). |
+50:**Gate L1 :** G-CAP, règle Q-PARA-07 et identité du catalogue. Aucun modèle inconnu ou fichier arbitraire ne devient sélectionnable. Les chemins de modules/tests nouveaux restent candidats tant que le design n'en a pas fixé le contrat et le plan final le `lot.paths`.
+52:### L2 — premier import Parakeet CPU (6 tâches)
+57:| L2.2 | Versionner IPC : release, modèle/révision, séance/tentative, Auto langue et calcul ; refuser worker/version incompatible. | `crates/whisper-core/src/ipc.rs`, `crates/whisper-adapters/src/worker_ipc.rs`, worker retenu ; test identité fausse et résultat périmé. |
+61:| L2.6 | Vérifier refus de mode manuel Parakeet, Auto non qualifié, erreurs moteur et non-régression Turbo. | `crates/whisper-core/tests/import_contract.rs`, `crates/whisper-adapters/tests/import_cpu.rs`, `import_mp3.rs`, `worker_control.rs`, tests worker à fixer. |
+63:**Gate L2 :** preuve CPU et Auto langue ciblée sur le candidat exact, contrats ABI/IPC acceptés, Q-PARA-06. Premier chemin de bout en bout attendu : WAV français et seconde langue annotée → texte intelligible, TXT/SRT ordonnés, CPU effectivement utilisé et source intacte ; un chargement réussi seul ne suffit pas.
+65:### L3 — GPU et Auto calcul (5 tâches)
+71:| L3.3 | Auto calcul : GPU compatible puis au plus une tentative CPU du **même modèle** avant première inférence ; aucun repli tardif. | `crates/whisper-core/src/compute_policy.rs`, `application.rs`, routeur IPC ; tests avant/après début audio. |
+72:| L3.4 | Garder CPU/GPU manuels fixes pendant la séance, Auto restauré s'il a été sauvegardé, et cause/calcul effectif visibles ; un choix manuel sauvegarde `FollowProbe` pour le prochain démarrage. | `crates/whisper-desktop/src/ui.rs`, `root.rs`, `crates/whisper-core/src/path_settings.rs` si requis ; échec GPU manuel, sonde tardive et préférence après redémarrage. |
+77:### L4 — microphone, arrêt et réemploi (6 tâches)
+86:| L4.6 | Vérifier blocs ordonnés, Stop, dernière phrase, exports, panne et fermeture normale sur CPU/GPU/Auto annoncés. | `crates/whisper-core/tests/live_contract.rs`, tests `live_capture.rs`, `live_archive.rs`, `microphone_settings.rs`, worker live à fixer. |
+90:**`lot.paths.write` candidats L1–L4, rapprochés du code à `185f5635`.** Les fichiers nouveaux et leur nom restent conditionnés par la preuve native ; un changement de frontière/chemin retourne `PLAN_CHANGE_REQUIRED`, jamais une autorisation implicite. Ces listes incluent les tests dont les tâches ci-dessus ont besoin et ne prescrivent pas une édition de tous les fichiers si un lot peut être plus étroit.
+99:**`lot.paths.read` communs L1–L4 :** `AGENTS.md`, `RAILGUARD.md`, `Cargo.toml`, `Cargo.lock`, les deux parents et ce plan Git, les modules/test du lot précédent, les sources audio annotées, modèles exacts et DLL natives réellement sélectionnées. L1 lit aussi `compute_policy.rs`, `microphone.rs`, l'inventaire GPU et `models/` en profil Test ; L2 lit les moteurs et IPC des deux workers Turbo ; L3 lit l'attestation GPU Turbo et l'inventaire Windows ; L4 lit le contrat microphone sans le modifier par défaut. Les fichiers modèles/DLL/audio précis restent à renseigner après réception et preuve du SPIKE.
+101:**`lot.paths.runtime_write` candidats :** L1 `target/parakeet-tests/{catalogue,resources,migration,tmp}/`, L2 `target/parakeet-tests/{import,import-cancellation,tmp}/`, L3 `target/parakeet-tests/{compute,tmp}/`, L4 `target/parakeet-tests/{live,tmp}/` et `target/direct-live-tests/` si ses tests internes sont exécutés ; Cargo écrit sous `target/debug/` pour ces campagnes. Les réglages utilisateur réels, le journal `%LOCALAPPDATA%\Whisper\reactivity.log` et la capture Windows relèvent d'une campagne produit distincte avec accord applicable. Une source audio ou un modèle existant est en lecture seule ; aucune copie/peuplement non déclaré n'est déduit de ces listes.
+116:**`lot.paths.write` candidat L5 :** `.gitignore`, `Cargo.lock`, `crates/whisper-adapters/{Cargo.toml,src/lib.rs,src/model_store.rs,src/model_acquisition.rs,tests/model_store.rs,tests/model_acquisition.rs}`, `crates/whisper-core/{src/application.rs,src/ports.rs,tests/acquisition_contract.rs}`, `crates/whisper-bootstrap/src/main.rs`, `crates/whisper-desktop/{src/root.rs,src/ui.rs,tests/model_acquisition_ui.rs}`. Les chemins réellement requis sont à figer après choix du transport et du design ; aucun ajout implicite. `RAILGUARD.md` est une entrée documentaire distincte. L5 partage `application.rs`, `ports.rs`, `root.rs` et `ui.rs` avec L1–L4 ; réconcilier ces interfaces avant intégration.
+131:**`lot.paths.write` candidat L6 :** `crates/whisper-bootstrap/{Cargo.toml,build.rs,src/main.rs,src/lib.rs,src/payload.rs,src/package.rs,src/install.rs,tests/install_contract.rs,tests/package_contract.rs}`, `crates/whisper-desktop/src/root.rs` ; le test `package_language.rs` et le bilan documentaire sont candidats supplémentaires. La composition complète des DLL, l'interface IPC exécutable, les dépendances natives réelles et les commandes de fabrication restent `PLAN_CHANGE_REQUIRED` après faisabilité. Aucun script/outillage de paquet nouveau n'est présumé.
+153:| E2 / L1 | Auto langue qualifié seul, manuel seul, aucun mode, ancienne langue libre ambiguë/périmée restaurée ou injectée, RAM/VRAM indéterminée après contrôles, résultat tardif. | Ancienne valeur refusée et choix explicite, sans substitution ; capacité obligatoire inconnue bloquée ; ressources seules indéterminées permettent préparation, dont échec réel expliqué ; préférence inchangée. AC-08/16 ; CAP-32/33. | Implémenteur ; Q-CAP-02/03. |
+154:| E3 / L2 | WAV/MP3 annotés français et autre langue, source intacte, runtime absent ou IPC incompatible. | Texte et TXT/SRT ordonnés ; modèle/CPU effectifs ; aucune substitution ni faux succès. AC-01/02/09/13/16/18. | Implémenteur, validateur ; G-DESIGN CPU/Auto. |
+155:| E4 / L3 | GPU visé, identité fausse, échec avant/après première entrée audio en inférence, capture éventuellement déjà active. | GPU natif attesté ; refus manuel ; Auto au plus une tentative CPU du même modèle avant première entrée audio en inférence, aucun repli après. AC-03/04/15. | Validateur, reviewer ; RISK-T-01c. |
+164:**Sous-cartes nécessaires au plan final, toutes `NOT RUN`.** Les budgets ci-dessous sont des plafonds candidats hors compilation et préparation des données ; ils ne sont pas des délais promis au produit. Les chemins sous `target/` sont des écritures de campagne à inclure dans `lot.paths.runtime_write` avant exécution.
+168:| E1m / L1.4 | Fixtures v1 Turbo exact, historique absent, inconnu/invérifiable, `gpu_device_id` sans calcul, échec sauvegarde et ACK ancien ; v2 Auto explicite. `target/parakeet-tests/migration/`. Réouverture : diagnostic/choix explicite, aucun calcul déduit de v1, `FollowProbe` par défaut, Auto sauvegardé résiste à la sonde tardive, autres réglages préservés. | ≤10 min ; API de migration/injection. |
+184:**Pour chaque lot, avant toute écriture :** relire `AGENTS.md`, `RAILGUARD.md`, les deux parents Git et leurs revues exactes ; relever HEAD, branche et changements locaux ; vérifier les gates DOCUMENT/CODE/EXECUTION, `lot.paths`, dépendances, source des modèles, cible Windows et matériel. Le lot et ses chemins nécessitent un accord écrit précis **dans la session d'exécution**. Les nouveaux crates, FFI et code C++/CUDA, dépendances Cargo, scripts/installateur, téléchargements, écritures hors dépôt ou changement de RG-08 nécessitent les accords particuliers applicables. Ne pas inférer ces accords de la validation future du plan.
+188:**Entrées de campagne à vérifier :** les tests existants `import_cpu`, `import_mp3` et `gpu_selection_worker` peuvent réussir sans lancer leur branche native si leurs variables `WHISPER_L01_*`, `WHISPER_L02_*` ou `WHISPER_L04_*` manquent. Le préflight doit prouver la présence des données et compter les branches réellement exécutées ; les futurs tests Parakeet dédiés refuseront une campagne native demandée mais non exécutée. Plusieurs tests existants écrivent dans `std::env::temp_dir()` : avant leur lancement, `TEMP` et `TMP` du processus de campagne doivent viser une racine `target/parakeet-tests/tmp/` inscrite dans `lot.paths.runtime_write`. Le code actuel de `root.rs` cherche des workers dans plusieurs emplacements ; le profil Final L6 doit éprouver l'absence effective de secours sibling, `target` ou chemin relatif.
