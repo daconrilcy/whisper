@@ -1,5 +1,5 @@
-Avancée : quinze tests 7a compilés et verts ; suite N1 du complément réussie.
-Blocage : aucun pour 7a ; toutes les réserves de caractérisation sont fermées.
+Avancée : 7a commis ; extraction 7b validée CLEAN après deux cycles de revue.
+Blocage : aucun pour 7b ; famille 8 et clôture C restent à réaliser.
 Décision : exécuter C selon le plan accepté, sans simplification ni fusion, en commits locaux seulement.
 
 # REFACTO-POLL — sous-lot C
@@ -651,3 +651,103 @@ référence les deux oracles. R-7A-1 à R-7A-5 et V-N1 restent fermés ; aucune
 réserve 7a ouverte. Les deux cycles passés ne sont pas remis à zéro.
 Cette clôture autorise le commit local 7a puis 7b selon le plan accepté ;
 elle ne constitue ni nouvelle revue générale ni qualification native.
+
+## Extraction 7b — en cours
+
+7a commité localement sous 52db4b95, neuf chemins exacts, aucun code produit
+modifié. Seuls models/ et sound example/ restent non suivis et préservés.
+Le même implémenteur reçoit 7b : poll.rs et nouveaux modules de collecte
+sous poll/, ordre inchangé, sorties explicites, handlers distincts, seuils
+100 lignes / complexité 25, déplacement maximal 800 lignes. Aucun changement
+de tests, registre, garde, manifeste ou lockfile. N1 complète puis revue
+indépendante propre à ce nouveau livrable, deux cycles maximum ; arrêt au
+premier échec. La conformité finale de poll est attendue après 8b.
+
+Le candidat 7b est écrit dans poll.rs et le nouveau poll/collection.rs,
+environ 250 lignes déplacées selon l'implémenteur. SelfTest passe 35/79.
+L'appel suivant est refusé avant Cargo : pwsh -NoProfile -File
+ci/guard-level1.ps1 -Structure -LotRoot
+target/parakeet-tests/refacto-poll-c/7b-structure ; erreur ligne 119,
+« A Cargo command is required ». Le paramètre existant correct est
+-Mode Structure, déjà passé dans 7a-complement-retry-structure. Aucun test,
+Clippy ou formatage depuis cet arrêt, aucune session active. Reprise proposée
+avec -Mode Structure, nouvelle racine 7b-structure-retry, puis vérifications
+N1 prévues et revue indépendante ; garde et candidat inchangés.
+
+L'utilisateur autorise explicitement cette reprise : -Mode Structure puis
+suite N1 et revue indépendante prévues, garde et candidat inchangés. Même
+implémenteur, nouvelles racines de vérification, arrêt au premier nouvel
+échec ; aucun changement de périmètre ni correction implicite.
+
+Structure repris passe 946/946 (166 native-gated recensés, zéro retour
+silencieux), format passe. Clippy workspace/all-targets s'arrête Cargo 101 :
+collection.rs:311, receive() fournit PortError tandis que le nouveau
+poll_transport_error attend std::io::Error. Une seule erreur E0308 révélée,
+aucun test ni mesure ciblée lancé. Preuve :
+7b-clippy/scratch/20261104T085254022-63a43d94ae9644b9b59d8251df93930b/.
+Diagnostic statique : PortError est déjà accessible par les imports parents ;
+correction proposée limitée au type de l'argument, corps inchangé. Aucune
+correction ou relance depuis l'arrêt ; reprise N1 et revue à arbitrer.
+
+L'utilisateur autorise le remplacement du seul type std::io::Error par
+PortError dans poll_transport_error, sans changement du corps, puis N1,
+mesures des handlers et revue indépendante 7b. Même implémenteur, nouvelles
+racines 7b-typefix-*, aucun autre changement autorisé ; arrêt au premier
+échec de vérification.
+
+Après le seul correctif autorisé, SelfTest 35/79, Structure 946/946, format,
+Clippy workspace/all-targets et N1 passent. Défaut 700/128, common 11/1,
+CPU 12/9, Parakeet CPU 26/11 : 749 réussites, zéro échec, 149 ignorés.
+Preuves sous 7b-typefix-*. Aucun test, garde, manifeste ou lockfile modifié.
+
+Relevé implémenteur : 12 nouvelles fonctions, maximum 47 lignes physiques ;
+251 lignes supprimées de poll.rs, nouveau collection.rs de 361 lignes,
+617 lignes de diff textuel (suivi et nouveau), sous le plafond de 800.
+Clippy relève poll à 242 lignes ; sa conformité finale reste attendue après
+8b. Les lints lignes/complexité ne sont pas activés sur les nouveaux handlers
+dans cette exécution : leur comptage physique/statique n'est pas présenté
+comme une mesure Clippy. La garde actuelle refuse les arguments Clippy après
+-- ; aucune extension ou autre moyen de mesure ajouté sans autorisation.
+Clippy signale aussi large_enum_variant sur le nouvel enum de contrôle
+PollCollectionControl (592/160 octets). Candidat figé transmis au même
+coordinateur pour la revue indépendante 7b cycle 1, incluant ces deux points.
+
+Revue 7b cycle 1 : aucun écart d'ordre, sortie ou nettoyage trouvé dans le
+diff exact ; pas de fusion, 251 lignes déplacées sous 800. Les 47 lignes
+physiques maximum suffisent pour le seuil 100, mais cognitive_complexity
+n'est pas actif sur les 12 handlers : verdict BLOCKED par le seul préalable
+V-7B-METRICS, seuil 25 obligatoire non encore démontré. large_enum_variant
+reste une limite non bloquante, sans régression fonctionnelle ni allocation
+nouvelle démontrée. poll à 242 lignes reste transitoire avant 8b.
+
+Proposition précise du reviewer : annotation permanente
+#[warn(clippy::too_many_lines, clippy::cognitive_complexity)] devant l'unique
+impl ImportRuntime dans collection.rs, aucun corps modifié. Les seuils
+100/25 existent déjà dans clippy.toml. Cette activation locale permet le
+Clippy ordinaire via garde inchangée, sans allow ni référence nouvelle.
+Après autorisation source distincte : SelfTest, Clippy, N1 prévue puis
+vérification indépendante cycle 2 pour V-7B-METRICS ; aucune modification
+appliquée sur cette proposition avant arbitrage.
+
+L'utilisateur autorise explicitement l'activation locale permanente des
+deux lints devant l'impl, sans changement des corps, puis N1 et la seconde
+vérification indépendante 7b. Le même implémenteur reçoit cette correction
+unique, racines 7b-metrics-*, garde et seuils existants inchangés, arrêt au
+premier échec. Aucun changement de large_enum_variant ou autre code admis.
+
+Après activation, SelfTest 35/79, Structure 946/946, format et Clippy
+workspace/all-targets passent sous 7b-metrics-*. Les deux lints sont actifs
+sur les 12 méthodes et ne signalent aucun dépassement des seuils 100/25 ;
+Clippy ne publie pas leur score exact sous seuil. N1 : défaut 700/128,
+common 11/1, CPU 12/9, Parakeet CPU 26/11, soit 749 réussites, zéro échec,
+149 ignorés. Diff-check réussi ; 251 lignes retirées de poll.rs, module
+collection.rs de 362 lignes, diff total 618 lignes. Seule l'annotation a
+changé depuis la première revue ; candidat figé transmis pour la seconde.
+
+Seconde revue du même reviewer : CLEAN pour 7b, V-7B-METRICS fermé.
+L'annotation permanente couvre les 12 méthodes ; aucun dépassement 100/25
+avec Clippy ordinaire via garde. Conclusions comportementales du premier
+cycle maintenues : ordre, sorties et nettoyages conservés. PE supplémentaire :
+non concerné (aucun worker, manifeste, lock, .cargo ou script de compilation
+touché). Le warning large_enum_variant demeure non bloquant ; poll reste
+transitoirement à 242 lignes jusqu'à 8b. Cette validation ne clôt pas C.
