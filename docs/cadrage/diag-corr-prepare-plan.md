@@ -17,6 +17,10 @@ initial 513 278 816 256 octets, worktree propre. L'état de processus relevé ne
 montre aucune commande Cargo/rustc/Git ni VCTIP encore active à cette lecture.
 Reprise sur `C:/wt/diag-banc`, branche `diag-banc-15s`, base `ff50f7cb`, propre.
 Le bilan précédent reste figé ; ce document porte la suite, pas une réécriture.
+La racine target/n2-native est réutilisée et devient une entrée du lot actif :
+les anciennes commandes de nettoyage du lot clos ne doivent pas être exécutées
+pendant cette suite. Les chemins encore actifs seront exclus de toute proposition
+de rétention jusqu'à la nouvelle clôture.
 
 But produit : éliminer un travail de préparation inutile ou une attente prouvée
 sur l'import local, sans affaiblir l'intégrité des modèles, le routage Auto/CPU/GPU,
