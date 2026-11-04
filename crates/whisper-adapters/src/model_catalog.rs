@@ -355,6 +355,44 @@ impl LocalModelCatalog {
         }
     }
 
+    pub(crate) fn inspect_requested_model(
+        &self,
+        path: &str,
+        known_historical_turbo_path: &str,
+    ) -> Result<(whisper_core::model_catalog::ModelId, CatalogSnapshot), String> {
+        use whisper_core::{model_catalog::ModelId, model_selection_app::is_known_historical_path};
+
+        let id = if is_known_historical_path(path, known_historical_turbo_path) {
+            ModelId::WhisperLargeV3Turbo
+        } else {
+            MODELS
+                .iter()
+                .find(|record| {
+                    let catalog_path = self.root.join(record.artifact.file_name);
+                    let catalog_path = catalog_path.to_string_lossy();
+                    is_known_historical_path(path, catalog_path.as_ref())
+                })
+                .map(|record| record.artifact.id)
+                .ok_or_else(|| {
+                    format!(
+                        "ModelUnknown: chemin de modèle inconnu dans la file ou le checkpoint : {path}"
+                    )
+                })?
+        };
+        let record = MODELS
+            .iter()
+            .find(|record| record.artifact.id == id)
+            .expect("every model id has a catalog record");
+        let entry = inspect_entry(record, self.root.join(record.artifact.file_name));
+        Ok((
+            id,
+            CatalogSnapshot {
+                generation: 0,
+                entries: vec![entry],
+            },
+        ))
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }
@@ -549,6 +587,9 @@ fn decode_sha256(value: &str) -> Result<[u8; 32], String> {
     }
     Ok(bytes)
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod execution_artifact_cache_tests {

@@ -189,3 +189,20 @@ La correction conditionnelle du plan est donc déclenchée : limiter l'inspectio
 au modèle demandé, conserver ses contrôles et le catalogue complet d'affichage.
 Aucune cause des 15 s bimodales n'est prouvée ; aucun mode lent reproduit.
 Quatre essais après correction restent autorisés ; pas d'autres essais avant.
+
+### Correctif conditionnel vérifié avant essais
+
+Delta limité à model_catalog.rs, worker_ipc/backends/mod.rs et nouveau
+model_catalog/tests.rs : résolution de l'identité demandée puis inspection d'une
+seule entrée pour bind_import. Catalogue complet inspect()/snapshot et bind_live
+inchangés ; mêmes contrôles de taille/SHA-256/identité/revalidation de l'entrée.
+
+N1 : 712 PASS /128 ignorés /0 échec (708 + quatre tests ciblés). Témoins :
+Parakeet seul inspecté et catalogue complet inspectant les deux modèles ; alias
+Turbo historique et chemins inconnus ; modèle demandé manquant ; changement de
+taille forçant un rehash et restant Corrupt. Format/build/Clippy PASS, sans
+correction automatique des avertissements existants. PreparationNoRun-
+e8ba4af9544e44b1a924b4937c9f5d34 : NO_RUN_PASS. Revue performance CLEAN,
+aucun constat ouvert ; compteur cumulé trois lectures de revue et un cycle de
+correction technique (DC1/DC2). Le gain reste à vérifier sur les quatre essais
+Auto restants ; aucun essai natif d'un autre scénario n'est autorisé.

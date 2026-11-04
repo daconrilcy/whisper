@@ -121,9 +121,9 @@ impl RuntimeModelCatalog {
         request: &whisper_core::ports::ImportRequest,
     ) -> Result<whisper_core::ports::ImportRequest, String> {
         use whisper_core::model_catalog::ModelId;
-        let snapshot = self.snapshot();
-        let id = snapshot
-            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)?;
+        let (id, snapshot) = self
+            .catalog
+            .inspect_requested_model(&request.model_path, &self.known_historical_turbo_path)?;
         if id == ModelId::WhisperLargeV3Turbo {
             return snapshot.bind_turbo_import_request(request, &self.known_historical_turbo_path);
         }
