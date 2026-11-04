@@ -1,6 +1,6 @@
 Avancée : plan du lot préparé avant instrumentation et campagnes ; worktree dédié créé.
-Blocage : aucun à la reprise ; exception d'activation acceptée dans cette session.
-Décision : déléguer l'instrumentation, puis vérifier et mesurer selon ce plan.
+Blocage : reprise des campagnes soumise à arbitrage après les deux échecs consignés ci-dessous.
+Décision : corriger et relire le candidat sans relancer de campagne avant cet accord.
 
 # DIAG-BANC-15S — plan du 4 novembre 2026
 
@@ -130,3 +130,25 @@ le nombre de fichiers requis. Ne pas utiliser un marqueur implicite.
 Les deux observations signalées par l'utilisateur (provenance des DLL sous
 spike02 et messages ignore décalés) seront rapportées comme telles, sans
 correction ni prétention de vérification de provenance.
+
+## Arrêt de campagne avant tout corps natif
+
+Le 4 novembre 2026, N1 SelfTest 35/79 et fmt --check ont réussi. La première
+commande standard cargo test, sous garde et sans activation, a échoué à la
+compilation (101, E0061) : appel existant à huit arguments dans
+tests/parakeet_unified_native/voxpopuli.rs:262, helper passé à neuf arguments.
+Aucun résultat de test exécuté. Le reviewer a demandé R1 (compatibilité)
+et R2 (découpage plus fin des phases) ; correction cycle 1 par l'implémenteur
+dans les trois fichiers autorisés, sans Cargo, puis relecture indépendante.
+
+Erreur d'orchestration distincte : la session principale a lancé Native
+SelfTest pendant N1. Le watcher natif a vu une écriture VSApplicationInsights
+dans target/diag-banc-15s/standard/scratch/.../localappdata/, hors de sa racine
+N2, et a arrêté SelfTest. Ce n'est pas une preuve de fuite hors dépôt ni une
+écriture attribuée au produit. Les logs sont conservés dans
+target/diag-banc-15s/native-selftest.log et
+target/n2-native/logs/selftest-nvidia-diagnostic/success/guard-events.jsonl.
+Le résultat N1 (E0061) est indépendant de cet arrêt ; aucune nouvelle campagne
+n'est lancée. Zéro corps N2 sur les six autorisés. Reprise proposée : commandes
+strictement séquentielles, uniquement après accord utilisateur post-échec
+conformément à AGENTS.md. Pas de restauration ni suppression des preuves.

@@ -17,6 +17,9 @@ use whisper_core::{
     model_registry::{PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID, model},
 };
 
+#[path = "support/native_import_timing.rs"]
+mod native_import_timing;
+
 fn required_path(name: &str) -> PathBuf {
     let value = std::env::var_os(name).unwrap_or_else(|| {
         panic!("{name} must point to an input or root inside the guarded PU-L4 lot")
@@ -102,6 +105,21 @@ fn personal_paths() -> (
     ParakeetWorkerPaths,
     ParakeetWorkerPaths,
 ) {
+    personal_paths_with_timing(None)
+}
+
+fn personal_paths_with_timing(
+    mut timing: Option<&mut native_import_timing::NativeImportTiming>,
+) -> (
+    WorkerPaths,
+    PathBuf,
+    ParakeetWorkerPaths,
+    ParakeetWorkerPaths,
+) {
+    let prepare_started = timing.as_deref_mut().map(|_| Instant::now());
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("personal_paths_prepare_begin", serde_json::Value::Null);
+    }
     let local_app_data = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .expect("guarded PU-L4 LOCALAPPDATA is required")
@@ -137,14 +155,40 @@ fn personal_paths() -> (
             path.display()
         );
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "personal_paths_prepare_end",
+            serde_json::json!({"duration_ms":prepare_started.expect("trace timer exists").elapsed().as_secs_f64()*1000.0}),
+        );
+    }
+    let cpu_validation_started = timing.as_deref_mut().map(|_| Instant::now());
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("cpu_route_validation_begin", serde_json::Value::Null);
+    }
     assert!(
         cpu.validate().is_ok(),
         "personal CPU route must match its exact layout"
     );
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "cpu_route_validation_end",
+            serde_json::json!({"duration_ms":cpu_validation_started.expect("trace timer exists").elapsed().as_secs_f64()*1000.0}),
+        );
+    }
+    let gpu_validation_started = timing.as_deref_mut().map(|_| Instant::now());
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("gpu_route_validation_begin", serde_json::Value::Null);
+    }
     assert!(
         gpu.validate().is_ok(),
         "personal GPU route must match its exact layout"
     );
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "gpu_route_validation_end",
+            serde_json::json!({"duration_ms":gpu_validation_started.expect("trace timer exists").elapsed().as_secs_f64()*1000.0}),
+        );
+    }
     (
         WorkerPaths {
             cpu: app.join("whisper-worker-cpu.exe"),
@@ -197,9 +241,24 @@ fn run_native_import(
     minimum_samples: Option<u64>,
     require_nonempty_text: bool,
 ) -> u64 {
+    let mut timing = native_import_timing::NativeImportTiming::for_auto_test();
+    let started = Instant::now();
+    if let Some(trace) = timing.as_mut() {
+        trace.event("run_native_import_begin", serde_json::Value::Null);
+        trace.event(
+            "input_variable",
+            serde_json::json!({"name":source_variable}),
+        );
+    }
     let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
     let source = fixture(source_variable, &execution_root);
-    run_native_import_from_path(
+    if let Some(trace) = timing.as_mut() {
+        trace.event(
+            "fixture_resolved",
+            serde_json::json!({"source":source,"run_root":execution_root}),
+        );
+    }
+    let result = run_native_import_from_path_timed(
         &source,
         case,
         compute,
@@ -208,7 +267,15 @@ fn run_native_import(
         require_nonempty_text,
         false,
         false,
-    )
+        timing.as_mut(),
+    );
+    if let Some(trace) = timing.as_mut() {
+        trace.event(
+            "run_native_import_end",
+            serde_json::json!({"duration_ms":started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
+    result
 }
 
 fn run_native_import_from_path(
@@ -221,12 +288,69 @@ fn run_native_import_from_path(
     require_gpu_for_auto: bool,
     use_personal_settings: bool,
 ) -> u64 {
+    run_native_import_from_path_timed(
+        source,
+        case,
+        compute,
+        gpu_candidate,
+        minimum_samples,
+        require_nonempty_text,
+        require_gpu_for_auto,
+        use_personal_settings,
+        None,
+    )
+}
+
+fn run_native_import_from_path_timed(
+    source: &Path,
+    case: &str,
+    compute: ComputeChoice,
+    gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    minimum_samples: Option<u64>,
+    require_nonempty_text: bool,
+    require_gpu_for_auto: bool,
+    use_personal_settings: bool,
+    timing: Option<&mut native_import_timing::NativeImportTiming>,
+) -> u64 {
+    let mut timing = timing;
+    let body_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("run_native_import_from_path_begin", serde_json::Value::Null);
+    }
+    let root_started = Instant::now();
     let execution_root = required_path("WHISPER_L04_CAMPAIGN_RUN");
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "run_root_resolved",
+            serde_json::json!({"duration_ms":root_started.elapsed().as_secs_f64()*1000.0,"path":execution_root.display().to_string()}),
+        );
+    }
+    let source_started = Instant::now();
     assert!(source.is_file(), "native import input must exist");
     let before_sha = sha256_file(&source);
+    if let Some(trace) = timing.as_deref_mut() {
+        let source_sha256 = before_sha
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        trace.event(
+            "source_validated_and_hashed",
+            serde_json::json!({"duration_ms":source_started.elapsed().as_secs_f64()*1000.0,"source":source.display().to_string(),"source_sha256":source_sha256}),
+        );
+    }
+    let destination_started = Instant::now();
     let destination = execution_root.join("archive");
     std::fs::create_dir_all(&destination).expect("create archive under guarded PU-L4 root");
-    let (workers, turbo_model, cpu, gpu) = personal_paths();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "destination_ready",
+            serde_json::json!({"duration_ms":destination_started.elapsed().as_secs_f64()*1000.0,"destination":destination.display().to_string()}),
+        );
+    }
+    let (workers, turbo_model, cpu, gpu) = personal_paths_with_timing(timing.as_deref_mut());
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("personal_paths_validated", serde_json::json!({"cpu_worker":cpu.executable.display().to_string(),"cpu_model":cpu.model.display().to_string(),"gpu_worker":gpu.executable.display().to_string(),"turbo_model":turbo_model.display().to_string()}));
+    }
     let parakeet_model = cpu.model.clone();
     let settings_root = if use_personal_settings {
         gpu.runtime_root.join("settings")
@@ -239,6 +363,10 @@ fn run_native_import_from_path(
     } else {
         Vec::new()
     };
+    let service_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("service_construction_begin", serde_json::Value::Null);
+    }
     let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry_native_candidate(
         workers,
         turbo_model
@@ -251,7 +379,23 @@ fn run_native_import_from_path(
         Some(settings_root.clone()),
     );
     let mut app = ImportApplication::new(io);
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "service_construction_end",
+            serde_json::json!({"duration_ms":service_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
+    let request_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("request_construction_begin", serde_json::Value::Null);
+    }
     let request = request(&source, &parakeet_model, &destination, compute);
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "request_construction_end",
+            serde_json::json!({"duration_ms":request_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
     assert_eq!(PathBuf::from(&request.model_path), parakeet_model);
     let has_gpu_candidate = gpu_candidate.is_some();
     if let Some(candidate) = gpu_candidate {
@@ -259,10 +403,20 @@ fn run_native_import_from_path(
         app.set_gpu_candidate(request.job_id, request.generation, Some(candidate))
             .expect("real current GPU candidate must be accepted by the application");
     }
+    let dispatch_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("start_import_dispatch_begin", serde_json::Value::Null);
+    }
     app.dispatch(AppCommand::StartImport {
         request: request.clone(),
     })
     .expect("start true ImportApplication route");
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "start_import_dispatch_end",
+            serde_json::json!({"duration_ms":dispatch_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
 
     let timeout = if minimum_samples.is_some() {
         Duration::from_secs(90 * 60)
@@ -271,10 +425,15 @@ fn run_native_import_from_path(
     };
     let deadline = Instant::now() + timeout;
     let mut observed_backend = None;
+    let mut last_visible = None;
     let terminal = loop {
+        let refresh_started = Instant::now();
         let view = app
             .dispatch(AppCommand::Refresh)
             .expect("refresh native unified import");
+        if let Some(trace) = timing.as_deref_mut() {
+            trace.event("refresh", serde_json::json!({"duration_ms":refresh_started.elapsed().as_secs_f64()*1000.0,"message":view.message.as_deref(),"active_job":view.active_job.as_ref().map(|(id,state)|format!("{id:?}:{state:?}")),"has_result":view.last_result.is_some()}));
+        }
         if let Some(message) = view
             .message
             .as_deref()
@@ -287,7 +446,22 @@ fn run_native_import_from_path(
                 job_id == request.job_id && state == JobState::Recoverable
             })
         {
+            if let Some(trace) = timing.as_deref_mut() {
+                trace.event("terminal_view", serde_json::json!({"elapsed_ms":refresh_started.elapsed().as_secs_f64()*1000.0}));
+            }
             break view;
+        }
+        let visible = format!(
+            "{:?}|{:?}|{}",
+            view.active_job,
+            view.message,
+            view.unified_parakeet_sessions.len()
+        );
+        if last_visible.as_ref() != Some(&visible) {
+            last_visible = Some(visible.clone());
+            if let Some(trace) = timing.as_deref_mut() {
+                trace.event("visible_view_change", serde_json::json!({"view":visible}));
+            }
         }
         assert!(
             Instant::now() < deadline,
@@ -295,6 +469,9 @@ fn run_native_import_from_path(
         );
         thread::sleep(Duration::from_millis(25));
     };
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("terminal_view_assertions_begin", serde_json::Value::Null);
+    }
     let session = terminal
         .unified_parakeet_sessions
         .iter()
@@ -324,12 +501,26 @@ fn run_native_import_from_path(
             "Auto without a candidate must report its actual pre-audio CPU fallback: {backend}"
         ),
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("effective_backend_assertions_end", serde_json::Value::Null);
+        trace.event("terminal_view_assertions_end", serde_json::Value::Null);
+    }
 
+    let archive_scan_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("archive_scan_begin", serde_json::Value::Null);
+    }
     let entry = ArchiveStore::scan(&destination)
         .expect("scan native import archive")
         .into_iter()
         .find(|entry| entry.job_id == request.job_id && entry.generation == request.generation)
         .expect("native request must leave a durable archive state");
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "archive_scan_end",
+            serde_json::json!({"duration_ms":archive_scan_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
     assert!(
         entry.complete,
         "{case} native request did not publish: {terminal:?}"
@@ -338,9 +529,26 @@ fn run_native_import_from_path(
         entry.strategy,
         whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
     );
+    let exports_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "published_exports_resolution_begin",
+            serde_json::Value::Null,
+        );
+    }
     let files =
         ArchiveStore::published_unified_files(&destination, request.job_id, request.generation)
             .expect("published audio, TXT and SRT must be referenced by the real archive");
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "published_exports_resolution_end",
+            serde_json::json!({"duration_ms":exports_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
+    let transcript_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("transcript_read_and_check_begin", serde_json::Value::Null);
+    }
     let transcript =
         std::fs::read_to_string(&files.txt_path).expect("read published transcript text");
     if require_nonempty_text {
@@ -349,6 +557,13 @@ fn run_native_import_from_path(
             "native long transcription must publish nonempty text; lexical quality is evaluated against the supplied reference"
         );
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("transcript_read_and_check_end", serde_json::json!({"duration_ms":transcript_started.elapsed().as_secs_f64()*1000.0,"bytes":transcript.len()}));
+    }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_wav_read_begin", serde_json::Value::Null);
+    }
+    let wav_started = Instant::now();
     let wav_path = PathBuf::from(&files.wav_path);
     let mut wav = std::fs::File::open(&wav_path).expect("open published WAV");
     let mut header = [0_u8; 44];
@@ -359,6 +574,13 @@ fn run_native_import_from_path(
     let wav_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
     assert_eq!(wav_bytes % 2, 0, "published PCM16 byte count must be even");
     let published_samples = u64::from(wav_bytes / 2);
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_wav_read_end", serde_json::json!({"duration_ms":wav_started.elapsed().as_secs_f64()*1000.0,"wav_bytes":wav_bytes}));
+    }
+    let artifact_check_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_artifacts_check_begin", serde_json::Value::Null);
+    }
     for path in [files.wav_path, files.txt_path, files.srt_path] {
         let path = PathBuf::from(path);
         assert!(
@@ -368,11 +590,27 @@ fn run_native_import_from_path(
         );
         assert!(std::fs::metadata(path).unwrap().len() > 0);
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_artifacts_check_end", serde_json::json!({"duration_ms":artifact_check_started.elapsed().as_secs_f64()*1000.0}));
+    }
+    let source_recheck_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("source_immutability_hash_begin", serde_json::Value::Null);
+    }
     assert_eq!(
         sha256_file(&source),
         before_sha,
         "source fixture changed during native inference"
     );
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("source_immutability_hash_end", serde_json::json!({"duration_ms":source_recheck_started.elapsed().as_secs_f64()*1000.0}));
+    }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "personal_settings_validation_begin",
+            serde_json::Value::Null,
+        );
+    }
     if use_personal_settings {
         assert!(
             settings_root.is_dir(),
@@ -380,13 +618,30 @@ fn run_native_import_from_path(
         );
         assert_gpu_log_created_for_import(&personal_gpu_logs, &previous_personal_gpu_logs);
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("personal_settings_validation_end", serde_json::Value::Null);
+    }
+    let part_store_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_part_store_open_begin", serde_json::Value::Null);
+    }
     let part_store = whisper_adapters::parakeet_audio::PcmPartStore::open(&wav_path);
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "published_part_store_open_end",
+            serde_json::json!({"duration_ms":part_store_started.elapsed().as_secs_f64()*1000.0}),
+        );
+    }
     let mut part_offset = 0_u64;
     let mut expected_part_number = 1_u64;
     let mut covered_samples = 0_u64;
     let mut part_count = 0_u64;
     let mut nonempty_part_count = 0_u64;
     let mut first_part_samples = None;
+    let index_walk_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_part_index_walk_begin", serde_json::Value::Null);
+    }
     loop {
         let page = part_store
             .read_page(part_offset, 128)
@@ -457,6 +712,16 @@ fn run_native_import_from_path(
             .checked_add(page.len() as u64)
             .expect("part index offset must not overflow");
     }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_part_index_walk_end", serde_json::json!({"duration_ms":index_walk_started.elapsed().as_secs_f64()*1000.0,"parts":part_count}));
+    }
+    let index_validation_started = Instant::now();
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event(
+            "published_part_index_validation_begin",
+            serde_json::Value::Null,
+        );
+    }
     assert!(
         part_count > 0,
         "published logical WAV must reference at least one part"
@@ -483,6 +748,20 @@ fn run_native_import_from_path(
         assert!(
             indexed_samples >= minimum,
             "published logical WAV contains {indexed_samples} samples; expected at least {minimum}"
+        );
+    }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("published_part_index_validation_end", serde_json::json!({"duration_ms":index_validation_started.elapsed().as_secs_f64()*1000.0,"indexed_samples":indexed_samples}));
+    }
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("post_result_complete", serde_json::json!({"indexed_samples":indexed_samples,"archive_complete":entry.complete,"transcript_bytes":transcript.len(),"parts":part_count}));
+    }
+    drop(app);
+    if let Some(trace) = timing.as_deref_mut() {
+        trace.event("app_drop_service_handles", serde_json::Value::Null);
+        trace.event(
+            "run_native_import_from_path_end",
+            serde_json::json!({"duration_ms":body_started.elapsed().as_secs_f64()*1000.0}),
         );
     }
     indexed_samples

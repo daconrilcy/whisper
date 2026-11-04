@@ -741,7 +741,8 @@
         {"key":"shortEnglish","environmentVariable":"WHISPER_PU_L4_EN_SOURCE","kind":"file"}
       ],
       "values": [
-        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"}
+        {"key":"cudaToolkitPath","environmentVariable":"CUDA_PATH","required":true,"kind":"directory","allowedRoot":"cuda-12.9"},
+        {"key":"harnessTrace","environmentVariable":"WHISPER_DIAG_BANC_TRACE","required":true,"kind":"literal"}
       ],
       "outputs": [
         {"key":"campaignRun","environmentVariable":"WHISPER_L04_CAMPAIGN_RUN","kind":"directory","path":"writes/l04"}
