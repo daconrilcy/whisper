@@ -1,6 +1,6 @@
 Avancée : plan du lot préparé avant instrumentation et campagnes ; worktree dédié créé.
-Blocage : activation par variable dédiée impossible avec le profil N2 inchangé.
-Décision : demander l'arbitrage d'activation avant de déléguer l'implémentation.
+Blocage : aucun à la reprise ; exception d'activation acceptée dans cette session.
+Décision : déléguer l'instrumentation, puis vérifier et mesurer selon ce plan.
 
 # DIAG-BANC-15S — plan du 4 novembre 2026
 
@@ -9,7 +9,7 @@ Décision : demander l'arbitrage d'activation avant de déléguer l'implémentat
 Objectif : localiser dans le corps Rust du banc Auto les coûts fixes et bimodaux,
 pour rendre fiables les mesures natives de transcription. La demande utilisateur
 de cette session autorise le banc seul, N1, puis six essais N2 Auto au maximum ;
-aucune correction de performance, modification produit/garde/profils/machine,
+aucune correction de performance, modification produit/garde/machine,
 fusion ou publication. Les mesures humaines et exclusions de pistes sont des
 entrées utilisateur, pas des validations reproduites par ce lot.
 
@@ -27,7 +27,9 @@ L'attente d'un arbitrage utilisateur ne vaut pas poursuite autorisée.
   `docs/architecture/DIAG-BANC-15S-BILAN.md` ; commits locaux seulement.
 - `rust_implementer`, mode IMPLEMENT :
   `crates/whisper-adapters/tests/parakeet_unified_native.rs` et nouveau support
-  `crates/whisper-adapters/tests/support/native_import_timing.rs` seulement.
+  `crates/whisper-adapters/tests/support/native_import_timing.rs`, et unique
+  descripteur harnessTrace du profil PersonalAutoFallback dans
+  `ci/native-profiles.json` (accord précis utilisateur « oui je t'autorise »).
   Aucun changement des assertions, noms/nombres de tests, dépendances ou produit.
 - Candidat concret : revue par `rust_review_coordinator`, reviewer indépendant,
   corrections par l'implémenteur ; revue indépendante des conclusions avant bilan.
@@ -101,7 +103,7 @@ Exporter WHISPER_DIAG_BANC_TRACE dans le terminal ne la transmettrait pas.
 Réutiliser CUDA_PATH, détourner une racine ou une variable système, activer
 implicitement via native-tests ou lancer hors garde violerait le mandat.
 
-### Arbitrage concret proposé, non appliqué
+### Arbitrage accepté dans cette session avant implémentation
 
 Option recommandée : exception limitée à **un descripteur littéral** ajouté
 uniquement aux values de PersonalAutoFallback dans ci/native-profiles.json :
@@ -114,8 +116,8 @@ Le manifeste d'exécution propre au lot fournit `harnessTrace: "1"` ; le support
 du banc n'active les traces que pour la valeur exacte `1`, sinon aucune trace.
 Le chemin JSONL est dérivé de WHISPER_L04_CAMPAIGN_RUN, jamais d'un chemin
 ambiant libre. La garde et les autres profils resteraient inchangés. Cela
-élargirait explicitement le périmètre à ce descripteur ; ce n'est pas autorisé
-tant que l'utilisateur n'a pas arbitré. Coût attendu faible ; les anciens
+élargit explicitement le périmètre à ce descripteur ; l'utilisateur l'a autorisé
+après présentation du blocage. Coût attendu faible ; les anciens
 ValuesJson de ce profil devraient fournir la nouvelle clé (0 ou 1).
 
 Alternative : maintenir strictement le périmètre et arrêter avant
