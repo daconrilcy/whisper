@@ -129,11 +129,13 @@ function Get-Tools {
         ninja=(Join-Path $vs[0] 'Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe')
         cl=(Join-Path $vc 'cl.exe'); dumpbin=(Join-Path $vc 'dumpbin.exe')
         vcvars=(Join-Path $vs[0] 'VC/Auxiliary/Build/vcvarsall.bat')
+        bootstrapPowerShell=(Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe')
         cuda=(Join-Path $env:ProgramFiles "NVIDIA GPU Computing Toolkit/CUDA/$($config.tools.cudaDirectory)")
     }
-    foreach ($name in @('cmake','ninja','cl','dumpbin','vcvars')) {
+    foreach ($name in @('cmake','ninja','cl','dumpbin','vcvars','bootstrapPowerShell')) {
         if (-not (Test-Path -LiteralPath $tools[$name] -PathType Leaf)) { throw "Missing tool: $($tools[$name])" }
     }
+    $tools.bootstrapPowerShellVersion=(Get-Item -LiteralPath $tools.bootstrapPowerShell).VersionInfo.FileVersion
     $cmakeVersion = (& $tools.cmake --version | Select-Object -First 1) -replace '^cmake version ', ''
     Assert-Version 'CMake' $cmakeVersion $config.tools.cmake
     $ninjaVersion = & $tools.ninja --version
@@ -285,7 +287,8 @@ try {
     if (Test-Path -LiteralPath (Join-Path $vcpkg 'vcpkg.exe')) {
         [void](Assert-VcpkgExecutable)
     } else {
-        Invoke-Logged (Join-Path $vcpkg 'bootstrap-vcpkg.bat') @('-disableMetrics') 'vcpkg-bootstrap'
+        # Same vendor script/interpreter as bootstrap-vcpkg.bat, with no PATH lookup.
+        Invoke-Logged $tools.bootstrapPowerShell @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $vcpkg 'scripts/bootstrap.ps1'),'-disableMetrics') 'vcpkg-bootstrap'
     }
     $manifest.vcpkgExecutableSha256 = Assert-VcpkgExecutable
     $build = Join-Path $run 'build'

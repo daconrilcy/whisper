@@ -3399,7 +3399,10 @@ function New-NativeBuildProcessInfo([object]$Entry, [string]$BuildId, [string]$R
     if ($BuildId -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$') { throw 'Native DLL build identifier is invalid.' }
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = Join-Path $PSHOME 'pwsh.exe'
-    $psi.WorkingDirectory = $script:Repo
+    $fullRoot=Get-FullPath $Root
+    if ($fullRoot -ieq $script:Lot -or -not (Test-InRoot $fullRoot $script:Lot)) { throw 'Native DLL working directory must be a child of the declared execution root.' }
+    Assert-NoReparseChain $fullRoot 'native DLL working directory'
+    $psi.WorkingDirectory = $fullRoot
     $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true
     $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
     $childScript = Get-FullPath (Join-Path $script:Repo $Entry.script)
@@ -3513,6 +3516,9 @@ function Invoke-NativeBuildEntry {
             Test-Rejects "native DLL profile $change" { Assert-NativeBuildProfile $bad }
         }
         Test-Rejects 'native DLL id traversal' { New-NativeBuildProcessInfo $entry '../outside' $root }
+        Test-Rejects 'native DLL cwd outside lot' { New-NativeBuildProcessInfo $entry 'valid' $script:Repo }
+        $cwdWitness=New-NativeBuildProcessInfo $entry 'valid' $root
+        if ($cwdWitness.WorkingDirectory -ine (Get-FullPath $root)) { throw 'Native DLL working directory witness differs from its bounded execution root.' }
         $event=[pscustomobject]@{type='Changed';path=(Join-Path $root 'allowed');old_path='';at=[DateTimeOffset]::UtcNow.ToString('o');detail=''}
         if ((Get-EventDisposition $event @($root) @() (Join-Path $root 'user-temp')) -cne 'ALLOWED') { throw 'Allowed native build event refused.' }
         $event.type='WatcherError'

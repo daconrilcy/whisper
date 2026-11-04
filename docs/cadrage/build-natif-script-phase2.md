@@ -4,6 +4,8 @@ Décision : LIVRÉ AVEC RÉSERVES après deux cycles de revue ; NON REPRODUIT, p
 
 # BUILD-NATIF — bilan figé de préparation, 4 novembre 2026
 
+Complément ultérieur : [premier essai sous la garde native](build-natif-essai-surveille.md).
+
 L'utilisateur a autorisé la préparation sur révisions retrouvées avec hypothèses explicites. Fichiers : `ci/build-native.ps1`, `native/build-config.json`, `native/.gitignore`, plan actualisé et [procédure](../architecture/NATIVE-BUILD.md). Aucune modification Rust ou installation.
 
 | Vérification | Résultat réel |

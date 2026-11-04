@@ -1,12 +1,12 @@
-Avancée : inventaire et script préparatoire versionnés le 4 novembre 2026 ; provenance historique retrouvée.
-Blocage : voie CMake absente de la garde ; acquisition llama refusée sur un dossier de sous-module vide.
-Décision : LIVRÉ AVEC RÉSERVES pour la préparation ; aucune équivalence ni compilation reproductible revendiquée.
+Avancée : sources épinglées récupérées et voie surveillée CPU/GPU implémentée et relue le 4 novembre 2026.
+Blocage : premier bootstrap arrêté par la garde ; corrections relues, relance en attente d'arbitrage.
+Décision : NON REPRODUIT ; aucun CMake ni essai d'équivalence exécuté.
 
 # DLL natives — provenance et reconstruction BUILD-NATIF
 
 ## État de la procédure
 
-`ci/build-native.ps1` et `native/build-config.json` constituent un candidat préparatoire. Le mode construction refuse explicitement toute exécution tant que la garde existante n'a pas de voie CMake autorisée ; aucun paramètre de contournement n'est fourni. Le téléchargement préparatoire a récupéré NeMo mais s'est arrêté sur le dossier vide du sous-module llama. Ce document ne constitue pas encore une recette de compilation validée. Aucun chargement des DLL, compilation, test Cargo ou N2 n'a été lancé. L'installation `%LOCALAPPDATA%/Whisper` est restée en lecture seule. Voir le [bilan de phase 2](../cadrage/build-natif-script-phase2.md).
+`ci/build-native.ps1` et `native/build-config.json` constituent un candidat dont la voie surveillée est maintenant implémentée. Après accord utilisateur pour corriger l'acquisition et étendre la garde, `sources2` a récupéré les trois sources et contrôlé leurs pins ; les deux profils `NativeDllCpu/Gpu` se limitent au script et aux racines prévues, sans modifier les contrats Cargo/NVIDIA existants. Le premier essai CPU s'est arrêté au bootstrap vcpkg avant CMake. Le correctif ultérieur est relu, mais n'a pas été exécuté en campagne. Ce document ne constitue pas encore une recette de compilation validée. Aucun chargement des DLL, CMake, compilation Rust ou essai Cargo/N2 exécuté. Les 14 empreintes des DLL installées ont été revérifiées sans changement. Voir les bilans [préparation](../cadrage/build-natif-script-phase2.md) et [premier essai surveillé](../cadrage/build-natif-essai-surveille.md).
 
 La recherche dans le profil n'avait trouvé aucune copie de la chaîne. La lecture ultérieure des chats compressés a retrouvé les **commandes et sorties historiques**, notamment deux lanceurs et des extraits CMake ; elle n'a pas restauré le dossier disparu. Les extraits utiles sont conservés dans [history-extracts.txt](raw/native-build/history-extracts.txt), avec nom de session, numéro de ligne JSONL décompressée, horodatage, commande et sortie. Ils ne remplacent pas l'archive de phase 0.
 
@@ -95,7 +95,7 @@ Les trois DLL NVIDIA installées sont **identiques par SHA-256** à `C:/Program 
 
 Préserver les CMake **du NeMo exact**, sans réécrire les sources ASR. L'utilisateur a autorisé la préparation avec les révisions retrouvées et les paramètres manquants explicités comme hypothèses à éprouver. Les copies Git épinglées dans `native/cache/` persistant ignoré conservent la sémantique Git du mécanisme des patches. Les commandes CMake historiques sont reproduites par le script ; le pilote Windows amont n'est pas lancé, afin de ne pas lui laisser choisir automatiquement les versions et rafraîchir PATH depuis le registre. Aucun CMakeLists enveloppe n'est ajouté : il modifierait CMAKE_SOURCE_DIR et le chemin des sous-modules.
 
-Le fichier de configuration fixe les trois commits, les versions et les options. Hypothèses acceptées pour vérification : Ninja 1.12.1, GGML_NATIVE=ON, autres valeurs amont non retrouvées, /MD explicite ; /Brepro est ajouté conformément au mandat. Chaque manifeste conserve ces limites. Le vcpkg.exe de la release 2026-07-27 est épinglé par SHA-256 et comparé aux métadonnées du bootstrap avant réutilisation ; le digest d'asset provient de l'[API officielle GitHub](https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/2026-07-27). Les variables vcpkg héritées sont neutralisées, puis ses caches explicitement fixés sous `native/cache/`. Ces mesures ne remplacent pas la surveillance native exigée. Aucune nouvelle règle AGENTS imposant une chaîne non fonctionnelle n'est ajoutée ; la conservation existante demeure.
+Le fichier de configuration fixe les trois commits, les versions et les options. Hypothèses acceptées pour vérification : Ninja 1.12.1, GGML_NATIVE=ON, autres valeurs amont non retrouvées, /MD explicite ; /Brepro est ajouté conformément au mandat. Chaque manifeste conserve ces limites. Le vcpkg.exe de la release 2026-07-27 est épinglé par SHA-256 et comparé aux métadonnées du bootstrap avant réutilisation ; le digest d'asset provient de l'[API officielle GitHub](https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/2026-07-27). Les variables vcpkg héritées sont neutralisées, puis ses caches explicitement fixés sous `native/cache/`. Ces mesures complètent la surveillance native existante réutilisée par les nouveaux profils. La règle de production uniquement par ce script figure dans AGENTS.md ; elle n'annonce pas la validation de la chaîne.
 
 Commandes préparatoires depuis le worktree, PowerShell 7 :
 
@@ -105,6 +105,14 @@ Commandes préparatoires depuis le worktree, PowerShell 7 :
 ./ci/build-native.ps1 -Variant gpu -CheckOnly
 ```
 
-Elles ne téléchargent ni ne compilent. L'essai `-Variant cpu -BuildId sources1 -PrepareOnly` a échoué avant récupération de llama/vcpkg : le répertoire vide de gitlink llama créé par le checkout NeMo est considéré comme cache existant incomplet. Ne pas relancer avant correction autorisée de ce cas. Les sorties de l'essai sont conservées et archivées. La commande prévue pour une construction par variante, `-Variant cpu|gpu -BuildId <id-neuf>`, est actuellement **refusée avant écriture**, pour absence de voie CMake dans la garde. Les branches bootstrap/CMake du candidat restent donc non validées en exécution.
+Elles ne téléchargent ni ne compilent. Auto-tests supplémentaires de la voie surveillée, sans bootstrap/CMake :
+
+```powershell
+./ci/guard-native.ps1 -Mode SelfTest -Profile NativeDllCpu -LotRoot target/native-build
+```
+
+Les commandes de campagne prévues sont `./ci/build-native.ps1 -Variant cpu -BuildId <id-neuf>` et la même commande avec `-Variant gpu`, une variante par appel. `-PrepareOnly` sélectionne la seule acquisition. Le script public appelle la garde, dont le processus enfant vérifie le parent réel et l'identité du script. Les racines sont canoniques et sans liens ; sorties, variables temporaires et dossier courant restent dans l'exécution, caches dans `native/cache/`. La garde refuse les profils modifiés, les identifiants traversants et les dossiers de sortie déjà présents ; elle capture les sorties/codes et s'arrête sur échec ou violation. La surveillance n'est pas un confinement préventif universel.
+
+Historique d'exécution : `sources1` a échoué sur le gitlink vide, cas corrigé après accord utilisateur. `sources2` a ensuite réussi sous garde. `cpu1` a échoué avant CMake : le BAT de bootstrap cherchait `powershell.exe` dans un PATH filtré où il n'était pas présent ; la garde a aussi observé la création fugace de `C:/wt/build-natif/$null`, hors racines autorisées. Son origine n'est pas attribuée et son absence après arrêt ne résulte d'aucun nettoyage de l'agent. Le correctif appelle Windows PowerShell par son chemin OS explicite et le même script fournisseur ; la garde fixe le dossier courant sous sa racine d'exécution. Les deux changements sont relus, avec tests de refus et témoin du dossier courant, mais aucune relance du bootstrap n'a eu lieu. Ne pas relancer `cpu1`, ni une nouvelle campagne avant arbitrage après cet arrêt.
 
 Après résolution de ce point : une commande par variante, deux compilations indépendantes, comparaison binaire puis exports/imports/tailles/options ; ensuite seulement runtime N2 alternatif sans toucher à l'installation et au plus huit essais, puis N1 comparé à main selon le plan. **Statut actuel : NON REPRODUIT**, équivalences statique et fonctionnelle NON EXÉCUTÉES. Conservation intégrale des ressources protégées ; aucune commande de nettoyage exécutée ou nécessaire à cette phase documentaire.

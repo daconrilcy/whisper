@@ -10,6 +10,8 @@ Complément ultérieur : [inventaire de phase 1 et provenance retrouvée](../cad
 
 Complément ultérieur : [script préparatoire et arrêt de phase 2](../cadrage/build-natif-script-phase2.md).
 
+Complément ultérieur : [sources récupérées et premier essai surveillé](../cadrage/build-natif-essai-surveille.md).
+
 Base main : `b9935b2422d47350cdd5b368265afa84e12d42ab`. Branche : `build-natif`, worktree `C:/wt/build-natif`. [Plan](../cadrage/plan-build-natif.md). Espace libre au préflight : 536 660 615 168 octets (environ 500 Gio).
 
 **Archive phase 0 : NON CRÉÉE, empreinte indisponible.** Destination demandée : `C:/dev/whisper-native-archive/spike02-20261104.zip`. Aucun fichier source n'a été archivé, exclu ou modifié. Absence constatée par `Get-Item -LiteralPath target/parakeet-feasibility/spike02` puis `Get-ChildItem -LiteralPath target/parakeet-feasibility -Force`, exécutés depuis `C:/dev/whisper` : les deux commandes signalent « chemin d'accès […] n'existe pas ». Cela ne prouve ni suppression ni absence sur un autre emplacement. La dette déjà versionnée [BUILD-NATIF](../cadrage/dette-build-natif.md) signalait également ce parent absent.

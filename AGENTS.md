@@ -75,6 +75,8 @@ Dérogations historiques : [lot 1 Parakeet micro et FEAS-PM-01](docs/cadrage/der
 
 - **Conservation BUILD-NATIF — décision utilisateur du 4 novembre 2026 :** ne pas supprimer `target/parakeet-feasibility/` ni son contenu, y compris lors d'un nettoyage d'un parent `target/`. Cette protection prévaut sur la suppression des intermédiaires de lot. Elle reste applicable jusqu'à une décision utilisateur explicite après livraison d'une chaîne native reproductible. Dette et futur périmètre : [BUILD-NATIF](docs/cadrage/dette-build-natif.md). Cette conservation n'autorise ni relance du spike ni compilation native.
 
+- **DLL natives BUILD-NATIF :** leur production passe uniquement par `ci/build-native.ps1` et sa voie surveillée ; `target/parakeet-feasibility/` ne peut être supprimé qu'après décision explicite de l'utilisateur, une fois BUILD-NATIF fusionné et l'équivalence prouvée.
+
 ### Diagnostic d'un blocage
 
 - Commencer par le test le moins coûteux qui permet de trancher entre les hypothèses, même s'il doit être exécuté par l'utilisateur hors de la garde. Le décrire en une commande copiable, avec le résultat attendu pour chaque hypothèse, et attendre la réponse avant de construire de l'outillage.
