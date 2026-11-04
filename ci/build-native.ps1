@@ -85,14 +85,37 @@ function Assert-Source([string]$Path, [hashtable]$Pin) {
 function Get-Source([string]$Name, [string]$Path, [hashtable]$Pin) {
     [void](Assert-Within $Path $cache)
     if (Test-Path -LiteralPath $Path) {
-        Assert-Source $Path $Pin
-        return
+        if (Test-Path -LiteralPath (Join-Path $Path '.git')) {
+            Assert-Source $Path $Pin
+            return
+        }
+        Assert-EmptySourceDirectory $Path
     }
     Invoke-Logged $git @('init', $Path) "$Name-init"
     Invoke-Logged $git @('-C', $Path, 'remote', 'add', 'origin', $Pin.url) "$Name-origin"
     Invoke-Logged $git @('-c','gc.auto=0','-C',$Path,'fetch','--depth=1','origin',$Pin.commit) "$Name-fetch"
     Invoke-Logged $git @('-c','core.autocrlf=false','-c',"core.hooksPath=$cache/empty-hooks",'-C',$Path,'checkout','--detach',$Pin.commit) "$Name-checkout"
     Assert-Source $Path $Pin
+}
+
+function Assert-EmptySourceDirectory([string]$Path) {
+    [void](Assert-Within $Path $cache)
+    if (-not (Test-Path -LiteralPath $Path -PathType Container) -or @(Get-ChildItem -LiteralPath $Path -Force).Count) {
+        throw "Source directory exists without Git metadata and is not empty: $Path. Nothing removed."
+    }
+}
+
+function Assert-GuardContext {
+    $guardPid = $env:WHISPER_NATIVE_BUILD_GUARD_PID
+    if ($guardPid -notmatch '^[1-9][0-9]*$' -or $env:WHISPER_NATIVE_BUILD_VARIANT -cne $Variant -or $env:WHISPER_NATIVE_BUILD_ID -cne $BuildId) {
+        throw 'Invalid native build guard context; use the public build command.'
+    }
+    $self = Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -Property ParentProcessId -ErrorAction Stop
+    if ([int]$self.ParentProcessId -ne [int]$guardPid) { throw 'Native build guard is not the actual parent process.' }
+    $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$guardPid" -Property CommandLine -ErrorAction Stop
+    $guardScript = Join-Path $PSScriptRoot 'guard-native.ps1'
+    if (-not ([string]$parent.CommandLine).Contains($guardScript,[StringComparison]::OrdinalIgnoreCase)) { throw 'Native build parent is not the pinned guard script.' }
+    if ($env:WHISPER_NATIVE_BUILD_SCRIPT_SHA256 -ine (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash) { throw 'Native build script changed after guard launch.' }
 }
 
 function Get-Tools {
@@ -197,11 +220,31 @@ if ($SelfTest) {
         foreach ($name in $vcpkgEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$vcpkgEnvironment[$name],'Process') }
     }
     foreach ($pin in $config.sources.Values) { if ($pin.commit -notmatch '^[0-9a-f]{40}$') { throw 'A source pin is not a full commit.' } }
+    $sourceFixture=Join-Path $cache ('source-selftests/'+[guid]::NewGuid().ToString('N'))
+    foreach ($child in @('empty','nonempty')) { New-Item -ItemType Directory -Path (Assert-Within (Join-Path $sourceFixture $child) $cache) -Force | Out-Null }
+    $keptFile=Join-Path $sourceFixture 'nonempty/keep.txt'
+    'must remain' | Set-Content -LiteralPath $keptFile
+    Assert-EmptySourceDirectory (Join-Path $sourceFixture 'empty')
+    $rejected=$false
+    try { Assert-EmptySourceDirectory (Join-Path $sourceFixture 'nonempty') } catch { $rejected=$true }
+    if (-not $rejected -or (Get-Content -LiteralPath $keptFile -Raw).Trim() -cne 'must remain') { throw 'Source acquisition overwrite negative control failed.' }
+    $rejects++
     "PASS native script self-tests: negative controls=$rejects; no downloads or compilation."
     return
 }
 
 if ($CheckOnly -and $PrepareOnly) { throw '-CheckOnly and -PrepareOnly are mutually exclusive.' }
+if (-not $CheckOnly) {
+    if ($env:WHISPER_NATIVE_BUILD_GUARD_PID) { Assert-GuardContext }
+    else {
+        $guardProfile = if ($Variant -eq 'cpu') { 'NativeDllCpu' } else { 'NativeDllGpu' }
+        $guardArgs = @('-NoLogo','-NoProfile','-NonInteractive','-File',(Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','Run','-Profile',$guardProfile,'-NativeBuildId',$BuildId,'-LotRoot','target/native-build')
+        if ($PrepareOnly) { $guardArgs += '-NativePrepareOnly' }
+        & (Join-Path $PSHOME 'pwsh.exe') @guardArgs
+        if ($LASTEXITCODE -ne 0) { throw "Native build guard failed (exit $LASTEXITCODE). No automatic retry." }
+        return
+    }
+}
 [void](Assert-Within $cache $repo)
 $run = Assert-Within (Join-Path $repo "target/native-build/$Variant/$BuildId") $repo
 $nemo = Assert-Within (Join-Path $cache 'nemo') $cache
@@ -212,9 +255,6 @@ $tools = Get-Tools
 if ($CheckOnly) {
     [ordered]@{status='CHECK_ONLY';variant=$Variant;tools=$tools;versions=$config.tools;assumptions=$config.assumptions;output=$run} | ConvertTo-Json -Depth 6
     return
-}
-if (-not $PrepareOnly) {
-    throw 'Native compilation is blocked: guard-native.ps1 has no authorized CMake route for native/cache and target/native-build. Approve a bounded extension of the existing guard before any bootstrap or compilation. CheckOnly and PrepareOnly remain available; there is no bypass switch.'
 }
 if ((Get-PSDrive -Name ([IO.Path]::GetPathRoot($repo).Substring(0,1))).Free -lt 30GB) { throw 'Less than 30 GiB free: no native build or preparation.' }
 if (Test-Path -LiteralPath $run) { throw "Output already exists: $run. Choose a new -BuildId; no cleanup performed." }
@@ -232,6 +272,8 @@ try {
     }
     $env:GIT_LFS_SKIP_SMUDGE = '1'
     Get-Source 'nemo' $nemo $config.sources.nemo
+    $llamaLink = & $git --no-optional-locks -C $nemo ls-tree HEAD llama.cpp
+    if ($LASTEXITCODE -ne 0 -or $llamaLink -notmatch ('^160000 commit ' + $config.sources.llama.commit + '\s+llama\.cpp$')) { throw 'NeMo llama gitlink differs from the pinned commit.' }
     Get-Source 'llama' $llama $config.sources.llama
     Get-Source 'vcpkg' $vcpkg $config.sources.vcpkg
     $manifest.sourceStatus = 'PINNED_AND_TRACKED_CLEAN'

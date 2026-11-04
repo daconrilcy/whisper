@@ -22,6 +22,10 @@
     "whisper-worker-parakeet-cpu/native-tests",
     "whisper-worker-parakeet-cpu/parakeet-personal"
   ],
+  "nativeBuildProfiles": [
+    {"id":"NativeDllCpu","variant":"cpu","script":"ci/build-native.ps1","cache":"native/cache","outputs":"target/native-build","timeoutSeconds":3600},
+    {"id":"NativeDllGpu","variant":"gpu","script":"ci/build-native.ps1","cache":"native/cache","outputs":"target/native-build","timeoutSeconds":3600}
+  ],
   "profiles": [
     {
       "id": "PreparationNoRun",
