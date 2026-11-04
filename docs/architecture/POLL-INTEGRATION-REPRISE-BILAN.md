@@ -54,3 +54,5 @@ Commande manuelle après revérification du chemin et absence de campagne :
 `Remove-Item -LiteralPath 'C:\wt\poll\target\n2-native\cargo-home' -Recurse -Force`.
 Caches persistants/partagés, ressources et bilans préservés ; 596 681 900 032
 octets libres après tentative de nettoyage.
+
+[Seconde reprise : médianes, modes et observations préalables](POLL-INTEGRATION-SECONDE-REPRISE-BILAN.md).
