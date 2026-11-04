@@ -4,6 +4,8 @@ Décision : NON REPRODUIT ; préparer la phase 2 à partir de la provenance retr
 
 # BUILD-NATIF — clôture de l'inventaire, complément au bilan phase 0
 
+Complément ultérieur : [préparation du script et arrêt de phase 2](build-natif-script-phase2.md).
+
 L'utilisateur a demandé de passer à l'étape suivante après la recherche infructueuse dans le profil. L'inventaire a repris sans sauvegarde préalable possible ; aucune reconstruction autorisée par déduction de cette reprise. [Inventaire détaillé et preuves](../architecture/NATIVE-BUILD.md).
 
 | Composant / paramètre | Résultat | Preuve |

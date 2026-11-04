@@ -1,6 +1,6 @@
-Avancée : phases 0/1 documentées ; préparation du script autorisée explicitement le 4 novembre 2026.
-Blocage : sauvegarde historique impossible ; options non retrouvées traitées comme hypothèses acceptées pour vérification.
-Décision : écrire et relire le script avant compilation ; maintenir les arrêts sur échec.
+Avancée : candidat préparatoire écrit et relu ; essai de récupération des sources effectué le 4 novembre 2026.
+Blocage : cas gitlink vide non traité et voie CMake absente de la garde ; phase 2 arrêtée.
+Décision : LIVRÉ AVEC RÉSERVES ; arbitrage demandé avant correctif/extension de garde et reprise.
 
 # Plan BUILD-NATIF
 
@@ -35,6 +35,8 @@ Recommandation provisoire : archive vérifiée conservée dans le cache persista
 L'utilisateur a répondu « Je t'autorise » à la proposition de préparer le script avec les révisions retrouvées et les paramètres manquants déclarés comme hypothèses à vérifier par équivalence. La préparation utilise `native/build-config.json` pour les trois pins et les options, `native/.gitignore` pour le cache persistant `native/cache/`, et `ci/build-native.ps1`. Les checkouts Git épinglés, dont llama imbriqué au chemin de sous-module attendu par NeMo, remplacent la recommandation provisoire d'archive sans métadonnées Git. Le CMakeLists utilisé est celui du NeMo épinglé, sans wrapper CMake local qui changerait CMAKE_SOURCE_DIR et le mécanisme des patches. Aucune source ASR réécrite ni nouveau correctif local. La configuration reproduit directement les arguments CMake historiques ; le pilote Windows amont n'est pas exécuté, afin d'éviter sa sélection automatique d'outils et son rafraîchissement de PATH depuis le registre.
 
 Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), autres défauts ISA des sources exactes, runtime /MD explicitement fixé. /Brepro est ajouté comme le demande le lot, avec mention de son absence de preuve historique et des chemins sources susceptibles d'empêcher l'identité binaire entre racines. Les commandes `-SelfTest` et `-CheckOnly` ne compilent pas ; `-PrepareOnly` ne récupère que les sources ; une commande `-Variant cpu|gpu -BuildId <id>` effectue une construction, sans réutiliser ni supprimer une sortie existante. Deux constructions successives par variante utilisent des racines distinctes et conservent leurs preuves. Ne pas annoncer les hypothèses comme des options historiques retrouvées. Toute erreur reste un point d'arrêt, sans correction et relance de compilation implicites.
+
+**État après essai et revue :** la commande construction ci-dessus est maintenant explicitement bloquée dans le candidat : aucune voie CMake surveillée n'existe dans la garde, uniquement Cargo et diagnostics NVIDIA. Le [bilan phase 2](build-natif-script-phase2.md) définit l'extension bornée proposée et le défaut d'acquisition gitlink vide. Ces changements de garde ne sont pas encore autorisés. Les captures supplémentaires restent dans l'archive de traces du bilan ; le lot atteint dix fichiers documentaires/preuves versionnés en comptant ce ZIP. Une reprise doit réutiliser les documents vivants et proposer un arbitrage avant tout nouveau fichier de rapport supplémentaire.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` (trois fichiers, sous le plafond de dix). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 

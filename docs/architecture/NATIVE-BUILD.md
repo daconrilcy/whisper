@@ -1,12 +1,12 @@
-Avancée : inventaire documentaire et PE effectué le 4 novembre 2026 ; provenance historique retrouvée.
-Blocage : archive spike02 impossible ; caches complets et certaines versions/options historiques non récupérés.
-Décision : provenance exploitable pour préparer le script ; aucune équivalence ni compilation reproductible revendiquée.
+Avancée : inventaire et script préparatoire versionnés le 4 novembre 2026 ; provenance historique retrouvée.
+Blocage : voie CMake absente de la garde ; acquisition llama refusée sur un dossier de sous-module vide.
+Décision : LIVRÉ AVEC RÉSERVES pour la préparation ; aucune équivalence ni compilation reproductible revendiquée.
 
 # DLL natives — provenance et reconstruction BUILD-NATIF
 
 ## État de la procédure
 
-`ci/build-native.ps1` n'existe pas encore. Ce document décrit l'inventaire de phase 1, repris sur instruction utilisateur après l'arrêt de phase 0 ; il ne constitue pas une recette de compilation validée. Aucun chargement des DLL, compilation, test Cargo ou N2 n'a été lancé. L'installation `%LOCALAPPDATA%/Whisper` est restée en lecture seule.
+`ci/build-native.ps1` et `native/build-config.json` constituent un candidat préparatoire. Le mode construction refuse explicitement toute exécution tant que la garde existante n'a pas de voie CMake autorisée ; aucun paramètre de contournement n'est fourni. Le téléchargement préparatoire a récupéré NeMo mais s'est arrêté sur le dossier vide du sous-module llama. Ce document ne constitue pas encore une recette de compilation validée. Aucun chargement des DLL, compilation, test Cargo ou N2 n'a été lancé. L'installation `%LOCALAPPDATA%/Whisper` est restée en lecture seule. Voir le [bilan de phase 2](../cadrage/build-natif-script-phase2.md).
 
 La recherche dans le profil n'avait trouvé aucune copie de la chaîne. La lecture ultérieure des chats compressés a retrouvé les **commandes et sorties historiques**, notamment deux lanceurs et des extraits CMake ; elle n'a pas restauré le dossier disparu. Les extraits utiles sont conservés dans [history-extracts.txt](raw/native-build/history-extracts.txt), avec nom de session, numéro de ligne JSONL décompressée, horodatage, commande et sortie. Ils ne remplacent pas l'archive de phase 0.
 
@@ -91,10 +91,20 @@ Les trois DLL NVIDIA installées sont **identiques par SHA-256** à `C:/Program 
 
 **Contrainte de chargement :** les bilans historiques `evo-parakeet.md:312` et `bilan-parakeet-fr-en-go.md:11` rapportent un crash après inférence et `FreeLibrary` ; le banc conservait les DLL jusqu'à la sortie du worker. L'utilisateur rapporte également GGML_ASSERT lors d'un chargement puis rechargement dans un même processus. Ne pas déduire que destruction d'un recognizer autorise un déchargement/rechargement sûr. Aucun de ces défauts n'a été rejoué dans BUILD-NATIF.
 
-## Architecture proposée pour la phase 2 et vérification future
+## Script préparatoire de phase 2 et vérification future
 
-Préserver le pilote et les CMake **du NeMo exact**, sans réécrire les sources ASR. Le plan comparait trois modes d'acquisition de llama.cpp. Les révisions retrouvées favorisent une copie Git épinglée de NeMo, llama et vcpkg dans `native/cache/` persistant ignoré : elle conserve la sémantique Git du mécanisme de patches et évite qu'un `git rev-parse` sur une archive sans `.git` remonte au dépôt Whisper. Cette recommandation révise le choix provisoire d'archive ; elle reste à valider avant écriture du script. Aucun téléchargement de sources effectué pendant l'inventaire, seulement des consultations de fichiers amont fixés.
+Préserver les CMake **du NeMo exact**, sans réécrire les sources ASR. L'utilisateur a autorisé la préparation avec les révisions retrouvées et les paramètres manquants explicités comme hypothèses à éprouver. Les copies Git épinglées dans `native/cache/` persistant ignoré conservent la sémantique Git du mécanisme des patches. Les commandes CMake historiques sont reproduites par le script ; le pilote Windows amont n'est pas lancé, afin de ne pas lui laisser choisir automatiquement les versions et rafraîchir PATH depuis le registre. Aucun CMakeLists enveloppe n'est ajouté : il modifierait CMAKE_SOURCE_DIR et le chemin des sous-modules.
 
-Prévoir `ci/build-native.ps1`, `native/` pour la déclaration des trois pins, options, versions et patches locaux s'ils deviennent nécessaires ; ne pas recopier les sources NeMo dans Whisper sans nécessité. Cache persistant local au worktree ; sorties `target/native-build/{cpu,gpu}/`. Les inconnues historiques restantes (Ninja exact, GGML_NATIVE, caches/flags complets) doivent rester visibles ; ne pas annoncer une vérification stricte de versions/options qui n'ont jamais été retrouvées. Arbitrage requis avant de leur substituer les valeurs amont ou actuelles. Aucune ligne AGENTS imposant un script encore inexistant n'est ajoutée.
+Le fichier de configuration fixe les trois commits, les versions et les options. Hypothèses acceptées pour vérification : Ninja 1.12.1, GGML_NATIVE=ON, autres valeurs amont non retrouvées, /MD explicite ; /Brepro est ajouté conformément au mandat. Chaque manifeste conserve ces limites. Le vcpkg.exe de la release 2026-07-27 est épinglé par SHA-256 et comparé aux métadonnées du bootstrap avant réutilisation ; le digest d'asset provient de l'[API officielle GitHub](https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/2026-07-27). Les variables vcpkg héritées sont neutralisées, puis ses caches explicitement fixés sous `native/cache/`. Ces mesures ne remplacent pas la surveillance native exigée. Aucune nouvelle règle AGENTS imposant une chaîne non fonctionnelle n'est ajoutée ; la conservation existante demeure.
+
+Commandes préparatoires depuis le worktree, PowerShell 7 :
+
+```powershell
+./ci/build-native.ps1 -SelfTest
+./ci/build-native.ps1 -Variant cpu -CheckOnly
+./ci/build-native.ps1 -Variant gpu -CheckOnly
+```
+
+Elles ne téléchargent ni ne compilent. L'essai `-Variant cpu -BuildId sources1 -PrepareOnly` a échoué avant récupération de llama/vcpkg : le répertoire vide de gitlink llama créé par le checkout NeMo est considéré comme cache existant incomplet. Ne pas relancer avant correction autorisée de ce cas. Les sorties de l'essai sont conservées et archivées. La commande prévue pour une construction par variante, `-Variant cpu|gpu -BuildId <id-neuf>`, est actuellement **refusée avant écriture**, pour absence de voie CMake dans la garde. Les branches bootstrap/CMake du candidat restent donc non validées en exécution.
 
 Après résolution de ce point : une commande par variante, deux compilations indépendantes, comparaison binaire puis exports/imports/tailles/options ; ensuite seulement runtime N2 alternatif sans toucher à l'installation et au plus huit essais, puis N1 comparé à main selon le plan. **Statut actuel : NON REPRODUIT**, équivalences statique et fonctionnelle NON EXÉCUTÉES. Conservation intégrale des ressources protégées ; aucune commande de nettoyage exécutée ou nécessaire à cette phase documentaire.
