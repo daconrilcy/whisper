@@ -206,3 +206,111 @@ e8ba4af9544e44b1a924b4937c9f5d34 : NO_RUN_PASS. Revue performance CLEAN,
 aucun constat ouvert ; compteur cumulé trois lectures de revue et un cycle de
 correction technique (DC1/DC2). Le gain reste à vérifier sur les quatre essais
 Auto restants ; aucun essai natif d'un autre scénario n'est autorisé.
+
+## Clôture — six essais consommés, correctif PASS
+
+Correctif commis dans d7e6445a. Quatre Auto après correction, tous PASS :
+
+| Identifiant PersonalAutoFallback | Corps Rust, s | Premier bind, s | Lecture/SHA Parakeet, s |
+|---|---:|---:|---:|
+| 6d813e86aed04b5397a9317dee4d8da6 | 8,82 | 7,5259 | 7,5252 |
+| 1b9928e1b6c5424ea0c6ba00bf944b3e | 8,55 | 7,2626 | 7,2620 |
+| 6eca22a158524f858524ff4cae2e95cd | 8,67 | 7,3557 | 7,3551 |
+| 3ceb8159dab54a60bed38bffd0f1c8af | 8,64 | 7,2794 | 7,2788 |
+
+Chaque trace complète : aucune inspection Turbo, exactement une lecture
+Parakeet de 713 975 456 octets et identité stable. Le premier Cargo après
+correction inclut une recompilation de 36,01 s : 46,416 s au total ; suivants
+9,427 /9,565 /9,485 s. Gardes complètes de ces trois derniers :
+25,258 /25,226 /24,974 s, distinctes des corps Rust.
+Même source MP3, SHA-256
+39048CD1482D7BCCE4052EE8027CF629FCC2F7C6714DCF6419238EE202836D8A.
+Les sorties de chaque après sont identiques à celles d'avant :
+TXT 49 octets, SHA-256 0EDF3F33E020E532102A9795F978ED2E19EE89B506688FE141E4556881B9D5F5 ;
+SRT 82 octets, SHA-256 53EF0552F2D2117179FF9BE4172A0E99FEE0C85287E86B7DC0BF8C4E2327526C ;
+WAV 129 068 octets, SHA-256 8C72DE575B6F5E93812A6D5BEA73B7C0C928DCC73F769B64BC325ADF79A2219A.
+
+Quota 2 avant +4 après =6/6, aucun lent ni intermédiaire reproduit.
+Conclusion globale LIVRÉ AVEC RÉSERVES /ancienne bimodalité NON DÉTERMINÉE,
+distincte du PASS démontré du correctif. Revue indépendante des conclusions
+CLEAN après précision « ne démontre pas la cause » des anciens écarts.
+Instrumentation conservée opt-in par l'autorisation du présent plan ; aucune
+fusion ni publication. Le nouveau bilan est figé au commit de clôture ; toute
+validation ou suppression ultérieure exigera un nouveau document.
+
+### Archive vérifiée
+
+`C:/wt/diag-banc/target/diag-banc-15s/archive/DIAG-CORR-PREPARE-20261104.zip` :
+**1 147 entrées**, 10 117 162 octets source, 4 706 931 octets ZIP.
+Nombre, taille et SHA-256 de chaque entrée comparés aux sources : PASS.
+SHA-256 ZIP : `4D06E16B01D7D331285ABC735230FB940FB9FAF0B3152E0D4C51815BA36023D4`.
+Contenu : logs du lot et N1, reçus des six Auto et deux compilations natives,
+paramètres d'exécution, traces banc/produit et sorties des six Auto. Aucun
+runtime de 3,2 Go ni cache ; les documents et sources restent dans Git.
+L'ancienne archive reste préservée, empreinte et chemin dans le plan précédent.
+
+### Rétention proposée à l'utilisateur, aucune suppression exécutée
+
+À 18:35 locale environ, `C:/wt/diag-banc/target/n2-native` contient
+42 212 707 187 octets apparents ; quatre jonctions internes identifiées,
+toutes à destination sous cette racine. VCTIP **9264**, créé à 18:04:01.773328,
+subsiste ; son usage des racines n'est pas exclu. Aucun arrêt de ce processus
+n'est autorisé ni exécuté. Aucun Cargo/rustc/Git actif relevé à 18:32:53.
+Nettoyage suspendu tant que les processus concernés ou un lot utilisant cette
+racine restent actifs. La simple absence de PID ne prouve pas l'absence d'usage.
+
+Après vérification humaine de l'absence de tout lot/processus utilisant la racine,
+l'utilisateur pourra lancer cette commande PowerShell. Elle ne tue aucun processus,
+refuse les redirections externes et vérifie les deux archives avant suppression.
+Elle supprime uniquement cette racine désormais close ; les anciens intermédiaires
+N1 hors de cette racine ne sont pas inclus et restent conservés.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+if (Get-Process -Name vctip,cargo,rustc -ErrorAction SilentlyContinue) {
+    throw 'Processus résiduels : vérifier leur identité et usage ; aucune suppression.'
+}
+$diagCleanupRoot = 'C:\wt\diag-banc\target\n2-native'
+if ((Resolve-Path -LiteralPath $diagCleanupRoot).Path.TrimEnd('\') -ine $diagCleanupRoot) {
+    throw 'Racine inattendue.'
+}
+$diagAncestor = $diagCleanupRoot
+while ($diagAncestor) {
+    if ((Get-Item -LiteralPath $diagAncestor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw "Racine ou parent redirigé : $diagAncestor"
+    }
+    $diagParent = Split-Path -Parent $diagAncestor
+    if (-not $diagParent -or $diagParent -eq $diagAncestor) { break }
+    $diagAncestor = $diagParent
+}
+foreach ($diagLink in Get-ChildItem -LiteralPath $diagCleanupRoot -Recurse -Force -Attributes ReparsePoint) {
+    $diagTargets = @($diagLink.Target)
+    if (-not $diagTargets.Count) { throw 'Lien sans cible vérifiable.' }
+    foreach ($diagTarget in $diagTargets) {
+        if (-not [IO.Path]::IsPathRooted($diagTarget) -or
+            -not ([IO.Path]::GetFullPath($diagTarget)).StartsWith($diagCleanupRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Lien hors racine : $($diagLink.FullName)"
+        }
+    }
+}
+$diagArchives = @{
+    'C:\wt\diag-banc\target\diag-banc-15s\archive\DIAG-BANC-15S-20261104.zip' = '47F8BB5FB6842D1E28985F56A04A5C22390894F7C4A7CB9587E8A4794A9A33F3'
+    'C:\wt\diag-banc\target\diag-banc-15s\archive\DIAG-CORR-PREPARE-20261104.zip' = '4D06E16B01D7D331285ABC735230FB940FB9FAF0B3152E0D4C51815BA36023D4'
+}
+foreach ($diagArchive in $diagArchives.Keys) {
+    if ((Get-FileHash -LiteralPath $diagArchive -Algorithm SHA256).Hash -cne $diagArchives[$diagArchive]) {
+        throw 'Archive différente ou absente : aucune suppression.'
+    }
+}
+Remove-Item -LiteralPath $diagCleanupRoot -Recurse -Force
+Get-PSDrive C | Select-Object Free
+```
+
+Les modèles/audio dans cette racine sont les copies propres aux campagnes ;
+leurs sources canoniques, target/parakeet-feasibility, target/poll-preserved,
+la cible Cargo partagée et target/cargo-home-shared restent préservés.
+Les archives sont hors de la racine supprimable. Aucune suppression par l'agent ;
+espace libre avant clôture : 492 342 366 208 octets (relevé de 18:31 environ).
+Syntaxe de la commande utilisateur vérifiée par le parseur PowerShell : PASS,
+sans exécution. Revue indépendante finale des conclusions CLEAN, aucun constat
+ouvert ; archivage et rétention hors de sa portée. git diff --check PASS.
