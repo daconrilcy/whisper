@@ -1,6 +1,6 @@
-Avancée : Auto conforme par décision utilisateur ; quatre scénarios PASS et durées conformes.
-Blocage : aucun à la préparation ; tag, fusion et N1 main non encore exécutés.
-Décision : mesures sur 28b96d9a, fusion conditionnelle sans push, aucune correction de code/test.
+Avancée : qualification native complémentaire PASS ; fusion locale et N1 main réussies.
+Blocage : aucun pour l'intégration ; bimodalité et avertissements conservés comme limites.
+Décision : lot clos, bilan figé le 4 novembre 2026 ; aucun push, aucune correction de code/test.
 
 # POLL-INTEGRATION — décision par mode et suite, 4 novembre 2026
 
@@ -17,33 +17,43 @@ relevés restent dans le bilan précédent, sans réécriture ni attribution cau
 | Import long FR | 168,57 s | 185,427 s | 143,63 s / PASS |
 | Import long EN | 187,17 s | 205,887 s | 161,19 s / PASS |
 
-Durées : corps Rust hors compilation, banc/profils B inchangés. PASS
-fonctionnel requis ; dépassement de durée : deux essais supplémentaires
-du scénario, trois mesures présentées sans décision automatique. Aucun
-diagnostic causal ou correctif autorisé. Cache isolé conservé, pas de
-tentative de suppression ; ressources et autres travaux non suivis préservés.
+Corps Rust hors compilation, banc/profils B inchangés ; tous codes 0,
+aucun dépassement, aucun essai supplémentaire nécessaire. SelfTest natif et
+trois préflights réussis. Reprise contrôlée, direct à capture simulée avec
+vrai moteur CPU, imports natifs CPU ; aucune nouvelle qualification Windows.
 
-SelfTest natif et trois préflights réussis sur le candidat exact, puis quatre
-corps PASS (trois commandes gardées, codes 0). Aucun dépassement : pas de
-mesure supplémentaire. Preuves target/n2-native/logs/ :
+Preuves dans C:/wt/poll/target/n2-native/logs/ :
 PollInterruptedResume-092910a649e64f45a47eddea35b364cf,
 PollTurboCpuDirect-46c58780cd124cad94b33c10ac591888,
 PersonalLongCpu-206605ee2eef4df5944b4c0bc865ed39, reçus et stdout associés.
-Retour sur refacto/poll f8e1eb90 après fin des processus : seuls des documents
-diffèrent de 28b96d9a, sources et banc testés identiques.
+Depuis 28b96d9a, seuls des documents ont changé. Classification hors poll
+CLEAN acquise : aucune ligne produit modifiée hors poll, registre ajouté
+seulement, garde/profils/tests et documents dans le périmètre arbitré.
 
-Si quatre PASS sans écart inexpliqué : revue des preuves et préconditions
-FUSION-PILE, fetch origin/main serveur, main local égal à origin/main et
-ancêtre, suivis propres, aucun autre agent actif. Classification hors poll
-antérieure CLEAN, sources inchangées depuis 28b96d9a. Tag avant-fusion-poll
-sur main puis merge --no-ff refacto/poll. N1 main : 754/149/0 attendue,
-Structure, format, Clippy. Aucun push. Compte rendu non encore figé.
+**Fusion :** fetch serveur réussi, main=origin/main=FETCH_HEAD=9cd15ca6,
+ancêtre de la branche. Revue préfusion indépendante CLEAN ; suivis propres,
+aucun autre agent actif, non-suivis préservés. Tag **avant-fusion-poll** sur
+9cd15ca6 ; merge **3ffc99ca**, parents 9cd15ca6/65a903bc, arbre identique à
+la tête fusionnée. Aucun push.
 
-Fetch origin main réussi : main=origin/main=FETCH_HEAD=9cd15ca6, ancêtre
-de refacto/poll. Suivis propres, ressources et deux documents non suivis de
-main préservés, tag absent ; aucun processus de campagne actif. Revue
-préf fusion indépendante CLEAN sur les quatre reçus, durées et classification.
-Archive target/n2-native/archive/POLL-INTEGRATION-DECISION-20261104.zip :
-52 entrées, 677 048 octets source / 204 369 archivés ; nombre, tailles et
-SHA-256 de chaque entrée vérifiés. SHA-256 archive :
-BB68138409B28B254B83A092FC3A3EDA76EBC8E39F5DC51D32013AEA36833414.
+**N1 sur main 3ffc99ca :** SelfTest35/79, Structure951/951 (166 native-gated
+recensés), format et Clippy codes 0 ; avertissements présents, sans prétention
+de Clippy strict. Défaut705/128/0, common11/1/0, CPU12/9/0, Parakeet26/11/0 :
+**754 réussites /149 ignorés /0 échec**, preuves sous
+C:/dev/whisper/target/parakeet-tests/poll-integration-main/. Cache persistant
+main préparé depuis celui du worktree, sans réseau ni changement de dépendance.
+
+**Archives vérifiées** (nombre, tailles et SHA-256 de chaque entrée) :
+- N2 worktree, target/n2-native/archive/POLL-INTEGRATION-DECISION-20261104.zip :
+  52 entrées, 677 048/204 369 octets source/ZIP, SHA-256
+  BB68138409B28B254B83A092FC3A3EDA76EBC8E39F5DC51D32013AEA36833414.
+- N1 main, poll-integration-main/archive/POLL-INTEGRATION-MAIN-N1-20261104.zip :
+  175 entrées, 408 375/132 994 octets, SHA-256
+  A4E99CCFBB0F5AD53E3BE8F7835AEE2E289A9484CD4B34550215FDAEDE5D4260.
+
+Cache isolé worktree conservé : 651 827 048 octets ; aucune suppression
+tentée. Commande utilisateur après vérification du chemin et absence de campagne :
+`Remove-Item -LiteralPath 'C:\wt\poll\target\n2-native\cargo-home' -Recurse -Force`.
+Caches persistants/partagés, ressources et preuves préservés ; 559 824 293 888
+octets libres. Bimodalité consignée hors périmètre pour diagnostic séparé.
+Dernière relecture indépendante du compte rendu et des preuves N1 : CLEAN.
