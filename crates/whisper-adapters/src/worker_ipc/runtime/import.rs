@@ -10,10 +10,25 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
+        #[cfg(feature = "native-tests")]
+        let _prepare_phase = crate::native_timing::phase(
+            "import.prepare",
+            serde_json::json!({
+                "job_id": id.0.0.to_string(),
+                "generation": id.1.get(),
+                "model_path": request.model_path.as_str(),
+                "destination": request.destination.as_str(),
+            }),
+        );
         let mut native_route = None;
         if request.strategy
             == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
         {
+            #[cfg(feature = "native-tests")]
+            let _native_route_phase = crate::native_timing::phase(
+                "import.native_route",
+                serde_json::json!({"job_id":id.0.0.to_string(),"generation":id.1.get()}),
+            );
             let session = whisper_core::parakeet_scheduler::SchedulerSession {
                 job_id: id.0,
                 generation: id.1,
@@ -29,8 +44,15 @@ impl ImportRuntime {
                 .native_route_for_unified_import(&request, candidate.as_ref())
                 .map_err(|error| (id.0, id.1, error))?;
         }
+        #[cfg(feature = "native-tests")]
+        let _source_binding_phase = crate::native_timing::phase(
+            "import.source_binding",
+            serde_json::json!({"job_id":id.0.0.to_string(),"generation":id.1.get()}),
+        );
         self.ensure_source_binding(&mut request)
             .map_err(|error| (id.0, id.1, error))?;
+        #[cfg(feature = "native-tests")]
+        drop(_source_binding_phase);
         crate::archive::assert_campaign_archive(Path::new(&request.destination))
             .map_err(|error| (id.0, id.1, error))?;
         if request_is_parakeet(&request)
@@ -83,6 +105,18 @@ impl ImportRuntime {
             });
             return Ok(());
         }
+        #[cfg(feature = "native-tests")]
+        let _archive_prepare_phase = crate::native_timing::phase(
+            "import.archive_prepare",
+            serde_json::json!({
+                "job_id":id.0.0.to_string(),
+                "generation":id.1.get(),
+                "model_path":request.model_path.as_str(),
+                "destination":request.destination.as_str(),
+            }),
+        );
+        #[cfg(feature = "native-tests")]
+        let prepared_model_path = request.model_path.clone();
         let mut archive = ArchiveStore::new(&request.destination);
         let qualification = archive_qualification_for_request(
             &request,
@@ -97,8 +131,12 @@ impl ImportRuntime {
         } else {
             archive.prepare_with_qualification(request, None, qualification)
         };
+        #[cfg(feature = "native-tests")]
+        drop(_archive_prepare_phase);
         match prepared {
             Ok(prepared) => {
+                #[cfg(feature = "native-tests")]
+                let prepared_destination = prepared.destination.clone();
                 self.archive = archive;
                 acceptance_barrier("prepare", Path::new(&prepared.destination))
                     .map_err(|error| (id.0, id.1, error))?;
@@ -120,6 +158,16 @@ impl ImportRuntime {
                     .map_err(|error| (id.0, id.1, error))?;
                 }
                 events.push_back(ImportEvent::Prepared(prepared));
+                #[cfg(feature = "native-tests")]
+                crate::native_timing::record(
+                    "import.prepared_emitted",
+                    serde_json::json!({
+                        "job_id":id.0.0.to_string(),
+                        "generation":id.1.get(),
+                        "model_path":prepared_model_path.as_str(),
+                        "destination":prepared_destination,
+                    }),
+                );
                 Ok(())
             }
             Err(message) => Err((id.0, id.1, message)),
@@ -994,6 +1042,16 @@ impl ImportRuntime {
         request: ImportRequest,
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
+        #[cfg(feature = "native-tests")]
+        let _phase = crate::native_timing::phase(
+            "import.prepare_effect",
+            serde_json::json!({
+                "job_id":request.job_id.0.to_string(),
+                "generation":request.generation.get(),
+                "model_path":request.model_path.as_str(),
+                "destination":request.destination.as_str(),
+            }),
+        );
         match self.bind_import_request(&request) {
             Ok(request) => {
                 let candidate = self
@@ -1430,6 +1488,15 @@ impl ImportRuntime {
         &self,
         request: &whisper_core::ports::ImportRequest,
     ) -> Result<whisper_core::ports::ImportRequest, String> {
+        #[cfg(feature = "native-tests")]
+        let _phase = crate::native_timing::phase(
+            "import.bind_import_request",
+            serde_json::json!({
+                "job_id":request.job_id.0.to_string(),
+                "generation":request.generation.get(),
+                "model_path":request.model_path.as_str(),
+            }),
+        );
         self.model_catalog.as_ref().map_or_else(
             || Ok(request.clone()),
             |catalog| catalog.bind_import(request),

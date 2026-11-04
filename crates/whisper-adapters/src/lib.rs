@@ -6,6 +6,8 @@ pub mod gpu_inventory;
 pub mod journal;
 pub mod microphone_probe;
 pub mod model_catalog;
+#[cfg(any(feature = "native-tests", test))]
+mod native_timing;
 pub mod parakeet_audio;
 pub mod parakeet_document;
 pub mod parakeet_import;

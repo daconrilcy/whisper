@@ -143,3 +143,22 @@ avant/après observé sur la phase visée sans changement de transcription.
 Un PASS N1 seul ne vaut pas résolution du délai. Si le coût fixe est corrigé
 mais que le mode lent n'a pas été reproduit et expliqué, la conclusion globale
 sur les 15 s reste NON DÉTERMINÉE / LIVRÉ AVEC RÉSERVES, même avec tous les tests verts.
+
+## Exécution — diagnostic interne
+
+Instrumentation dans les cinq chemins prévus, aucune optimisation à ce stade.
+Première N1 arrêtée à la compilation E0382 (réemprunt du writer JSONL manquant).
+Le reviewer a demandé DC1 (compilation) et DC2 (exclure le coût du marqueur de
+l'attente du mutex). Correction cycle 1 par l'implémenteur, sans élargissement.
+Reprise couverte par le GO du présent plan ; aucune violation de garde.
+
+N1 corrigée : 708 PASS /128 ignorés /0 échec, soit les 705 précédents et trois
+tests native_timing::tests (activation exacte, chemin raciné, JSONL monotone).
+Format, build adapters et Clippy/all-targets PASS ; avertissements conservés,
+ceux du module privé de qualification en cfg(test) jugés non actionnables par
+le reviewer. PreparationNoRun-0e0a074b11a94028ab9fb3a862d8e924 : NO_RUN_PASS,
+aucun corps natif. Revue diagnostic interne CLEAN : DC1/DC2 fermés, deux revues
+et un cycle de correction, vérifications VDC1/VDC2 validées. Toute trace absente,
+incomplète ou d'origine d'horloge incompatible sera rejetée pour l'analyse.
+Native SelfTest précédent réutilisé : garde et profil inchangés ; SelfTest N1
+du nouveau lot réussi (35 positifs/79 négatifs).
