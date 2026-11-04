@@ -1,6 +1,6 @@
-Avancée : 7a/7b/8a commis ; dernière extraction 8b validée CLEAN.
-Blocage : aucun ; mesures finales, archivage et bilan C restent à réaliser.
-Décision : exécuter C selon le plan accepté, sans simplification ni fusion, en commits locaux seulement.
+Avancée : sous-lot C terminé, mesures finales conformes et archive vérifiée.
+Blocage : aucun ; limites et avertissements non bloquants consignés au bilan.
+Décision : clôture C en commits locaux ; bilan figé, aucun push.
 
 # REFACTO-POLL — sous-lot C
 
@@ -984,3 +984,65 @@ six handlers ne signalent aucun dépassement 100/25, sans score sous seuil
 inventé. N1 754/149/0 et Structure 951/951 relues. PE supplémentaire : non
 concerné. large_enum_variant/result_large_err et trois needless_return restent
 visibles, non bloquants ; aucun nettoyage au passage. Reste famille 9.
+
+## Famille 9 — mesures et clôture en cours
+
+8b commité sous 02fe88df. Dernière campagne gardée c-final-* terminée,
+tous codes 0 : SelfTest, Structure, format, Clippy et N1, 754 réussites,
+zéro échec, 149 ignorés. Aucune commande active. Relevé final des handlers
+en cours, aucune production changée depuis 8b. Diff C vérifié : seulement
+poll/tests/modules, registre et présent plan ; aucun worker, manifeste,
+Cargo.lock, .cargo ou script de compilation touché, PE supplémentaire non
+concerné. Aucun N2 C exécuté ; la campagne B reste sa preuve historique.
+
+Le contrôle préparatoire de l'archive refuse les points de jonction avant
+toute création d'archive. Lecture ciblée : 48 jonctions, toutes sous les
+racines SelfTest/scratch, 24 junction-fixture et 24 fresh-fixture/targets,
+fixtures des auto-tests pointant vers leur junction-target local. Aucune
+archive créée, aucune suppression. Sélection proposée : fichiers ordinaires
+uniquement, jonctions et descendants exclus, exécutables/intermédiaires
+compilés exclus ; garder les jonctions et originaux en place. Archivage avec
+vérification du nombre, tailles et SHA-256 de chaque entrée, caches partagés
+et persistants protégés. Aucun changement de garde ou relance Cargo requis.
+
+Relevé final lecture seule sur 02fe88df : poll lignes physiques 145–154,
+soit 10 lignes ; 34 handlers extraits, lints 100/25 actifs sur tous et aucun
+dépassement dans c-final-clippy. Clippy ne publie pas les scores sous seuil.
+
+| Famille | Fichier sous poll/ | Fonctions | Maximum lignes physiques |
+| --- | --- | ---: | ---: |
+| 1 | observations.rs | 2 | 96 |
+| 2 | segments.rs | 3 | 45 |
+| 3 | readiness.rs | 3 | 89 |
+| 4 | live_windows.rs | 2 | 66 |
+| 5 | stop_recovery.rs | 2 | 48 |
+| 6 | active_live_stop.rs | 4 | 68 |
+| 7 | collection.rs | 12 | 47 |
+| 8 | terminal_routing.rs | 6 | 92 |
+
+Les comptages physiques ne sont pas des scores Clippy. L'absence de
+dépassement avec les lints activés démontre les seuils 100/25. C ajoute
+20 entrées TEST ; seuls des raccordements mod sont ajoutés à tests.rs,
+aucun corps existant modifié. Capture/parakeet préexistants restent hors
+du découpage. C-final : Structure951/951, 166 native-gated recensés,
+SelfTest35/79, N1 754 réussites/zéro échec/149 ignorés. Espace libre après
+vérifications : 617466986496 octets ; aucune suppression à ce stade.
+
+L'utilisateur autorise explicitement la reprise de l'archivage en excluant
+les 48 jonctions SelfTest et leurs descendants, sans les supprimer, puis
+la vérification et le gel du bilan. Archive créée sous
+target/parakeet-tests/refacto-poll-c/archive/REFACTO-POLL-C-logs-20261104.zip :
+6 441 entrées, 12 278 673 octets source, 4 951 701 octets archivés. Nombre,
+tailles et SHA-256 de chaque entrée vérifiés ; archive SHA-256
+2602D8619C294FFE078BC65C7DA6E3BF4B73BF05E19FA528BD485D9ABF71C86E.
+Résumé de vérification : archive/verification.txt. Exécutables et autres
+intermédiaires compilés exclus de l'archive ; originaux et jonctions conservés.
+Aucune cible Cargo ou cache Cargo isolé propre C créé ; cibles/cache partagés
+et persistants protégés. Aucune suppression effectuée, espace libre final
+relevé : 617454206976 octets (575,05 Gio).
+
+Clôture : familles 7 à 9 réalisées, tous les constats de revue fermés,
+20 tests nouveaux, 34 handlers et poll conformes 100/25, N1 finale verte.
+Le [bilan C](REFACTO-POLL-C-BILAN.md) est figé à la clôture ; A/B restent
+inchangés. Aucun développement supplémentaire, nouvelle campagne native,
+fusion ou push engagé. Les avertissements non bloquants restent visibles.
