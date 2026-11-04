@@ -1,5 +1,5 @@
-Avancée : 7a/7b commis ; 8a validé après fermeture ciblée de la dernière réserve.
-Blocage : aucun pour 8a ; extraction 8b et clôture C restent à réaliser.
+Avancée : 7a/7b/8a commis ; dernière extraction 8b validée CLEAN.
+Blocage : aucun ; mesures finales, archivage et bilan C restent à réaliser.
 Décision : exécuter C selon le plan accepté, sans simplification ni fusion, en commits locaux seulement.
 
 # REFACTO-POLL — sous-lot C
@@ -928,3 +928,59 @@ Stopped, erreurs/timeout/statut sont vérifiés dans la même échéance 3 s,
 assertions terminales conservées. N1 754/149/0 relue, Structure 951/951,
 Clippy terminé. Aucun nouveau cycle général ; tous les constats 8a sont
 fermés. Commit local 8a puis extraction 8b désormais possibles selon le plan.
+
+## Extraction 8b — en cours
+
+8a commité localement sous 123056c2, quatre chemins exacts, aucune production
+modifiée. Même implémenteur reçoit poll.rs et nouveaux modules sous poll/
+pour extraire le routage restant et le traitement final commun. Tests,
+registre, garde, manifestes et handlers précédents inchangés. Ordre strict,
+aucune fusion/simplification, branches inatteignables conservées, déplacement
+maximal 800 lignes. Seuil final obligatoire 100 lignes/complexité 25 sur
+poll et chaque nouveau handler, lints existants activés comme au lot 7b ;
+aucune référence Clippy créée. Arrêt si le respect exige un réordonnancement.
+N1 complète puis revue 8b propre, deux cycles maximum. Aucun push.
+
+Candidat écrit dans poll.rs et le nouveau poll/terminal_routing.rs, six
+handlers, corps poll environ dix lignes physiques ; mesures normatives
+restent à obtenir. Ordre préservé selon l'implémenteur, aucun test modifié.
+SelfTest 35/79, Structure 951/951 et format passent. Clippy s'arrête E0425,
+poll.rs:153 : terminal_routing::route_collected_event(self, event) invoque
+comme fonction une méthode définie sur ImportRuntime. Tests N1 non lancés.
+Preuve : 8b-clippy/scratch/20261104T094634007-1ec49067731f46fe8d32776e5f6cea81/.
+Diagnostic lecture seule : pub(super) fn route_collected_event est déjà
+accessible depuis poll ; correction minimale : self.route_collected_event(event).
+Aucun changement de signature, visibilité ou corps nécessaire, aucune autre
+erreur révélée. Aucune correction ou relance depuis l'arrêt ; reprise N1,
+mesures et revue après arbitrage.
+
+L'utilisateur autorise le seul remplacement par self.route_collected_event(event),
+puis N1, mesures finales et revue 8b. Même implémenteur, racines 8b-callfix-*,
+aucun corps, signature ou visibilité changé ; arrêt au premier nouvel échec.
+
+Après correction de l'appel, SelfTest, Structure, format et Clippy passent
+sous 8b-callfix-*. Les lints sont actifs sur poll et les six nouveaux
+handlers ; aucun dépassement 100/25 signalé, scores exacts sous seuil non
+publiés. Avertissements nouveaux visibles : large_enum_variant sur le
+contrôle, result_large_err et trois needless_return ; aucune simplification
+ou suppression d'avertissement appliquée. Le dernier handoff du worker ne
+confirme pas les tests N1 : vérifier journaux/sessions avant de poursuivre
+les sélections manquantes, sans relance aveugle ni nouveau changement source.
+
+Vérification des journaux : les quatre sélections étaient déjà terminées
+dans 8b-callfix-default/common/cpu/parakeet-cpu, codes 0 et aucun processus
+actif ; aucune relance effectuée. N1 défaut 705/128, common 11/1, CPU12/9,
+Parakeet26/11, soit 754 réussites, zéro échec, 149 ignorés. Candidat figé
+pour revue indépendante 8b ; diff exact du fichier suivi préparé sous
+8b-review-poll.diff, nouveau module terminal_routing.rs lisible séparément.
+
+Revue indépendante 8b cycle 1 : CLEAN sur baseline 123056c2. Le reviewer
+compare instruction par instruction : filtrages startup/stale, observations,
+priorités et nettoyages conservés ; erreur poll_import_segment immédiatement
+retournée, seules les routes Finish passent au final commun. Failed tardif
+inatteignable préservé, anciens handlers inchangés. 244 lignes retirées de
+poll.rs (imports compris), sous 800. Les lints permanents sur poll et les
+six handlers ne signalent aucun dépassement 100/25, sans score sous seuil
+inventé. N1 754/149/0 et Structure 951/951 relues. PE supplémentaire : non
+concerné. large_enum_variant/result_large_err et trois needless_return restent
+visibles, non bloquants ; aucun nettoyage au passage. Reste famille 9.
