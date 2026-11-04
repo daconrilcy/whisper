@@ -1,6 +1,6 @@
-Avancée : compilation CPU cpu4 réussie sous garde corrigée ; cinq DLL produites.
-Blocage : équivalence non établie ; écarts PE et tailles non expliqués, répétabilité non exécutée.
-Décision : un nouvel essai CPU cpu5 autorisé, puis analyse en lecture seule des écarts ; aucune correction implicite.
+Avancée : cpu5 PASS, comparaison cpu4/cpu5 et analyse des écarts terminées.
+Blocage : options CMake par défaut écrasées, /EHsc absent ; répétabilité brute 2/5 et écarts ggml-base non résolus.
+Décision : corriger la conservation des options avant une prochaine compilation ; aucune correction ou relance engagée.
 
 # Plan BUILD-NATIF
 
@@ -59,6 +59,8 @@ Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), au
 **Résultat cpu4 :** plan `77f4413b`, garde PASS/sortie 0, 512,061395 s ; cinq DLL, manifeste BUILT_NOT_QUALIFIED. Aucune violation enregistrée, 14 DLL installées inchangées. Observations PE en lecture seule : exports identiques 4/5, imports DLL+symboles identiques 1/5, aucun import CUDA 5/5 ; deux écarts de taille supérieurs à 2 %, non expliqués. Revue indépendante des conclusions CLEAN, verdict du lot NON REPRODUIT. [Détails et archive cpu4](build-natif-cause-renommage.md#compilation-cpu4-autorisée). Aucune correction ni nouvelle exécution déduite de ce résultat.
 
 **Nouvel essai et analyse autorisés le 5 novembre :** « Relance un essai puis analyse raison des écarts ». Une seule commande CPU `./ci/build-native.ps1 -Variant cpu -BuildId cpu5`, mêmes scripts, pins et options que cpu4, sorties neuves ; mêmes préflights et arrêt au premier échec, sans correction/reprise automatique. Après succès seulement : comparer cpu4/cpu5 puis l'installation, analyser PE, objets, commandes et sources en lecture seule pour distinguer chemins/déterminisme/options. Les conclusions distinguent preuve et hypothèse ; aucune modification d'options, micro-compilation, exécution de DLL, GPU ou N2 déduite de cette analyse. Réutiliser les documents vivants (dix rapports), archiver les preuves avec manifeste relu depuis ZIP, revue indépendante des conclusions et commit local. Aucun nettoyage, fusion ou push. Relevé initial : état Git propre à `baf9fb76`, 520 661 139 456 octets libres, NTFS, sorties cpu5 absentes, aucun cmake/cl/ninja/vcpkg/git actif observé.
+
+**Résultat cpu5 :** plan `d27a5d9d`, garde PASS/sortie 0 en 53,9897883 s ; cinq DLL, 14 installées inchangées. Options effectives identiques à cpu4 après remplacement des seules racines de build ; imports/exports identiques entre les deux constructions. Deux NeMo identiques octet pour octet ; deux ggml expliqués par chemins intégrés et métadonnées REPRO ; ggml-base conserve des différences .text/.pdata non entièrement expliquées. Défaut confirmé `native/build-config.json:35` : CMAKE_CXX_FLAGS=/Brepro remplace les défauts dont /EHsc ; 30 C4530 dans chacun des deux builds. Ce défaut est une cause plausible, pas une attribution complète des écarts avec l'installation. [Preuves et proposition bornée](build-natif-cause-renommage.md#cpu5-et-analyse-des-écarts). Aucun changement de configuration, compilation de contrôle corrigée, GPU ou N2 ; verdict NON REPRODUIT, pas de fusion recommandée.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` et les sept compléments cités ci-dessus (dix fichiers). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
