@@ -4,6 +4,8 @@ Décision : NON REPRODUIT ; demander l'arbitrage de reprise, sans fusion ni supp
 
 # BUILD-NATIF — bilan figé du premier essai surveillé, 4 novembre 2026
 
+Complément ultérieur : [bootstrap réussi et nouvel arrêt cpu2](build-natif-arret-cpu2.md).
+
 Accord reçu pour corriger l'acquisition et étendre les trois scripts/profils. Plan : `144dd921`, candidat initial : `05f0ce25`. Responsabilité des modifications : session principale, aucun changement Rust. La règle de production par le script et de conservation du spike est ajoutée dans AGENTS.md comme demandé initialement.
 
 | Étape | Résultat et preuve |
