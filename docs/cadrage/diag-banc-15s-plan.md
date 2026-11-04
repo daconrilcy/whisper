@@ -152,3 +152,27 @@ Le résultat N1 (E0061) est indépendant de cet arrêt ; aucune nouvelle campagn
 n'est lancée. Zéro corps N2 sur les six autorisés. Reprise proposée : commandes
 strictement séquentielles, uniquement après accord utilisateur post-échec
 conformément à AGENTS.md. Pas de restauration ni suppression des preuves.
+
+### Reprise autorisée et nouvel arrêt
+
+Après l'accord utilisateur « oui je t'autorise », les commandes séquentielles
+sur d6482e95 ont réussi : N1 standard 705 PASS / 128 ignorés / 0 échec,
+fmt --check, build adapters, Clippy adapters/all-targets (avertissements
+conservés), puis Native SelfTest. R1/R2 sont fermés statiquement ; la preuve
+de compilation native reste requise par le reviewer.
+
+PreparationNoRun a ensuite été arrêté par la garde à 17:21:06 locale sur
+une écriture VSApplicationInsights dans l'ancien LOCALAPPDATA isolé N1
+standard-reprise, bien que N1 ait fini à 17:16:39. Les commandes Cargo n'étaient
+pas concurrentes. Aucun diagnostic compilateur avant cet arrêt, aucun corps
+Auto engagé. Logs conservés sous target/n2-native/logs/
+PreparationNoRun-ba0dcfdaccbd4cba910bf68383adca89/ ; V2 reste non démontrée.
+
+Lecture des processus : seul VCTIP.EXE PID 82512, créé à 17:16:04.504851 locale,
+parent 167388 déjà disparu. Son chemin est
+C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/VCTIP.EXE.
+Cette concordance n'attribue pas l'écriture à ce PID. Proposition d'arbitrage :
+arrêter uniquement cette incarnation de VCTIP, après revérification du PID,
+nom, chemin et date de création, puis reprendre la compilation et les essais
+selon les mêmes gardes. Aucun arrêt de processus, modification de garde ou
+configuration machine effectué pour cette proposition. Quota Auto : 0/6.
