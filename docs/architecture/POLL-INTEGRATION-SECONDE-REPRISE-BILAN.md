@@ -50,3 +50,5 @@ octets libres. Main inchangé, aucun tag créé, aucun push.
 Revue indépendante : CLEAN sur les dix reçus, observations, calculs et
 compte rendu contrôlés ; archivage vérifié ensuite par la session principale.
 Budget : un cycle de correction de revue limité au compte rendu, non consommé.
+
+[Décision utilisateur par mode et suite de l'intégration](POLL-INTEGRATION-DECISION-BILAN.md).
