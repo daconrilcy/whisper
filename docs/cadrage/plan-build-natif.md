@@ -1,6 +1,6 @@
-Avancée : observation brute et manifeste préalable testés/relus ; unique cpu3 terminé le 4 novembre 2026.
-Blocage : nouveau nom null confirmé ; notification incomplète sans destination établie.
-Décision : arrêt après l'unique diagnostic ; aucune relance ou suite CPU/GPU/N2 déduite de l'autorisation.
+Avancée : mécanisme de renommage incomplet reproduit hors compilation ; proposition de collecte par identité préparée.
+Blocage : correctif non implémenté ; destination historique cpu3 toujours non établie.
+Décision : diagnostic complémentaire demandé réalisé ; aucune relance CPU/GPU/N2.
 
 # Plan BUILD-NATIF
 
@@ -48,6 +48,8 @@ Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), au
 
 **Résultat de cette autorisation :** candidat be51d504 relu CLEAN, auto-tests réussis, un cpu3 exécuté. La garde s'est arrêtée sur un Renamed dont raw_name est null ; snapshot STARTED/CONFIGURE conservé. [Bilan figé cpu3](build-natif-diagnostic-cpu3.md). Autorisation diagnostique consommée ; aucune autre campagne. Ne pas prendre le chemin racine construit depuis le nom absent pour une destination observée ni en déduire l'innocuité du renommage. Les neuf rapports actuels restent sous la limite de dix ; les archives de traces ne constituent pas des rapports supplémentaires.
 
-Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` (trois fichiers, sous le plafond de dix). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
+**Diagnostic complémentaire demandé :** « Trouve pourquoi le nouveau nom est null et propose un correctif pour débloquer la compilation sans assouplir la garde. » [Cause et proposition](build-natif-cause-renommage.md) : reproduction synthétique de la limite FileSystemWatcher, séparation de filtres insuffisante, collecte Win32 étendue par identité recommandée. Aucun code de garde changé ni compilation relancée. Le contrat proposé refuse toujours toute moitié manquante en fin de drainage, sans attente supplémentaire. Ce nouveau périmètre d'interopérabilité nécessite accord précis avant implémentation ; il ne constitue pas une autorisation de relance. Dix rapports atteints ; réutiliser les documents vivants et les archives de traces, demander arbitrage avant tout rapport supplémentaire.
+
+Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` et les sept compléments cités ci-dessus (dix fichiers). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
 Verdict final : REPRODUIT, ÉQUIVALENT AVEC ÉCARTS EXPLIQUÉS ou NON REPRODUIT, justifié par les preuves réellement acquises. Aucun accord de suppression déduit du verdict. Si arrêt anticipé, bilan court avec tableaux marqués NON EXÉCUTÉ ; les faits ultérieurs vont dans un nouveau document, sans réécriture du bilan figé.

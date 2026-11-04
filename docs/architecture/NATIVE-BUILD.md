@@ -1,6 +1,6 @@
-Avancée : cpu3 a conservé les noms bruts et un manifeste préalable lisible le 4 novembre 2026.
-Blocage : notification de renommage incomplète confirmée, nouveau nom null et destination inconnue.
-Décision : diagnostic unique terminé sans relance ; NON REPRODUIT, aucune équivalence démontrée.
+Avancée : limite FileSystemWatcher reproduite ; proposition de collecte par identité relue CLEAN.
+Blocage : correctif non implémenté ; destination historique cpu3 inconnue.
+Décision : aucune relance ; NON REPRODUIT, aucune équivalence démontrée.
 
 # DLL natives — provenance et reconstruction BUILD-NATIF
 
@@ -120,3 +120,5 @@ La relance cpu2 a été autorisée et son bootstrap a réussi : le vcpkg.exe té
 Après autorisation spécifique, cpu3 a ajouté l'observation des noms bruts, leurs états null/vide et la racine de l'observateur. Les événements NativeBuild sont enregistrés dans `watcher-events.jsonl`, en plus des traces d'arrêt existantes ; leur classement reste inchangé. Le manifeste est maintenant écrit atomiquement avant acquisition, bootstrap, configuration et build, puis à la clôture si le worker peut l'atteindre. Après l'arrêt forcé de cpu3, il est resté lisible à STARTED/CONFIGURE avec les options demandées : ce snapshot ne constitue pas un PASS, le résultat de garde est FAIL. Sur 56 renommages enregistrés, un nouveau nom est réellement null ; la destination n'a donc pas été fournie dans cet événement. Sa cause et sa destination restent inconnues. L'autorisation de cpu3 était unique : aucune suite CPU/GPU/N2 ni répétition n'est engagée.
 
 Après résolution de ce point : une commande par variante, deux compilations indépendantes, comparaison binaire puis exports/imports/tailles/options ; ensuite seulement runtime N2 alternatif sans toucher à l'installation et au plus huit essais, puis N1 comparé à main selon le plan. **Statut actuel : NON REPRODUIT**, équivalences statique et fonctionnelle NON EXÉCUTÉES. Conservation intégrale des ressources protégées ; aucune commande de nettoyage exécutée ou nécessaire à cette phase documentaire.
+
+Diagnostic ultérieur demandé : [limite d'assemblage FileSystemWatcher et proposition](../cadrage/build-natif-cause-renommage.md). Le phénomène est reproduit sans compilation ; le déclencheur Win32 exact et la destination historique cpu3 restent inconnus. Une collecte étendue par identité de fichier est recommandée, avec refus des moitiés non réunies au contrôle courant ; aucune attente supplémentaire, correction de garde ou relance native n'est engagée par ce diagnostic.

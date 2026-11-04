@@ -24,3 +24,5 @@ Autorisation précise reçue pour l'observation brute, le manifeste préalable e
 Revue indépendante des conclusions, comptages, manifeste et archive : **CLEAN documentaire**, sans levée de l'arrêt ni autorisation de suite.
 
 L'autorisation diagnostique unique est consommée. Pas de fusion recommandée en l'état ; aucune levée de conservation. La poursuite du lot reste suspendue jusqu'à une décision explicite sur un diagnostic complémentaire permettant d'établir les destinations, sans considérer les noms absents comme des écritures autorisées. Aucun essai supplémentaire proposé comme déjà autorisé. Tout fait ultérieur ira dans un nouveau document.
+
+Complément ultérieur : [cause du nom null et proposition de correction](build-natif-cause-renommage.md).
