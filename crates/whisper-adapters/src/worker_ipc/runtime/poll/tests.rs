@@ -15,11 +15,17 @@ use whisper_core::{
 };
 
 mod active_live_stop;
+mod capture_fairness;
+mod collection_priority;
+mod deferred_window_poll;
+mod direct_live_poll;
 mod manual_gpu_choice;
 mod native_direct_cpu;
+mod parakeet_poll;
 mod readiness_admission;
 mod resume_and_segments;
 mod stop_recovery;
+mod transport_poll;
 mod window_confirmations;
 
 static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
