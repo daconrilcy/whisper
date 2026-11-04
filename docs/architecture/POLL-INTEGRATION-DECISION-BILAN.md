@@ -57,3 +57,5 @@ tentée. Commande utilisateur après vérification du chemin et absence de campa
 Caches persistants/partagés, ressources et preuves préservés ; 559 824 293 888
 octets libres. Bimodalité consignée hors périmètre pour diagnostic séparé.
 Dernière relecture indépendante du compte rendu et des preuves N1 : CLEAN.
+
+[Préservation des preuves et retrait du worktree après push](POLL-INTEGRATION-NETTOYAGE.md).

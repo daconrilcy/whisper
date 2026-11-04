@@ -1,2 +1,4 @@
 /target/
+/models/
+/sound example/
 /crates/whisper-adapters/archive/
