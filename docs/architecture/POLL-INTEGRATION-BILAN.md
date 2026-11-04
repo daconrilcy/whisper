@@ -51,3 +51,5 @@ Sources : [bilan B](REFACTO-POLL-B-BILAN.md), [plan B](REFACTO-POLL-B-PLAN.md),
 [bilan C](REFACTO-POLL-C-BILAN.md),
 [test Auto](../../crates/whisper-adapters/tests/parakeet_unified_native.rs#L988),
 [observateur natif](../../crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs#L69).
+
+[Reprise après arbitrage : mesures Auto et arrêt au seuil de performance](POLL-INTEGRATION-REPRISE-BILAN.md).
