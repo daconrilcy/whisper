@@ -1,6 +1,6 @@
 Avancée : plan du lot préparé avant instrumentation et campagnes ; worktree dédié créé.
-Blocage : reprise des campagnes soumise à arbitrage après les deux échecs consignés ci-dessous.
-Décision : corriger et relire le candidat sans relancer de campagne avant cet accord.
+Blocage : cause interne non déterminée ; aucun mode lent parmi les six essais autorisés.
+Décision : lot clos au quota ; aucun essai supplémentaire ni fusion sans nouvelle décision utilisateur.
 
 # DIAG-BANC-15S — plan du 4 novembre 2026
 
@@ -176,3 +176,119 @@ arrêter uniquement cette incarnation de VCTIP, après revérification du PID,
 nom, chemin et date de création, puis reprendre la compilation et les essais
 selon les mêmes gardes. Aucun arrêt de processus, modification de garde ou
 configuration machine effectué pour cette proposition. Quota Auto : 0/6.
+
+## Reprise finale et clôture du 4 novembre 2026
+
+L'utilisateur a autorisé explicitement l'arrêt de cette seule instance et la
+reprise. À 17:24:51 locale, nom, chemin et date de création de VCTIP 82512 ont
+été revérifiés identiques, puis cette instance seule a été arrêtée. L'origine
+PID des anciennes écritures n'est pas rétroactivement démontrée.
+PreparationNoRun-3f8b5076ec184be8b19c60af5fdc3242 a ensuite terminé
+NO_RUN_PASS (aucun corps natif), puis le préflight PersonalAutoFallback a réussi.
+
+Six essais Auto séquentiels, tous PASS et R :
+fab3b20dd9174888b02d021ea3f0b29d 25,26 s ;
+07b8d73430c44df5827bd3e4c226f887 25,10 s ;
+0b1e1300008e47378d4f3c2f62cab2ed 25,16 s ;
+a55b7d0cf94949b7b2d20ff775db4922 25,23 s ;
+cfbb41330c0a4080949c6fe46dafae11 25,16 s ;
+7eae9edfcfbf471ab1827d85b33613b0 25,12 s.
+Arrêt au quota 6/6, aucun essai lent ni intermédiaire obtenu, aucune correction
+de performance. Les traces monotones sont sous chaque runs/<id>/writes/l04/ ;
+un Refresh est enregistré à chaque interrogation, les changements de vue
+seulement lorsqu'ils sont observés. Pas d'observation des événements internes.
+
+Instrumentation source d6482e95 : revue indépendante finale CLEAN, R1/R2 fermés,
+V1/V2/V3 validés ; deux revues et un cycle de correction. Conclusions relues
+indépendamment : préciser observation de Prepared, périmètres non identiques à
+l'application normale et absence de preuve A/B du coût des traces. Aucun gain
+de performance ni disparition de bimodalité établi. Bilan au chemin demandé
+docs/architecture/DIAG-BANC-15S-BILAN.md, figé à son commit de clôture.
+
+### Archive vérifiée
+
+`C:/wt/diag-banc/target/diag-banc-15s/archive/DIAG-BANC-15S-20261104.zip` :
+473 entrées, 2 870 690 octets source, 1 147 752 octets archivés.
+Nombre, taille et SHA-256 de chaque entrée comparés aux sources : PASS.
+SHA-256 ZIP : `47F8BB5FB6842D1E28985F56A04A5C22390894F7C4A7CB9587E8A4794A9A33F3`.
+Contenu : reçus et logs N1/N2, paramètres d'exécution, traces et sorties utiles
+des six Auto. Les caches, copies de runtime de 3,2 Go, modèles et temporaires
+de compilation ne sont pas inclus. Les documents et sources restent dans Git.
+
+### Nettoyage proposé à l'utilisateur, non exécuté
+
+À 17:39 locale : target/n2-native = 23 026 540 358 octets apparents ;
+target/diag-banc-15s = 4 113 655 octets avant création de l'archive. Deux jonctions
+dans chacune de ces racines, toutes vers leurs propres fixtures/cache internes.
+Ne pas supprimer les parents target/, le cache persistant target/cargo-home-shared,
+le target Cargo partagé, l'archive, ni les ressources protégées du dépôt principal.
+
+**Blocage actuel du nettoyage :** VCTIP 48408, créé à 17:25:05.739934 locale
+pendant la compilation native, subsiste. Son usage des racines du lot n'est pas
+exclu. Cette nouvelle instance n'a pas été arrêtée : l'accord précédent portait
+sur 82512 seulement. Conserver les intermédiaires tant que cette instance et
+toute campagne utilisant ces chemins ne sont pas terminées. Les commandes
+ci-dessous refusent toute suppression si 48408 existe encore ; elles ne le tuent pas.
+
+Après fermeture des processus concernés et vérification de l'absence de lot actif,
+commande PowerShell utilisateur (la session principale ne l'exécute pas) :
+
+```powershell
+if (Get-Process -Id 48408 -ErrorAction SilentlyContinue) {
+    throw 'Nettoyage suspendu : processus 48408 encore présent ; revérifier son identité et son usage.'
+}
+$diagCleanupPaths = @(
+    'C:\wt\diag-banc\target\n2-native',
+    'C:\wt\diag-banc\target\diag-banc-15s\build',
+    'C:\wt\diag-banc\target\diag-banc-15s\clippy',
+    'C:\wt\diag-banc\target\diag-banc-15s\fmt',
+    'C:\wt\diag-banc\target\diag-banc-15s\fmt-reprise',
+    'C:\wt\diag-banc\target\diag-banc-15s\incidents',
+    'C:\wt\diag-banc\target\diag-banc-15s\n1-selftest',
+    'C:\wt\diag-banc\target\diag-banc-15s\standard',
+    'C:\wt\diag-banc\target\diag-banc-15s\standard-reprise'
+)
+foreach ($diagPath in $diagCleanupPaths) {
+    if (-not (Test-Path -LiteralPath $diagPath)) { continue }
+    $diagResolved = (Resolve-Path -LiteralPath $diagPath).Path.TrimEnd('\')
+    if ($diagResolved -ine $diagPath -or
+        -not $diagResolved.StartsWith('C:\wt\diag-banc\target\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Chemin de nettoyage invalide : $diagPath"
+    }
+    $diagAncestor = $diagResolved
+    while ($diagAncestor) {
+        if ((Get-Item -LiteralPath $diagAncestor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "Parent ou racine redirigé : $diagAncestor"
+        }
+        $diagParent = Split-Path -Parent $diagAncestor
+        if (-not $diagParent -or $diagParent -eq $diagAncestor) { break }
+        $diagAncestor = $diagParent
+    }
+    foreach ($diagLink in Get-ChildItem -LiteralPath $diagResolved -Recurse -Force -Attributes ReparsePoint) {
+        foreach ($diagTarget in @($diagLink.Target)) {
+            if (-not [IO.Path]::IsPathRooted($diagTarget) -or
+                -not ([IO.Path]::GetFullPath($diagTarget)).StartsWith($diagResolved + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Jonction hors racine du lot : $($diagLink.FullName)"
+            }
+        }
+    }
+}
+$diagArchive = 'C:\wt\diag-banc\target\diag-banc-15s\archive\DIAG-BANC-15S-20261104.zip'
+if ((Get-FileHash -LiteralPath $diagArchive -Algorithm SHA256).Hash -cne
+    '47F8BB5FB6842D1E28985F56A04A5C22390894F7C4A7CB9587E8A4794A9A33F3') {
+    throw 'Archive absente ou différente : aucune suppression.'
+}
+foreach ($diagPath in $diagCleanupPaths) {
+    if (Test-Path -LiteralPath $diagPath) { Remove-Item -LiteralPath $diagPath -Recurse -Force }
+}
+Get-PSDrive C | Select-Object Free
+```
+
+Les petits logs de premier niveau et l'archive restent conservés. Après exécution
+utilisateur, la vérification d'absence et l'espace libre seront un fait nouveau,
+à consigner dans un nouveau document ; ne pas réécrire le bilan figé.
+
+Clôture : revue indépendante des conclusions corrigées CLEAN, aucun constat
+ouvert dans sa portée ; archivage/nettoyage hors de cette revue. Vérification
+statique de syntaxe de la commande de nettoyage PASS, commande non exécutée.
+Aucune suppression ; espace libre relevé avant clôture : 528 050 298 880 octets.
