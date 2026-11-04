@@ -162,3 +162,30 @@ et un cycle de correction, vérifications VDC1/VDC2 validées. Toute trace absen
 incomplète ou d'origine d'horloge incompatible sera rejetée pour l'analyse.
 Native SelfTest précédent réutilisé : garde et profil inchangés ; SelfTest N1
 du nouveau lot réussi (35 positifs/79 négatifs).
+
+### Mesures avant correction et décision conditionnelle
+
+Instrumentation commise dans 6b8c4000. Deux Auto PASS, cache froid par processus :
+74ddac11dba640a593ff449f53daef63, corps 24,98 s ;
+611963c27ca644c8a7a6d5a5aa22c360, corps 25,01 s. Quota consommé : 2/6.
+Les deux traces produit sont complètes, une seule origine d'horloge chacune,
+avec requête Parakeet et génération corrélées au banc.
+
+| Durées internes, secondes | 74ddac11 | 611963c2 |
+|---|---:|---:|
+| Premier bind_import_request | 23,6935 | 23,6519 |
+| Lecture/hachage Turbo non demandé, 1 624 555 275 octets | 16,4424 | 16,5009 |
+| Lecture/hachage Parakeet demandé, 713 975 456 octets | 7,2500 | 7,1499 |
+| prepare après bind | 0,0927 | environ 0,093 |
+
+Attente du cache maximale : 0,0008 /0,0009 ms ; identité stable pour les deux
+lectures. Le second bind après Prepared est un hit cache, environ 0,49 /0,44 ms.
+Ce sont des durées internes : aucune soustraction entre l'horloge du banc et
+celle du produit. Lecture/hachage ne sépare pas disque et calcul SHA-256.
+
+La preuve du coût dominant sur ces deux essais est relue indépendamment CLEAN :
+snapshot inspecte tous les modèles avant de résoudre la requête Parakeet.
+La correction conditionnelle du plan est donc déclenchée : limiter l'inspection
+au modèle demandé, conserver ses contrôles et le catalogue complet d'affichage.
+Aucune cause des 15 s bimodales n'est prouvée ; aucun mode lent reproduit.
+Quatre essais après correction restent autorisés ; pas d'autres essais avant.
