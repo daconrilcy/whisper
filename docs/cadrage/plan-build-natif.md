@@ -1,6 +1,6 @@
 Avancée : collecteur NativeBuild par identité implémenté, testé et relu CLEAN.
 Blocage : aucune validation par compilation native ; destination historique cpu3 non établie.
-Décision : correction bornée livrée ; aucune relance CPU/GPU/N2.
+Décision : une compilation CPU cpu4 autorisée sous garde corrigée ; arrêt au premier échec.
 
 # Plan BUILD-NATIF
 
@@ -53,6 +53,8 @@ Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), au
 **Mise en œuvre autorisée :** « ok mets en oeuvre le correction ». Delta limité à `ci/native-directory-watch.cs`, `ci/test-native-directory-watch.ps1` et intégration dans `ci/guard-native.ps1` pour NativeBuild uniquement. Trois tâches : collecteur/assemblage à échec fermé ; contrôles synthétiques et réels sans CMake, avec espace libre et temporaires sous `target/native-build` ; revue indépendante, corrections (deux cycles maximum) et commit local. Réutiliser les documents vivants et preuves existants, aucun onzième rapport. Les règles de classement, périmètres, profils, délais et sources natives restent identiques. L'accord autorise l'interopérabilité Windows décrite et ses tests, aucune relance de compilation native, N2, fusion, publication ou suppression.
 
 **Résultat de cette mise en œuvre :** SelfTest complet PASS (37 contrôles, une observation de limite, 80 racines armées, 1 000 renommages attendus/observés), CheckOnly CPU/GPU PASS, fonctions de politique inchangées. Revue code deux passages : BN-C01 fermé, CLEAN pour le delta. Preuves archivées et limites DEL+ADD consignées dans le [rapport vivant](build-natif-cause-renommage.md). La correction n'est pas éprouvée par CMake ; aucune reprise native déduite du CLEAN. Dix rapports conservés, aucun nettoyage.
+
+**Relance CPU unique autorisée :** « Je t'autorise à relancer une compilation CPU sous la garde corrigée, sans assouplir ses règles, et à t'arrêter au premier échec. » Candidat code `82ea85e6`, commande unique `./ci/build-native.ps1 -Variant cpu -BuildId cpu4`, sorties neuves sous `target/native-build/cpu/cpu4` et `target/native-build/guard/NativeDllCpu-cpu4`. Préflight en lecture seule : état Git, versions, absence de liens/répertoires de sortie, espace libre minimal et empreintes des 14 DLL installées ; garde existante inchangée. Après résultat, aucune correction, seconde compilation, GPU ou N2. Archiver et vérifier les traces utiles, consigner le résultat dans les documents vivants existants et faire relire les conclusions ; pas de nouveau rapport, suppression, fusion ou push. Espace libre avant préflight : 530 362 822 656 octets, NTFS ; aucun cmake/ninja/cl/vcpkg/git actif observé lors du relevé initial.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` et les sept compléments cités ci-dessus (dix fichiers). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
