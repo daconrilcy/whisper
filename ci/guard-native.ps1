@@ -1459,6 +1459,56 @@ function Get-RunWatchSpecs([string]$Lot) {
     return @($specs | Where-Object { $unique.Add("$($_.path)|$($_.recursive)") })
 }
 
+function Initialize-NativeDirectoryWatch([string]$TempRoot) {
+    if ('Whisper.NativeWatch.Collector' -as [type]) { return }
+    if (-not (Test-InRoot $TempRoot $script:Lot)) { throw 'Native collector compiler temporaries must remain under the lot.' }
+    Assert-NoReparseChain $TempRoot 'native collector compiler temporary root'
+    New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
+    $source=Join-Path $PSScriptRoot 'native-directory-watch.cs'
+    Assert-NoReparseChain $source 'native notification source'
+    $previousTemp=$env:TEMP; $previousTmp=$env:TMP
+    try {
+        $env:TEMP=$TempRoot; $env:TMP=$TempRoot
+        Add-Type -TypeDefinition ([IO.File]::ReadAllText($source)) -ErrorAction Stop
+    } finally { $env:TEMP=$previousTemp; $env:TMP=$previousTmp }
+}
+
+function Start-NativeBuildWatchState([object[]]$Specs, [string]$LogRoot) {
+    Initialize-NativeDirectoryWatch (Join-Path $LogRoot 'collector-temp')
+    $roots=[string[]]@($Specs | ForEach-Object { Assert-NoReparseChain $_.path 'native watcher root'; [string]$_.path })
+    $recursive=[bool[]]@($Specs | ForEach-Object { [bool]$_.recursive })
+    $collector=[Whisper.NativeWatch.Collector]::new($roots,$recursive)
+    return [pscustomobject]@{
+        queue=[Collections.Concurrent.ConcurrentQueue[object]]::new()
+        nativeCollector=$collector; nativeLogRoot=$LogRoot; nativeStopped=$false
+        watchers=@(); subscriptions=@()
+    }
+}
+
+function Receive-NativeBuildWatchEvents([object]$State) {
+    $snapshot=$State.nativeCollector.Drain()
+    # One immutable snapshot is the boundary. Never wait for a later half or infer its path.
+    if ($snapshot.Records.Count -gt 0) {
+        Write-JsonLine (Join-Path $State.nativeLogRoot 'watcher-native-records.jsonl') $snapshot
+    }
+    foreach ($observation in $snapshot.Events) {
+        $records=@($observation.Records)
+        $newRecord=if ($observation.Type -eq 'Renamed') { $records[1] } else { $records[0] }
+        $oldRecord=if ($observation.Type -eq 'Renamed') { $records[0] } else { $null }
+        $raw=[ordered]@{
+            watcher_root=$newRecord.Root; args_type='Win32.FILE_NOTIFY_EXTENDED_INFORMATION'
+            raw_name=$newRecord.Name; name_is_null=($null -eq $newRecord.Name); name_is_empty=($newRecord.Name -ceq '')
+            raw_old_name=if ($null -ne $oldRecord) { $oldRecord.Name } else { $null }
+            file_id=$newRecord.FileId.ToString('x16'); volume=$newRecord.Volume; session=$newRecord.Session
+            drain=$snapshot.Drain; records=$records
+        }
+        $State.queue.Enqueue([pscustomobject]@{
+            path=$observation.Path; old_path=$observation.OldPath; type=$observation.Type
+            at=$observation.At; detail=$observation.Detail; raw_event=$raw
+        })
+    }
+}
+
 function Start-WatchState([object[]]$Specs) {
     $queue = [Collections.Concurrent.ConcurrentQueue[object]]::new()
     $watchers = [Collections.Generic.List[IO.FileSystemWatcher]]::new()
@@ -1497,6 +1547,7 @@ function Get-WatcherObservation([object]$EventArgs, [string]$WatcherRoot) {
 
 function Receive-WatcherEvents([object]$State) {
     if ($null -eq $State) { return }
+    if ($State.PSObject.Properties['nativeCollector']) { Receive-NativeBuildWatchEvents $State; return }
     $subscribers = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($id in $State.subscriptions) { [void]$subscribers.Add([string]$id) }
     foreach ($eventRecord in @(Get-Event -ErrorAction SilentlyContinue | Where-Object { $subscribers.Contains([string]$_.SourceIdentifier) })) {
@@ -1516,6 +1567,14 @@ function Receive-WatcherEvents([object]$State) {
 
 function Stop-WatchState([object]$State) {
     if ($null -eq $State) { return }
+    if ($State.PSObject.Properties['nativeCollector']) {
+        if (-not $State.nativeStopped) {
+            $State.nativeCollector.Dispose()
+            $State.nativeStopped=$true
+        }
+        Receive-NativeBuildWatchEvents $State
+        return
+    }
     foreach ($watcher in $State.watchers) { try { $watcher.EnableRaisingEvents = $false } catch { } }
     Start-Sleep -Milliseconds 120
     Receive-WatcherEvents $State
@@ -3466,7 +3525,7 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
     $protected=@((Join-Path $script:Repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved')
     $record=[ordered]@{profile=$Entry.id;variant=$Entry.variant;buildId=$BuildId;probe=$Probe;status='STARTED';startedUtc=[DateTimeOffset]::UtcNow.ToString('o');stdout=(Join-Path $Root 'stdout.log');stderr=(Join-Path $Root 'stderr.log');allowedRoots=$allowed;sourceScriptSha256=(Get-Sha256 (Join-Path $script:Repo $Entry.script))}
     try {
-        $watch=Start-WatchState (Get-RunWatchSpecs $script:Lot)
+        $watch=Start-NativeBuildWatchState (Get-RunWatchSpecs $script:Lot) $Root
         $capture=Register-ProcessStreamHandlers $process $queue
         $outWriter=[IO.StreamWriter]::new($record.stdout,$false,$script:Utf8NoBom)
         $errWriter=[IO.StreamWriter]::new($record.stderr,$false,$script:Utf8NoBom)
@@ -3578,6 +3637,8 @@ function Invoke-NativeBuildEntry {
             $receipt=Get-Content -LiteralPath (Join-Path $root 'watcher-events.jsonl') -Tail 1 | ConvertFrom-Json
             if ($receipt.disposition -cne $case.disposition -or $receipt.raw_event.watcher_root -ine $root -or $receipt.raw_event.name_is_null -ne $case.nameNull -or $receipt.raw_event.old_name_is_null -ne $case.oldNull) { throw "Serialized raw rename receipt failed: $($case.label)" }
         }
+        . (Join-Path $PSScriptRoot 'test-native-directory-watch.ps1')
+        Invoke-NativeDirectoryWatchTests $root (Get-RunWatchSpecs $script:Lot)
         $specs=[Collections.Generic.List[object]]::new(); Register-Watch $specs $root $true
         $live=Start-WatchState $specs
         try {

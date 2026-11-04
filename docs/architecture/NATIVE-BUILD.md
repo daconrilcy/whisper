@@ -1,5 +1,5 @@
-Avancée : limite FileSystemWatcher reproduite ; proposition de collecte par identité relue CLEAN.
-Blocage : correctif non implémenté ; destination historique cpu3 inconnue.
+Avancée : collecte NativeBuild par identité implémentée, auto-tests et revue indépendante CLEAN.
+Blocage : correctif non éprouvé par compilation native ; destination historique cpu3 inconnue.
 Décision : aucune relance ; NON REPRODUIT, aucune équivalence démontrée.
 
 # DLL natives — provenance et reconstruction BUILD-NATIF
@@ -121,4 +121,6 @@ Après autorisation spécifique, cpu3 a ajouté l'observation des noms bruts, le
 
 Après résolution de ce point : une commande par variante, deux compilations indépendantes, comparaison binaire puis exports/imports/tailles/options ; ensuite seulement runtime N2 alternatif sans toucher à l'installation et au plus huit essais, puis N1 comparé à main selon le plan. **Statut actuel : NON REPRODUIT**, équivalences statique et fonctionnelle NON EXÉCUTÉES. Conservation intégrale des ressources protégées ; aucune commande de nettoyage exécutée ou nécessaire à cette phase documentaire.
 
-Diagnostic ultérieur demandé : [limite d'assemblage FileSystemWatcher et proposition](../cadrage/build-natif-cause-renommage.md). Le phénomène est reproduit sans compilation ; le déclencheur Win32 exact et la destination historique cpu3 restent inconnus. Une collecte étendue par identité de fichier est recommandée, avec refus des moitiés non réunies au contrôle courant ; aucune attente supplémentaire, correction de garde ou relance native n'est engagée par ce diagnostic.
+Diagnostic puis correction autorisés : [limite d'assemblage FileSystemWatcher, correction et preuves](../cadrage/build-natif-cause-renommage.md). NativeBuild utilise maintenant `ci/native-directory-watch.cs`, chargé en mémoire par la garde, avec temporaires de compilation gérés sous le lot. Windows 10 1709+ et NTFS sur chaque racine surveillée sont obligatoires ; échec avant enfant si indisponibles, sans repli. Les enregistrements étendus sont journalisés dans `watcher-native-records.jsonl`, par instantané de drainage ; les décisions restent dans `watcher-events.jsonl`. Moitiés non réunies au contrôle courant, ambiguïtés, débordements et erreurs restent bloquants, sans attente supplémentaire. Les autres profils conservent leur collecte antérieure. La commande SelfTest ci-dessus inclut les contrôles du collecteur, 1 000 renommages concurrents réels, frontières, capacité et durée de vie native.
+
+La revue indépendante du correctif est CLEAN ; aucune compilation native relancée. Le déclencheur Win32 exact et la destination historique cpu3 restent inconnus. Limite héritée mesurée : certains mouvements interparents sont notifiés Deleted+Created, pas Renamed. La politique existante peut alors classer séparément une suppression Temp UNATTRIBUTED_TEMP et une création autorisée ALLOWED ; aucune garantie générale d'arrêt de tous ces mouvements ni absence universelle de fuite n'est établie.

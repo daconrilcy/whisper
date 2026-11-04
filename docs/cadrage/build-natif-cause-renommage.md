@@ -1,10 +1,10 @@
-Avancée : renommages incomplets reproduits hors compilation ; mécanisme FileSystemWatcher identifié.
-Blocage : déclencheur Win32 exact de cpu3 non enregistré ; correctif de collecte à implémenter et qualifier.
-Décision : recommander la collecte par identité de fichier ; aucun assouplissement ni nouvel essai natif.
+Avancée : collecte NativeBuild par identité implémentée, auto-tests réussis et revue indépendante CLEAN.
+Blocage : correctif non éprouvé en compilation native ; déclencheur Win32 exact de cpu3 non enregistré.
+Décision : correction bornée livrée ; aucune relance native, équivalence des DLL toujours non démontrée.
 
 # BUILD-NATIF — diagnostic du nom null et proposition, 4 novembre 2026
 
-Demande : expliquer le nom null et proposer un correctif. Aucun changement de garde ou lancement CMake dans ce diagnostic. Ce document est le dixième rapport du lot ; tout rapport supplémentaire nécessite arbitrage. Le bilan cpu3 reste figé.
+Demande initiale : expliquer le nom null et proposer un correctif. Le diagnostic initial n'a changé aucun code de garde ni lancé CMake. L'utilisateur a ensuite autorisé sa mise en œuvre : « ok mets en oeuvre le correction ». Ce document vivant conserve les deux étapes et leurs preuves ; dixième rapport du lot, aucun rapport supplémentaire créé. Le bilan cpu3 reste figé.
 
 ## Cause et preuves
 
@@ -22,9 +22,9 @@ Un seul essai synthétique comparatif, PowerShell 7.6.9 / .NET 10.0.14 : deux pr
 
 Dans names.json, un événement ancien-seul `rules.ninja.tmp00120` est immédiatement suivi d'un nouveau-seul `rules.ninja`, même dossier worker-1. **Cela ne suffit pas à apparier des événements de campagne sans identité.** La séparation des filtres réduit le défaut mais ne suffit pas comme correctif. Limite de mesure : capture avant arrêt des observateurs après 200 ms de silence ; comptages observés uniquement, couverture complète non prouvée. L'absence d'erreur enregistrée ne prouve pas l'absence de perte. Le défaut est reproduit sur des mouvements connus internes à la fixture ; l'innocuité du renommage historique cpu3 reste non établie.
 
-## Correctif recommandé, à autoriser avant écriture
+## Contrat de correction accepté
 
-Remplacer la collecte FileSystemWatcher **pour NativeBuild uniquement** par un adaptateur Windows `ReadDirectoryChangesExW`, information étendue avec FileId. [Microsoft recommande cet identifiant pour réunir les deux notifications](https://devblogs.microsoft.com/oldnewthing/20260508-00/?p=112310). Un composant d'interopérabilité versionné sous `ci/`, chargé par `ci/guard-native.ps1`, constitue un nouveau périmètre technique : aucun service, privilège supplémentaire ou surveillance supplémentaire proposé.
+Remplacer la collecte FileSystemWatcher **pour NativeBuild uniquement** par un adaptateur Windows `ReadDirectoryChangesExW`, information étendue avec FileId. [Microsoft recommande cet identifiant pour réunir les deux notifications](https://devblogs.microsoft.com/oldnewthing/20260508-00/?p=112310). Le composant d'interopérabilité versionné sous `ci/`, chargé par `ci/guard-native.ps1`, est autorisé par cet accord : aucun service, privilège supplémentaire ou surveillance supplémentaire.
 
 1. Conserver exactement racines, récursivité et filtres existants ; journaliser les enregistrements bruts, identités, séquences et frontières de lecture/drainage. Vérifier Windows/API et NTFS pour **toutes** les racines avant lancement ; indisponibilité = refus, sans repli silencieux. [Limites de l'API](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-readdirectorychangesexw).
 2. Définir un drainage comme un instantané fini des notifications déjà reçues au contrôle courant. Assembler uniquement OLD/NEW complets, ordonnés et non ambigus de la même identité de fichier et du même volume, dans la même session de surveillance. Les frontières de tampon et événements intercalés ne détruisent plus la paire **si ses deux moitiés sont déjà disponibles**. Ne pas attendre une livraison ultérieure, ne pas maintenir une moitié au-delà du contrôle, ne pas allonger les délais. Même FileId ne suffit pas en présence de plusieurs appariements possibles ; refuser.
@@ -37,4 +37,18 @@ Cette proposition corrige une limite d'assemblage, sans garantir que toute compi
 
 [Archive des observations](../architecture/raw/native-build/rename-collector-diagnostic.zip) : 5 fichiers de preuves et manifeste, 6 entrées vérifiées par tailles/SHA-256 ; 474 879 octets ; SHA-256 `c24d63c8c6d235f6126f5293549168d5dc83fa2d2d371f83c7d91481f79a2607`. Volume C: NTFS ; 530 753 126 400 octets libres après archive. Aucune suppression, fusion, publication ou compilation. Verdict BUILD-NATIF inchangé : **NON REPRODUIT**.
 
-Revue indépendante : premier constat sur l'attente intertampons intégré dans le contrat de drainage ci-dessus ; second passage **CLEAN documentaire**, constat BN-D01 fermé, rapport/renvois/archive vérifiés. Contrôle `git diff --check` réussi. Aucun correctif d'exécution livré par ce diagnostic.
+Revue indépendante initiale : premier constat sur l'attente intertampons intégré dans le contrat de drainage ci-dessus ; second passage **CLEAN documentaire**, constat BN-D01 fermé, rapport/renvois/archive vérifiés. Aucun correctif d'exécution livré à cette étape initiale.
+
+## Mise en œuvre et validation autorisées
+
+`ci/native-directory-watch.cs` collecte les paquets étendus sur les 80 racines réelles, filtres et récursivité identiques. Les lectures sont armées avant tout enfant ; noms relatifs et paquets validés ; identité session/volume/FileId, ordre et création concordants exigés. Les moitiés non réunies au drainage, erreurs API, débordements et saturation de la file deviennent WatcherError. La saturation et les défaillances du lecteur restent terminales. La mémoire native n'est libérée qu'après complétion prouvée de l'I/O, sinon conservée avec échec. `ci/guard-native.ps1` ne sélectionne cette voie que pour NativeBuild ; aucune attente de moitié manquante. Les autres profils conservent FileSystemWatcher.
+
+`ci/test-native-directory-watch.ps1`, appelé par SelfTest NativeDllCpu/Gpu : **37 contrôles PASS, une observation de limite**, ouverture/armement des 80 racines réelles sans y écrire, **1 000 renommages réels concurrents attendus/observés**, contrôles d'identité/paquet/orphelin/ambiguïté, six frontières OLD/NEW réelles, saturation terminale et deux échecs ciblés de durée de vie. Avant le PASS final, deux échecs de tests ont été conservés : attente incorrecte OLD/NEW pour un mouvement interparents ; résolution PowerShell de Expression.New comme constructeur. Ils ont corrigé les tests, sans masquer de perte de surveillance ni relancer CMake.
+
+**Limite observée et héritée :** le mouvement réel interparents de la fixture user-temp vers allowed est notifié Deleted puis Created : classements inchangés UNATTRIBUTED_TEMP et ALLOWED (Changed du dossier allowed : ALLOWED). Il ne déclenche donc pas l'arrêt. Les garanties de frontière ci-dessus concernent les paires Renamed effectivement reçues ; aucune garantie universelle de détection des mouvements interparents n'est établie. Pas de fusion DEL+ADD inventée dans ce correctif. Cette limite existait dans le modèle de classement antérieur ; elle reste un risque de surveillance, sans démontrer une fuite de compilation. Aucun nouveau périmètre de correction n'en est déduit.
+
+Le texte de Get-EventDisposition, Get-RunWatchSpecs, Start-WatchState, Assert-NativeBuildProfile et New-NativeBuildProcessInfo est identique à `2f834d96`. Vérifications CPU/GPU `-CheckOnly` et `git diff --check` réussies. La revue code a détecté BN-C01 (mémoire libérable sur exception après armement/publication) : correction et tests ciblés inspectés au second passage, **CLEAN**, aucun constat ouvert sur ce delta borné. Ce CLEAN ne qualifie ni l'absence universelle d'écritures hors racine ni les DLL.
+
+Preuves finales : `target/native-build/guard/selftest-ef0bb8ff5cae4e98a167578c3b9b5443/`. [Archive de validation](../architecture/raw/native-build/native-collector-validation.zip), 39 fichiers et manifeste, **40 entrées**, tailles/SHA-256 vérifiés ; 2 752 626 octets ; SHA-256 `b945e3848876b5c5270e4bd61629d901dd6f0a6d2c1a94112e89171fcaccd639`. Les essais antérieurs sont inclus ; l'archive diagnostique précédente est conservée. Espace libre après archive : 530 404 126 720 octets. Aucun nettoyage, CMake, Cargo, N2, remplacement de DLL, fusion ou push. Prochaine compilation native non engagée par cet accord.
+
+Vérification indépendante des conclusions et de cette archive : **CLEAN documentaire**. Les empreintes sources archivées correspondent au candidat relu ; aucun code rouvert lors de cette vérification.
