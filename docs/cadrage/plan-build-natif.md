@@ -1,6 +1,6 @@
-Avancée : collecteur NativeBuild par identité implémenté, testé et relu CLEAN.
-Blocage : aucune validation par compilation native ; destination historique cpu3 non établie.
-Décision : une compilation CPU cpu4 autorisée sous garde corrigée ; arrêt au premier échec.
+Avancée : compilation CPU cpu4 réussie sous garde corrigée ; cinq DLL produites.
+Blocage : équivalence non établie ; écarts PE et tailles non expliqués, répétabilité non exécutée.
+Décision : autorisation unique consommée ; arrêt après cpu4, aucune autre compilation ni N2.
 
 # Plan BUILD-NATIF
 
@@ -55,6 +55,8 @@ Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), au
 **Résultat de cette mise en œuvre :** SelfTest complet PASS (37 contrôles, une observation de limite, 80 racines armées, 1 000 renommages attendus/observés), CheckOnly CPU/GPU PASS, fonctions de politique inchangées. Revue code deux passages : BN-C01 fermé, CLEAN pour le delta. Preuves archivées et limites DEL+ADD consignées dans le [rapport vivant](build-natif-cause-renommage.md). La correction n'est pas éprouvée par CMake ; aucune reprise native déduite du CLEAN. Dix rapports conservés, aucun nettoyage.
 
 **Relance CPU unique autorisée :** « Je t'autorise à relancer une compilation CPU sous la garde corrigée, sans assouplir ses règles, et à t'arrêter au premier échec. » Candidat code `82ea85e6`, commande unique `./ci/build-native.ps1 -Variant cpu -BuildId cpu4`, sorties neuves sous `target/native-build/cpu/cpu4` et `target/native-build/guard/NativeDllCpu-cpu4`. Préflight en lecture seule : état Git, versions, absence de liens/répertoires de sortie, espace libre minimal et empreintes des 14 DLL installées ; garde existante inchangée. Après résultat, aucune correction, seconde compilation, GPU ou N2. Archiver et vérifier les traces utiles, consigner le résultat dans les documents vivants existants et faire relire les conclusions ; pas de nouveau rapport, suppression, fusion ou push. Espace libre avant préflight : 530 362 822 656 octets, NTFS ; aucun cmake/ninja/cl/vcpkg/git actif observé lors du relevé initial.
+
+**Résultat cpu4 :** plan `77f4413b`, garde PASS/sortie 0, 512,061395 s ; cinq DLL, manifeste BUILT_NOT_QUALIFIED. Aucune violation enregistrée, 14 DLL installées inchangées. Observations PE en lecture seule : exports identiques 4/5, imports DLL+symboles identiques 1/5, aucun import CUDA 5/5 ; deux écarts de taille supérieurs à 2 %, non expliqués. Revue indépendante des conclusions CLEAN, verdict du lot NON REPRODUIT. [Détails et archive cpu4](build-natif-cause-renommage.md#compilation-cpu4-autorisée). Aucune correction ni nouvelle exécution déduite de ce résultat.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` et les sept compléments cités ci-dessus (dix fichiers). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
