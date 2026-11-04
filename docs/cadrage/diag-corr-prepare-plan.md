@@ -49,10 +49,12 @@ Diagnostic uniquement, par `rust_implementer` :
 1. `crates/whisper-adapters/src/lib.rs` : déclarer le module de diagnostic natif.
 2. `crates/whisper-adapters/src/native_timing.rs` (nouveau) : traces structurées
    opt-in, appels produit sous `native-tests` seulement ; absent du produit par
-   défaut, module également compilable sous cfg(test) pour ses tests unitaires.
+   défaut, module déclaré sous `cfg(any(feature = "native-tests", test))` et
+   appels produit sous `cfg(feature = "native-tests")`.
 3. `crates/whisper-adapters/src/native_timing/tests.rs` (nouveau si nécessaire) :
    tests unitaires séparés des fonctions pures de sérialisation/activation/racines,
    sans changer l'environnement global des tests ni modifier une politique produit.
+   Ces tests helpers sont effectivement exécutés en N1, sans activation native.
 4. `crates/whisper-adapters/src/worker_ipc/runtime/import.rs` : marqueurs autour
    de prepare_effect, bind_import_request, prepare et émission de Prepared.
 5. `crates/whisper-adapters/src/model_catalog.rs` : chronométrer attente du cache,
@@ -87,6 +89,8 @@ branche conditionnelle : présenter alors la correction concrète nécessaire.
    par le profil. Traces JSONL séparées du banc, temps monotones/durées, processus,
    requête/génération lorsqu'ils sont disponibles. Pas de lien causal inventé entre
    deux origines d'horloge : corrélation par identités et durées mesurées.
+   Sans repère commun, l'attente de file reste non déterminée ; les durées
+   internes ne prouvent pas à elles seules le temps passé avant leur entrée.
    Aucun effet sur les assertions, l'ordonnancement ou les données ; aucune trace
    ni accès au disque supplémentaire dans le produit livré par défaut.
 3. **Vérification et revue.** Tests unitaires utiles, format/build/Clippy sous
