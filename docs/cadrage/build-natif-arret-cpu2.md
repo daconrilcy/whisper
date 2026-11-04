@@ -4,6 +4,8 @@ Décision : NON REPRODUIT ; campagne suspendue, diagnostic complémentaire propo
 
 # BUILD-NATIF — bilan figé de cpu2, 4 novembre 2026
 
+Complément ultérieur : [diagnostic cpu3 et nouveau nom null confirmé](build-natif-diagnostic-cpu3.md).
+
 Après « oui je t'autorise », exécution de `./ci/build-native.ps1 -Variant cpu -BuildId cpu2` depuis le worktree, candidat `e8469120`. Aucun correctif ni relance après cet arrêt.
 
 | Étape | Résultat prouvé |
