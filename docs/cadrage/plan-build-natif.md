@@ -1,6 +1,6 @@
-Avancée : relance cpu2 autorisée ; bootstrap PASS, configuration CMake démarrée le 4 novembre 2026.
-Blocage : arrêt sur renommage à destination indéterminée ; observations brutes et manifeste préalable manquants.
-Décision : diagnostic minimal proposé pour arbitrage ; aucune nouvelle relance ou modification de garde après cpu2.
+Avancée : observation brute et manifeste préalable explicitement autorisés pour un diagnostic cpu3 le 4 novembre 2026.
+Blocage : candidat à vérifier et relire avant cet unique essai ; politique d'arrêt inchangée.
+Décision : limiter la reprise à ces deux corrections et à un seul cpu3 sous garde, sans autre compilation automatique.
 
 # Plan BUILD-NATIF
 
@@ -43,6 +43,8 @@ Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), au
 **Arrêt de cette reprise :** sources2 PASS ; cpu1 FAIL avant CMake (bootstrap Windows PowerShell introuvable, événement hors racines `$null` sans attribution). [Bilan distinct](build-natif-essai-surveille.md). Les corrections bornées sont préparées et relues : interpréteur Windows PowerShell explicite, dossier courant sous l'exécution. Aucun nouvel essai natif après l'arrêt ; auto-tests seuls. Une reprise du bootstrap corrigé nécessite l'arbitrage prévu par AGENTS.md, sans déduire cette reprise de la revue CLEAN. Si accord, utiliser cpu2 neuf puis poursuivre les comparaisons prévues ; conserver cpu1 et ses traces, sans suppression.
 
 **Autorisation et résultat cpu2 :** l'utilisateur a répondu « oui je t'autorise » à cette relance et à la poursuite conditionnelle du plan. Le bootstrap corrigé a réussi ; le début de configuration CMake/Abseil a été interrompu par la garde sur un Renamed dont seul l'ancien chemin est exploitable. [Bilan cpu2](build-natif-arret-cpu2.md). Aucun assouplissement ou relancement automatique. Avant une éventuelle cpu3, proposer l'observation des noms bruts/racine et un manifeste STARTED écrit avant lancement, à tester et relire sans compilation ; une relance diagnostique unique reste à autoriser. Ne pas transformer l'hypothèse d'un nom absent en preuve d'absence de fuite.
+
+**Autorisation cpu3 reçue :** « Oui, je t'autorise à ajouter les noms bruts des événements, à écrire le manifeste avant lancement, puis à faire un seul essai diagnostique cpu3 sous la garde, sans assouplir ses règles. » Delta limité à `ci/guard-native.ps1` (observation/trace, tests noms complets/null/vides) et `ci/build-native.ps1` (snapshots atomiques avant acquisition, bootstrap, configuration et build ; tests de lecture/remplacement/refus hors racine). Aucune modification du classement des événements, des racines, profils, options natives ou versions. Relire ce delta indépendamment après ses auto-tests, puis lancer exactement une commande CPU BuildId cpu3. Arrêter après son résultat, même en cas de réussite ; les autres constructions et N2 ne sont pas engagés par cette reprise diagnostique.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` (trois fichiers, sous le plafond de dix). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
