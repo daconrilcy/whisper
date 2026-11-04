@@ -1,6 +1,6 @@
-Avancée : plan BUILD-NATIF établi le 4 novembre 2026 avant archivage, inventaire et compilation.
-Blocage : préflight de phase 0, chemin historique absent ; aucune phase suivante engagée.
-Décision : retrouver la chaîne historique avant reprise ; architecture proposée ci-dessous à valider avant écriture native.
+Avancée : phases 0/1 documentées ; préparation du script autorisée explicitement le 4 novembre 2026.
+Blocage : sauvegarde historique impossible ; options non retrouvées traitées comme hypothèses acceptées pour vérification.
+Décision : écrire et relire le script avant compilation ; maintenir les arrêts sur échec.
 
 # Plan BUILD-NATIF
 
@@ -29,6 +29,12 @@ Lecture seule absolue de `C:/dev/whisper/target/parakeet-feasibility/`. Aucun re
 Recommandation provisoire : archive vérifiée conservée dans le cache persistant, commit complet et correctifs versionnés séparément ; décision finale après inventaire pour reproduire la chaîne réelle. Aucun téléchargement avant cette identification.
 
 ## Livrables et acceptation
+
+### Précision acceptée après inventaire
+
+L'utilisateur a répondu « Je t'autorise » à la proposition de préparer le script avec les révisions retrouvées et les paramètres manquants déclarés comme hypothèses à vérifier par équivalence. La préparation utilise `native/build-config.json` pour les trois pins et les options, `native/.gitignore` pour le cache persistant `native/cache/`, et `ci/build-native.ps1`. Les checkouts Git épinglés, dont llama imbriqué au chemin de sous-module attendu par NeMo, remplacent la recommandation provisoire d'archive sans métadonnées Git. Le CMakeLists utilisé est celui du NeMo épinglé, sans wrapper CMake local qui changerait CMAKE_SOURCE_DIR et le mécanisme des patches. Aucune source ASR réécrite ni nouveau correctif local. La configuration reproduit directement les arguments CMake historiques ; le pilote Windows amont n'est pas exécuté, afin d'éviter sa sélection automatique d'outils et son rafraîchissement de PATH depuis le registre.
+
+Hypothèses autorisées : Ninja 1.12.1, GGML_NATIVE=ON (défaut amont fixé), autres défauts ISA des sources exactes, runtime /MD explicitement fixé. /Brepro est ajouté comme le demande le lot, avec mention de son absence de preuve historique et des chemins sources susceptibles d'empêcher l'identité binaire entre racines. Les commandes `-SelfTest` et `-CheckOnly` ne compilent pas ; `-PrepareOnly` ne récupère que les sources ; une commande `-Variant cpu|gpu -BuildId <id>` effectue une construction, sans réutiliser ni supprimer une sortie existante. Deux constructions successives par variante utilisent des racines distinctes et conservent leurs preuves. Ne pas annoncer les hypothèses comme des options historiques retrouvées. Toute erreur reste un point d'arrêt, sans correction et relance de compilation implicites.
 
 Rapports : ce plan, `docs/architecture/NATIVE-BUILD.md`, `docs/architecture/BUILD-NATIF-BILAN.md` (trois fichiers, sous le plafond de dix). La session principale écrit et commite les documents. NATIVE-BUILD décrit provenance, commandes, licences et contrainte GGML_ASSERT au rechargement dans un même processus ; ne pas présenter cette contrainte comme reproduite sans essai. AGENTS.md reçoit la règle de production par script uniquement lorsque ce script est livré, avec maintien de conservation jusqu'à décision explicite après fusion et preuve d'équivalence.
 
