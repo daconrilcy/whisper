@@ -35,6 +35,9 @@ mod recovery;
 mod source;
 mod storage;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 #[cfg(all(test, feature = "recette-hooks"))]
 use campaign::campaign_archive_snapshot;
 pub(crate) use campaign::{
