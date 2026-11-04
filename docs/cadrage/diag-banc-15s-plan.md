@@ -118,10 +118,12 @@ ambiant libre. La garde et les autres profils resteraient inchangés. Cela
 tant que l'utilisateur n'a pas arbitré. Coût attendu faible ; les anciens
 ValuesJson de ce profil devraient fournir la nouvelle clé (0 ou 1).
 
-Alternative : garder les profils inchangés et remplacer l'exigence de variable
-dédiée par un fichier d'activation explicite dans une entrée déjà stagée. Cela
-modifie le contrat d'activation et pourrait perturber l'entrée de comparaison ;
-option non recommandée, non implémentée. Ne pas utiliser un marqueur implicite.
+Alternative : maintenir strictement le périmètre et arrêter avant
+instrumentation/campagnes. Aucun mécanisme conforme de transmission de la
+variable dédiée n'a été trouvé. Un fichier d'activation ne constitue pas une
+solution établie : le staging épingle exactement 21 fichiers runtime et un MP3 ;
+sans ajout au manifeste il ne serait pas copié, avec ajout il ferait échouer
+le nombre de fichiers requis. Ne pas utiliser un marqueur implicite.
 
 Les deux observations signalées par l'utilisateur (provenance des DLL sous
 spike02 et messages ignore décalés) seront rapportées comme telles, sans
