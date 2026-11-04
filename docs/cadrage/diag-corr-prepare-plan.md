@@ -1,8 +1,8 @@
-Avancée : demande précisée « identifier puis corriger la cause » ; périmètre proposé à partir des traces du lot clos.
-Blocage : nouveau lot produit et quota natif à accepter avant implémentation.
-Décision : conserver l'instrumentation existante ; soumettre le périmètre borné ci-dessous.
+Avancée : plan revu CLEAN puis validé explicitement par l'utilisateur dans cette session.
+Blocage : aucun au lancement ; cause temporelle encore à établir.
+Décision : implémenter le diagnostic interne, puis la correction conditionnelle fondée sur ses traces.
 
-# DIAG-CORR-PREPARE — proposition du 4 novembre 2026
+# DIAG-CORR-PREPARE — plan accepté le 4 novembre 2026
 
 ## Objectif et autorisations
 
@@ -10,6 +10,11 @@ La demande courante autorise la préparation du diagnostic puis d'une correction
 et de ses commits locaux. Elle ne transforme pas les six essais consommés du
 lot DIAG-BANC-15S en quota illimité. Ce plan renouvelle explicitement le cadre
 nécessaire selon AGENTS.md ; aucun Rust produit n'est modifié avant son acceptation.
+Acceptation : l'utilisateur a répondu « je valide » au plan ffed275d, y compris
+les chemins, six nouveaux Auto, deux cycles et la reprise encadrée après erreurs
+de compilation/test dues au delta. Début du lot : 17:53:47 locale ; espace libre
+initial 513 278 816 256 octets, worktree propre. L'état de processus relevé ne
+montre aucune commande Cargo/rustc/Git ni VCTIP encore active à cette lecture.
 Reprise sur `C:/wt/diag-banc`, branche `diag-banc-15s`, base `ff50f7cb`, propre.
 Le bilan précédent reste figé ; ce document porte la suite, pas une réécriture.
 
