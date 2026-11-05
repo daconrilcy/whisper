@@ -1,10 +1,20 @@
-Avancée : cpu6 PASS, zéro C4530 et exports/imports conformes à l'installation 5/5.
-Blocage : répétabilité du candidat corrigé et équivalence fonctionnelle non établies.
-Décision : concordance statique, équivalence complète non démontrée ; NON REPRODUIT, aucun N2.
+Avancée : cpu6 reste le dernier build terminé ; stabilisations de clôture codées et relues.
+Blocage : cpu7 interrompu par la garde ; cpu7b refusé avant lancement pour une jonction Windows dans l'espace fixe.
+Décision : qualification de clôture non démontrée ; aucune installation ni fusion, voir le nouveau bilan.
 
 # DLL natives — provenance et reconstruction BUILD-NATIF
 
 ## État de la procédure
+
+**BUILD-NATIF-CLOTURE : arrêt sur blocage.** Le [bilan de clôture](BUILD-NATIF-CLOTURE-BILAN.md) remplace le critère d'identité avec l'installation par surfaces PE, égalité des sorties N2 et répétabilité entre deux constructions neuves. Aucun de ces trois critères n'est établi pour le candidat de clôture. Les résultats cpu6 ci-dessous restent historiques.
+
+Le pilote matérialise désormais sources, dépendances, build, profils et temporaires au chemin physique constant `C:/wb/native/<cpu|gpu>`. Les téléchargements restent dans `native/cache/` ; les caches binaires vcpkg anciens ne sont pas réutilisés. Un patch local versionné respecte `GGML_BUILD_COMMIT`, fourni avec le commit llama complet ; le getter PE `ggml_commit` est décodé sans charger la DLL et doit correspondre au pin après compilation. Les 19 patches amont et les options ISA restent inchangés. Le contrôle du getter reconstruit n'a pas été atteint.
+
+Une invocation publique par variante : `pwsh -File ci/build-native.ps1 -Variant cpu -BuildId <identifiant-neuf>` ou `pwsh -File ci/build-native.ps1 -Variant gpu -BuildId <identifiant-neuf>`. **Ne pas relancer tant que le blocage de préservation n'est pas arbitré.** Le précédent espace doit être préservé et remplacé par un espace neuf ; le script refuse actuellement toute jonction interne. Windows a créé `userprofile/AppData/Local/Microsoft/Windows/INetCache/Content.IE5` vers `INetCache/IE`, ce qui empêche cette préparation. Aucun déplacement ni nettoyage effectué.
+
+`VSCMD_SKIP_SENDTELEMETRY=1` désactive seulement le lanceur de télémétrie de VsDevCmd avant initialisation ; un témoin réel comparatif confirme la branche supprimée et les mêmes versions MSVC/SDK. Cela ne change aucun refus du collecteur et ne garantit pas l'absence d'autres renommages répétés. cpu7 a été arrêté sur quatre notifications de renommage d'une même identité dans un drainage ; cpu7b n'a pas démarré de compilateur.
+
+Les quatre profils N2 de clôture CPU/GPU référence/reconstruit sont bornés aux sélections du plan. Le pin persistant `native/runtime-pins/reference.json` décrit 21 fichiers ; seuls cinq fichiers CPU ou six fichiers ggml/NeMo GPU pourront différer dans les pins reconstruits futurs, contrôlés par noms, tailles et SHA. Les DLL CUDA restent des copies vérifiées du toolkit. Aucun pin reconstruit, runtime alternatif, résultat N2 ou comparaison N1 n'a été produit dans cette clôture. L'installation est inchangée.
 
 `ci/build-native.ps1` et `native/build-config.json` constituent un candidat dont la voie surveillée est implémentée. `sources2` a récupéré les trois sources et contrôlé leurs pins ; les profils `NativeDllCpu/Gpu` se limitent au script et aux racines prévues. Après cpu1 et cpu2, l'utilisateur a autorisé une observation plus précise et un unique cpu3 : cet essai s'est arrêté avec un nouveau nom effectivement null. Le snapshot du worker, écrit avant CMake, a survécu à l'arrêt. Ce document ne constitue pas encore une recette de compilation validée. Aucune DLL ggml/NeMo reconstruite, compilation Rust ou campagne Cargo/N2. Les 14 empreintes installées ont été revérifiées sans changement. Bilans : [préparation](../cadrage/build-natif-script-phase2.md), [cpu1](../cadrage/build-natif-essai-surveille.md), [cpu2](../cadrage/build-natif-arret-cpu2.md), [diagnostic cpu3](../cadrage/build-natif-diagnostic-cpu3.md).
 
