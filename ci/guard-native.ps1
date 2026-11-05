@@ -1541,10 +1541,12 @@ function Initialize-NativeDirectoryWatch([string]$TempRoot) {
     New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
     $source=Join-Path $PSScriptRoot 'native-directory-watch.cs'
     Assert-NoReparseChain $source 'native notification source'
+    $controlSource=Join-Path $PSScriptRoot 'native-build-control.cs'
+    Assert-NoReparseChain $controlSource 'native build control source'
     $previousTemp=$env:TEMP; $previousTmp=$env:TMP
     try {
         $env:TEMP=$TempRoot; $env:TMP=$TempRoot
-        Add-Type -TypeDefinition ([IO.File]::ReadAllText($source)) -ErrorAction Stop
+        Add-Type -Path @($source,$controlSource) -ErrorAction Stop
     } finally { $env:TEMP=$previousTemp; $env:TMP=$previousTmp }
 }
 
@@ -1647,7 +1649,7 @@ function Stop-WatchState([object]$State) {
             $State.nativeCollector.Dispose()
             $State.nativeStopped=$true
         }
-        Receive-NativeBuildWatchEvents $State
+        if (-not $State.PSObject.Properties['nativeControl']) { Receive-NativeBuildWatchEvents $State }
         return
     }
     foreach ($watcher in $State.watchers) { try { $watcher.EnableRaisingEvents = $false } catch { } }
@@ -2101,6 +2103,14 @@ function Invoke-VoxPopuliContractSelfTests([object]$Registry, [string]$Lot) {
 }
 
 function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]$ProtectedRoots, [string]$UserTemp, [Diagnostics.Process]$Process, [string]$Mode, [string]$LogRoot, [object]$ProcessFamily = $null) {
+    if ($Mode -ceq 'NativeBuild' -and $State.PSObject.Properties['nativeControl']) {
+        $violation=$State.nativeControl.Process($State.nativeCollector.Drain())
+        if ($null -ne $violation) {
+            if ($null -ne $ProcessFamily) { Stop-VoxPopuliProcessFamily $ProcessFamily } else { Stop-CargoProcessTree $Process }
+            throw "Native campaign guard stopped on $($violation.Type) at '$($violation.Path)' (event $($violation.At)); see $LogRoot\guard-events.jsonl"
+        }
+        return
+    }
     Receive-WatcherEvents $State
     $event = $null
     while ($State.queue.TryDequeue([ref]$event)) {
@@ -3616,6 +3626,21 @@ function New-NativeBuildProcessInfo([object]$Entry, [string]$BuildId, [string]$R
     return $psi
 }
 
+function Complete-NativeBuildCleanup([scriptblock[]]$Actions, [object]$Record, [string]$Root) {
+    $errors=[Collections.Generic.List[string]]::new()
+    foreach ($action in $Actions) {
+        try { & $action } catch { $errors.Add($_.Exception.Message) }
+    }
+    if ($errors.Count -gt 0) {
+        $Record.status='FAIL'
+        $Record.cleanupFailures=$errors.ToArray()
+    }
+    $Record.finishedUtc=[DateTimeOffset]::UtcNow.ToString('o')
+    $Record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Root 'guard-result.json') -Encoding utf8
+    # Do not replace an exception already propagating through the caller's finally.
+    if ($errors.Count -gt 0 -and -not $Record.Contains('failure')) { throw "NativeBuild cleanup failed: $($errors -join '; ')" }
+}
+
 function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Root, [string]$CacheRoot, [string]$Probe = '') {
     $psi=New-NativeBuildProcessInfo $Entry $BuildId $Root $Probe
     $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
@@ -3641,6 +3666,7 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
             Register-Watch $specs (Split-Path -Parent $workspace) $false
         }
         $watch=Start-NativeBuildWatchState $specs $Root
+        $watch | Add-Member -NotePropertyName nativeControl -NotePropertyValue ([Whisper.NativeBuild.Control]::new([string[]]$allowed,[string[]]$protected,$userTemp,$Root))
         $capture=Register-ProcessStreamHandlers $process $queue
         $outWriter=[IO.StreamWriter]::new($record.stdout,$false,$script:Utf8NoBom)
         $errWriter=[IO.StreamWriter]::new($record.stderr,$false,$script:Utf8NoBom)
@@ -3664,6 +3690,7 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
         }
         Stop-WatchState $watch
         Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root
+        $watch.nativeControl.Dispose()
         $watch=$null
         $after=Get-GitState $script:Repo
         if ($before.head -cne $after.head -or $before.status -cne $after.status) { throw 'Candidate HEAD or tracked/untracked status changed during native DLL build.' }
@@ -3677,13 +3704,16 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
         if ($started -and -not $process.HasExited) { Stop-CargoProcessTree $process }
         throw
     } finally {
-        if ($null -ne $watch) { Stop-WatchState $watch }
-        Remove-ProcessStreamHandlers $capture
-        if ($null -ne $capture) { Assert-NoProcessStreamHandlers $capture }
-        if ($null -ne $outWriter) { $outWriter.Dispose() }; if ($null -ne $errWriter) { $errWriter.Dispose() }
-        $process.Dispose()
-        $record.finishedUtc=[DateTimeOffset]::UtcNow.ToString('o')
-        $record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Root 'guard-result.json') -Encoding utf8
+        Complete-NativeBuildCleanup @(
+            { if ($null -ne $watch) { Stop-WatchState $watch } },
+            { if ($null -ne $watch) { Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root } },
+            { if ($null -ne $watch -and $watch.PSObject.Properties['nativeControl']) { $watch.nativeControl.Dispose() } },
+            { Remove-ProcessStreamHandlers $capture },
+            { if ($null -ne $capture) { Assert-NoProcessStreamHandlers $capture } },
+            { if ($null -ne $outWriter) { $outWriter.Dispose() } },
+            { if ($null -ne $errWriter) { $errWriter.Dispose() } },
+            { $process.Dispose() }
+        ) $record $Root
     }
 }
 
