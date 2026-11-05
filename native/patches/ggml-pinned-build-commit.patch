@@ -1,0 +1,22 @@
+diff --git a/ggml/CMakeLists.txt b/ggml/CMakeLists.txt
+--- a/ggml/CMakeLists.txt
++++ b/ggml/CMakeLists.txt
+@@ -13,2 +13,10 @@
++# A caller supplying a source identity must not inherit an unrelated parent Git repository.
++if(DEFINED GGML_BUILD_COMMIT)
++    string(LENGTH "${GGML_BUILD_COMMIT}" GGML_BUILD_COMMIT_LENGTH)
++    if(NOT GGML_BUILD_COMMIT_LENGTH EQUAL 40 OR NOT GGML_BUILD_COMMIT MATCHES "^[0-9a-f]+$")
++        message(FATAL_ERROR "GGML_BUILD_COMMIT must be a full source commit")
++    endif()
++    set(GGML_GIT_DIRTY 0)
++else()
+ find_program(GIT_EXE NAMES git git.exe NO_CMAKE_FIND_ROOT_PATH)
+ if(GIT_EXE)
+@@ -27,5 +35,6 @@
+         ERROR_QUIET
+     )
+ endif()
++endif()
+-
++
+ set(GGML_VERSION "${GGML_VERSION_BASE}")

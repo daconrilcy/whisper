@@ -22,7 +22,333 @@
     "whisper-worker-parakeet-cpu/native-tests",
     "whisper-worker-parakeet-cpu/parakeet-personal"
   ],
+  "nativeBuildProfiles": [
+    {"id":"NativeDllCpu","variant":"cpu","script":"ci/build-native.ps1","cache":"native/cache","outputs":"target/native-build","timeoutSeconds":3600,"workspace":"C:/wb/native/cpu"},
+    {"id":"NativeDllGpu","variant":"gpu","script":"ci/build-native.ps1","cache":"native/cache","outputs":"target/native-build","timeoutSeconds":3600,"workspace":"C:/wb/native/gpu"}
+  ],
   "profiles": [
+{
+  "id": "NativeClosureCpuReference",
+  "status": "READY",
+  "operation": "Run",
+  "package": "whisper-adapters",
+  "features": [
+    "whisper-adapters/native-tests"
+  ],
+  "compileEnvironment": [],
+  "inputs": [
+    {
+      "key": "personalRuntime",
+      "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+      "kind": "directory"
+    },
+    {
+      "key": "shortFrench",
+      "environmentVariable": "WHISPER_PU_L4_FR_SOURCE",
+      "kind": "file"
+    },
+    {
+      "key": "shortEnglish",
+      "environmentVariable": "WHISPER_PU_L4_EN_SOURCE",
+      "kind": "file"
+    }
+  ],
+  "values": [
+    {
+      "key": "cudaToolkitPath",
+      "environmentVariable": "CUDA_PATH",
+      "required": true,
+      "kind": "directory",
+      "allowedRoot": "cuda-12.9"
+    }
+  ],
+  "outputs": [
+    {
+      "key": "campaignRun",
+      "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+      "kind": "directory",
+      "path": "writes/l04"
+    }
+  ],
+  "staging": [
+    {
+      "inputKey": "personalRuntime",
+      "destination": "Whisper",
+      "destinationBase": "localappdata",
+      "requiredFileCount": 21,
+      "requiredBytes": 1
+    },
+    {
+      "inputKey": "shortFrench",
+      "destination": "writes/l04/fixtures/fr-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    },
+    {
+      "inputKey": "shortEnglish",
+      "destination": "writes/l04/fixtures/en-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    }
+  ],
+  "cases": [
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    },
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_auto_without_candidate_reports_preaudio_cpu_fallback",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    }
+  ],
+  "runtimePin": "native/runtime-pins/reference.json"
+},
+{
+  "id": "NativeClosureCpuRebuilt",
+  "status": "READY",
+  "operation": "Run",
+  "package": "whisper-adapters",
+  "features": [
+    "whisper-adapters/native-tests"
+  ],
+  "compileEnvironment": [],
+  "inputs": [
+    {
+      "key": "personalRuntime",
+      "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+      "kind": "directory"
+    },
+    {
+      "key": "shortFrench",
+      "environmentVariable": "WHISPER_PU_L4_FR_SOURCE",
+      "kind": "file"
+    },
+    {
+      "key": "shortEnglish",
+      "environmentVariable": "WHISPER_PU_L4_EN_SOURCE",
+      "kind": "file"
+    }
+  ],
+  "values": [
+    {
+      "key": "cudaToolkitPath",
+      "environmentVariable": "CUDA_PATH",
+      "required": true,
+      "kind": "directory",
+      "allowedRoot": "cuda-12.9"
+    }
+  ],
+  "outputs": [
+    {
+      "key": "campaignRun",
+      "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+      "kind": "directory",
+      "path": "writes/l04"
+    }
+  ],
+  "staging": [
+    {
+      "inputKey": "personalRuntime",
+      "destination": "Whisper",
+      "destinationBase": "localappdata",
+      "requiredFileCount": 21,
+      "requiredBytes": 1
+    },
+    {
+      "inputKey": "shortFrench",
+      "destination": "writes/l04/fixtures/fr-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    },
+    {
+      "inputKey": "shortEnglish",
+      "destination": "writes/l04/fixtures/en-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    }
+  ],
+  "cases": [
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_cpu_imports_french_mp3_through_the_unified_application",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    },
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_auto_without_candidate_reports_preaudio_cpu_fallback",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    }
+  ],
+  "runtimePin": "native/runtime-pins/cpu.json"
+},
+{
+  "id": "NativeClosureGpuReference",
+  "status": "READY",
+  "operation": "Run",
+  "package": "whisper-adapters",
+  "features": [
+    "whisper-adapters/native-tests"
+  ],
+  "compileEnvironment": [],
+  "inputs": [
+    {
+      "key": "personalRuntime",
+      "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+      "kind": "directory"
+    },
+    {
+      "key": "shortFrench",
+      "environmentVariable": "WHISPER_PU_L4_FR_SOURCE",
+      "kind": "file"
+    },
+    {
+      "key": "shortEnglish",
+      "environmentVariable": "WHISPER_PU_L4_EN_SOURCE",
+      "kind": "file"
+    }
+  ],
+  "values": [
+    {
+      "key": "cudaToolkitPath",
+      "environmentVariable": "CUDA_PATH",
+      "required": true,
+      "kind": "directory",
+      "allowedRoot": "cuda-12.9"
+    }
+  ],
+  "outputs": [
+    {
+      "key": "campaignRun",
+      "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+      "kind": "directory",
+      "path": "writes/l04"
+    }
+  ],
+  "staging": [
+    {
+      "inputKey": "personalRuntime",
+      "destination": "Whisper",
+      "destinationBase": "localappdata",
+      "requiredFileCount": 21,
+      "requiredBytes": 1
+    },
+    {
+      "inputKey": "shortFrench",
+      "destination": "writes/l04/fixtures/fr-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    },
+    {
+      "inputKey": "shortEnglish",
+      "destination": "writes/l04/fixtures/en-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    }
+  ],
+  "cases": [
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    }
+  ],
+  "runtimePin": "native/runtime-pins/reference.json"
+},
+{
+  "id": "NativeClosureGpuRebuilt",
+  "status": "READY",
+  "operation": "Run",
+  "package": "whisper-adapters",
+  "features": [
+    "whisper-adapters/native-tests"
+  ],
+  "compileEnvironment": [],
+  "inputs": [
+    {
+      "key": "personalRuntime",
+      "environmentVariable": "WHISPER_N2_PERSONAL_RUNTIME_ROOT",
+      "kind": "directory"
+    },
+    {
+      "key": "shortFrench",
+      "environmentVariable": "WHISPER_PU_L4_FR_SOURCE",
+      "kind": "file"
+    },
+    {
+      "key": "shortEnglish",
+      "environmentVariable": "WHISPER_PU_L4_EN_SOURCE",
+      "kind": "file"
+    }
+  ],
+  "values": [
+    {
+      "key": "cudaToolkitPath",
+      "environmentVariable": "CUDA_PATH",
+      "required": true,
+      "kind": "directory",
+      "allowedRoot": "cuda-12.9"
+    }
+  ],
+  "outputs": [
+    {
+      "key": "campaignRun",
+      "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN",
+      "kind": "directory",
+      "path": "writes/l04"
+    }
+  ],
+  "staging": [
+    {
+      "inputKey": "personalRuntime",
+      "destination": "Whisper",
+      "destinationBase": "localappdata",
+      "requiredFileCount": 21,
+      "requiredBytes": 1
+    },
+    {
+      "inputKey": "shortFrench",
+      "destination": "writes/l04/fixtures/fr-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    },
+    {
+      "inputKey": "shortEnglish",
+      "destination": "writes/l04/fixtures/en-short.mp3",
+      "destinationBase": "run",
+      "requiredFileCount": 1,
+      "requiredBytes": 24237
+    }
+  ],
+  "cases": [
+    {
+      "targetKind": "integration",
+      "targetName": "parakeet_unified_native",
+      "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
+      "ignored": false,
+      "verdict": "QUALIFICATION"
+    }
+  ],
+  "runtimePin": "native/runtime-pins/gpu.json"
+},
     {
       "id": "PreparationNoRun",
       "status": "READY",
