@@ -20,12 +20,27 @@ Reject 'traversal' {Assert-ReproOutput 'C:\wb\c1001\..\other\a'} '*strict descen
 Reject 'unknown stage' {Get-ReproSchedule 'C'} '*Unknown reproduction*'
 if(-not(Test-ReproDumpName 'cl.exe.123.dmp' 123) -or -not(Test-ReproDumpName 'cl.exe.123.extra.dmp' 123) -or (Test-ReproDumpName 'cl.exe.1234.dmp' 123) -or (Test-ReproDumpName 'cl.exe.12.dmp' 123)){throw 'Dump PID delimitation failed.'};$checks.Add('dump PID exact')
 Reject 'quota override' {& (Join-Path $PSScriptRoot 'repro-native-compiler.ps1') -LibraryOnly -Iterations 1} '*parameter*Iterations*'
-$a=Get-ReproSchedule A;$r=Get-ReproSchedule ARemainder;$b=Get-ReproSchedule B1;$c=Get-ReproSchedule B2
-if($a.count -ne 100 -or $a.parallel -ne 1 -or $r.count -ne 36 -or $r.parallel -ne 1 -or $b.count -ne 200 -or $b.parallel -ne 4 -or $c.count -ne 100 -or $c.parallel -ne 2){throw 'Quotas differ.'};$checks.Add('quotas fixed, approved continuation 36')
+$a=Get-ReproSchedule A;$r=Get-ReproSchedule ARemainder;$b=Get-ReproSchedule B1;$s=Get-ReproSchedule B1Synchronized;$c=Get-ReproSchedule B2
+if($a.count -ne 100 -or $a.parallel -ne 1 -or $r.count -ne 36 -or $r.parallel -ne 1 -or $b.count -ne 200 -or $b.parallel -ne 4 -or $s.count -ne 200 -or $s.parallel -ne 4 -or $c.count -ne 100 -or $c.parallel -ne 2){throw 'Quotas differ.'};$checks.Add('quotas fixed, approved continuation 36 and synchronized B1 200')
 $target=Join-Path $evidence 'link-target';New-Item -ItemType Directory -Path $target | Out-Null
 $link=Join-Path $evidence 'junction';New-Item -ItemType Junction -Path $link -Target $target | Out-Null
 Reject 'junction refused' {Assert-NoReparseChain (Join-Path $link 'child') 'fixture'} '*reparse point*'
 $command=Get-ReproCommand;$checks.Add('exact archived command and binaries')
+$origin=[datetimeoffset]::Parse('2026-11-05T00:00:00Z')
+$lifetimes=@(1..4 | ForEach-Object {@{pid=$_;startedUtc=$origin;exitedUtc=$origin.AddSeconds(1)}})
+if((Get-ReproCompilerPeak $lifetimes) -ne 4){throw 'Four compiler overlap not recognized.'};$checks.Add('four actual lifetimes overlap')
+$lifetimes[3].startedUtc=$origin.AddSeconds(1);$lifetimes[3].exitedUtc=$origin.AddSeconds(2)
+if((Get-ReproCompilerPeak $lifetimes) -ne 3){throw 'Touching endpoints incorrectly counted as concurrent.'};$checks.Add('three lifetimes plus touching fourth cannot qualify')
+$lifetimes[3].pid=1
+Reject 'duplicate compiler PID' {Get-ReproCompilerPeak $lifetimes} '*distinct compiler PIDs*'
+$ticketFixture=@{index=1;parentPid=$PID;parentCreatedUtc=[Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime();barrier='C:\wb\c1001\B1-synchronized\release-1';commandSha256=(Get-FileHash -LiteralPath (Join-Path $script:Lot 'isolated-command.json')).Hash}
+$script:Stage='B1Synchronized'
+Assert-ReproChildTicket 'C:\wb\c1001\B1-synchronized\1\ticket.json' $ticketFixture $PID;$checks.Add('bounded synchronized ticket accepted')
+Reject 'child wrong actual parent' {Assert-ReproChildTicket 'C:\wb\c1001\B1-synchronized\1\ticket.json' $ticketFixture 1} '*actual parent differs*'
+Reject 'child outside output' {Assert-ReproChildTicket 'C:\outside\ticket.json' $ticketFixture $PID} '*path differs*'
+$ticketFixture.parentCreatedUtc=$ticketFixture.parentCreatedUtc.AddSeconds(-1)
+Reject 'child parent identity' {Assert-ReproChildTicket 'C:\wb\c1001\B1-synchronized\1\ticket.json' $ticketFixture $PID} '*parent identity differs*'
+$script:Stage='Environment'
 $specs=@(Get-RunWatchSpecs $script:Lot)
 if(@($specs | Where-Object {$_.recursive -and (Test-InRoot $evidence $_.path)}).Count){throw 'Evidence logs are recursively watched.'};$checks.Add('guard evidence excluded from recursive acquisition')
 $oldLot=$script:Lot
@@ -113,6 +128,48 @@ try{
     $fixtureEvents | ForEach-Object {$_|ConvertTo-Json -Depth 5 -Compress} | Set-Content -LiteralPath $fixtureJournal -Encoding utf8NoBOM
     Reject 'duplicate continuation index' {Get-ReproInterruptedAProgress} '*incomplete or duplicated*'
 }finally{$script:Lot=$savedLot}
+# An old successful B1 never substitutes for the synchronized series in the B2 gate.
+$savedLot=$script:Lot;$script:Lot=$evidence
+try{
+    New-Item -ItemType Directory -Path (Join-Path $evidence 'isolated-B1') | Out-Null
+    @{pass=$true;failed=0;launched=200;parallel=4}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $evidence 'isolated-B1/result.json') -Encoding utf8NoBOM
+    Reject 'old B1 cannot authorize B2' {Get-ReproB2Reference} '*synchronized B1 receipt*'
+    New-Item -ItemType Directory -Path (Join-Path $evidence 'isolated-B1Synchronized') | Out-Null
+    $receipt=@{pass=$true;failed=1;launched=200;parallel=4;verifiedFourCompilerBatches=50}
+    $receipt|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $evidence 'isolated-B1Synchronized/result.json') -Encoding utf8NoBOM
+    if((Get-ReproB2Reference).failed -ne 1){throw 'Qualified synchronized crash did not authorize B2.'};$checks.Add('B2 references synchronized crash, not old B1')
+    $receipt.failed=0;$receipt|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $evidence 'isolated-B1Synchronized/result.json') -Encoding utf8NoBOM
+    Reject 'no synchronized crash refuses B2' {Get-ReproB2Reference} '*requires crashes*'
+}finally{$script:Lot=$savedLot}
+# Four harmless writers witness a common release and independently timestamp their work.
+# This tests synchronization without starting the pinned native compiler.
+$fake=Join-Path $evidence 'batch-writer.ps1';$go=Join-Path $evidence 'batch-go'
+@'
+param($Root,$Go)
+[IO.File]::WriteAllText((Join-Path $Root 'ready'),'ready')
+$until=[datetime]::UtcNow.AddSeconds(10)
+while(-not(Test-Path -LiteralPath $Go)){if([datetime]::UtcNow -ge $until){throw 'No release'};Start-Sleep -Milliseconds 5}
+$begin=[datetimeoffset]::UtcNow
+Start-Sleep -Milliseconds 400
+@{pid=$PID;startedUtc=$begin;exitedUtc=[datetimeoffset]::UtcNow}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $Root 'lifetime.json') -Encoding utf8NoBOM
+'@ | Set-Content -LiteralPath $fake -Encoding utf8NoBOM
+$fakeEntries=[Collections.Generic.List[object]]::new()
+try{
+    foreach($number in 1..4){
+        $dir=Join-Path $evidence "batch-writer-$number";New-Item -ItemType Directory -Path $dir | Out-Null
+        $psi=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh.exe).Source);$psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+        foreach($arg in @('-NoProfile','-NonInteractive','-File',$fake,'-Root',$dir,'-Go',$go)){$psi.ArgumentList.Add($arg)}
+        foreach($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')){$path=Join-Path $dir $name;New-Item -ItemType Directory -Path $path | Out-Null;$psi.Environment[$name]=$path}
+        $p=[Diagnostics.Process]::new();$p.StartInfo=$psi;if(-not $p.Start()){throw 'Batch fixture failed to start.'}
+        $fakeEntries.Add(@{process=$p;family=(New-VoxPopuliProcessFamily $p);directory=$dir})
+    }
+    $until=[datetime]::UtcNow.AddSeconds(10)
+    while(@($fakeEntries|Where-Object {-not(Test-Path -LiteralPath (Join-Path $_.directory 'ready'))}).Count){if([datetime]::UtcNow -ge $until){throw 'Batch fixtures not ready.'};Start-Sleep -Milliseconds 5}
+    [IO.File]::WriteAllText($go,'release')
+    foreach($entry in $fakeEntries){if(-not $entry.process.WaitForExit(10000) -or $entry.process.ExitCode -ne 0){throw 'Batch fixture failed.'}}
+    $infos=@($fakeEntries | ForEach-Object {Get-Content -LiteralPath (Join-Path $_.directory 'lifetime.json') -Raw|ConvertFrom-Json})
+    if((Get-ReproCompilerPeak $infos) -ne 4){throw 'Four released fixture lifetimes did not overlap.'};$checks.Add('four real fixture work intervals overlap after common release')
+}finally{foreach($entry in $fakeEntries){Stop-VoxPopuliProcessFamily $entry.family;Close-VoxPopuliProcessFamily $entry.family;$entry.process.Dispose()}}
 # A stopped launch must not create its output directory or start the supplied executable.
 $script:OutputRoot=Join-Path $evidence 'outputs';New-Item -ItemType Directory -Path $script:OutputRoot | Out-Null
 $savedLot=$script:Lot;$script:Lot=$evidence
@@ -150,6 +207,16 @@ try{
     Complete-ReproProcess $entry -Interrupted
     if(-not $entry.finished -or -not $entry.process.HasExited -or -not $entry.family.cleanupClosed -or -not(Test-Path -LiteralPath (Join-Path $entry.directory 'stdout.log')) -or -not(Test-Path -LiteralPath (Join-Path $entry.directory 'stderr.log'))){throw 'Interrupted process/captures not closed.'}
     $checks.Add('forced interruption closes family and preserves both captures without WER wait')
+}finally{if($null -ne $entry){Stop-VoxPopuliProcessFamily $entry.family;Close-VoxPopuliProcessFamily $entry.family;$entry.process.Dispose()}}
+$entry=$null;$script:Stage='B1Synchronized'
+try{
+    $entry=Start-ReproProcess $command.compiler ([string[]]$command.arguments) (Join-Path $script:OutputRoot 'refused-child') (New-ReproEnvironment) 1
+    if(-not $entry.process.WaitForExit(10000) -or $entry.process.ExitCode -eq 0){throw 'Out-of-root child was not refused before compiler launch.'}
+    Complete-ReproProcess $entry -Interrupted
+    $launch=@(Get-Content -LiteralPath $script:Journal|ForEach-Object {$_|ConvertFrom-Json}|Where-Object event -EQ LAUNCH)[-1]
+    if($launch.data.executable -ine (Join-Path $PSHOME 'pwsh.exe') -or $launch.data.arguments -notcontains '-CompilerChild' -or $launch.data.expectedCompilerCommand.executable -cne $command.compiler){throw 'Launch journal differs from actual wrapper and separate expected compiler.'}
+    if([IO.File]::ReadAllText((Join-Path $entry.directory 'stderr.log')) -notlike '*strict descendant*'){throw 'Child refused for an unrelated reason.'}
+    $checks.Add('actual wrapper journal separate from compiler, out-of-root child refuses before cl')
 }finally{if($null -ne $entry){Stop-VoxPopuliProcessFamily $entry.family;Close-VoxPopuliProcessFamily $entry.family;$entry.process.Dispose()}}
 @{pass=$true;checks=$checks.ToArray();nativeCompilerStarted=$false;fixtures=$evidence;retainedJunction=$link;junctionTarget=$target} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidence 'result.json') -Encoding utf8NoBOM
 "REPRO_SELFTEST PASS checks=$($checks.Count) evidence=$evidence compilerStarted=false"

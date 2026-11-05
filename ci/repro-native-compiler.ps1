@@ -1,8 +1,10 @@
 # Bounded single-translation-unit reproduction; never changes the native guard.
 [CmdletBinding()]
 param(
-    [ValidateSet('Environment','Essai0','Preprocess','A','ARemainder','B1','B2')][string]$Stage,
-    [switch]$LibraryOnly
+    [ValidateSet('Environment','Essai0','Preprocess','A','ARemainder','B1','B1Synchronized','B2')][string]$Stage,
+    [switch]$LibraryOnly,
+    [switch]$CompilerChild,
+    [string]$Ticket
 )
 $ErrorActionPreference='Stop'
 $PSNativeCommandUseErrorActionPreference=$false
@@ -35,6 +37,7 @@ function Get-ReproSchedule([string]$Name){
         'A' {return @{count=100;parallel=1;folder='A'}}
         'ARemainder' {return @{count=36;parallel=1;folder='A-remainder'}}
         'B1' {return @{count=200;parallel=4;folder='B1'}}
+        'B1Synchronized' {return @{count=200;parallel=4;folder='B1-synchronized'}}
         'B2' {return @{count=100;parallel=2;folder='B2'}}
         default {throw 'Unknown reproduction stage.'}
     }
@@ -153,13 +156,21 @@ function Start-ReproProcess([string]$Executable,[string[]]$Arguments,[string]$Di
     foreach($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','HOME','USERPROFILE')){$p=Join-Path $Directory $name;New-Item -ItemType Directory -Path $p | Out-Null;$psi.Environment[$name]=$p}
     if($Stage -eq 'Environment'){$psi.Arguments=$Arguments -join ' '}
     else{foreach($arg in $Arguments){$psi.ArgumentList.Add($arg)}}
+    $batch=[int][math]::Floor(($Index-1)/4)+1
+    if($Stage -eq 'B1Synchronized'){
+        $ticketPath=Join-Path $Directory 'ticket.json'
+        $ticketData=@{index=$Index;parentPid=$PID;parentCreatedUtc=[Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o');monitorPid=$script:Monitor.Id;monitorCreatedUtc=$script:MonitorCreated.ToString('o');monitorHash=$script:MonitorHash;monitorCsv=$script:MonitorCsv;levelFile=$script:LevelFile;barrier=(Join-Path (Split-Path $Directory) "release-$batch");commandSha256=(Get-FileHash -LiteralPath (Join-Path $script:Lot 'isolated-command.json')).Hash}
+        $ticketData | ConvertTo-Json | Set-Content -LiteralPath $ticketPath -Encoding utf8NoBOM
+        $psi.FileName=Join-Path $PSHOME 'pwsh.exe';$psi.ArgumentList.Clear()
+        foreach($arg in @('-NoProfile','-NonInteractive','-File',(Join-Path $PSScriptRoot 'repro-native-compiler.ps1'),'-Stage','B1Synchronized','-CompilerChild','-Ticket',$ticketPath)){$psi.ArgumentList.Add($arg)}
+    }
     $p=[Diagnostics.Process]::new();$p.StartInfo=$psi
-    $entry=[pscustomobject]@{index=$Index;directory=$Directory;process=$p;family=$null;stdout=$null;stderr=$null;startedUtc=[datetimeoffset]::UtcNow;finished=$false;exit=$null}
+    $entry=[pscustomobject]@{index=$Index;directory=$Directory;batch=$batch;compilerInfo=$null;process=$p;family=$null;stdout=$null;stderr=$null;startedUtc=[datetimeoffset]::UtcNow;finished=$false;exit=$null}
     $started=$false
     try{
         $journalEnvironment=[ordered]@{}
         foreach($name in $psi.Environment.Keys){$journalEnvironment[$name]=[string]$psi.Environment[$name]}
-        Write-ReproRecord 'LAUNCH' @{index=$Index;directory=$Directory;executable=$Executable;arguments=$Arguments;level=$level;environment=$journalEnvironment}
+        Write-ReproRecord 'LAUNCH' @{index=$Index;directory=$Directory;executable=$psi.FileName;arguments=@($psi.ArgumentList);rawArguments=$psi.Arguments;expectedCompilerCommand=if($Stage -eq 'B1Synchronized'){@{executable=$Executable;arguments=$Arguments}}else{$null};level=$level;environment=$journalEnvironment}
         if(-not $p.Start()){throw 'Process start failed.'}
         $started=$true
         $entry.family=New-VoxPopuliProcessFamily $p
@@ -175,7 +186,14 @@ function Complete-ReproProcess($Entry,[switch]$Interrupted){
         try{
             if(-not $Entry.process.HasExited){throw 'Normal completion requires an exited process.'}
             $Entry.process.WaitForExit();$Entry.exit=$Entry.process.ExitCode
-            if($Entry.exit -ne 0 -and $Stage -ne 'Environment'){Wait-ReproDump $Entry}
+            if($Stage -eq 'B1Synchronized'){
+                $Entry.compilerInfo=Get-Content -LiteralPath (Join-Path $Entry.directory 'compiler-process.json') -Raw|ConvertFrom-Json
+                if($Entry.compilerInfo.exit -ne $Entry.exit -or $Entry.compilerInfo.compilerSha256 -cne 'FE251EF50A1545B1B0835EE17B1E785459712B38D79E45B5C1D3D28970A36619'){throw 'Synchronized compiler receipt differs or was not written.'}
+            }
+            if($Entry.exit -ne 0 -and $Stage -ne 'Environment'){
+                $dumpEntry=if($Stage -eq 'B1Synchronized'){[pscustomobject]@{process=[pscustomobject]@{Id=[int]$Entry.compilerInfo.pid};startedUtc=[datetimeoffset]$Entry.compilerInfo.startedUtc;family=$Entry.family;exit=$Entry.exit}}else{$Entry}
+                Wait-ReproDump $dumpEntry
+            }
         }catch{$errors.Add($_.Exception.Message)}
     }
     try{Stop-VoxPopuliProcessFamily $Entry.family}catch{$errors.Add('Owned stop: '+$_.Exception.Message)}
@@ -188,7 +206,8 @@ function Complete-ReproProcess($Entry,[switch]$Interrupted){
         }catch{$errors.Add('Capture '+$stream.name+': '+$_.Exception.Message)}
     }
     $object=Join-Path $Entry.directory 'CMakeFiles/libprotobuf.dir/src/google/protobuf/any_lite.cc.obj'
-    try{Write-ReproRecord 'FINISH' @{index=$Entry.index;directory=$Entry.directory;pid=$Entry.process.Id;startedUtc=$Entry.startedUtc.ToString('o');exit=$Entry.exit;interrupted=[bool]$Interrupted;errors=$errors.ToArray();objectPresent=(Test-Path -LiteralPath $object);objectSha256=if(Test-Path -LiteralPath $object){(Get-FileHash -LiteralPath $object).Hash}else{$null}}}finally{$Entry.finished=$true}
+    if($Stage -eq 'B1Synchronized' -and -not $Interrupted -and $Entry.exit -eq 0 -and (-not(Test-Path -LiteralPath $object -PathType Leaf) -or (Get-Item -LiteralPath $object).Length -eq 0)){$errors.Add('Successful synchronized compiler has no nonempty object.')}
+    try{Write-ReproRecord 'FINISH' @{index=$Entry.index;directory=$Entry.directory;pid=$Entry.process.Id;startedUtc=$Entry.startedUtc.ToString('o');compiler=$Entry.compilerInfo;exit=$Entry.exit;interrupted=[bool]$Interrupted;errors=$errors.ToArray();objectPresent=(Test-Path -LiteralPath $object);objectSha256=if(Test-Path -LiteralPath $object){(Get-FileHash -LiteralPath $object).Hash}else{$null}}}finally{$Entry.finished=$true}
     if($errors.Count){throw ($errors -join '; ')}
 }
 function Test-ReproDumpName([string]$Name,[int]$CompilerPid){
@@ -222,11 +241,95 @@ function Assert-ReproAComplete {
     $receipt=Get-Content -LiteralPath (Join-Path $script:Lot 'isolated-ARemainder/result.json') -Raw|ConvertFrom-Json
     if(-not $receipt.pass -or $receipt.launched -ne 36 -or $receipt.successful -ne 36 -or $receipt.failed -ne 0 -or $prior+$receipt.successful -ne 100){throw 'Series A has not completed 100 successful serial compilations.'}
 }
+function Get-ReproB2Reference {
+    $path=Join-Path $script:Lot 'isolated-B1Synchronized/result.json'
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'B2 requires the qualified synchronized B1 receipt.'}
+    $doc=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
+    if(-not $doc.pass -or $doc.launched -ne 200 -or $doc.parallel -ne 4 -or $doc.verifiedFourCompilerBatches -ne 50 -or $doc.failed -lt 1){throw 'B2 requires crashes in the qualified synchronized B1.'}
+    return $doc
+}
+function Assert-ReproChildTicket([string]$Path,$Data,[int]$ActualParent){
+    if($Stage -cne 'B1Synchronized' -or $Data.index -lt 1 -or $Data.index -gt 200){throw 'Invalid synchronized child index/stage.'}
+    $directory=Join-Path $script:OutputRoot ("B1-synchronized/"+[string]$Data.index)
+    if((Get-FullPath $Path) -ine (Join-Path $directory 'ticket.json') -or (Get-FullPath $Data.barrier) -ine (Join-Path (Split-Path $directory) ('release-'+([int][math]::Floor(($Data.index-1)/4)+1)))){throw 'Synchronized ticket/barrier path differs.'}
+    Assert-NoReparseChain $Path 'synchronized child ticket';Assert-NoReparseChain $Data.barrier 'synchronized barrier'
+    if($ActualParent -ne $Data.parentPid){throw 'Synchronized child actual parent differs.'}
+    $owner=[Diagnostics.Process]::GetProcessById([int]$Data.parentPid)
+    try{if($owner.HasExited -or $owner.StartTime.ToUniversalTime() -ne ([datetimeoffset]$Data.parentCreatedUtc).UtcDateTime){throw 'Synchronized parent identity differs.'}}finally{$owner.Dispose()}
+    if($Data.commandSha256 -cne (Get-FileHash -LiteralPath (Join-Path $script:Lot 'isolated-command.json')).Hash){throw 'Synchronized command receipt altered.'}
+}
+function Get-ReproCompilerPeak([object[]]$Infos){
+    if($Infos.Count -ne 4 -or @($Infos.pid|Sort-Object -Unique).Count -ne 4){throw 'Four distinct compiler PIDs required per batch.'}
+    $times=@(foreach($info in $Infos){
+        $begin=[datetimeoffset]$info.startedUtc;$end=[datetimeoffset]$info.exitedUtc
+        if($end -le $begin){throw 'Compiler lifetime invalid.'}
+        @{at=$begin;delta=1};@{at=$end;delta=-1}
+    })
+    $active=0;$peak=0
+    foreach($time in @($times|Sort-Object @{Expression={$_.at}},@{Expression={$_.delta}})){$active+=$time.delta;$peak=[math]::Max($peak,$active)}
+    return $peak
+}
+function Invoke-ReproCompilerChild {
+    Assert-ReproOutput (Split-Path $Ticket)
+    Assert-NoReparseChain $Ticket 'child ticket'
+    $data=Get-Content -LiteralPath $Ticket -Raw|ConvertFrom-Json
+    $actual=Get-CimInstance Win32_Process -Filter "ProcessId = $PID" -Property ParentProcessId
+    Assert-ReproChildTicket $Ticket $data ([int]$actual.ParentProcessId)
+    $ownerRow=Get-CimInstance Win32_Process -Filter ("ProcessId = "+[int]$data.parentPid) -Property CommandLine
+    $ownerCommand=([string]$ownerRow.CommandLine).Replace('/','\')
+    if($ownerCommand -notmatch ('(?i)(?:^|\s)-File\s+"?'+[regex]::Escape((Join-Path $PSScriptRoot 'repro-native-compiler.ps1'))+'"?(?:\s|$)') -or $ownerCommand -notmatch '(?i)(?:^|\s)-Stage\s+"?B1Synchronized"?(?:\s|$)'){throw 'Synchronized actual parent is not the explicit public stage.'}
+    $command=Get-ReproCommand;Assert-ReproWer
+    $directory=Split-Path $Ticket
+    $script:Journal=Join-Path $directory 'child-journal.jsonl';$script:Watch=$null
+    $script:Monitor=[Diagnostics.Process]::GetProcessById([int]$data.monitorPid);$script:MonitorCreated=([datetimeoffset]$data.monitorCreatedUtc).UtcDateTime
+    $script:MonitorHash=$data.monitorHash;$script:MonitorCsv=$data.monitorCsv;$script:LevelFile=$data.levelFile
+    $owner=[Diagnostics.Process]::GetProcessById([int]$data.parentPid)
+    $compiler=$null;$family=$null;$primary=$null
+    try{
+        [void](Get-ReproLevel)
+        [IO.File]::WriteAllText((Join-Path $directory 'ready'),'ready',$script:Utf8NoBom)
+        $until=[datetimeoffset]::UtcNow.AddSeconds(120)
+        while(-not(Test-Path -LiteralPath $data.barrier)){
+            if($owner.HasExited -or [datetimeoffset]::UtcNow -ge $until){throw 'Synchronized owner exited or release timed out.'}
+            [void](Get-ReproLevel);Start-Sleep -Milliseconds 10
+        }
+        while((Get-ReproLevel) -eq 'STOP-LANCEMENTS'){if($owner.HasExited){throw 'Synchronized owner exited.'};Start-Sleep -Milliseconds 10}
+        $psi=[Diagnostics.ProcessStartInfo]::new($command.compiler);$psi.UseShellExecute=$false;$psi.CreateNoWindow=$true;$psi.WorkingDirectory=$directory
+        # Do not pass environment changes introduced by the intermediate PowerShell host to cl.exe.
+        $envFile=Join-Path $script:Lot 'isolated-Environment/environment.json'
+        $envReceipt=Get-Content -LiteralPath (Join-Path $script:Lot 'isolated-Environment/result.json') -Raw|ConvertFrom-Json
+        if(-not $envReceipt.pass -or $envReceipt.environmentSha256 -cne (Get-FileHash -LiteralPath $envFile).Hash){throw 'Child environment receipt altered.'}
+        $envDoc=Get-Content -LiteralPath $envFile -Raw|ConvertFrom-Json
+        $psi.Environment.Clear();foreach($property in $envDoc.values.PSObject.Properties){$psi.Environment[$property.Name]=[string]$property.Value}
+        foreach($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','HOME','USERPROFILE')){$psi.Environment[$name]=Join-Path $directory $name}
+        foreach($argument in $command.arguments){$psi.ArgumentList.Add($argument)}
+        $compiler=[Diagnostics.Process]::new();$compiler.StartInfo=$psi
+        Write-ReproRecord 'COMPILER_LAUNCH' @{compiler=$command.compiler;arguments=$command.arguments;index=$data.index}
+        if(-not $compiler.Start()){throw 'Synchronized compiler did not start.'}
+        $family=New-VoxPopuliProcessFamily $compiler
+        while(-not $compiler.HasExited){Update-VoxPopuliProcessFamily $family;[void](Get-ReproLevel);if($owner.HasExited){throw 'Synchronized owner exited.'};Start-Sleep -Milliseconds 10}
+        $compiler.WaitForExit()
+        $info=@{pid=$compiler.Id;startedUtc=$compiler.StartTime.ToUniversalTime().ToString('o');exitedUtc=$compiler.ExitTime.ToUniversalTime().ToString('o');exit=$compiler.ExitCode;compilerSha256=(Get-FileHash -LiteralPath $command.compiler).Hash;index=$data.index}
+        $pending=Join-Path $directory 'compiler-process.json.pending';$info|ConvertTo-Json|Set-Content -LiteralPath $pending -Encoding utf8NoBOM
+        [IO.File]::Move($pending,(Join-Path $directory 'compiler-process.json'),$false)
+        if($compiler.ExitCode -ne 0){Wait-ReproDump ([pscustomobject]@{process=$compiler;startedUtc=[datetimeoffset]$compiler.StartTime;family=$family;exit=$compiler.ExitCode})}
+        $exit=$compiler.ExitCode
+    }catch{$primary=$_;throw}
+    finally{
+        $errors=[Collections.Generic.List[string]]::new()
+        try{if($null -ne $family){Stop-VoxPopuliProcessFamily $family}}catch{$errors.Add($_.Exception.Message)}
+        try{Close-VoxPopuliProcessFamily $family}catch{$errors.Add($_.Exception.Message)}
+        try{if($null -ne $compiler){$compiler.Dispose()}}catch{$errors.Add($_.Exception.Message)}
+        $owner.Dispose();$script:Monitor.Dispose()
+        if($errors.Count){Write-ReproRecord 'CHILD_CLEANUP_FAILURE' $errors.ToArray();if($null -eq $primary){throw ($errors -join '; ')}}
+    }
+    exit $exit
+}
 function Wait-ReproDump($Entry){
     # Do not kill an observed WerFault child while it is writing the compiler dump.
     $until=[datetimeoffset]::UtcNow.AddSeconds(120)
     while([datetimeoffset]::UtcNow -lt $until){
-        Drain-ReproWatch;[void](Get-ReproLevel);Update-VoxPopuliProcessFamily $Entry.family
+        if($null -ne $script:Watch){Drain-ReproWatch};[void](Get-ReproLevel);Update-VoxPopuliProcessFamily $Entry.family
         $dumps=@(Get-ChildItem -LiteralPath 'C:\wb\c1001\dumps' -File -Filter 'cl.exe.*.dmp' | Where-Object {(Test-ReproDumpName $_.Name $Entry.process.Id) -and $_.LastWriteTimeUtc -ge $Entry.startedUtc.UtcDateTime})
         foreach($dump in $dumps){
             $handle=$null
@@ -269,14 +372,16 @@ function Invoke-ReproStage {
             foreach($property in $envDoc.values.PSObject.Properties){$environment[$property.Name]=[string]$property.Value}
         }else{$environment=New-ReproEnvironment}
         if($Stage -in @('Preprocess','A','ARemainder','B2')){
-            $prior=if($Stage -eq 'B2'){'B1'}else{'Essai0'}
-            $receipt=Get-Content -LiteralPath (Join-Path $script:Lot "isolated-$prior/result.json") -Raw | ConvertFrom-Json
+            $receipt=if($Stage -eq 'B2'){Get-ReproB2Reference}else{Get-Content -LiteralPath (Join-Path $script:Lot 'isolated-Essai0/result.json') -Raw | ConvertFrom-Json}
             if(-not $receipt.pass){throw 'Prior stage did not pass.'}
-            if($Stage -eq 'B2' -and $receipt.failed -lt 1){throw 'B2 allowed only following B1 crashes.'}
         }
-        if($Stage -in @('A','ARemainder','B1','B2')){Assert-ReproPreprocessed}
+        if($Stage -in @('A','ARemainder','B1','B1Synchronized','B2')){Assert-ReproPreprocessed}
         if($Stage -eq 'ARemainder'){[void](Get-ReproInterruptedAProgress)}
-        if($Stage -eq 'B1'){Assert-ReproAComplete}
+        if($Stage -in @('B1','B1Synchronized')){Assert-ReproAComplete}
+        if($Stage -eq 'B1Synchronized'){
+            $prior=Get-Content -LiteralPath (Join-Path $script:Lot 'isolated-B1/result.json') -Raw|ConvertFrom-Json
+            if(-not $prior.pass -or $prior.successful -ne 200 -or $prior.failed -ne 0){throw 'Additional synchronized B1 requires the preserved 200 successful first attempts.'}
+        }
         foreach($path in @($script:LevelFile,$stopFile)){if(Test-Path -LiteralPath $path){throw 'MemWatch tag already used.'}}
         if(@(Get-ChildItem C:/memwatch -File -Filter "intensive-$tag-*.csv").Count){throw 'MemWatch tag CSV exists.'}
         $script:MonitorHash=(Get-FileHash -LiteralPath C:/memwatch/MemWatch.ps1).Hash
@@ -296,7 +401,7 @@ function Invoke-ReproStage {
         Register-Watch $specs $script:OutputRoot $true;Register-Watch $specs (Split-Path $script:OutputRoot) $false;Register-Watch $specs $script:SourceRoot $true
         $script:Watch=Start-NativeBuildWatchState $specs $script:StageRoot
         $script:Watch | Add-Member -NotePropertyName nativeControl -NotePropertyValue ([Whisper.NativeBuild.Control]::new([string[]]@($script:Lot,$script:OutputRoot),[string[]]@((Join-Path $script:Repo '.git'),$script:SourceRoot,(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved'),(Join-Path $env:LOCALAPPDATA 'Temp'),$script:StageRoot))
-        $next=1
+        $next=1;$verifiedBatches=[Collections.Generic.HashSet[int]]::new();$releasedBatches=[Collections.Generic.HashSet[int]]::new()
         while($next -le $schedule.count -or @($entries|Where-Object {-not $_.finished}).Count){
             Drain-ReproWatch;$level=Get-ReproLevel
             foreach($entry in @($entries | Where-Object {-not $_.finished})){
@@ -304,7 +409,28 @@ function Invoke-ReproStage {
                 if(([datetimeoffset]::UtcNow-$entry.startedUtc).TotalMinutes -gt 10){throw 'Single compiler exceeded ten-minute bound.'}
                 if($entry.process.HasExited){Complete-ReproProcess $entry;if($Stage -in @('Environment','Essai0','Preprocess') -and $entry.exit -ne 0){throw 'Preparation compiler/environment failed; no retry.'}}
             }
-            if($next -le $schedule.count -and @($entries|Where-Object {-not $_.finished}).Count -lt $schedule.parallel -and $level -ne 'STOP-LANCEMENTS'){
+            $activeEntries=@($entries|Where-Object {-not $_.finished})
+            if($Stage -eq 'B1Synchronized'){
+                if($activeEntries.Count -eq 4 -and @($activeEntries | Where-Object {-not(Test-Path -LiteralPath (Join-Path $_.directory 'ready'))}).Count -eq 0){
+                    $batch=$activeEntries[0].batch
+                    if(-not $releasedBatches.Contains($batch) -and (Get-ReproLevel) -ne 'STOP-LANCEMENTS'){
+                        Write-ReproRecord 'BATCH_RELEASE' @{batch=$batch;indices=@($activeEntries.index);level='fresh valid'}
+                        [IO.File]::WriteAllText((Join-Path (Split-Path $activeEntries[0].directory) "release-$batch"),'release',$script:Utf8NoBom)
+                        [void]$releasedBatches.Add($batch)
+                    }
+                }
+                if($activeEntries.Count -eq 0 -and $entries.Count -gt 0){
+                    $batch=$entries[-1].batch
+                    if(-not $verifiedBatches.Contains($batch)){
+                        $group=@($entries|Where-Object batch -EQ $batch);$peak=Get-ReproCompilerPeak @($group.compilerInfo)
+                        Write-ReproRecord 'BATCH_CONCURRENCY' @{batch=$batch;peak=$peak;compilers=@($group.compilerInfo)}
+                        if($peak -ne 4){throw 'Four actual compiler lifetimes did not overlap; stop before another batch.'}
+                        [void]$verifiedBatches.Add($batch)
+                    }
+                }
+            }
+            $batchCanLaunch=$Stage -ne 'B1Synchronized' -or (($next-1)%4 -ne 0) -or $activeEntries.Count -eq 0
+            if($next -le $schedule.count -and $activeEntries.Count -lt $schedule.parallel -and $level -ne 'STOP-LANCEMENTS' -and $batchCanLaunch){
                 Assert-ReproWer
                 $directory=Join-Path $script:OutputRoot $schedule.folder;if($schedule.count -gt 1){$directory=Join-Path $directory ([string]$next)}
                 $exe=$command.compiler;$arguments=[string[]]$command.arguments
@@ -327,7 +453,7 @@ function Invoke-ReproStage {
             @{status='RECONSTRUIT, NON ARCHIVE DE CPU8';provenance='Pinned vcvarsall x64 10.0.26100.0 -vcvars_ver=14.44, initially minimal Windows environment; not original vcpkg port environment';values=$values} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $envFile -Encoding utf8NoBOM
         }elseif($Stage -eq 'Preprocess'){if((Get-Item -LiteralPath (Join-Path $entries[0].directory 'any_lite.i')).Length -eq 0){throw 'Preprocessed output empty.'}}
         elseif($Stage -eq 'Essai0'){if((Get-Item -LiteralPath (Join-Path $entries[0].directory 'CMakeFiles/libprotobuf.dir/src/google/protobuf/any_lite.cc.obj')).Length -eq 0){throw 'Object empty.'}}
-        $result=@{stage=$Stage;pass=$true;launched=$entries.Count;failed=$failed;successful=$entries.Count-$failed;parallel=$schedule.parallel;finishedUtc=[datetimeoffset]::UtcNow.ToString('o');monitorCsv=$script:MonitorCsv;preprocessedSha256=if($Stage -eq 'Preprocess'){(Get-FileHash -LiteralPath (Join-Path $entries[0].directory 'any_lite.i')).Hash}else{$null};environmentSha256=if($Stage -eq 'Environment'){(Get-FileHash -LiteralPath $envFile).Hash}else{(Get-FileHash -LiteralPath (Join-Path $script:Lot 'isolated-Environment/environment.json')).Hash}}
+        $result=@{stage=$Stage;pass=$true;launched=$entries.Count;failed=$failed;successful=$entries.Count-$failed;parallel=$schedule.parallel;verifiedFourCompilerBatches=$verifiedBatches.Count;finishedUtc=[datetimeoffset]::UtcNow.ToString('o');monitorCsv=$script:MonitorCsv;preprocessedSha256=if($Stage -eq 'Preprocess'){(Get-FileHash -LiteralPath (Join-Path $entries[0].directory 'any_lite.i')).Hash}else{$null};environmentSha256=if($Stage -eq 'Environment'){(Get-FileHash -LiteralPath $envFile).Hash}else{(Get-FileHash -LiteralPath (Join-Path $script:Lot 'isolated-Environment/environment.json')).Hash}}
         $success=$true
     }catch{$primaryFailure=$_;Write-ReproRecord 'STOP' @{failure=$_.Exception.Message};throw}
     finally{
@@ -344,5 +470,7 @@ function Invoke-ReproStage {
     $result | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:StageRoot 'result.json') -Encoding utf8NoBOM
 }
 if($LibraryOnly){return}
+if($CompilerChild){Invoke-ReproCompilerChild;return}
+if($Ticket){throw 'Ticket is accepted only for a synchronized compiler child.'}
 if(-not $Stage){throw 'Explicit stage required.'}
 Invoke-ReproStage

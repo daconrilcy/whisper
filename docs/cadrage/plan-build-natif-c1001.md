@@ -1,5 +1,5 @@
 Avancée : protection préparée et N1 PASS ; environnement reconstruit, essai-0 et prétraitement PASS ; 64 compilations A réussies.
-Blocage : série A arrêtée sur lecture de niveau invalide ; correctif du lecteur et reprise bornée à qualifier.
+Blocage : premier B1 achevé sans crash mais concurrence réelle de quatre non atteinte ; ordonnanceur synchronisé à qualifier.
 Décision : appliquer l'arbitrage utilisateur du 5 novembre ci-dessous ; aucune fusion ni installation automatique.
 
 # BUILD-NATIF-C1001 — plan d'exécution
@@ -15,6 +15,8 @@ Quotas distincts : essai-0 une fois, prétraitement `/P` une fois ; A 100 et B1 
 Arbitrages précis reçus dans cette session : reconstruire INCLUDE/LIB/PATH depuis les outils épinglés en les qualifiant de reconstruits ; ajouter les sept tests existants au registre sur main puis build-natif ; après l'échec JSON de l'auto-test, copier uniquement l'environnement journalisé en table de chaînes avec une revue supplémentaire et une reprise. Ces vérifications ont passé ; aucun changement de la garde.
 
 Arbitrage après l'arrêt A du 5 novembre à 19:27 Paris : diagnostic sur fichier factice, puis correction du lecteur si la publication transitoirement vide est confirmée, revue et contrôles avant reprise. Le test factice confirme cette possibilité, pas la valeur historique non enregistrée. Aucun lancement sans niveau frais valide ; attente d'une publication vide limitée à 500 ms avec contrôles WHEA/surveillance actifs, arrêt si elle persiste, et refus immédiat des autres états invalides. Préserver les 64 succès et le lancement 65 interrompu ; autoriser **36 unités neuves ARemainder**, puis B1 200. Le plafond des séries A+B1 devient **301 lancements**, dont un interrompu ; B2 conserve son quota conditionnel distinct. Aucun redémarrage intégral de A. La borne horaire reste 22:54:46 Paris.
+
+Arbitrage après B1 le 5 novembre à 19:43 Paris : 200 succès, zéro crash, mais au plus trois unités entre lancement et fermeture, donc pas quatre compilateurs simultanés. L'utilisateur autorise un ordonnancement par lots synchronisés de quatre, avec PID et intervalles réels, tests et revue avant une nouvelle B1 de 200 unités. Le plafond A+B1 devient **501 lancements**, dont un interrompu. Le premier B1 reste une preuve distincte non conforme, jamais réécrite. Chaque nouveau lot doit prouver le recouvrement de quatre durées de vie réelles de cl.exe, sinon arrêt avant le lot suivant. Les enfants démarrent la commande archivée sous le même environnement et les mêmes contrôles ; aucune modification de la garde, de MemWatch, des seuils ou de la borne horaire.
 
 ## Surveillance et protections communes
 
