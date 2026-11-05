@@ -1,3 +1,57 @@
+function Invoke-NativeMsvcTelemetryTests([string]$Root,[string]$Vcvars) {
+    $ErrorActionPreference='Stop'
+    $rootFull=[IO.Path]::GetFullPath($Root)
+    $repoFull=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
+    if (-not $rootFull.StartsWith($repoFull+'\target\native-build\',[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $rootFull)) { throw 'Telemetry comparison requires a new native-build output directory.' }
+    $cursor=$rootFull
+    while ($cursor) {
+        if ((Test-Path -LiteralPath $cursor) -and ((Get-Item -LiteralPath $cursor).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Telemetry comparison root crosses a reparse point.' }
+        $parent=Split-Path -Parent $cursor; if ($parent -eq $cursor) { break }; $cursor=$parent
+    }
+    $receipts=@(foreach ($mode in @('without-switch','with-switch')) {
+        $context=Join-Path $rootFull $mode
+        New-Item -ItemType Directory -Path $context -Force | Out-Null
+        $psi=[Diagnostics.ProcessStartInfo]::new($env:ComSpec)
+        $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true; $psi.WorkingDirectory=$context
+        $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
+        $psi.Environment.Clear()
+        foreach ($name in @('SystemRoot','WINDIR','SystemDrive','ComSpec','PATHEXT','OS','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','ProgramFiles','ProgramFiles(x86)','ProgramW6432')) {
+            $value=[Environment]::GetEnvironmentVariable($name,'Process')
+            if ($value) { $psi.Environment[$name]=$value }
+        }
+        $psi.Environment['PATH']=@((Split-Path (Get-Command git.exe).Source),$PSHOME,(Join-Path $env:SystemRoot 'System32'),$env:SystemRoot) -join ';'
+        foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME','PROGRAMDATA','PUBLIC')) {
+            $path=Join-Path $context $name.ToLowerInvariant()
+            New-Item -ItemType Directory -Path $path | Out-Null
+            $psi.Environment[$name]=$path
+        }
+        $psi.Environment.Remove('VSCMD_SKIP_SENDTELEMETRY') | Out-Null
+        if ($mode -eq 'with-switch') { $psi.Environment['VSCMD_SKIP_SENDTELEMETRY']='1' }
+        # Both contexts use Microsoft's diagnostic branch. It identifies and runs
+        # the sender synchronously, avoiding a race with files already deleted.
+        $psi.Environment['VSCMD_DEBUG']='1'
+        $psi.Arguments='/d /s /c ""'+$Vcvars+'" x64 10.0.26100.0 -vcvars_ver=14.44 && set"'
+        $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
+        try {
+            $null=$process.Start(); $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
+            if (-not $process.WaitForExit(30000)) { $process.Kill($true); throw 'MSVC telemetry comparison initialization timed out.' }
+            $output=$stdout.GetAwaiter().GetResult(); $errors=$stderr.GetAwaiter().GetResult()
+            if ($process.ExitCode -ne 0) { throw "MSVC preparation failed: $errors" }
+            $toolVersions=@($output -split "`r?`n" | Where-Object { $_ -match '^(VCToolsVersion|WindowsSDKVersion)=' })
+            if ($toolVersions.Count -ne 2) { throw 'MSVC comparison did not report the expected tools.' }
+            $senderInvoked=$output -match '\[DEBUG:[^\]]+\] Sending telemetry'
+            $telemetry=Join-Path $psi.Environment['LOCALAPPDATA'] 'Microsoft/VSApplicationInsights'
+            $files=@(if (Test-Path -LiteralPath $telemetry) { Get-ChildItem -LiteralPath $telemetry -Recurse -File })
+            [pscustomobject]@{mode=$mode;exitCode=$process.ExitCode;versions=$toolVersions;senderBranchExecuted=$senderInvoked;telemetryFiles=@($files.FullName);observedFiles=$files.Count;diagnosticMode='VSCMD_DEBUG=1 in both contexts, synchronous vendor sender branch'}
+        } finally { $process.Dispose() }
+    })
+    $pass=$receipts[0].senderBranchExecuted -and -not $receipts[1].senderBranchExecuted -and (($receipts[0].versions -join '|') -ceq ($receipts[1].versions -join '|'))
+    $result=[pscustomobject]@{status=$(if($pass){'PASS'}else{'FAIL'});contexts=$receipts;scope='two real MSVC preparations; no compilation; file observations do not attribute unrelated activity'}
+    $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $rootFull 'result.json') -Encoding utf8NoBOM
+    if (-not $pass) { throw "MSVC telemetry necessity witness failed; see $rootFull/result.json" }
+    "PASS MSVC telemetry necessity witness; expected tools unchanged; evidence=$rootFull"
+}
+
 function Invoke-NativeWorkspaceTests([string]$Root) {
     $fixture=Join-Path $Root 'workspace-tests'
     New-Item -ItemType Directory -Path $fixture -Force | Out-Null

@@ -295,6 +295,9 @@ function Get-Tools {
 }
 
 function Import-BuildEnvironment([hashtable]$Tools) {
+    # VsDevCmd's documented-in-script switch suppresses its detached telemetry
+    # sender, not compiler diagnostics or any NativeBuild notification rule.
+    $env:VSCMD_SKIP_SENDTELEMETRY='1'
     $environmentCommand = '"' + $Tools.vcvars + '" x64 ' + $config.tools.sdk + ' -vcvars_ver=14.44 >nul && set'
     $lines = & $env:ComSpec /d /s /c $environmentCommand
     if ($LASTEXITCODE -ne 0) { throw 'MSVC environment initialization failed.' }
@@ -470,6 +473,7 @@ try {
     [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`nggml-pinned-build-commit.patch`n",$utf8)
     $manifest.localPatches=@(@{name='ggml-pinned-build-commit.patch';sha256=(Get-FileHash -LiteralPath $localPatch).Hash})
     Import-BuildEnvironment $tools
+    $manifest.environmentControls=@{VSCMD_SKIP_SENDTELEMETRY='1';reason='Disable detached VsDevCmd telemetry; NativeBuild stop policy unchanged'}
     $manifest.stage = 'BOOTSTRAP'
     Save-BuildManifest $manifest $manifestPath
     if (Test-Path -LiteralPath (Join-Path $vcpkg 'vcpkg.exe')) {
