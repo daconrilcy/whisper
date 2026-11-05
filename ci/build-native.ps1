@@ -17,6 +17,7 @@ $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json -AsHashta
 $cache = Join-Path $repo 'native/cache'
 $utf8 = [Text.UTF8Encoding]::new($false)
 . (Join-Path $PSScriptRoot 'native-workspace.ps1')
+. (Join-Path $PSScriptRoot 'native-cache.ps1')
 
 function Assert-Within([string]$Path, [string]$Root) {
     $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -325,7 +326,7 @@ function Import-BuildEnvironment([hashtable]$Tools) {
         [Environment]::SetEnvironmentVariable($entry.Key, $path, 'Process')
     }
     $env:VCPKG_ROOT = $vcpkg
-    # Rebuild dependencies at the fixed path; old binary caches embed other paths.
+    # Never inherit providers. A verified persistent generation is selected after bootstrap.
     $env:VCPKG_BINARY_SOURCES = 'clear'
     $env:VCPKG_VISUAL_STUDIO_PATH = $Tools.vs
     $env:VCPKG_DISABLE_METRICS = '1'
@@ -483,6 +484,25 @@ try {
         Invoke-Logged $tools.bootstrapPowerShell @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $vcpkg 'scripts/bootstrap.ps1'),'-disableMetrics') 'vcpkg-bootstrap'
     }
     $manifest.vcpkgExecutableSha256 = Assert-VcpkgExecutable
+    $cacheInputs=[ordered]@{
+        configSha256=$manifest.configSha256
+        nemoManifestSha256=(Get-FileHash -LiteralPath (Join-Path $nemo 'vcpkg.json')).Hash
+        patches=(Get-NativePatchFingerprint $manifest.patches $manifest.localPatches)
+        vcpkgExecutableSha256=$manifest.vcpkgExecutableSha256
+        clSha256=(Get-FileHash -LiteralPath $tools.cl).Hash
+        c2Sha256=(Get-FileHash -LiteralPath (Join-Path (Split-Path $tools.cl) 'c2.dll')).Hash
+        cmakeSha256=(Get-FileHash -LiteralPath $tools.cmake).Hash
+        ninjaSha256=(Get-FileHash -LiteralPath $tools.ninja).Hash
+        sdk=$config.tools.sdk
+        hostTriplet='x64-windows'
+        targetTriplet=$config.options.VCPKG_TARGET_TRIPLET
+        features=$config.options.VCPKG_MANIFEST_FEATURES
+    }
+    $binaryKey=Get-NativeBinaryKey $cacheInputs
+    $binaryState=Initialize-NativeBinaryCache (Assert-Within (Join-Path $cache 'dependency-binaries') $cache) $binaryKey
+    $manifest.dependencyCache=[ordered]@{inputs=$cacheInputs;requestedMode=$binaryState.mode;before=$binaryState}
+    $access=if($binaryState.mode -ceq 'REUSE'){'read'}else{'readwrite'}
+    $env:VCPKG_BINARY_SOURCES="clear;files,$($binaryState.archives),$access"
     $build = Join-Path $workspace 'build'
     $options = @{} + $requestedBuildOptions
     $options.GGML_BUILD_COMMIT=$config.sources.llama.commit
@@ -494,6 +514,8 @@ try {
     $options.VCPKG_INSTALLED_DIR = (Join-Path $build 'vcpkg_installed').Replace('\','/')
     $options.CMAKE_FIND_USE_PACKAGE_REGISTRY = 'OFF'
     $options.CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY = 'OFF'
+    # Verified reuse must fail rather than silently compile an uncached dependency.
+    if($binaryState.mode -ceq 'REUSE'){$options.VCPKG_INSTALL_OPTIONS='--only-binarycaching'}
     if ($Variant -eq 'gpu') {
         $options.CMAKE_CUDA_ARCHITECTURES='61'
         $options.CMAKE_CUDA_COMPILER=$tools.nvcc.Replace('\','/')
@@ -505,6 +527,11 @@ try {
     $manifest.stage = 'CONFIGURE'
     Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake $configure 'configure'
+    $sealedBinaryState=Complete-NativeBinaryCache $binaryState $cacheInputs
+    $manifest.dependencyCache.after=$sealedBinaryState
+    $statusFile=Join-Path $build 'vcpkg_installed/vcpkg/status'
+    Copy-Item -LiteralPath $statusFile -Destination (Join-Path $run 'vcpkg-status.txt')
+    $manifest.dependencyCache.installedStatusSha256=(Get-FileHash -LiteralPath $statusFile).Hash
     $effective = @{}
     foreach ($line in Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt')) {
         if ($line -match '^([^/#][^:]*):[^=]+=(.*)$') { $effective[$matches[1]]=$matches[2] }
@@ -517,6 +544,7 @@ try {
     $manifest.stage = 'BUILD'
     Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake @('--build',$build,'--parallel','4') 'build'
+    [void](Complete-NativeBinaryCache $sealedBinaryState $cacheInputs)
     $manifest.ggmlCommit=Get-NativePeCommit (Join-Path $build 'bin/ggml-base.dll')
     if ($manifest.ggmlCommit -cne $config.sources.llama.commit) { throw 'Decoded ggml_commit differs from pinned llama source.' }
     $dllOutput=Join-Path $run 'dll'
