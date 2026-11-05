@@ -12,6 +12,7 @@ Décision : plan 4fb2b5c9 CLEAN, implémentation autorisée avec les bornes util
 - Répéter la suite adapters lib complète 50 fois si sa durée après B est ≤30 s ; sinon 20 fois, avec durée de chaque itération et justification dans le bilan.
 - Contrôle anti-régression : constructeur partagé, test refusant les écritures de .exe hors constructeur dans les sources de tests, un témoin négatif ; viser ≤150 lignes, faux positifs acceptés et listés, aucun analyseur multiligne général.
 - Autres budgets, arrêts, attestation humaine, rétention, bilan d'une page et revue finale par rust_review_coordinator inchangés. Aucun merge/push.
+- Arbitrages après les deux premiers arrêts SelfTest, avant tout Cargo : contrôler l'absence de CARGO_TARGET_DIR dans l'environnement enfant juste avant lancement, journaliser sa présence hôte avant/après nettoyage et vérifier la cible effective ; maintenir le refus filtre+--workspace+-p, reclasser les six anciens cas de filtres (release/no-run/list/faute/casse/partiel) désormais admis. Une reprise autorisée après chaque arbitrage ; chaque validation ciblée doit attester le test sélectionné, jamais un résultat vide.
 
 ## Mandat et périmètre
 
