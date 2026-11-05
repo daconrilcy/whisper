@@ -1,6 +1,6 @@
-Avancée : conservation des options CMake et arrêt C4530 corrigés, tests et revue CLEAN.
-Blocage : aucune compilation native du candidat corrigé ; équivalence et cas ggml-base non établis.
-Décision : correction bornée livrée sans relance native ; BUILD-NATIF NON REPRODUIT.
+Avancée : cpu6 PASS, zéro C4530 et concordance des exports/imports installés pour les cinq DLL.
+Blocage : répétabilité corrigée et fonctionnel non éprouvés ; chemins et métadonnée ggml_commit variables.
+Décision : effet du correctif confirmé, équivalence complète non établie ; BUILD-NATIF NON REPRODUIT.
 
 # BUILD-NATIF — diagnostic du nom null et proposition, 4 novembre 2026
 
@@ -141,3 +141,37 @@ Preuves finales : `target/native-build/guard/selftest-83fc5f1ce4374da8b29d8fec46
 [Archive de correction](../architecture/raw/native-build/native-flags-correction.zip) : **118 preuves et manifeste, 119 entrées**, noms uniques, tailles/SHA contrôlés à partir du manifeste relu dans le ZIP ; **1 471 226 octets**, SHA-256 **cf3da6aff6437c3c033298be7f9b65780c4f9b0de59532b066fe2474aee48568**. Espace libre après archive : **516 146 368 512 octets**. Inclut receipts, logs, échecs intermédiaires, checks CPU/GPU et empreintes sources. Aucun nettoyage, remplacement de DLL, Rust, CMake, compilateur natif, Cargo, N2, fusion ou push. Aucune nouvelle DLL reconstruite ; les divergences historiques et le cas ggml-base restent ouverts. Verdict **NON REPRODUIT** ; la véritable construction corrigée reste à autoriser et éprouver.
 
 Vérification indépendante des conclusions et de l'archive : **CLEAN documentaire**, 118/118 preuves, 119 entrées, taille et empreinte confirmées. Aucun code rouvert ou essai relancé pendant cette vérification.
+
+## cpu6 effet réel du correctif et concordance statique
+
+Autorisation « Lance une nouvelle compilation native et vérifie l'effet sur les DLL et leur équivalence ». Une commande CPU6, plan `338c7a9e`, code `647b30ac`, garde inchangée : **PASS/sortie 0**, du **5 novembre 02:05:48,787 à 02:06:53,582 UTC** (03:05–03:06 Paris), **64,7947984 s**. Cinq DLL, manifeste BUILT_NOT_QUALIFIED et flagValidation PASS. Les 63 commandes C++ de compile_commands.json comportent /EHsc ; toutes les 69 commandes C/C++ comportent /Brepro et /MD. **C4530 : 30 dans cpu5 → 0 dans cpu6.** /DWIN32, /D_WINDOWS et /machine:x64 sont conservés dans les flags contrôlés. Pins, versions, patches et ISA inchangés ; restauration des défauts dans leur ensemble, pas isolation expérimentale du seul /EHsc.
+
+**14/14 DLL installées inchangées**, aucune opération de remplacement. **15 038 ALLOWED, 67 UNATTRIBUTED_TEMP**, aucune violation enregistrée. Les deux reçus de processus configure/build ont cleanupClosed=true ; aucun cmake/cl/ninja/vcpkg actif observé après clôture. Le PASS ne prouve pas l'absence universelle de fuite, les limites documentées de la garde restant applicables.
+
+Comparaison en lecture seule des surfaces PE avec l'installation (exports nom+ordinal ; imports DLL+symboles) : **5/5 identiques pour les deux surfaces**. Le contrôle existant sans CUDA, tables directes et différées, passe **5/5** ; aucune résolution récursive ou exécution de DLL n'en est déduite.
+
+| DLL | Octets installés | cpu5 | cpu6 | Écart cpu6/installé | Exports / imports |
+| --- | --- | --- | --- | --- | --- |
+| ggml-base.dll | 680 960 | 684 032 | 680 960 | 0 % | identiques / identiques |
+| ggml-cpu.dll | 947 200 | 947 200 | 947 200 | 0 % | identiques / identiques |
+| ggml.dll | 61 952 | 59 392 | 61 952 | 0 % | identiques / identiques |
+| nemo_speech_asr.dll | 4 192 256 | 4 114 432 | 4 191 232 | −0,024 % | identiques / identiques |
+| nemo_speech_asr_c.dll | 56 320 | 54 272 | 56 320 | 0 % | identiques / identiques |
+
+Les deux noms d'exports supplémentaires de NeMo ont disparu ; son nombre revient à 10 992. Les différences d'imports CRT constatées sur cpu5 ont disparu. Les deux écarts de taille supérieurs à 2 % sont résorbés. Le résidu NeMo de **−1 024 octets est localisé à la taille brute de .rdata** ; les autres sections ont les mêmes tailles, mais leurs empreintes ne sont pas toutes identiques. Cause exacte et innocuité de ce résidu non démontrées ; la taille satisfait seulement le seuil statique de 2 %. Aucun octet de DLL modifié pour obtenir ces résultats.
+
+| DLL | SHA-256 installée | SHA-256 cpu6 |
+| --- | --- | --- |
+| ggml-base.dll | 398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a | 28c3c1fd4e33ee4e26c8086c05f0aa1536e8b78734533862aafc5e739ff1e68d |
+| ggml-cpu.dll | f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0 | 9669eacb3a104e830aeb3b8f519154904024369fa868b6814844640f909d2edc |
+| ggml.dll | 2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794 | bb3c723c57000a32b5a1fdc9cff3d70b6fea0579bbeebc87509744f7580e749a |
+| nemo_speech_asr.dll | 923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019 | 94a086e43cde1447bb34ad1af15d6566794489fe036a11d070e3a184e06b0512 |
+| nemo_speech_asr_c.dll | 9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764 | 4b9c27b4a505865e28025ccd53a98d2859280d69db51c5b576ddb62e2a6b710b |
+
+**Entrée variable supplémentaire établie :** dans la copie patchée sans .git indépendant, ggml/CMakeLists.txt:14–29 appelle Git depuis CMAKE_CURRENT_SOURCE_DIR ; Git remonte à `C:/wt/build-natif`. Le header généré `ggml/src/ggml-version.h` incorpore donc le commit **Whisper** courant. Le getter ggml_commit a été décodé statiquement (mapping PE et LEA x64 vers sa constante, aucune DLL chargée) : installé `6cf94e8b`, cpu4 `77f4413b`, cpu5 `d27a5d9d`, cpu6 `338c7a9e`. Le premier résout dans l'historique Whisper en `6cf94e8be401e95c153d72c17c5c1cd0e57a3e25` ; le vrai cache source llama reste épinglé à `bd4f514db14d87fded667787a7a963bfbaa98e89`. La provenance source ne change donc pas avec ces métadonnées. Une modification documentaire de HEAD peut cependant changer la DLL ; le champ n'est pas une preuve du commit llama. Cela démontre une autre entrée variable, sans expliquer à elle seule les 13 725 anciens octets .text de ggml-base.
+
+**Conclusion bornée :** le correctif est efficace sur les options et sur les écarts de surfaces/tailles observés. La concordance statique est forte, **pas une équivalence complète** : SHA différents 5/5, une seule construction du candidat corrigé, options historiques complètes toujours indisponibles et aucune comparaison TXT/SRT/WAV. Répétabilité corrigée **NON EXÉCUTÉE**, fonctionnel/N2, N1 et GPU **NON EXÉCUTÉS**. Les chemins et la métadonnée dépendant du dépôt parent restent à stabiliser/qualifier ; aucune correction spéculative ou seconde compilation engagée. Revue indépendante des comparaisons PE et du décodage : **CLEAN pour ces conclusions bornées**. Verdict global **NON REPRODUIT**, pas de fusion ni levée de conservation recommandée.
+
+[Archive cpu6 statique](../architecture/raw/native-build/cpu6-static.zip) : **41 preuves et manifeste, 42 entrées**, noms uniques et tailles/SHA vérifiés à partir du manifeste relu depuis le ZIP ; cinq DLL, journaux/garde, cache et commandes CMake/Ninja, comparaisons PE, header/métadonnées, pré/postflight et manifeste de build. **3 853 891 octets**, SHA-256 **6a2afe1d9d5b78486fc916b13200379441022dbfb379842e8dcc99e919e52b48**. Espace libre après archive : **513 831 768 064 octets**. Aucun code corrigé après cet essai, aucune autre compilation, suppression, modification de l'installation, fusion ou push ; dix rapports conservés et bilans figés inchangés.
+
+Vérification indépendante finale : **CLEAN documentaire**, 41/41 preuves, 42 entrées, taille et empreinte confirmées ; 63/63 commandes C++ avec /EHsc et 69/69 commandes C/C++ avec /Brepro et /MD. Aucun fichier modifié ou essai exécuté pendant cette revue ; aucune équivalence complète revendiquée.
