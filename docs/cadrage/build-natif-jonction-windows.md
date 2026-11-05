@@ -1,6 +1,6 @@
-Avancée : procédure acceptée, helper codé et 11 contrôles de jonction PASS sous le SelfTest existant.
-Blocage : aucun constat ouvert après revue ; intervention réelle et preuves binaires à exécuter.
-Décision : autorisation utilisateur de retirer le seul alias vérifié, préserver l'espace puis reprendre cpu7c/cpu8 ; refus conservés.
+Avancée : jonction réelle retirée avec cible préservée ; code et tests relus CLEAN.
+Blocage : préservation initiale partielle par Move-Item ; Directory.Move du reliquat ensuite refusé par Windows.
+Décision : arrêt sur Access denied, deux parties conservées ; aucune nouvelle compilation ni preuve d'équivalence.
 
 # BUILD-NATIF — complément proposé après clôture
 
@@ -10,7 +10,7 @@ Le 5 novembre 2026, `fsutil reparsepoint query C:/wb/native/cpu/userprofile/AppD
 
 Dans `ci/native-workspace.ps1`, `Initialize-NativeWorkspace` refuse tout descendant ReparsePoint avant `Move-Item`. Ce refus de préservation est distinct du collecteur d'événements : ni `Assemble`, ni le classement des événements, ni leurs règles d'arrêt ne sont en cause ici. La jonction est interne aujourd'hui ; cela ne justifie pas d'accepter génériquement les jonctions. Un déplacement brut conserverait en outre une cible absolue vers C:/wb/native/cpu, donc vers le futur workspace après sa recréation.
 
-## Correctif autorisé, intervention réelle non encore exécutée
+## Correctif autorisé et exécuté jusqu'au blocage de déplacement
 
 Ajouter une préparation étroite dans `ci/native-workspace.ps1`, appelée par `Initialize-NativeWorkspace` après les contrôles de propriétaire/processus et avant le refus général des ReparsePoint :
 
@@ -43,4 +43,10 @@ Le premier SelfTest historique du collecteur échoue avant les nouveaux tests : 
 
 Revue indépendante : BN-J01 IMPORTANT, la capture des journaux pouvait court-circuiter le nettoyage. Correction par finally indépendants, fermeture au deuxième passage : **CLEAN**. Test ciblé du bloc finally réel extrait de son AST : erreur de capture simulée conservée, deux writers libérés et observateur fermé, PASS. Le SelfTest général PASS précède uniquement cette correction de nettoyage ; aucun changement au retrait de jonction depuis ce SelfTest.
 
-Les seules suppressions exécutées jusqu'ici concernent les jonctions des fixtures de test, avec témoins conservés ; aucun nettoyage des fixtures. Le lien réel, les bilans figés et les archives existantes restent intacts. Les compilations réelles restent les prochaines étapes, sous autorisations déjà données.
+cpu7c : retrait réel réussi, reçu `junction-preparation.json` = `REMOVED_TARGET_PRESERVED`. `Move-Item` échoue ensuite sur un élément masqué/système/lecture seule et déplace partiellement l'ancien espace vers `target/native-build/guard/NativeDllCpu-cpu7c/previous-workspace`. Le marqueur cpu7, src, build et d'autres dossiers s'y trouvent ; le reliquat C:/wb/native/cpu contient userprofile et xdg. Aucun compilateur démarré. Cette opération n'est pas présentée comme atomique.
+
+L'utilisateur autorise un correctif de déplacement : `Directory.Move` du dossier entier sur le même volume, test des attributs, puis préservation séparée du reliquat vers `previous-workspace-residual`, sans fusion ni écrasement, enfin cpu7c2/cpu8 après revue. Trois tests réels passent (octets et attributs Hidden/System/ReadOnly conservés ; refus de destination existante ; refus de volume différent). SelfTest complet PASS, preuve `selftest-9f8c402e7bf14e4abbbb5452a0c10c10` ; revue **CLEAN**.
+
+Récupération réelle : propriétaire établi depuis marqueur conservé et reçu, absence de processus concernés/liens, inventaire du reliquat enregistré avant action. `Directory.Move` est ensuite refusé : **Access to the path C:/wb/native/cpu is denied**. Arrêt sans autre mécanisme, modification d'attributs/ACL ou élévation. La destination résiduelle n'existe pas ; comparaison après refus = contenu inchangé, trois fichiers et 27 dossiers, zéro ReparsePoint. Les trois fichiers restants sont container.dat (0 octet), StartupProfileData-NonInteractive et telemetry.uuid. Les ACL des racines sont relevées sans modification ; aucune cause précise ni aucun processus détenteur n'est démontré. La présence de dllhost.exe ne suffit pas à attribuer un verrou.
+
+État conservé : première partie dans `previous-workspace`, reliquat à C:/wb/native/cpu, reçus de retrait/récupération et script de récupération sous le lot. Seuls les liens des fixtures et l'alias réel approuvé ont été supprimés ; aucun contenu cible ni intermédiaire nettoyé. Le compteur reste une construction CPU ancienne commencée (cpu7), aucune nouvelle compilation CPU/GPU, aucun N2 ni N1. cpu7c2 et cpu8 ne sont pas lancés. Bilan antérieur et archives existantes intacts ; voir le nouveau [bilan du complément](../architecture/BUILD-NATIF-JONCTION-BILAN.md).

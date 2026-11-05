@@ -96,6 +96,19 @@ function Remove-NativeCacheJunction([string]$Workspace,[string]$OutputRoot,[obje
     finally { $receipt.finishedUtc=[DateTime]::UtcNow.ToString('o'); [IO.File]::WriteAllText($path,($receipt|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false)) }
 }
 
+function Move-NativeWorkspaceDirectory([string]$Source,[string]$Destination) {
+    $sourceFull=[IO.Path]::GetFullPath($Source).TrimEnd('\')
+    $destinationFull=[IO.Path]::GetFullPath($Destination).TrimEnd('\')
+    if ([IO.Path]::GetPathRoot($sourceFull) -ine [IO.Path]::GetPathRoot($destinationFull)) { throw 'Native workspace preservation requires the same volume.' }
+    Assert-NativePlainDirectory $sourceFull $sourceFull
+    Assert-NativePlainDirectory (Split-Path -Parent $destinationFull) (Split-Path -Parent $destinationFull)
+    if (Test-Path -LiteralPath $destinationFull) { throw 'Native preservation destination already exists; no merge or overwrite.' }
+    # The caller has checked ownership, inactive users and absence of child links.
+    # Rename the whole directory on this volume, without enumerating/moving its
+    # children individually or modifying hidden/system/read-only attributes.
+    [IO.Directory]::Move($sourceFull,$destinationFull)
+}
+
 function Initialize-NativeWorkspace([string]$Variant, [string]$BuildId, [string]$OutputRoot) {
     $workspace=Assert-NativeWorkspacePath (Get-NativeWorkspacePath $Variant) $Variant
     if ($BuildId -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$') { throw 'Invalid native workspace owner id.' }
@@ -123,7 +136,7 @@ function Initialize-NativeWorkspace([string]$Variant, [string]$BuildId, [string]
             $destination=Join-Path $output 'previous-workspace'
             if (Test-Path -LiteralPath $destination) { throw 'Workspace preservation destination already exists.' }
             # Both absolute endpoints were checked; preservation is a move, never a recursive deletion.
-            Move-Item -LiteralPath $workspace -Destination $destination -ErrorAction Stop
+            Move-NativeWorkspaceDirectory $workspace $destination
         }
     }
     New-Item -ItemType Directory -Path $workspace -Force | Out-Null

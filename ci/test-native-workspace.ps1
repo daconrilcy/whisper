@@ -121,6 +121,30 @@ function Invoke-NativeJunctionTests([string]$Root) {
     "PASS native junction tests: checks=$($checks.Count); fixture target content preserved."
 }
 
+function Invoke-NativeDirectoryMoveTests([string]$Root) {
+    $fixture=Join-Path $Root 'directory-move-tests'
+    if (Test-Path -LiteralPath $fixture) { throw 'Directory move fixture must be new.' }
+    $source=Join-Path $fixture 'source'; $destination=Join-Path $fixture 'preserved'
+    New-Item -ItemType Directory -Path $source -Force | Out-Null
+    $file=Join-Path $source 'protected.txt'
+    [IO.File]::WriteAllText($file,'preserve bytes and attributes')
+    $attributes=[IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System -bor [IO.FileAttributes]::ReadOnly
+    [IO.File]::SetAttributes($file,$attributes)
+    $hash=(Get-FileHash -LiteralPath $file).Hash
+    Move-NativeWorkspaceDirectory $source $destination
+    $preserved=Join-Path $destination 'protected.txt'
+    if ((Test-Path -LiteralPath $source) -or (Get-FileHash -LiteralPath $preserved).Hash -cne $hash -or (Get-Item -LiteralPath $preserved -Force).Attributes -ne $attributes) { throw 'Whole-directory preservation lost bytes or attributes.' }
+    New-Item -ItemType Directory -Path $source | Out-Null
+    [IO.File]::WriteAllText((Join-Path $source 'keep.txt'),'do not merge')
+    $caught=$false; try { Move-NativeWorkspaceDirectory $source $destination } catch { $caught=$true }
+    if (-not $caught -or -not (Test-Path -LiteralPath (Join-Path $source 'keep.txt')) -or (Test-Path -LiteralPath (Join-Path $destination 'keep.txt'))) { throw 'Existing destination was merged or overwritten.' }
+    $caught=$false; try { Move-NativeWorkspaceDirectory $source '\\unreachable.invalid\share\preserved' } catch { $caught=$_.Exception.Message -match 'same volume' }
+    if (-not $caught -or -not (Test-Path -LiteralPath $source)) { throw 'Cross-volume refusal did not precede mutation.' }
+    $receipt=[pscustomobject]@{status='PASS';checks=3;preservedSha256=$hash;preservedAttributes=[string]$attributes;scope='whole-directory rename, existing-destination and cross-volume refusal; no real workspace change'}
+    $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $fixture 'result.json') -Encoding utf8NoBOM
+    'PASS native directory move tests: checks=3; hidden/system/read-only attributes and contents preserved.'
+}
+
 function Invoke-NativeWorkspaceTests([string]$Root) {
     $fixture=Join-Path $Root 'workspace-tests'
     New-Item -ItemType Directory -Path $fixture -Force | Out-Null
@@ -158,4 +182,5 @@ function Invoke-NativeWorkspaceTests([string]$Root) {
     [pscustomobject]@{checks=$checks;status='PASS';scope='exact roots and static PE decoding; no native build'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $fixture 'result.json')
     "PASS native workspace tests: checks=$checks; no fixed-workspace write or native execution."
     Invoke-NativeJunctionTests $Root
+    Invoke-NativeDirectoryMoveTests $Root
 }
