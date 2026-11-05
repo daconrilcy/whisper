@@ -1,10 +1,7 @@
 diff --git a/ggml/CMakeLists.txt b/ggml/CMakeLists.txt
 --- a/ggml/CMakeLists.txt
 +++ b/ggml/CMakeLists.txt
-@@ -10,5 +10,13 @@ set(GGML_VERSION_BASE "${GGML_VERSION_MAJOR}.${GGML_VERSION_MINOR}.${GGML_VERSION_PATCH}")
- 
- list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
- 
+@@ -13,2 +13,10 @@
 +# A caller supplying a source identity must not inherit an unrelated parent Git repository.
 +if(DEFINED GGML_BUILD_COMMIT)
 +    string(LENGTH "${GGML_BUILD_COMMIT}" GGML_BUILD_COMMIT_LENGTH)
@@ -15,11 +12,8 @@ diff --git a/ggml/CMakeLists.txt b/ggml/CMakeLists.txt
 +else()
  find_program(GIT_EXE NAMES git git.exe NO_CMAKE_FIND_ROOT_PATH)
  if(GIT_EXE)
-@@ -26,6 +34,7 @@ if(GIT_EXE)
+@@ -27,3 +35,4 @@
          ERROR_QUIET
      )
  endif()
 +endif()
- 
- set(GGML_VERSION "${GGML_VERSION_BASE}")
- 
