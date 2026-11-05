@@ -95,6 +95,7 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
     New-Item -ItemType Directory -Path $fixture -Force | Out-Null
     $live=Start-NativeBuildWatchState @([pscustomobject]@{path=$fixture;recursive=$true}) $Root
     $writers=[Collections.Generic.List[Diagnostics.Process]]::new()
+    $writerCaptures=[Collections.Generic.List[object]]::new()
     $seen=[Collections.Generic.List[object]]::new()
     try {
         foreach ($worker in 0..1) {
@@ -103,6 +104,7 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
             $command='$ErrorActionPreference="Stop"; $p=$env:NATIVE_WATCH_FIXTURE; for($i=0;$i -lt 500;$i++){ $s=[IO.Path]::Combine($p,("rules.ninja.tmp"+$i.ToString("x8"))); [IO.File]::WriteAllText($s,"rule $i"); [IO.File]::AppendAllText([IO.Path]::Combine($p,"noise"),"x"); [IO.File]::Move($s,[IO.Path]::Combine($p,"rules.ninja"),$true); [IO.File]::AppendAllText([IO.Path]::Combine($p,"noise"),"y") }'
             $psi=[Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh.exe'))
             $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true; $psi.WorkingDirectory=$workerRoot
+            $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
             foreach ($arg in @('-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand',[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command)))) { $psi.ArgumentList.Add($arg) }
             $psi.Environment['NATIVE_WATCH_FIXTURE']=$workerRoot
             foreach ($variable in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) {
@@ -113,6 +115,7 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
             $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
             if (-not $process.Start()) { throw 'Could not start notification fixture writer.' }
             $writers.Add($process)
+            $writerCaptures.Add([pscustomobject]@{process=$process;worker=$worker;stdout=$process.StandardOutput.ReadToEndAsync();stderr=$process.StandardError.ReadToEndAsync()})
         }
         $deadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
         $quietSince=[DateTimeOffset]::UtcNow
@@ -141,11 +144,23 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
         }
         $evidence.Add([ordered]@{test='real concurrent atomic replacements, 100ms drains, final shutdown drain';result='PASS';renames=$renames.Count;expected=1000;events=$seen.Count})
     } finally {
-        foreach ($writer in $writers) {
-            if (-not $writer.HasExited) { Stop-CargoProcessTree $writer }
-            $writer.Dispose()
+        try {
+            foreach ($capture in $writerCaptures) {
+                if (-not $capture.process.HasExited) { Stop-CargoProcessTree $capture.process }
+                foreach ($streamName in @('stdout','stderr')) {
+                    $task=$capture.$streamName
+                    $text=if ($task.Wait(5000)) { $task.GetAwaiter().GetResult() } else { 'CAPTURE_INCOMPLETE: stream did not close within five seconds.' }
+                    [IO.File]::WriteAllText((Join-Path $Root ("writer-$($capture.worker).$streamName.log")),$text,[Text.UTF8Encoding]::new($false))
+                }
+            }
+        } finally {
+            try {
+                foreach ($writer in $writers) {
+                    try { if (-not $writer.HasExited) { Stop-CargoProcessTree $writer } }
+                    finally { $writer.Dispose() }
+                }
+            } finally { Stop-WatchState $live }
         }
-        Stop-WatchState $live
         $seen | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $Root 'collector-live-events.json') -Encoding utf8NoBOM
         $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Root 'collector-tests.json') -Encoding utf8NoBOM
     }

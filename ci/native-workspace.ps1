@@ -16,6 +16,86 @@ function Assert-NativeWorkspacePath([string]$Path, [string]$Variant) {
     return $expected
 }
 
+function Assert-NativePlainDirectory([string]$Path,[string]$Root) {
+    $full=[IO.Path]::GetFullPath($Path).TrimEnd('\'); $base=[IO.Path]::GetFullPath($Root).TrimEnd('\')
+    if ($full -ine $base -and -not $full.StartsWith($base+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Native preparation directory escaped its root.' }
+    $cursor=$full
+    while ($cursor) {
+        $item=Get-Item -LiteralPath $cursor -Force -ErrorAction Stop
+        if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Native preparation requires an ordinary directory: $cursor" }
+        $parent=Split-Path -Parent $cursor; if ($parent -eq $cursor) { break }; $cursor=$parent
+    }
+}
+
+function Get-NativePlainTree([string]$Root) {
+    Assert-NativePlainDirectory $Root $Root
+    $pending=[Collections.Generic.Stack[string]]::new(); $pending.Push($Root)
+    while ($pending.Count) {
+        $directory=$pending.Pop()
+        Assert-NativePlainDirectory $directory $Root
+        foreach ($item in Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop) {
+            $relative=[IO.Path]::GetRelativePath($Root,$item.FullName).Replace('\','/')
+            $link=[bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+            [pscustomobject]@{path=$item.FullName;relative=$relative;reparse=$link;directory=$item.PSIsContainer}
+            if ($item.PSIsContainer -and -not $link) { $pending.Push($item.FullName) }
+        }
+    }
+}
+
+function Get-NativeCacheJunction([string]$Workspace) {
+    $links=@(Get-NativePlainTree $Workspace | Where-Object reparse)
+    if (-not $links.Count) { return $null }
+    $relative='userprofile/AppData/Local/Microsoft/Windows/INetCache/Content.IE5'
+    $link=[IO.Path]::GetFullPath((Join-Path $Workspace $relative))
+    if ($links.Count -ne 1 -or $links[0].path -ine $link) { throw 'Workspace contains an unexpected or additional reparse point; nothing removed.' }
+    Assert-NativePlainDirectory (Split-Path -Parent $link) $Workspace
+    $target=[IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $link) 'IE'))
+    Assert-NativePlainDirectory $target $Workspace
+    $item=Get-Item -LiteralPath $link -Force -ErrorAction Stop
+    $targets=@($item.Target)
+    if ($item.LinkType -cne 'Junction' -or $targets.Count -ne 1 -or [string]::IsNullOrWhiteSpace($targets[0]) -or -not [IO.Path]::IsPathFullyQualified($targets[0]) -or [IO.Path]::GetFullPath($targets[0]).TrimEnd('\') -ine $target) { throw 'INetCache junction type or exact target differs; nothing removed.' }
+    $raw=@(& (Join-Path $env:SystemRoot 'System32/fsutil.exe') reparsepoint query $link 2>&1)
+    if ($LASTEXITCODE -ne 0 -or @($raw | Where-Object { [string]$_ -match '0xa0000003\b' }).Count -ne 1) { throw 'INetCache reparse tag could not be verified; nothing removed.' }
+    return [pscustomobject]@{path=$link;relative=$relative;target=$target;targetRelative=[IO.Path]::GetRelativePath($Workspace,$target);tag='0xa0000003';type='Junction';raw=($raw -join "`n")}
+}
+
+function Get-NativeTargetSnapshot([string]$Target) {
+    @(Get-NativePlainTree $Target | Sort-Object relative | ForEach-Object {
+        if ($_.reparse) { throw 'Cache target contains a reparse point.' }
+        if ($_.directory) { [pscustomobject]@{path=$_.relative;kind='directory'} }
+        else { [pscustomobject]@{path=$_.relative;kind='file';bytes=(Get-Item -LiteralPath $_.path -Force).Length;sha256=(Get-FileHash -LiteralPath $_.path -Algorithm SHA256).Hash} }
+    })
+}
+
+function Remove-NativeDirectoryJunction([string]$Path) {
+    [IO.Directory]::Delete($Path,$false)
+}
+
+function Remove-NativeCacheJunction([string]$Workspace,[string]$OutputRoot,[object]$Owner) {
+    # The production caller has already verified the fixed root and inactive owner.
+    $junction=Get-NativeCacheJunction $Workspace
+    if ($null -eq $junction) { return }
+    $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
+    Assert-NativePlainDirectory $OutputRoot (Join-Path $repoRoot 'target/native-build')
+    $before=@(Get-NativeTargetSnapshot $junction.target)
+    $receipt=[ordered]@{schemaVersion=1;status='PREPARED';workspace=$Workspace;owner=$Owner;junction=$junction;targetSnapshot=$before;operation='Directory.Delete(junction,false)';preparedUtc=[DateTime]::UtcNow.ToString('o')}
+    $path=Join-Path $OutputRoot 'junction-preparation.json'
+    $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
+    try { $writer=[IO.StreamWriter]::new($stream,[Text.UTF8Encoding]::new($false)); try { $writer.Write(($receipt|ConvertTo-Json -Depth 12)) } finally { $writer.Dispose() } } finally { $stream.Dispose() }
+    try {
+        $again=Get-NativeCacheJunction $Workspace
+        if ($null -eq $again -or ($again|ConvertTo-Json -Compress) -cne ($junction|ConvertTo-Json -Compress) -or (ConvertTo-Json -InputObject @(Get-NativeTargetSnapshot $junction.target) -Depth 8 -Compress) -cne (ConvertTo-Json -InputObject $before -Depth 8 -Compress)) { throw 'Junction or target changed before removal.' }
+        # Deliberately nonrecursive: removes the directory junction, never its target.
+        Remove-NativeDirectoryJunction $junction.path
+        if (@(Get-ChildItem -LiteralPath (Split-Path -Parent $junction.path) -Force | Where-Object Name -IEQ 'Content.IE5').Count) { throw 'Cache junction still exists or reappeared.' }
+        $after=@(Get-NativeTargetSnapshot $junction.target)
+        if ((ConvertTo-Json -InputObject $before -Depth 8 -Compress) -cne (ConvertTo-Json -InputObject $after -Depth 8 -Compress)) { throw 'Cache target changed after junction removal.' }
+        if (@(Get-NativePlainTree $Workspace | Where-Object reparse).Count) { throw 'Workspace contains a reparse point after preparation.' }
+        $receipt.status='REMOVED_TARGET_PRESERVED'
+    } catch { $receipt.status='FAILED'; $receipt.failure=$_.Exception.Message; throw }
+    finally { $receipt.finishedUtc=[DateTime]::UtcNow.ToString('o'); [IO.File]::WriteAllText($path,($receipt|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false)) }
+}
+
 function Initialize-NativeWorkspace([string]$Variant, [string]$BuildId, [string]$OutputRoot) {
     $workspace=Assert-NativeWorkspacePath (Get-NativeWorkspacePath $Variant) $Variant
     if ($BuildId -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$') { throw 'Invalid native workspace owner id.' }
@@ -38,6 +118,7 @@ function Initialize-NativeWorkspace([string]$Variant, [string]$BuildId, [string]
             $owner=Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json
             if ($owner.schemaVersion -ne 1 -or $owner.product -cne 'Whisper NativeBuild' -or $owner.variant -cne $Variant) { throw 'Workspace ownership differs; nothing moved.' }
             if (@($processes | Where-Object ProcessId -EQ $owner.guardPid).Count) { throw 'Previous workspace owner PID is still active; nothing moved.' }
+            Remove-NativeCacheJunction $workspace $output $owner
             if (@(Get-ChildItem -LiteralPath $workspace -Recurse -Force -Attributes ReparsePoint).Count) { throw 'Workspace contains reparse points; nothing moved.' }
             $destination=Join-Path $output 'previous-workspace'
             if (Test-Path -LiteralPath $destination) { throw 'Workspace preservation destination already exists.' }

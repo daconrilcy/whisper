@@ -1,6 +1,6 @@
-Avancée : jonction et point de refus revérifiés ; correction de préparation proposée.
-Blocage : aucune suppression du lien ni reprise autorisée par cette proposition seule.
-Décision : recommander le retrait contrôlé du seul alias INetCache, puis conserver tous les refus existants.
+Avancée : procédure acceptée, helper codé et 11 contrôles de jonction PASS sous le SelfTest existant.
+Blocage : aucun constat ouvert après revue ; intervention réelle et preuves binaires à exécuter.
+Décision : autorisation utilisateur de retirer le seul alias vérifié, préserver l'espace puis reprendre cpu7c/cpu8 ; refus conservés.
 
 # BUILD-NATIF — complément proposé après clôture
 
@@ -10,7 +10,7 @@ Le 5 novembre 2026, `fsutil reparsepoint query C:/wb/native/cpu/userprofile/AppD
 
 Dans `ci/native-workspace.ps1`, `Initialize-NativeWorkspace` refuse tout descendant ReparsePoint avant `Move-Item`. Ce refus de préservation est distinct du collecteur d'événements : ni `Assemble`, ni le classement des événements, ni leurs règles d'arrêt ne sont en cause ici. La jonction est interne aujourd'hui ; cela ne justifie pas d'accepter génériquement les jonctions. Un déplacement brut conserverait en outre une cible absolue vers C:/wb/native/cpu, donc vers le futur workspace après sa recréation.
 
-## Correctif recommandé, non appliqué
+## Correctif autorisé, intervention réelle non encore exécutée
 
 Ajouter une préparation étroite dans `ci/native-workspace.ps1`, appelée par `Initialize-NativeWorkspace` après les contrôles de propriétaire/processus et avant le refus général des ReparsePoint :
 
@@ -23,9 +23,9 @@ L'absence du lien est un cas normal : aucune suppression. Cette préparation app
 
 ## Périmètre et vérifications avant reprise
 
-Fichiers proposés : `ci/native-workspace.ps1`, `ci/test-native-workspace.ps1` ; branchement des tests par le SelfTest existant. Complément documentaire dans ce fichier ; bilan antérieur figé et archive conservés. Revue indépendante, au plus deux cycles pour ce complément ; aucune extension implicite des budgets de construction.
+Fichiers autorisés : `ci/native-workspace.ps1`, `ci/test-native-workspace.ps1` ; branchement des tests par le SelfTest existant. Complément documentaire dans ce fichier ; bilan antérieur figé et archive conservés. Revue indépendante, au plus deux cycles pour ce complément ; aucune extension implicite des budgets de construction. L'utilisateur a confirmé explicitement les cinq étapes proposées dans la session, y compris retrait hors dépôt et reprise des deux compilations après tests/revue.
 
-Premier test réel, dans une fixture neuve sous `target/native-build/` : créer une cible contenant un fichier témoin, créer sa jonction, appeler la suppression non récursive retenue, exiger lien absent et SHA du témoin inchangé. Ce test n'est pas encore exécuté. En cas d'échec, ne pas passer au workspace réel.
+Premier test réel dans une fixture neuve sous `target/native-build/` : **PASS**. Cible contenant un témoin, jonction retirée par `Directory.Delete(link,false)`, SHA du témoin inchangé ; aucune intervention dans le workspace réel. Preuve : `junction-probe-0087019da0f24cec8e0cf0128087de8b/result.json` sous cette racine.
 
 Auto-tests du helper : absence de lien ; jonction attendue et cible non vide conservée ; mauvaise cible même interne ; cible externe ; mauvais emplacement/type ; ancêtre ou cible indirecte ; lien supplémentaire. Les cas négatifs ne doivent provoquer aucune mutation. Vérifier aussi arrêt sur échec de retrait, conservation du relevé si l'étape suivante échoue, et refus si le lien réapparaît. Puis SelfTest NativeBuild et revue, avant toute intervention sur C:/wb/native.
 
@@ -37,4 +37,10 @@ Après autorisation de mise en œuvre, du retrait hors dépôt et de reprise : p
 - [Microsoft Directory.Delete](https://learn.microsoft.com/en-us/dotnet/api/system.io.directory.delete?view=net-9.0) : surcharge non récursive disponible ; son comportement réel sur la jonction devra être prouvé par la fixture avant emploi.
 - [Microsoft Get-ChildItem](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-childitem?view=powershell-7) : parcours sans suivi des liens par défaut ; aucun `-FollowSymlink` dans cet inventaire.
 
-Aucune commande de suppression, création de jonction, compilation ou recette native exécutée pour cette proposition. Le lien réel et les bilans/archives existants restent intacts.
+## Journal du complément
+
+Le premier SelfTest historique du collecteur échoue avant les nouveaux tests : « Fixture writer exit 1 », stderr non conservé, cause indéterminée. Aucun build ni intervention réelle. L'utilisateur autorise une capture stdout/stderr limitée à `ci/test-native-directory-watch.ps1` et une seule reprise. Cette reprise passe : 1 000 remplacements réels du collecteur ; 41 contrôles flags, 12 workspace, 11 jonction et 8 négatifs historiques. Preuve : `target/native-build/guard/selftest-eaaa66c48f2647da9e710b135272ba20/`, sortie du child SelfTest incluse. La capture ne modifie aucun classement d'événement ni délai du collecteur.
+
+Revue indépendante : BN-J01 IMPORTANT, la capture des journaux pouvait court-circuiter le nettoyage. Correction par finally indépendants, fermeture au deuxième passage : **CLEAN**. Test ciblé du bloc finally réel extrait de son AST : erreur de capture simulée conservée, deux writers libérés et observateur fermé, PASS. Le SelfTest général PASS précède uniquement cette correction de nettoyage ; aucun changement au retrait de jonction depuis ce SelfTest.
+
+Les seules suppressions exécutées jusqu'ici concernent les jonctions des fixtures de test, avec témoins conservés ; aucun nettoyage des fixtures. Le lien réel, les bilans figés et les archives existantes restent intacts. Les compilations réelles restent les prochaines étapes, sous autorisations déjà données.

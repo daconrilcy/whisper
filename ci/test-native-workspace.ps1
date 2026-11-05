@@ -52,6 +52,75 @@ function Invoke-NativeMsvcTelemetryTests([string]$Root,[string]$Vcvars) {
     "PASS MSVC telemetry necessity witness; expected tools unchanged; evidence=$rootFull"
 }
 
+function Invoke-NativeJunctionTests([string]$Root) {
+    $fixture=Join-Path $Root 'junction-tests'
+    if (Test-Path -LiteralPath $fixture) { throw 'Junction fixture must be new.' }
+    New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+    $checks=[Collections.Generic.List[object]]::new()
+    $owner=[pscustomobject]@{product='Whisper NativeBuild';variant='fixture';buildId='test';guardPid=0}
+    function New-CacheFixture([string]$Name) {
+        $workspace=Join-Path $fixture "$Name/workspace"
+        $output=Join-Path $fixture "$Name/output"
+        $parent=Join-Path $workspace 'userprofile/AppData/Local/Microsoft/Windows/INetCache'
+        $target=Join-Path $parent 'IE'; $link=Join-Path $parent 'Content.IE5'
+        New-Item -ItemType Directory -Path $target,$output -Force | Out-Null
+        $file=Join-Path $target 'keep.txt'; [IO.File]::WriteAllText($file,'preserve target')
+        return [pscustomobject]@{workspace=$workspace;output=$output;parent=$parent;target=$target;link=$link;file=$file;hash=(Get-FileHash -LiteralPath $file).Hash}
+    }
+    $case=New-CacheFixture 'no-link'
+    Remove-NativeCacheJunction $case.workspace $case.output $owner
+    if (@(Get-ChildItem -LiteralPath $case.output -Force).Count) { throw 'Absent junction caused a mutation.' }
+    $checks.Add(@{test='absent junction';result='PASS'})
+    $case=New-CacheFixture 'positive'
+    New-Item -ItemType Junction -Path $case.link -Target $case.target | Out-Null
+    Remove-NativeCacheJunction $case.workspace $case.output $owner
+    $receipt=Get-Content -LiteralPath (Join-Path $case.output 'junction-preparation.json') -Raw | ConvertFrom-Json
+    if ((Test-Path -LiteralPath $case.link) -or (Get-FileHash -LiteralPath $case.file).Hash -cne $case.hash -or $receipt.status -cne 'REMOVED_TARGET_PRESERVED') { throw 'Junction removal did not preserve the target or receipt.' }
+    $checks.Add(@{test='real exact junction, nonempty target';result='PASS'})
+    foreach ($kind in @('wrong-internal-target','external-target','wrong-location','extra-link','ancestor-link','target-link')) {
+        $case=New-CacheFixture $kind
+        $other=Join-Path $fixture "$kind/other"
+        New-Item -ItemType Directory -Path $other -Force | Out-Null
+        if ($kind -eq 'ancestor-link') {
+            New-Item -ItemType Junction -Path (Join-Path $case.workspace 'unexpected-parent') -Target $other | Out-Null
+        } elseif ($kind -eq 'target-link') {
+            # Target chain is represented by a sibling junction; all negative cases
+            # must be rejected before mutating any link or any target content.
+            New-Item -ItemType Junction -Path (Join-Path $case.parent 'other-target-link') -Target $other | Out-Null
+            New-Item -ItemType Junction -Path $case.link -Target (Join-Path $case.parent 'other-target-link') | Out-Null
+        } else {
+            $destination=if ($kind -eq 'wrong-location') { Join-Path $case.parent 'wrong-name' } else { $case.link }
+            $target=if ($kind -eq 'external-target') { $other } elseif ($kind -eq 'wrong-internal-target') { $case.parent } else { $case.target }
+            New-Item -ItemType Junction -Path $destination -Target $target | Out-Null
+            if ($kind -eq 'extra-link') { New-Item -ItemType Junction -Path (Join-Path $case.workspace 'extra') -Target $other | Out-Null }
+        }
+        $before=@(Get-NativePlainTree $case.workspace | Where-Object reparse | Select-Object -ExpandProperty path | Sort-Object)
+        $caught=$false; try { Remove-NativeCacheJunction $case.workspace $case.output $owner } catch { $caught=$true }
+        $after=@(Get-NativePlainTree $case.workspace | Where-Object reparse | Select-Object -ExpandProperty path | Sort-Object)
+        if (-not $caught -or ($before -join '|') -cne ($after -join '|') -or (Get-FileHash -LiteralPath $case.file).Hash -cne $case.hash -or @(Get-ChildItem -LiteralPath $case.output -Force).Count) { throw "Junction negative control mutated the fixture: $kind" }
+        $checks.Add(@{test=$kind;result='PASS'})
+    }
+    foreach ($kind in @('delete-failure','reappeared','post-remove-failure')) {
+        $case=New-CacheFixture $kind
+        New-Item -ItemType Junction -Path $case.link -Target $case.target | Out-Null
+        $caught=& {
+            function Remove-NativeDirectoryJunction([string]$Path) {
+                if ($kind -eq 'delete-failure') { throw 'Synthetic removal failure.' }
+                [IO.Directory]::Delete($Path,$false)
+                if ($kind -eq 'reappeared') { New-Item -ItemType Junction -Path $Path -Target $case.target | Out-Null }
+                else { throw 'Synthetic failure after unlink.' }
+            }
+            try { Remove-NativeCacheJunction $case.workspace $case.output $owner; $false } catch { $true }
+        }
+        $receipt=Get-Content -LiteralPath (Join-Path $case.output 'junction-preparation.json') -Raw | ConvertFrom-Json
+        if (-not $caught -or $receipt.status -cne 'FAILED' -or (Get-FileHash -LiteralPath $case.file).Hash -cne $case.hash) { throw "Junction failure did not stop and retain the receipt: $kind" }
+        if ($kind -in @('delete-failure','reappeared') -and -not (Test-Path -LiteralPath $case.link)) { throw 'Failure fixture unexpectedly lost its junction.' }
+        $checks.Add(@{test=$kind;result='PASS'})
+    }
+    $checks.ToArray() | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $fixture 'result.json') -Encoding utf8NoBOM
+    "PASS native junction tests: checks=$($checks.Count); fixture target content preserved."
+}
+
 function Invoke-NativeWorkspaceTests([string]$Root) {
     $fixture=Join-Path $Root 'workspace-tests'
     New-Item -ItemType Directory -Path $fixture -Force | Out-Null
@@ -88,4 +157,5 @@ function Invoke-NativeWorkspaceTests([string]$Root) {
     }
     [pscustomobject]@{checks=$checks;status='PASS';scope='exact roots and static PE decoding; no native build'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $fixture 'result.json')
     "PASS native workspace tests: checks=$checks; no fixed-workspace write or native execution."
+    Invoke-NativeJunctionTests $Root
 }
