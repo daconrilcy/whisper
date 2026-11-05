@@ -1,8 +1,17 @@
 Avancée : inventaire initial en lecture ; worktree tests-hygiene créé depuis 9f5ab7aa, aucun code ni Cargo exécuté.
-Blocage : arbitrage du chemin de validation sans CARGO_TARGET_DIR et avec cible extérieure, incompatible avec la garde actuelle.
-Décision : faire valider ce plan par rust_review_coordinator ; aucune implémentation avant fermeture des prérequis.
+Blocage : aucun prérequis d'autorisation restant ; efficacité des corrections à démontrer.
+Décision : plan 4fb2b5c9 CLEAN, implémentation autorisée avec les bornes utilisateur ci-dessous.
 
 # TESTS-HYGIENE — plan
+
+## Bornes acceptées le 5 novembre 2026 (prévalent sur le texte initial)
+
+- Garde : cible exacte `C:/wb/tests-hygiene/cargo-target` fixée uniquement par l'argument Cargo `--config build.target-dir=...` généré et vérifié par la garde. Aucun fichier de configuration Cargo ajouté ou modifié, aucun profil utilisateur touché. Conserver les refus native-tests/ignored/options inconnues ; admettre --lib/--test/filtres/--no-fail-fast. SelfTest : CARGO_TARGET_DIR absent de l'environnement réellement transmis à Cargo ; journal du target_directory effectif.
+- Retirer entièrement l'exécution depuis C:/dev/whisper et l'extension cwd/manifeste correspondante. La preuve depuis main sera faite par l'humain après fusion, puis consignée dans un complément au bilan figé.
+- Seul C autorisé : fichiers du build.rs de webrtc-vad 0.4.0 via Cargo, sans changement de Cargo.lock. Aucun CMake, DLL ni build ggml/NeMo/Protobuf/CUDA. Crash compilateur C1001/c2.dll, nouvelle WHEA ou committed >85 % : arrêt immédiat, rapport, aucun nouvel essai.
+- Répéter la suite adapters lib complète 50 fois si sa durée après B est ≤30 s ; sinon 20 fois, avec durée de chaque itération et justification dans le bilan.
+- Contrôle anti-régression : constructeur partagé, test refusant les écritures de .exe hors constructeur dans les sources de tests, un témoin négatif ; viser ≤150 lignes, faux positifs acceptés et listés, aucun analyseur multiligne général.
+- Autres budgets, arrêts, attestation humaine, rétention, bilan d'une page et revue finale par rust_review_coordinator inchangés. Aucun merge/push.
 
 ## Mandat et périmètre
 
