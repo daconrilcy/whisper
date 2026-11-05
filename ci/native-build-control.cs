@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Buffers;
 using Whisper.NativeWatch;
 
 namespace Whisper.NativeBuild
@@ -41,9 +42,7 @@ namespace Whisper.NativeBuild
             this.unattributed = unattributed; this.failures = failures;
         }
 
-        static StreamWriter Open(string root, string name) => new StreamWriter(
-            new FileStream(Path.Combine(root, name), FileMode.Append, FileAccess.Write, FileShare.Read),
-            new UTF8Encoding(false)) { NewLine = "\n" };
+        static TextWriter Open(string root, string name) => new JsonJournal(Path.Combine(root, name));
 
         static string Full(string path)
         {
@@ -51,7 +50,8 @@ namespace Whisper.NativeBuild
             return Path.GetFullPath(path).TrimEnd('\\');
         }
         static bool In(string path, string root) => path.Equals(root, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase);
+            || (path.Length > root.Length && path[root.Length] == '\\'
+                && path.StartsWith(root, StringComparison.OrdinalIgnoreCase));
 
         // Exact precedence of Get-EventDisposition, including Temp before protected roots.
         public string Disposition(Observation e)
@@ -64,18 +64,59 @@ namespace Whisper.NativeBuild
             if (rename) {
                 if (newTemp && oldTemp) return "UNATTRIBUTED_TEMP";
                 if (newTemp || oldTemp) return "VIOLATION";
-            } else if (newTemp && new[] { "Created", "Changed", "Deleted" }.Contains(e.Type, StringComparer.OrdinalIgnoreCase))
+            } else if (newTemp && (string.Equals(e.Type, "Created", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(e.Type, "Changed", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(e.Type, "Deleted", StringComparison.OrdinalIgnoreCase)))
                 return "UNATTRIBUTED_TEMP";
             if (protectedRoots.Any(r => In(path, r)) || !allowed.Any(r => In(path, r))) return "VIOLATION";
             if (rename) {
                 // The reference rejects an empty old path by exception when it reaches root checks.
-                old = Full(old);
+                if (old.Length == 0) old = Full(old);
                 if (!allowed.Any(r => In(old, r)) || protectedRoots.Any(r => In(old, r))) return "VIOLATION";
             }
             return "ALLOWED";
         }
 
-        static void Line(TextWriter writer, object value) => writer.WriteLine(JsonSerializer.Serialize(value, Json));
+        static void Line(TextWriter writer, object value)
+        {
+            if (writer is JsonJournal journal) journal.WriteJson(value);
+            else writer.WriteLine(JsonSerializer.Serialize(value, Json));
+        }
+
+        // Encode once to UTF-8, reuse the line buffer, and batch physical writes. No background queue.
+        // The complete snapshot remains one JSON line with precisely the same fields and values.
+        sealed class JsonJournal : TextWriter
+        {
+            readonly Stream stream;
+            readonly ArrayBufferWriter<byte> buffer = new ArrayBufferWriter<byte>(4096);
+            readonly Utf8JsonWriter json;
+            bool closed;
+            public override Encoding Encoding => Encoding.UTF8;
+
+            public JsonJournal(string path)
+            {
+                stream = new BufferedStream(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read), 65536);
+                json = new Utf8JsonWriter(buffer);
+            }
+            public void WriteJson(object value)
+            {
+                if (closed) throw new ObjectDisposedException(nameof(JsonJournal));
+                buffer.Clear();
+                json.Reset(buffer);
+                JsonSerializer.Serialize(json, value, Json);
+                json.Flush();
+                stream.Write(buffer.WrittenSpan);
+                stream.WriteByte(10);
+            }
+            public override void Flush() => stream.Flush();
+            protected override void Dispose(bool disposing)
+            {
+                if (!disposing || closed) return;
+                closed = true;
+                try { json.Dispose(); } finally { stream.Dispose(); }
+                base.Dispose(disposing);
+            }
+        }
 
         // One finite snapshot, in Collector order. Stop at the first violation, as before.
         public Observation Process(Snapshot snapshot)
