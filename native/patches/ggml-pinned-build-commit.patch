@@ -12,8 +12,11 @@ diff --git a/ggml/CMakeLists.txt b/ggml/CMakeLists.txt
 +else()
  find_program(GIT_EXE NAMES git git.exe NO_CMAKE_FIND_ROOT_PATH)
  if(GIT_EXE)
-@@ -27,3 +35,4 @@
+@@ -27,5 +35,6 @@
          ERROR_QUIET
      )
  endif()
 +endif()
+-
++
+ set(GGML_VERSION "${GGML_VERSION_BASE}")
