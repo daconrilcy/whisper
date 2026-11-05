@@ -1,7 +1,7 @@
 # Bounded single-translation-unit reproduction; never changes the native guard.
 [CmdletBinding()]
 param(
-    [ValidateSet('Environment','Essai0','Preprocess','A','B1','B2')][string]$Stage,
+    [ValidateSet('Environment','Essai0','Preprocess','A','ARemainder','B1','B2')][string]$Stage,
     [switch]$LibraryOnly
 )
 $ErrorActionPreference='Stop'
@@ -33,6 +33,7 @@ function Get-ReproSchedule([string]$Name){
         'Essai0' {return @{count=1;parallel=1;folder='essai-0'}}
         'Preprocess' {return @{count=1;parallel=1;folder='preprocessed'}}
         'A' {return @{count=100;parallel=1;folder='A'}}
+        'ARemainder' {return @{count=36;parallel=1;folder='A-remainder'}}
         'B1' {return @{count=200;parallel=4;folder='B1'}}
         'B2' {return @{count=100;parallel=2;folder='B2'}}
         default {throw 'Unknown reproduction stage.'}
@@ -84,16 +85,33 @@ function Assert-ReproPrecondition {
     Write-ReproRecord 'PRECONDITION' @{memory=$memory;processes=$processes;taskState=[string]$task.State;taskResult=$info.LastTaskResult;lastSampleUtc=$csv.LastWriteTimeUtc.ToString('o');freeBytes=(Get-PSDrive C).Free}
     if($memory.pct -gt 50 -or $processes.Count -or $task.State -eq 'Disabled' -or $info.LastTaskResult -ne 0 -or ([datetime]::UtcNow-$csv.LastWriteTimeUtc).TotalMinutes -gt 15){throw 'Reproduction precondition failed; no compiler launched.'}
 }
-function Get-ReproLevel {
+function Assert-ReproMonitor {
     if([datetimeoffset]::UtcNow -ge $script:End){throw 'Lot deadline reached.'}
     try{$w=@(Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Microsoft-Windows-WHEA-Logger';StartTime=$script:Begin.LocalDateTime} -ErrorAction Stop)}catch{if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){$w=@()}else{throw}}
     if($w.Count){Write-ReproRecord 'WHEA' $w;throw 'MATERIEL A REVERIFIER'}
     if($script:Monitor.HasExited -or $script:Monitor.StartTime.ToUniversalTime() -ne $script:MonitorCreated){throw 'MemWatch process identity lost.'}
     if((Get-FileHash -LiteralPath C:/memwatch/MemWatch.ps1).Hash -cne $script:MonitorHash){throw 'MemWatch changed.'}
     foreach($file in @($script:LevelFile,$script:MonitorCsv)){if(-not(Test-Path -LiteralPath $file) -or ([datetime]::UtcNow-(Get-Item -LiteralPath $file).LastWriteTimeUtc).TotalSeconds -gt 20){throw 'MemWatch sample missing or stale.'}}
-    $stream=[IO.File]::Open($script:LevelFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
-    try{$reader=[IO.StreamReader]::new($stream);try{$level=$reader.ReadToEnd().Trim().Trim([char]0xfeff)}finally{$reader.Dispose()}}finally{$stream.Dispose()}
-    if($level -notin @('OK','ALERTE','STOP-LANCEMENTS','INTERROMPRE')){throw 'Invalid MemWatch level.'}
+}
+function Get-ReproLevel {
+    $clock=[Diagnostics.Stopwatch]::StartNew()
+    $pending=$false
+    do{
+        if($pending -and $clock.ElapsedMilliseconds -ge 500){throw 'MemWatch level stayed empty for 500 ms; no launch permitted.'}
+        Assert-ReproMonitor
+        $stream=[IO.File]::Open($script:LevelFile,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+        try{$reader=[IO.StreamReader]::new($stream);try{$raw=$reader.ReadToEnd()}finally{$reader.Dispose()}}finally{$stream.Dispose()}
+        $level=$raw.Trim().Trim([char]0xfeff)
+        if($level.Length -ne 0){if($pending -and $clock.ElapsedMilliseconds -ge 500){throw 'MemWatch level stayed empty for 500 ms; no launch permitted.'};break}
+        $pending=$true
+        Write-ReproRecord 'LEVEL_WRITE_PENDING' @{raw=$raw;rawLength=$raw.Length;waitMs=$clock.ElapsedMilliseconds;launchAllowed=$false}
+        if($clock.ElapsedMilliseconds -ge 500){throw 'MemWatch level stayed empty for 500 ms; no launch permitted.'}
+        if($null -ne $script:Watch){Drain-ReproWatch}
+        Start-Sleep -Milliseconds 10
+    }while($true)
+    # A valid token never inherits freshness/identity from an earlier attempt.
+    Assert-ReproMonitor
+    if($level -notin @('OK','ALERTE','STOP-LANCEMENTS','INTERROMPRE')){Write-ReproRecord 'INVALID_LEVEL' @{raw=$raw;rawLength=$raw.Length};throw 'Invalid MemWatch level.'}
     if($level -eq 'ALERTE'){Write-ReproRecord 'ALERTE' @{csv=$script:MonitorCsv}}
     if($level -eq 'INTERROMPRE'){
         Write-ReproRecord 'INTERROMPRE' @{largest=@(Get-CimInstance Win32_Process | Sort-Object PrivatePageCount -Descending | Select-Object -First 15 Name,ProcessId,PrivatePageCount);most=@(Get-Process | Group-Object Name | Sort-Object Count -Descending | Select-Object -First 15 Name,Count)}
@@ -184,6 +202,26 @@ function Assert-ReproPreprocessed {
     Assert-NoReparseChain $artifact 'preprocessed source'
     if(-not $doc.pass -or -not(Test-Path -LiteralPath $artifact -PathType Leaf) -or (Get-Item -LiteralPath $artifact).Length -eq 0 -or $doc.preprocessedSha256 -cne (Get-FileHash -LiteralPath $artifact).Hash){throw 'Preprocessing not completed or artifact altered.'}
 }
+function Get-ReproInterruptedAProgress {
+    $path=Join-Path $script:Lot 'isolated-A/journal.jsonl'
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'Original A evidence missing.'}
+    $events=@(Get-Content -LiteralPath $path | ForEach-Object {$_|ConvertFrom-Json})
+    $launches=@($events|Where-Object event -EQ LAUNCH);$finished=@($events|Where-Object event -EQ FINISH)
+    $success=@($finished|Where-Object {$_.data.exit -eq 0 -and -not $_.data.interrupted})
+    $interrupted=@($finished|Where-Object {$_.data.interrupted})
+    $stop=@($events|Where-Object event -EQ STOP);$closed=@($events|Where-Object event -EQ CLOSED)
+    if($launches.Count -ne 65 -or $finished.Count -ne 65 -or $success.Count -ne 64 -or $interrupted.Count -ne 1 -or $interrupted[0].data.index -ne 65 -or $stop.Count -ne 1 -or $stop[0].data.failure -cne 'Invalid MemWatch level.' -or $closed.Count -ne 1 -or $closed[0].data.cleanupErrors.Count -ne 0){throw 'Authorized A continuation no longer matches the preserved 64 successes and one interruption.'}
+    $indices=@($finished|ForEach-Object {[int]$_.data.index}|Sort-Object -Unique)
+    if(($indices -join ',') -cne ((1..65) -join ',')){throw 'Original A indices are incomplete or duplicated.'}
+    return 64
+}
+function Assert-ReproAComplete {
+    $original=Join-Path $script:Lot 'isolated-A/result.json'
+    if(Test-Path -LiteralPath $original){$doc=Get-Content -LiteralPath $original -Raw|ConvertFrom-Json;if($doc.pass -and $doc.successful -eq 100 -and $doc.failed -eq 0){return}}
+    $prior=Get-ReproInterruptedAProgress
+    $receipt=Get-Content -LiteralPath (Join-Path $script:Lot 'isolated-ARemainder/result.json') -Raw|ConvertFrom-Json
+    if(-not $receipt.pass -or $receipt.launched -ne 36 -or $receipt.successful -ne 36 -or $receipt.failed -ne 0 -or $prior+$receipt.successful -ne 100){throw 'Series A has not completed 100 successful serial compilations.'}
+}
 function Wait-ReproDump($Entry){
     # Do not kill an observed WerFault child while it is writing the compiler dump.
     $until=[datetimeoffset]::UtcNow.AddSeconds(120)
@@ -230,13 +268,15 @@ function Invoke-ReproStage {
             $environment=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
             foreach($property in $envDoc.values.PSObject.Properties){$environment[$property.Name]=[string]$property.Value}
         }else{$environment=New-ReproEnvironment}
-        if($Stage -in @('Preprocess','A','B1','B2')){
-            $prior=if($Stage -eq 'B1'){'A'}elseif($Stage -eq 'B2'){'B1'}else{'Essai0'}
+        if($Stage -in @('Preprocess','A','ARemainder','B2')){
+            $prior=if($Stage -eq 'B2'){'B1'}else{'Essai0'}
             $receipt=Get-Content -LiteralPath (Join-Path $script:Lot "isolated-$prior/result.json") -Raw | ConvertFrom-Json
             if(-not $receipt.pass){throw 'Prior stage did not pass.'}
             if($Stage -eq 'B2' -and $receipt.failed -lt 1){throw 'B2 allowed only following B1 crashes.'}
         }
-        if($Stage -in @('A','B1','B2')){Assert-ReproPreprocessed}
+        if($Stage -in @('A','ARemainder','B1','B2')){Assert-ReproPreprocessed}
+        if($Stage -eq 'ARemainder'){[void](Get-ReproInterruptedAProgress)}
+        if($Stage -eq 'B1'){Assert-ReproAComplete}
         foreach($path in @($script:LevelFile,$stopFile)){if(Test-Path -LiteralPath $path){throw 'MemWatch tag already used.'}}
         if(@(Get-ChildItem C:/memwatch -File -Filter "intensive-$tag-*.csv").Count){throw 'MemWatch tag CSV exists.'}
         $script:MonitorHash=(Get-FileHash -LiteralPath C:/memwatch/MemWatch.ps1).Hash

@@ -20,8 +20,8 @@ Reject 'traversal' {Assert-ReproOutput 'C:\wb\c1001\..\other\a'} '*strict descen
 Reject 'unknown stage' {Get-ReproSchedule 'C'} '*Unknown reproduction*'
 if(-not(Test-ReproDumpName 'cl.exe.123.dmp' 123) -or -not(Test-ReproDumpName 'cl.exe.123.extra.dmp' 123) -or (Test-ReproDumpName 'cl.exe.1234.dmp' 123) -or (Test-ReproDumpName 'cl.exe.12.dmp' 123)){throw 'Dump PID delimitation failed.'};$checks.Add('dump PID exact')
 Reject 'quota override' {& (Join-Path $PSScriptRoot 'repro-native-compiler.ps1') -LibraryOnly -Iterations 1} '*parameter*Iterations*'
-$a=Get-ReproSchedule A;$b=Get-ReproSchedule B1;$c=Get-ReproSchedule B2
-if($a.count -ne 100 -or $a.parallel -ne 1 -or $b.count -ne 200 -or $b.parallel -ne 4 -or $c.count -ne 100 -or $c.parallel -ne 2){throw 'Quotas differ.'};$checks.Add('quotas fixed')
+$a=Get-ReproSchedule A;$r=Get-ReproSchedule ARemainder;$b=Get-ReproSchedule B1;$c=Get-ReproSchedule B2
+if($a.count -ne 100 -or $a.parallel -ne 1 -or $r.count -ne 36 -or $r.parallel -ne 1 -or $b.count -ne 200 -or $b.parallel -ne 4 -or $c.count -ne 100 -or $c.parallel -ne 2){throw 'Quotas differ.'};$checks.Add('quotas fixed, approved continuation 36')
 $target=Join-Path $evidence 'link-target';New-Item -ItemType Directory -Path $target | Out-Null
 $link=Join-Path $evidence 'junction';New-Item -ItemType Junction -Path $link -Target $target | Out-Null
 Reject 'junction refused' {Assert-NoReparseChain (Join-Path $link 'child') 'fixture'} '*reparse point*'
@@ -49,6 +49,10 @@ foreach($level in @('OK','ALERTE','STOP-LANCEMENTS')){
 }
 [IO.File]::WriteAllText($script:LevelFile,'UNKNOWN',$script:Utf8NoBom)
 Reject 'unknown level' {Get-ReproLevel} '*Invalid MemWatch level*'
+[IO.File]::WriteAllText($script:LevelFile,'',$script:Utf8NoBom)
+Reject 'persistent empty level' {Get-ReproLevel} '*stayed empty for 500 ms*'
+[IO.File]::WriteAllText($script:LevelFile,'INTERROMPRE',$script:Utf8NoBom)
+Reject 'interrupt threshold' {Get-ReproLevel} '*INTERROMPRE*'
 [IO.File]::WriteAllText($script:LevelFile,'OK',$script:Utf8NoBom)
 (Get-Item -LiteralPath $script:LevelFile).LastWriteTimeUtc=[datetime]::UtcNow.AddMinutes(-1)
 Reject 'stale level' {Get-ReproLevel} '*missing or stale*'
@@ -60,6 +64,55 @@ Reject 'monitor identity' {Get-ReproLevel} '*identity lost*';$script:MonitorCrea
 function Get-WinEvent {return @([pscustomobject]@{Id=19;Message='fixture WHEA'})}
 Reject 'WHEA' {Get-ReproLevel} '*MATERIEL A REVERIFIER*'
 function Get-WinEvent {return @()}
+# A writer holds an actually truncated file open, then publishes OK after 150 ms.
+# Its startup occurs before readiness, outside the bounded reader window.
+$writer=Join-Path $evidence 'level-writer.ps1'
+$ready=Join-Path $evidence 'level-writer-ready'
+@'
+param($Level,$Ready)
+$stream=[IO.File]::Open($Level,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
+try{
+    [IO.File]::WriteAllText($Ready,'ready')
+    Start-Sleep -Milliseconds 150
+    $bytes=[Text.Encoding]::UTF8.GetBytes('OK');$stream.Write($bytes);$stream.Flush($true)
+}finally{$stream.Dispose()}
+'@ | Set-Content -LiteralPath $writer -Encoding utf8NoBOM
+$psi=[Diagnostics.ProcessStartInfo]::new((Get-Command pwsh.exe).Source);$psi.UseShellExecute=$false;$psi.CreateNoWindow=$true
+foreach($arg in @('-NoProfile','-NonInteractive','-File',$writer,'-Level',$script:LevelFile,'-Ready',$ready)){$psi.ArgumentList.Add($arg)}
+foreach($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')){$dir=Join-Path $evidence "writer-$name";New-Item -ItemType Directory -Path $dir | Out-Null;$psi.Environment[$name]=$dir}
+$writerProcess=[Diagnostics.Process]::new();$writerProcess.StartInfo=$psi;$writerFamily=$null
+$pendingBefore=@(Get-Content -LiteralPath $script:Journal | ForEach-Object {$_|ConvertFrom-Json}|Where-Object event -EQ LEVEL_WRITE_PENDING).Count
+try{
+    if(-not $writerProcess.Start()){throw 'Level writer did not start.'};$writerFamily=New-VoxPopuliProcessFamily $writerProcess
+    $until=[datetime]::UtcNow.AddSeconds(10)
+    while(-not(Test-Path -LiteralPath $ready)){if($writerProcess.HasExited -or [datetime]::UtcNow -ge $until){throw 'Level writer not ready.'};Start-Sleep -Milliseconds 5}
+    if((Get-ReproLevel) -cne 'OK'){throw 'Valid level not recovered after in-flight publication.'}
+    if(-not $writerProcess.WaitForExit(10000) -or $writerProcess.ExitCode -ne 0){throw 'Level writer failed.'}
+    $pendingEvents=@(Get-Content -LiteralPath $script:Journal | ForEach-Object {$_|ConvertFrom-Json}|Where-Object event -EQ LEVEL_WRITE_PENDING)
+    if($pendingEvents.Count -le $pendingBefore -or @($pendingEvents|Where-Object {$_.data.launchAllowed -ne $false}).Count){throw 'Pending publication did not prohibit launch.'}
+    $checks.Add('concurrent transient publication recovers, no launch while pending')
+}finally{if($null -ne $writerFamily){Stop-VoxPopuliProcessFamily $writerFamily;Close-VoxPopuliProcessFamily $writerFamily};$writerProcess.Dispose()}
+# WHEA stays authoritative while an empty publication is pending.
+[IO.File]::WriteAllText($script:LevelFile,'',$script:Utf8NoBom)
+$script:FixtureWheaReads=0
+function Get-WinEvent {$script:FixtureWheaReads++;if($script:FixtureWheaReads -gt 1){return @([pscustomobject]@{Id=19;Message='pending fixture WHEA'})};return @()}
+Reject 'WHEA during empty publication' {Get-ReproLevel} '*MATERIEL A REVERIFIER*'
+function Get-WinEvent {return @()}
+[IO.File]::WriteAllText($script:LevelFile,'OK',$script:Utf8NoBom)
+$savedLot=$script:Lot;$script:Lot=$evidence
+try{
+    Reject 'continuation without original evidence' {Get-ReproInterruptedAProgress} '*evidence missing*'
+    New-Item -ItemType Directory -Path (Join-Path $evidence 'isolated-A') | Out-Null
+    $fixtureEvents=[Collections.Generic.List[object]]::new()
+    foreach($number in 1..65){$fixtureEvents.Add(@{event='LAUNCH';data=@{index=$number}});$fixtureEvents.Add(@{event='FINISH';data=@{index=$number;exit=if($number -eq 65){-1}else{0};interrupted=($number -eq 65)}})}
+    $fixtureEvents.Add(@{event='STOP';data=@{failure='Invalid MemWatch level.'}});$fixtureEvents.Add(@{event='CLOSED';data=@{cleanupErrors=@()}})
+    $fixtureJournal=Join-Path $evidence 'isolated-A/journal.jsonl'
+    $fixtureEvents | ForEach-Object {$_|ConvertTo-Json -Depth 5 -Compress} | Set-Content -LiteralPath $fixtureJournal -Encoding utf8NoBOM
+    if((Get-ReproInterruptedAProgress) -ne 64){throw 'Qualified continuation count differs.'};$checks.Add('synthetic exact continuation evidence accepted')
+    $fixtureEvents[1].data.index=2
+    $fixtureEvents | ForEach-Object {$_|ConvertTo-Json -Depth 5 -Compress} | Set-Content -LiteralPath $fixtureJournal -Encoding utf8NoBOM
+    Reject 'duplicate continuation index' {Get-ReproInterruptedAProgress} '*incomplete or duplicated*'
+}finally{$script:Lot=$savedLot}
 # A stopped launch must not create its output directory or start the supplied executable.
 $script:OutputRoot=Join-Path $evidence 'outputs';New-Item -ItemType Directory -Path $script:OutputRoot | Out-Null
 $savedLot=$script:Lot;$script:Lot=$evidence

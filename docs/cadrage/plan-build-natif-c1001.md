@@ -1,6 +1,6 @@
-Avancée : lot BUILD-NATIF-C1001 autorisé ; inventaire initial en lecture effectué, aucune compilation lancée.
-Blocage : fidélité de l'environnement cpu8 à vérifier ; WER LocalDumps absent et session non administrateur.
-Décision : dérouler les étapes ci-dessous avec points d'arrêt ; aucune fusion ni installation automatique.
+Avancée : protection préparée et N1 PASS ; environnement reconstruit, essai-0 et prétraitement PASS ; 64 compilations A réussies.
+Blocage : série A arrêtée sur lecture de niveau invalide ; correctif du lecteur et reprise bornée à qualifier.
+Décision : appliquer l'arbitrage utilisateur du 5 novembre ci-dessous ; aucune fusion ni installation automatique.
 
 # BUILD-NATIF-C1001 — plan d'exécution
 
@@ -11,6 +11,10 @@ Demande utilisateur du 5 novembre 2026 : protéger la chaîne puis reproduire C1
 Sept tâches opérationnelles ci-dessous ; trois livrables narratifs au maximum : ce plan, la proposition de protection, le bilan final d'une page `docs/architecture/BUILD-NATIF-C1001-BILAN.md`. Données détaillées, journaux et code de recette vont dans les preuves archivées. Aucune modification Rust produit/Cargo.lock. La session principale écrit les documents et commite localement ; un reviewer indépendant, en lecture seule, examine chaque delta et conclusion, au plus deux cycles par livrable.
 
 Quotas distincts : essai-0 une fois, prétraitement `/P` une fois ; A 100 et B1 200 compilations isolées, B2 100 supplémentaires conditionnelles ; trois constructions CPU complètes, deux GPU, dix N2. Les quotas ne sont pas des objectifs à épuiser. Une erreur attendue de compilation dans une série de reproduction est une observation conservée ; elle n'autorise ni relance individuelle cachée ni passage à l'étape 4. Toute autre erreur de préparation/qualification provoque l'arrêt prévu, sauf la seconde exécution N1 et l'unique nouvelle tentative de crash CPU explicitement prévues par le mandat.
+
+Arbitrages précis reçus dans cette session : reconstruire INCLUDE/LIB/PATH depuis les outils épinglés en les qualifiant de reconstruits ; ajouter les sept tests existants au registre sur main puis build-natif ; après l'échec JSON de l'auto-test, copier uniquement l'environnement journalisé en table de chaînes avec une revue supplémentaire et une reprise. Ces vérifications ont passé ; aucun changement de la garde.
+
+Arbitrage après l'arrêt A du 5 novembre à 19:27 Paris : diagnostic sur fichier factice, puis correction du lecteur si la publication transitoirement vide est confirmée, revue et contrôles avant reprise. Le test factice confirme cette possibilité, pas la valeur historique non enregistrée. Aucun lancement sans niveau frais valide ; attente d'une publication vide limitée à 500 ms avec contrôles WHEA/surveillance actifs, arrêt si elle persiste, et refus immédiat des autres états invalides. Préserver les 64 succès et le lancement 65 interrompu ; autoriser **36 unités neuves ARemainder**, puis B1 200. Le plafond des séries A+B1 devient **301 lancements**, dont un interrompu ; B2 conserve son quota conditionnel distinct. Aucun redémarrage intégral de A. La borne horaire reste 22:54:46 Paris.
 
 ## Surveillance et protections communes
 
