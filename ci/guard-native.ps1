@@ -5,7 +5,9 @@ param(
     [string]$Profile,
     [string]$ValuesJson,
     [string]$LotRoot = 'target/n2-native',
-    [switch]$DryRun
+    [switch]$DryRun,
+    [ValidatePattern('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$')][string]$NativeBuildId,
+    [switch]$NativePrepareOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +21,7 @@ $script:Lot = $null
 $script:RunRoot = $null
 $script:LogRoot = $null
 $script:Utf8NoBom = [Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'native-workspace.ps1')
 $script:AllowedReadRoots = @(
     $script:Repo,
     'C:\dev\whisper\target\parakeet-tests',
@@ -99,6 +102,7 @@ function Test-ProgramW6432ProfileId([string]$ProfileId) {
     return $ProfileId -cin @(
         'GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports',
         'PersonalUnified','PersonalUnifiedGpuOnly',
+        'NativeClosureGpuReference','NativeClosureGpuRebuilt',
         'ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong',
         'ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong',
         'NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness'
@@ -347,6 +351,77 @@ function Assert-ProfileFeatureScope([object]$Profile) {
     }
 }
 
+function Get-NativeClosurePinName([string]$Id) {
+    switch -CaseSensitive ($Id) {
+        'NativeClosureCpuReference' { 'reference' }
+        'NativeClosureGpuReference' { 'reference' }
+        'NativeClosureCpuRebuilt' { 'cpu' }
+        'NativeClosureGpuRebuilt' { 'gpu' }
+        default { throw 'Unknown native closure profile.' }
+    }
+}
+
+function Assert-NativeClosureProfile([object]$Profile,[object]$Template) {
+    if ($Profile.id -cnotmatch '^NativeClosure') { return }
+    $pin=Get-NativeClosurePinName $Profile.id
+    if ($Profile.runtimePin -cne "native/runtime-pins/$pin.json") { throw 'Native closure runtime pin path differs.' }
+    $gpu=$Profile.id -cmatch '^NativeClosureGpu'
+    $expected=@($Template.cases | Where-Object { ($_.exactTest -cmatch '_gpu_') -eq $gpu })
+    foreach ($name in @('status','operation','package','features','compileEnvironment','inputs','values','outputs')) {
+        if (($Profile.$name | ConvertTo-Json -Depth 8 -Compress) -cne ($Template.$name | ConvertTo-Json -Depth 8 -Compress)) { throw "Native closure descriptor differs: $name" }
+    }
+    if (($Profile.cases | ConvertTo-Json -Depth 8 -Compress) -cne ($expected | ConvertTo-Json -Depth 8 -Compress)) { throw 'Native closure exact cases differ.' }
+    $staging=$Template.staging | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    $staging[0].requiredBytes=1
+    if (($Profile.staging | ConvertTo-Json -Depth 8 -Compress) -cne ($staging | ConvertTo-Json -Depth 8 -Compress)) { throw 'Native closure staging descriptor differs.' }
+}
+
+function Read-NativeClosurePin([string]$Name) {
+    if ($Name -cnotin @('reference','cpu','gpu')) { throw 'Unknown native runtime pin.' }
+    $relative="native/runtime-pins/$Name.json"
+    $path=Join-Path $script:Repo $relative
+    Assert-NoReparseChain $path 'persistent native runtime pin'
+    $tracked=@(& git.exe --no-optional-locks -C $script:Repo ls-files --error-unmatch -- $relative 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $tracked.Count -ne 1) { throw "Persistent runtime pin is missing or unversioned: $relative" }
+    & git.exe --no-optional-locks -C $script:Repo diff --quiet HEAD -- $relative
+    if ($LASTEXITCODE -ne 0) { throw "Persistent runtime pin differs from HEAD: $relative" }
+    $pin=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    if ($pin.schemaVersion -ne 1 -or $pin.id -cne $Name -or @($pin.files).Count -ne 21) { throw 'Native runtime pin schema/count/id differs.' }
+    $map=@{}; $total=[long]0
+    foreach ($file in $pin.files) {
+        $key=(Get-SafeRelativePath ([string]$file.path) 'native runtime pin').Replace('\','/').ToLowerInvariant()
+        if ($map.ContainsKey($key) -or [long]$file.bytes -le 0 -or $file.sha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid/duplicate native runtime pin file.' }
+        $map[$key]=$file; $total+=[long]$file.bytes
+    }
+    if ([long]$pin.totalBytes -ne $total) { throw 'Native runtime pin total differs.' }
+    return [pscustomobject]@{document=$pin;files=$map;totalBytes=$total}
+}
+
+function Assert-NativeClosurePayload([object]$pin,[object]$reference,[string]$name,[object[]]$files) {
+    if ($name -ne 'reference' -and $pin.document.llamaCommit -cne 'bd4f514db14d87fded667787a7a963bfbaa98e89') { throw 'Rebuilt runtime source commit differs.' }
+    $allowed=@('ggml-base.dll','ggml-cpu.dll','ggml.dll','nemo_speech_asr.dll','nemo_speech_asr_c.dll')
+    if ($name -eq 'gpu') { $allowed+='ggml-cuda.dll' }
+    foreach ($key in $reference.files.Keys) {
+        if (-not $pin.files.ContainsKey($key)) { throw 'Native runtime pin file names differ.' }
+        $old=$reference.files[$key]; $new=$pin.files[$key]
+        $replacement=$name -ne 'reference' -and $key -cin @($allowed | ForEach-Object { "native/$name/$_" })
+        if (-not $replacement -and ($old.sha256 -cne $new.sha256 -or $old.bytes -ne $new.bytes)) { throw "Native runtime changed a protected payload: $key" }
+    }
+    if ($files.Count -ne 21) { throw 'Native runtime input count differs from persistent pin.' }
+    foreach ($file in $files) {
+        $key=([string]$file.path).Replace('\','/').ToLowerInvariant()
+        if (-not $pin.files.ContainsKey($key) -or $pin.files[$key].sha256 -cne $file.sha256 -or $pin.files[$key].bytes -ne $file.bytes) { throw "Native runtime input differs from persistent pin: $key" }
+    }
+}
+
+function Assert-NativeClosureValues([object]$Profile,[hashtable]$Inputs) {
+    if ($Profile.id -cnotmatch '^NativeClosure') { return }
+    $name=Get-NativeClosurePinName $Profile.id
+    $pin=Read-NativeClosurePin $name; $reference=Read-NativeClosurePin 'reference'
+    Assert-NativeClosurePayload $pin $reference $name @($Inputs.personalRuntime.files)
+    $Profile.staging[0].requiredBytes=$pin.totalBytes
+}
+
 function Get-ProfileRegistry {
     if (-not (Test-Path -LiteralPath $script:ProfilesPath -PathType Leaf)) { throw "Profile registry is missing: $script:ProfilesPath" }
     Assert-NoReparseChain $script:ProfilesPath 'profile registry'
@@ -375,6 +450,7 @@ function Get-ProfileRegistry {
         foreach ($feature in @($profile.features)) { if (-not $featureSet.Contains([string]$feature)) { throw "Unapproved feature '$feature' in profile $($profile.id)." } }
         Assert-ProfileFeatureScope $profile
         Assert-VoxPopuliProfileContract $profile
+        Assert-NativeClosureProfile $profile (@($registry.profiles | Where-Object id -CEQ 'PersonalUnified')[0])
         foreach ($entry in @($profile.compileEnvironment)) {
             $name = [string]$entry.name
             if (-not $script:AllowedCompileEnvironment.ContainsKey($name) -or [string]$entry.value -cne $script:AllowedCompileEnvironment[$name]) {
@@ -1029,6 +1105,7 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
         }
     }
     Assert-VoxPopuliValues $Profile $assetMap
+    Assert-NativeClosureValues $Profile $assetMap
     return [pscustomobject]@{ inputs = $assetMap; values = $valuesDoc.values }
 }
 
@@ -1457,6 +1534,58 @@ function Get-RunWatchSpecs([string]$Lot) {
     return @($specs | Where-Object { $unique.Add("$($_.path)|$($_.recursive)") })
 }
 
+function Initialize-NativeDirectoryWatch([string]$TempRoot) {
+    if ('Whisper.NativeWatch.Collector' -as [type]) { return }
+    if (-not (Test-InRoot $TempRoot $script:Lot)) { throw 'Native collector compiler temporaries must remain under the lot.' }
+    Assert-NoReparseChain $TempRoot 'native collector compiler temporary root'
+    New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
+    $source=Join-Path $PSScriptRoot 'native-directory-watch.cs'
+    Assert-NoReparseChain $source 'native notification source'
+    $controlSource=Join-Path $PSScriptRoot 'native-build-control.cs'
+    Assert-NoReparseChain $controlSource 'native build control source'
+    $previousTemp=$env:TEMP; $previousTmp=$env:TMP
+    try {
+        $env:TEMP=$TempRoot; $env:TMP=$TempRoot
+        Add-Type -Path @($source,$controlSource) -ErrorAction Stop
+    } finally { $env:TEMP=$previousTemp; $env:TMP=$previousTmp }
+}
+
+function Start-NativeBuildWatchState([object[]]$Specs, [string]$LogRoot) {
+    Initialize-NativeDirectoryWatch (Join-Path $LogRoot 'collector-temp')
+    $roots=[string[]]@($Specs | ForEach-Object { Assert-NoReparseChain $_.path 'native watcher root'; [string]$_.path })
+    $recursive=[bool[]]@($Specs | ForEach-Object { [bool]$_.recursive })
+    $collector=[Whisper.NativeWatch.Collector]::new($roots,$recursive)
+    return [pscustomobject]@{
+        queue=[Collections.Concurrent.ConcurrentQueue[object]]::new()
+        nativeCollector=$collector; nativeLogRoot=$LogRoot; nativeStopped=$false
+        watchers=@(); subscriptions=@()
+    }
+}
+
+function Receive-NativeBuildWatchEvents([object]$State) {
+    $snapshot=$State.nativeCollector.Drain()
+    # One immutable snapshot is the boundary. Never wait for a later half or infer its path.
+    if ($snapshot.Records.Count -gt 0) {
+        Write-JsonLine (Join-Path $State.nativeLogRoot 'watcher-native-records.jsonl') $snapshot
+    }
+    foreach ($observation in $snapshot.Events) {
+        $records=@($observation.Records)
+        $newRecord=if ($observation.Type -eq 'Renamed') { $records[1] } else { $records[0] }
+        $oldRecord=if ($observation.Type -eq 'Renamed') { $records[0] } else { $null }
+        $raw=[ordered]@{
+            watcher_root=$newRecord.Root; args_type='Win32.FILE_NOTIFY_EXTENDED_INFORMATION'
+            raw_name=$newRecord.Name; name_is_null=($null -eq $newRecord.Name); name_is_empty=($newRecord.Name -ceq '')
+            raw_old_name=if ($null -ne $oldRecord) { $oldRecord.Name } else { $null }
+            file_id=$newRecord.FileId.ToString('x16'); volume=$newRecord.Volume; session=$newRecord.Session
+            drain=$snapshot.Drain; records=$records
+        }
+        $State.queue.Enqueue([pscustomobject]@{
+            path=$observation.Path; old_path=$observation.OldPath; type=$observation.Type
+            at=$observation.At; detail=$observation.Detail; raw_event=$raw
+        })
+    }
+}
+
 function Start-WatchState([object[]]$Specs) {
     $queue = [Collections.Concurrent.ConcurrentQueue[object]]::new()
     $watchers = [Collections.Generic.List[IO.FileSystemWatcher]]::new()
@@ -1477,18 +1606,37 @@ function Start-WatchState([object[]]$Specs) {
     return [pscustomobject]@{ queue=$queue; watchers=$watchers; subscriptions=$subscriptions }
 }
 
+function Get-WatcherObservation([object]$EventArgs, [string]$WatcherRoot) {
+    $isFileEvent = $EventArgs -is [IO.FileSystemEventArgs]
+    $isRename = $EventArgs -is [IO.RenamedEventArgs]
+    $name = if ($isFileEvent) { $EventArgs.Name } else { $null }
+    $oldName = if ($isRename) { $EventArgs.OldName } else { $null }
+    return [ordered]@{
+        watcher_root=$WatcherRoot; args_type=$EventArgs.GetType().FullName
+        name_applicable=$isFileEvent; raw_name=$name
+        name_is_null=($isFileEvent -and $null -eq $name)
+        name_is_empty=($isFileEvent -and $null -ne $name -and $name.Length -eq 0)
+        old_name_applicable=$isRename; raw_old_name=$oldName
+        old_name_is_null=($isRename -and $null -eq $oldName)
+        old_name_is_empty=($isRename -and $null -ne $oldName -and $oldName.Length -eq 0)
+    }
+}
+
 function Receive-WatcherEvents([object]$State) {
     if ($null -eq $State) { return }
+    if ($State.PSObject.Properties['nativeCollector']) { Receive-NativeBuildWatchEvents $State; return }
     $subscribers = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($id in $State.subscriptions) { [void]$subscribers.Add([string]$id) }
     foreach ($eventRecord in @(Get-Event -ErrorAction SilentlyContinue | Where-Object { $subscribers.Contains([string]$_.SourceIdentifier) })) {
         $args = $eventRecord.SourceEventArgs
+        $observation = Get-WatcherObservation $args ([string]$eventRecord.Sender.Path)
+        $observation.source_identifier = [string]$eventRecord.SourceIdentifier
         if ($args -is [IO.ErrorEventArgs]) {
-            $State.queue.Enqueue([pscustomobject]@{ path=''; old_path=''; type='WatcherError'; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=$args.GetException().Message })
+            $State.queue.Enqueue([pscustomobject]@{ path=''; old_path=''; type='WatcherError'; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=$args.GetException().Message; raw_event=$observation })
         } else {
             $type = ($eventRecord.SourceIdentifier -split '-',3)[1]
             $oldPath = if ($args -is [IO.RenamedEventArgs]) { $args.OldFullPath } else { '' }
-            $State.queue.Enqueue([pscustomobject]@{ path=$args.FullPath; old_path=$oldPath; type=$type; at=[DateTimeOffset]::UtcNow.ToString('o'); detail='' })
+            $State.queue.Enqueue([pscustomobject]@{ path=$args.FullPath; old_path=$oldPath; type=$type; at=[DateTimeOffset]::UtcNow.ToString('o'); detail=''; raw_event=$observation })
         }
         Remove-Event -EventIdentifier $eventRecord.EventIdentifier -ErrorAction SilentlyContinue
     }
@@ -1496,6 +1644,14 @@ function Receive-WatcherEvents([object]$State) {
 
 function Stop-WatchState([object]$State) {
     if ($null -eq $State) { return }
+    if ($State.PSObject.Properties['nativeCollector']) {
+        if (-not $State.nativeStopped) {
+            $State.nativeCollector.Dispose()
+            $State.nativeStopped=$true
+        }
+        if (-not $State.PSObject.Properties['nativeControl']) { Receive-NativeBuildWatchEvents $State }
+        return
+    }
     foreach ($watcher in $State.watchers) { try { $watcher.EnableRaisingEvents = $false } catch { } }
     Start-Sleep -Milliseconds 120
     Receive-WatcherEvents $State
@@ -1947,17 +2103,29 @@ function Invoke-VoxPopuliContractSelfTests([object]$Registry, [string]$Lot) {
 }
 
 function Drain-WatcherEvents([object]$State, [string[]]$AllowedRoots, [string[]]$ProtectedRoots, [string]$UserTemp, [Diagnostics.Process]$Process, [string]$Mode, [string]$LogRoot, [object]$ProcessFamily = $null) {
+    if ($Mode -ceq 'NativeBuild' -and $State.PSObject.Properties['nativeControl']) {
+        $violation=$State.nativeControl.Process($State.nativeCollector.Drain())
+        if ($null -ne $violation) {
+            if ($null -ne $ProcessFamily) { Stop-VoxPopuliProcessFamily $ProcessFamily } else { Stop-CargoProcessTree $Process }
+            throw "Native campaign guard stopped on $($violation.Type) at '$($violation.Path)' (event $($violation.At)); see $LogRoot\guard-events.jsonl"
+        }
+        return
+    }
     Receive-WatcherEvents $State
     $event = $null
     while ($State.queue.TryDequeue([ref]$event)) {
         $disposition = Get-EventDisposition $event $AllowedRoots $ProtectedRoots $UserTemp
+        $rawEvent = if ($event.PSObject.Properties.Name -contains 'raw_event') { $event.raw_event } else { $null }
+        if ($Mode -ceq 'NativeBuild') {
+            Write-JsonLine (Join-Path $LogRoot 'watcher-events.jsonl') ([ordered]@{mode=$Mode;path=$event.path;old_path=$event.old_path;event=$event.type;event_at=$event.at;disposition=$disposition;raw_event=$rawEvent})
+        }
         if ($disposition -eq 'UNATTRIBUTED_TEMP') {
-            Write-JsonLine (Join-Path $LogRoot 'unattributed-temp.jsonl') ([ordered]@{ mode=$Mode; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); attribution='UNATTRIBUTED'; detail=$event.detail })
+            Write-JsonLine (Join-Path $LogRoot 'unattributed-temp.jsonl') ([ordered]@{ mode=$Mode; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); attribution='UNATTRIBUTED'; detail=$event.detail; raw_event=$rawEvent })
             $event = $null
             continue
         }
         if ($disposition -eq 'VIOLATION') {
-            $record = [ordered]@{ mode=$Mode; status='FAIL'; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); action='campaign-process-tree-terminated'; detail=$event.detail }
+            $record = [ordered]@{ mode=$Mode; status='FAIL'; path=$event.path; old_path=$event.old_path; event=$event.type; event_at=$event.at; detected_at=[DateTimeOffset]::UtcNow.ToString('o'); action='campaign-process-tree-terminated'; detail=$event.detail; raw_event=$rawEvent }
             Write-JsonLine (Join-Path $LogRoot 'guard-events.jsonl') $record
             if ($null -ne $ProcessFamily) { Stop-VoxPopuliProcessFamily $ProcessFamily } else { Stop-CargoProcessTree $Process }
             throw "Native campaign guard stopped on $($event.type) at '$($event.path)' (event $($event.at)); see $LogRoot\guard-events.jsonl"
@@ -2833,6 +3001,35 @@ function Invoke-StagingSelfTests([string]$Lot) {
 }
 
 function Invoke-SelfTests([object]$Registry, [string]$Lot) {
+    $closureTemplate=Get-Profile $Registry 'PersonalUnified'
+    foreach ($id in @('NativeClosureCpuReference','NativeClosureCpuRebuilt','NativeClosureGpuReference','NativeClosureGpuRebuilt')) {
+        $closure=Get-Profile $Registry $id
+        Assert-NativeClosureProfile $closure $closureTemplate
+        foreach ($field in @('runtimePin','package')) {
+            $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+            $bad.$field='unapproved'
+            Test-Rejects "closure profile $id $field" { Assert-NativeClosureProfile $bad $closureTemplate }
+        }
+        $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+        $bad.cases[0].exactTest='arbitrary_test'
+        Test-Rejects "closure profile $id selector" { Assert-NativeClosureProfile $bad $closureTemplate }
+        $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+        $bad.staging[0].requiredBytes=2
+        Test-Rejects "closure profile $id byte override" { Assert-NativeClosureProfile $bad $closureTemplate }
+    }
+    Test-Rejects 'unknown closure pin' { Get-NativeClosurePinName 'NativeClosureUnknown' }
+    Test-Rejects 'unknown persistent pin' { Read-NativeClosurePin '../outside' }
+    $referencePin=Read-NativeClosurePin 'reference'
+    Assert-NativeClosurePayload $referencePin $referencePin 'reference' @($referencePin.files.Values)
+    foreach ($variant in @('cpu','gpu')) {
+        $replacement=$referencePin | ConvertTo-Json -Depth 12 | ConvertFrom-Json -AsHashtable
+        $replacement.document.llamaCommit='bd4f514db14d87fded667787a7a963bfbaa98e89'
+        $replacement.files["native/$variant/ggml-base.dll"].sha256='0'*64
+        Assert-NativeClosurePayload $replacement $referencePin $variant @($replacement.files.Values)
+        $replacement.files['worker/whisper-worker-parakeet-cpu.exe'].sha256='1'*64
+        Test-Rejects "closure $variant changed worker" { Assert-NativeClosurePayload $replacement $referencePin $variant @($replacement.files.Values) }
+    }
+    Test-Rejects 'closure input missing file' { Assert-NativeClosurePayload $referencePin $referencePin 'reference' @($referencePin.files.Values | Select-Object -First 20) }
     $processInfoFunction = Get-Command New-NvidiaDiagnosticProcessInfo -CommandType Function -ErrorAction Stop
     $functionTokens = $null; $functionParseErrors = $null
     $processInfoAst = [System.Management.Automation.Language.Parser]::ParseInput($processInfoFunction.Definition,[ref]$functionTokens,[ref]$functionParseErrors)
@@ -3012,11 +3209,11 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         $validatedProgramW = Get-ValidatedProgramW6432Directory
         $programWEnvironment = @{} + $syntheticEnvironment
         $programWEnvironment['ProgramW6432'] = $validatedProgramW
-        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong')) {
+        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','NativeClosureGpuReference','NativeClosureGpuRebuilt','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong')) {
             $profilePsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $programWEnvironment $syntheticVs $syntheticRunRoot $profileId
             if (-not $profilePsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$profilePsi.EnvironmentVariables['ProgramW6432'] -ine $validatedProgramW) { throw "Authorized GPU profile did not pass validated ProgramW6432: $profileId" }
         }
-        foreach ($profileId in @('TurboCpu','PersonalAutoFallback','PersonalLongCpu','PreparationNoRun')) {
+        foreach ($profileId in @('TurboCpu','PersonalAutoFallback','NativeClosureCpuReference','NativeClosureCpuRebuilt','PersonalLongCpu','PreparationNoRun')) {
             $profilePsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $syntheticEnvironment $syntheticVs $syntheticRunRoot $profileId
             if ($profilePsi.EnvironmentVariables.ContainsKey('ProgramW6432')) { throw "Non-GPU profile inherited ProgramW6432 through the Visual Studio environment: $profileId" }
         }
@@ -3039,10 +3236,10 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     foreach ($name in @('package','features','inputs','values','outputs','staging')) {
         if ((ConvertTo-Json -InputObject $personalUnifiedProfile.$name -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $personalGpuOnlyProfile.$name -Depth 12 -Compress)) { throw "PersonalUnifiedGpuOnly differs from PersonalUnified $name." }
     }
-    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
+    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','NativeClosureGpuReference','NativeClosureGpuRebuilt','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
         if (-not (Test-ProgramW6432ProfileId $profileId)) { throw "Approved ProgramW6432 profile is not on the exact allowlist: $profileId" }
     }
-    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','PersonalLongCpu','ParakeetGpuPreparation','ParakeetGpuInventory')) {
+    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','NativeClosureCpuReference','NativeClosureCpuRebuilt','PersonalLongCpu','ParakeetGpuPreparation','ParakeetGpuInventory')) {
         if (Test-ProgramW6432ProfileId $profileId) { throw "Non-GPU or pending profile entered the ProgramW6432 allowlist: $profileId" }
     }
     $nvidiaDiagnosticProfile = Get-Profile $Registry 'NvidiaSmiInventoryDiagnostic'
@@ -3374,7 +3571,256 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
     return [pscustomobject]@{ profile=$Profile.id; status=$status; cases=@($caseResults.ToArray()); staging=@($stagingEvidence); runRoot=$script:RunRoot; logs=$script:LogRoot }
 }
 
+function Assert-NativeBuildProfile([object]$Entry) {
+    $variant = switch -CaseSensitive ([string]$Entry.id) { 'NativeDllCpu' { 'cpu' }; 'NativeDllGpu' { 'gpu' }; default { throw 'Unknown native DLL build profile.' } }
+    $keys = @($Entry.PSObject.Properties.Name | Sort-Object) -join '|'
+    if ($keys -cne 'cache|id|outputs|script|timeoutSeconds|variant|workspace' -or $Entry.workspace -cne "C:/wb/native/$variant" -or $Entry.variant -cne $variant -or $Entry.script -cne 'ci/build-native.ps1' -or $Entry.cache -cne 'native/cache' -or $Entry.outputs -cne 'target/native-build' -or $Entry.timeoutSeconds -ne 3600) {
+        throw 'Native DLL build profile differs from its bounded contract.'
+    }
+}
+
+function Get-NativeBuildProfile([string]$Id) {
+    $registry = Get-Content -LiteralPath $script:ProfilesPath -Raw | ConvertFrom-Json
+    $entries = @($registry.nativeBuildProfiles)
+    if ($registry.schemaVersion -ne 1 -or $entries.Count -ne 2) { throw 'Expected exactly two native DLL build profiles.' }
+    foreach ($entry in $entries) { Assert-NativeBuildProfile $entry }
+    $selected = @($entries | Where-Object id -CEQ $Id)
+    if ($selected.Count -ne 1) { throw 'Native DLL build profile is missing or duplicated.' }
+    return $selected[0]
+}
+
+function New-NativeBuildProcessInfo([object]$Entry, [string]$BuildId, [string]$Root, [string]$Probe = '') {
+    Assert-NativeBuildProfile $Entry
+    if ($BuildId -cnotmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$') { throw 'Native DLL build identifier is invalid.' }
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = Join-Path $PSHOME 'pwsh.exe'
+    $fullRoot=Get-FullPath $Root
+    if ($fullRoot -ieq $script:Lot -or -not (Test-InRoot $fullRoot $script:Lot)) { throw 'Native DLL working directory must be a child of the declared execution root.' }
+    Assert-NoReparseChain $fullRoot 'native DLL working directory'
+    $psi.WorkingDirectory = $fullRoot
+    $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true
+    $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
+    $childScript = Get-FullPath (Join-Path $script:Repo $Entry.script)
+    Assert-NoReparseChain $childScript 'native DLL build script'
+    foreach ($arg in @('-NoLogo','-NoProfile','-NonInteractive','-File',$childScript)) { $psi.ArgumentList.Add($arg) }
+    if ($Probe -eq 'SelfTest') { $psi.ArgumentList.Add('-SelfTest') }
+    else {
+        foreach ($arg in @('-Variant',[string]$Entry.variant,'-BuildId',$BuildId)) { $psi.ArgumentList.Add($arg) }
+        if ($NativePrepareOnly) { $psi.ArgumentList.Add('-PrepareOnly') }
+    }
+    if ($Probe -notin @('','SelfTest','InvalidParent')) { throw 'Unknown native DLL build probe.' }
+    $psi.Environment.Clear()
+    foreach ($name in @('SystemRoot','WINDIR','SystemDrive','ComSpec','PATHEXT','OS','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','ProgramFiles','ProgramFiles(x86)','ProgramW6432')) {
+        $value=[Environment]::GetEnvironmentVariable($name,'Process')
+        if ($value) { $psi.Environment[$name]=$value }
+    }
+    $gitDirectory = Split-Path (Get-Command git.exe -ErrorAction Stop).Source
+    $psi.Environment['PATH'] = (@($gitDirectory,$PSHOME,(Join-Path $env:SystemRoot 'System32'),$env:SystemRoot) -join ';')
+    foreach ($name in @('TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','HOME')) { $psi.Environment[$name]=Join-Path $Root $name.ToLowerInvariant() }
+    $psi.Environment['CARGO_INCREMENTAL']='0'
+    $psi.Environment['CARGO_PROFILE_DEV_DEBUG']='line-tables-only'
+    $psi.Environment['WHISPER_NATIVE_BUILD_GUARD_PID'] = if ($Probe -eq 'InvalidParent') { '1' } else { [string]$PID }
+    $psi.Environment['WHISPER_NATIVE_BUILD_VARIANT']=[string]$Entry.variant
+    $psi.Environment['WHISPER_NATIVE_BUILD_ID']=$BuildId
+    $psi.Environment['WHISPER_NATIVE_BUILD_SCRIPT_SHA256']=Get-Sha256 $childScript
+    return $psi
+}
+
+function Complete-NativeBuildCleanup([scriptblock[]]$Actions, [object]$Record, [string]$Root) {
+    $errors=[Collections.Generic.List[string]]::new()
+    foreach ($action in $Actions) {
+        try { & $action } catch { $errors.Add($_.Exception.Message) }
+    }
+    if ($errors.Count -gt 0) {
+        $Record.status='FAIL'
+        $Record.cleanupFailures=$errors.ToArray()
+    }
+    $Record.finishedUtc=[DateTimeOffset]::UtcNow.ToString('o')
+    $Record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Root 'guard-result.json') -Encoding utf8
+    # Do not replace an exception already propagating through the caller's finally.
+    if ($errors.Count -gt 0 -and -not $Record.Contains('failure')) { throw "NativeBuild cleanup failed: $($errors -join '; ')" }
+}
+
+function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Root, [string]$CacheRoot, [string]$Probe = '') {
+    $psi=New-NativeBuildProcessInfo $Entry $BuildId $Root $Probe
+    $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
+    $queue=[Collections.Concurrent.ConcurrentQueue[object]]::new()
+    $outLines=[Collections.Generic.List[string]]::new(); $errLines=[Collections.Generic.List[string]]::new()
+    $stdoutEof=$false; $stderrEof=$false; $watch=$null; $capture=$null; $started=$false
+    $outWriter=$null; $errWriter=$null
+    $before=Get-GitState $script:Repo
+    $userTemp=Join-Path $env:LOCALAPPDATA 'Temp'
+    $allowed=@($script:Lot,$CacheRoot)
+    $workspace=$null
+    if (-not $Probe -and -not $NativePrepareOnly) {
+        $workspace=Initialize-NativeWorkspace $Entry.variant $BuildId $Root
+        $allowed+=@($workspace)
+    }
+    $protected=@((Join-Path $script:Repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved')
+    $record=[ordered]@{profile=$Entry.id;variant=$Entry.variant;buildId=$BuildId;probe=$Probe;status='STARTED';startedUtc=[DateTimeOffset]::UtcNow.ToString('o');stdout=(Join-Path $Root 'stdout.log');stderr=(Join-Path $Root 'stderr.log');allowedRoots=$allowed;sourceScriptSha256=(Get-Sha256 (Join-Path $script:Repo $Entry.script))}
+    try {
+        $specs=[Collections.Generic.List[object]]::new()
+        foreach ($spec in @(Get-RunWatchSpecs $script:Lot)) { $specs.Add($spec) }
+        if ($workspace) {
+            Register-Watch $specs $workspace $true
+            Register-Watch $specs (Split-Path -Parent $workspace) $false
+        }
+        $watch=Start-NativeBuildWatchState $specs $Root
+        $watch | Add-Member -NotePropertyName nativeControl -NotePropertyValue ([Whisper.NativeBuild.Control]::new([string[]]$allowed,[string[]]$protected,$userTemp,$Root))
+        $capture=Register-ProcessStreamHandlers $process $queue
+        $outWriter=[IO.StreamWriter]::new($record.stdout,$false,$script:Utf8NoBom)
+        $errWriter=[IO.StreamWriter]::new($record.stderr,$false,$script:Utf8NoBom)
+        if (-not $process.Start()) { throw 'Could not start pinned native build script.' }
+        $started=$true; $record.processId=$process.Id
+        $process.BeginOutputReadLine(); $process.BeginErrorReadLine()
+        $deadline=[DateTimeOffset]::UtcNow.AddSeconds([int]$Entry.timeoutSeconds)
+        while (-not $process.HasExited) {
+            Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root
+            Receive-ProcessOutput $queue $outWriter $errWriter $outLines $errLines ([ref]$stdoutEof) ([ref]$stderrEof)
+            if ([DateTimeOffset]::UtcNow -ge $deadline) { throw 'Native DLL build exceeded its one-hour command budget.' }
+            Start-Sleep -Milliseconds 100
+        }
+        $process.WaitForExit(); $record.exitCode=$process.ExitCode
+        $streamDeadline=[DateTimeOffset]::UtcNow.AddSeconds(10)
+        while (-not ($stdoutEof -and $stderrEof)) {
+            Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root
+            Receive-ProcessOutput $queue $outWriter $errWriter $outLines $errLines ([ref]$stdoutEof) ([ref]$stderrEof)
+            if ([DateTimeOffset]::UtcNow -ge $streamDeadline) { throw 'Native DLL build output did not close within ten seconds.' }
+            Start-Sleep -Milliseconds 25
+        }
+        Stop-WatchState $watch
+        Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root
+        $watch.nativeControl.Dispose()
+        $watch=$null
+        $after=Get-GitState $script:Repo
+        if ($before.head -cne $after.head -or $before.status -cne $after.status) { throw 'Candidate HEAD or tracked/untracked status changed during native DLL build.' }
+        $expectedExit=if ($Probe -eq 'InvalidParent') { 1 } else { 0 }
+        if ($record.exitCode -ne $expectedExit) { throw "Native DLL build failed (exit $($record.exitCode)); see $Root." }
+        if ($Probe -eq 'InvalidParent' -and ($errLines -join "`n") -notmatch 'actual parent process') { throw 'Invalid-parent negative control failed for an unrelated reason.' }
+        $record.status='PASS'
+        return [pscustomobject]$record
+    } catch {
+        $record.status='FAIL'; $record.failure=$_.Exception.Message
+        if ($started -and -not $process.HasExited) { Stop-CargoProcessTree $process }
+        throw
+    } finally {
+        Complete-NativeBuildCleanup @(
+            { if ($null -ne $watch) { Stop-WatchState $watch } },
+            { if ($null -ne $watch) { Drain-WatcherEvents $watch $allowed $protected $userTemp $process 'NativeBuild' $Root } },
+            { if ($null -ne $watch -and $watch.PSObject.Properties['nativeControl']) { $watch.nativeControl.Dispose() } },
+            { Remove-ProcessStreamHandlers $capture },
+            { if ($null -ne $capture) { Assert-NoProcessStreamHandlers $capture } },
+            { if ($null -ne $outWriter) { $outWriter.Dispose() } },
+            { if ($null -ne $errWriter) { $errWriter.Dispose() } },
+            { $process.Dispose() }
+        ) $record $Root
+    }
+}
+
+function Invoke-NativeBuildEntry {
+    $entry=Get-NativeBuildProfile $Profile
+    $expectedLot=Get-FullPath (Join-Path $script:Repo $entry.outputs)
+    $script:Lot=Get-FullPath (Join-Path $script:Repo $LotRoot)
+    if ($script:Lot -ine $expectedLot) { throw 'Native DLL build requires exact target/native-build root.' }
+    if ($ValuesJson -or $Mode -notin @('SelfTest','Preflight','Run')) { throw 'Native DLL build accepts only bounded modes, without ValuesJson.' }
+    $cache=Get-FullPath (Join-Path $script:Repo $entry.cache)
+    foreach ($path in @($cache,$script:Lot)) { Assert-NoReparseChain $path 'native DLL build root' }
+    Assert-FreeSpace
+    if ($Mode -eq 'Preflight' -or $DryRun) {
+        if (-not $NativeBuildId) { throw 'Native DLL build identifier is required.' }
+        $null=New-NativeBuildProcessInfo $entry $NativeBuildId (Join-Path $script:Lot 'guard/preflight')
+        "NATIVE_BUILD_PREFLIGHT profile=$Profile cache=$cache outputs=$script:Lot childStarted=false"
+        return
+    }
+    New-Item -ItemType Directory -Path $script:Lot,$cache -Force | Out-Null
+    if ($Mode -eq 'SelfTest') {
+        $root=Join-Path $script:Lot ('guard/selftest-'+[guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $root -Force | Out-Null
+        foreach ($change in @('variant','script','cache','outputs','timeoutSeconds','workspace')) {
+            $bad=$entry | ConvertTo-Json | ConvertFrom-Json
+            if ($change -eq 'timeoutSeconds') { $bad.$change=3601 } else { $bad.$change='unapproved' }
+            Test-Rejects "native DLL profile $change" { Assert-NativeBuildProfile $bad }
+        }
+        Test-Rejects 'native DLL id traversal' { New-NativeBuildProcessInfo $entry '../outside' $root }
+        Test-Rejects 'native DLL cwd outside lot' { New-NativeBuildProcessInfo $entry 'valid' $script:Repo }
+        $cwdWitness=New-NativeBuildProcessInfo $entry 'valid' $root
+        if ($cwdWitness.WorkingDirectory -ine (Get-FullPath $root)) { throw 'Native DLL working directory witness differs from its bounded execution root.' }
+        $event=[pscustomobject]@{type='Changed';path=(Join-Path $root 'allowed');old_path='';at=[DateTimeOffset]::UtcNow.ToString('o');detail=''}
+        if ((Get-EventDisposition $event @($root) @() (Join-Path $root 'user-temp')) -cne 'ALLOWED') { throw 'Allowed native build event refused.' }
+        $event.type='WatcherError'
+        if ((Get-EventDisposition $event @($root) @() (Join-Path $root 'user-temp')) -cne 'VIOLATION') { throw 'Native build watcher error accepted.' }
+        foreach ($kind in @('outside','protected','boundary','watcher-error')) {
+            $state=[pscustomobject]@{queue=[Collections.Concurrent.ConcurrentQueue[object]]::new();subscriptions=@()}
+            $path=if ($kind -eq 'outside') { Join-Path $script:Repo 'native/outside-negative' } else { Join-Path $root 'violation-negative' }
+            $type=if ($kind -eq 'watcher-error') { 'WatcherError' } elseif ($kind -eq 'boundary') { 'Renamed' } else { 'Changed' }
+            $old=if ($kind -eq 'boundary') { Join-Path (Join-Path $root 'user-temp') 'old.txt' } else { '' }
+            $protected=if ($kind -eq 'protected') { @($path) } else { @() }
+            $state.queue.Enqueue([pscustomobject]@{type=$type;path=$path;old_path=$old;at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic negative control; no external write'})
+            Test-Rejects "native DLL watcher $kind" { Drain-WatcherEvents $state @($root) $protected (Join-Path $root 'user-temp') $null 'SelfTest' $root }
+        }
+        $tempEvent=[pscustomobject]@{type='Changed';path=(Join-Path $root 'user-temp/unknown');old_path=''}
+        if ((Get-EventDisposition $tempEvent @($root) @() (Join-Path $root 'user-temp')) -cne 'UNATTRIBUTED_TEMP') { throw 'Unknown real Temp policy changed.' }
+        $renameConstructor=[IO.RenamedEventArgs].GetConstructor([type[]]@([IO.WatcherChangeTypes],[string],[string],[string]))
+        foreach ($case in @(
+            @{label='complete';name='allowed\new.txt';old='allowed\old.tmp';disposition='ALLOWED';nameNull=$false;nameEmpty=$false;oldNull=$false},
+            @{label='missing-new';name=$null;old='allowed\old.tmp';disposition='VIOLATION';nameNull=$true;nameEmpty=$false;oldNull=$false},
+            @{label='empty-new';name='';old='allowed\old.tmp';disposition='VIOLATION';nameNull=$false;nameEmpty=$true;oldNull=$false},
+            @{label='missing-old';name='allowed\new.txt';old=$null;disposition='VIOLATION';nameNull=$false;nameEmpty=$false;oldNull=$true}
+        )) {
+            $constructorArgs=[object[]]@([IO.WatcherChangeTypes]::Renamed,[string]$root,$null,$null)
+            if ($null -ne $case.name) { $constructorArgs[2]=[string]$case.name }
+            if ($null -ne $case.old) { $constructorArgs[3]=[string]$case.old }
+            $renameArgs=$renameConstructor.Invoke($constructorArgs)
+            $raw=Get-WatcherObservation $renameArgs $root
+            if ($raw.name_is_null -ne $case.nameNull -or $raw.name_is_empty -ne $case.nameEmpty -or $raw.old_name_is_null -ne $case.oldNull) { throw "Raw rename observation failed: $($case.label)" }
+            $state=[pscustomobject]@{queue=[Collections.Concurrent.ConcurrentQueue[object]]::new();subscriptions=@()}
+            $state.queue.Enqueue([pscustomobject]@{type='Renamed';path=$renameArgs.FullPath;old_path=$renameArgs.OldFullPath;at=[DateTimeOffset]::UtcNow.ToString('o');detail='synthetic raw-name control';raw_event=$raw})
+            $allowed=@((Join-Path $root 'allowed'))
+            if ($case.disposition -eq 'VIOLATION') {
+                Test-Rejects "raw rename remains blocking: $($case.label)" { Drain-WatcherEvents $state $allowed @() (Join-Path $root 'user-temp') $null 'NativeBuild' $root }
+            } else { Drain-WatcherEvents $state $allowed @() (Join-Path $root 'user-temp') $null 'NativeBuild' $root }
+            $receipt=Get-Content -LiteralPath (Join-Path $root 'watcher-events.jsonl') -Tail 1 | ConvertFrom-Json
+            if ($receipt.disposition -cne $case.disposition -or $receipt.raw_event.watcher_root -ine $root -or $receipt.raw_event.name_is_null -ne $case.nameNull -or $receipt.raw_event.old_name_is_null -ne $case.oldNull) { throw "Serialized raw rename receipt failed: $($case.label)" }
+        }
+        . (Join-Path $PSScriptRoot 'test-native-directory-watch.ps1')
+        Invoke-NativeDirectoryWatchTests $root (Get-RunWatchSpecs $script:Lot)
+        $specs=[Collections.Generic.List[object]]::new(); Register-Watch $specs $root $true
+        $live=Start-WatchState $specs
+        try {
+            $marker=Join-Path $root 'live-watcher-marker.txt'; 'native watcher witness' | Set-Content -LiteralPath $marker
+            $observed=$false; $limit=[DateTimeOffset]::UtcNow.AddSeconds(3)
+            while (-not $observed -and [DateTimeOffset]::UtcNow -lt $limit) {
+                Receive-WatcherEvents $live
+                $observed=$live.queue.ToArray().Where({$_.path -ieq $marker}).Count -gt 0
+                Start-Sleep -Milliseconds 20
+            }
+            if (-not $observed) { throw 'Real native build watcher missed its in-root witness.' }
+            $realEvent=@($live.queue.ToArray() | Where-Object path -IEQ $marker)[0]
+            if ($realEvent.raw_event.watcher_root -ine $root -or $realEvent.raw_event.raw_name -cne 'live-watcher-marker.txt' -or $realEvent.raw_event.name_is_null -or $realEvent.raw_event.name_is_empty) { throw 'Real watcher raw event metadata differs from its witnessed file.' }
+        } finally { Stop-WatchState $live }
+        foreach ($probe in @('SelfTest','InvalidParent')) {
+            $probeRoot=Join-Path $root $probe
+            foreach ($child in @('temp','tmp','localappdata','appdata','userprofile','home')) { New-Item -ItemType Directory -Path (Join-Path $probeRoot $child) -Force | Out-Null }
+            $null=Invoke-NativeBuildProcess $entry 'guard-negative' $probeRoot $cache $probe
+        }
+        "PASS native DLL guard self-tests: profile/path/parent rejection, complete/null/empty raw renames with unchanged stops, live existing watcher metadata, script/manifest controls; no bootstrap/CMake. evidence=$root"
+        return
+    }
+    if (-not $NativeBuildId) { throw 'Native DLL build identifier is required.' }
+    $root=Join-Path $script:Lot ("guard/$($entry.id)-$NativeBuildId")
+    Assert-NoReparseChain $root 'native DLL invocation'
+    if (Test-Path -LiteralPath $root) { throw "Native DLL invocation already exists: $root. Nothing removed." }
+    foreach ($child in @('temp','tmp','localappdata','appdata','userprofile','home')) { New-Item -ItemType Directory -Path (Join-Path $root $child) -Force | Out-Null }
+    $result=Invoke-NativeBuildProcess $entry $NativeBuildId $root $cache
+    "NATIVE_BUILD status=$($result.status) profile=$Profile logs=$root"
+}
+
 try {
+    if ($Profile -cin @('NativeDllCpu','NativeDllGpu')) {
+        Invoke-NativeBuildEntry
+        exit 0
+    }
+    if ($NativeBuildId -or $NativePrepareOnly) { throw 'Native DLL arguments require an exact native DLL build profile.' }
     $registry = Get-ProfileRegistry
     $script:Lot = Resolve-LotRoot $LotRoot
     Assert-FreeSpace

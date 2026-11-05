@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "nemo": {"url": "https://github.com/NVIDIA/NeMo-Speech.cpp.git", "commit": "6a3ca369370782acee0dd155e34394ba60b920c4"},
+    "llama": {"url": "https://github.com/ggml-org/llama.cpp.git", "commit": "bd4f514db14d87fded667787a7a963bfbaa98e89"},
+    "vcpkg": {"url": "https://github.com/microsoft/vcpkg.git", "commit": "9e593bb18ea69cc5095e012465dcd675a822ed0d"}
+  },
+  "tools": {
+    "cmake": "4.4.4", "msvcToolset": "14.44.35207", "cl": "19.44.35229", "sdk": "10.0.26100.0",
+    "ninja": "1.12.1", "cudaDirectory": "v12.9", "nvcc": "12.9.86"
+  },
+  "vcpkgExecutable": {
+    "release": "2026-07-27",
+    "sha256": "13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741",
+    "digestSource": "https://api.github.com/repos/microsoft/vcpkg-tool/releases/tags/2026-07-27"
+  },
+  "assumptions": [
+    "Ninja 1.12.1 is the available VS2022 version; the historical Ninja version is unknown.",
+    "GGML_NATIVE=ON explicitly freezes the pinned upstream default; its historical cache value is unknown.",
+    "Unrecovered GGML_AVX and other defaults come from the pinned sources and are recorded after configuration.",
+    "MSVC runtime MultiThreadedDLL freezes /MD, consistent with historical dynamic runtime imports.",
+    "MSVC /Brepro is added for C/C++ compilation and executable/shared linking; historical determinism flags are unknown.",
+    "CUDA host compilation receives /Brepro; embedded source paths can still differ between build directories."
+  ],
+  "options": {
+    "CMAKE_BUILD_TYPE": "Release", "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreadedDLL",
+    "NEMO_SPEECH_BUILD_ASR": "ON", "NEMO_SPEECH_BUILD_DIAR": "OFF", "NEMO_SPEECH_BUILD_TTS": "OFF",
+    "NEMO_SPEECH_BUILD_NMT": "OFF", "NEMO_SPEECH_BUILD_HTTP": "OFF", "NEMO_SPEECH_HTTP_TLS": "OFF",
+    "NEMO_SPEECH_BUILD_GRPC": "OFF", "NEMO_SPEECH_WITH_FLASHLIGHT": "OFF", "NEMO_SPEECH_WITH_NORM": "OFF",
+    "NEMO_SPEECH_TTS_WITH_JA": "OFF", "NEMO_SPEECH_TTS_WITH_ZH": "OFF", "NEMO_SPEECH_BUILD_TESTS": "OFF",
+    "BUILD_TESTING": "OFF", "NEMO_SPEECH_BUILD_EXAMPLES": "OFF", "NEMO_SPEECH_BUILD_TOOLS": "OFF",
+    "NEMO_SPEECH_BUILD_CLI": "OFF", "GGML_VULKAN": "OFF", "NEMO_SPEECH_CUBLAS_SHIM": "OFF",
+    "NEMO_SPEECH_GGML_PATCHED": "ON", "GGML_NATIVE": "ON",
+    "VCPKG_TARGET_TRIPLET": "x64-windows-static-md", "VCPKG_MANIFEST_FEATURES": "asr",
+    "CMAKE_C_FLAGS_INIT": "/Brepro", "CMAKE_CXX_FLAGS_INIT": "/Brepro",
+    "CMAKE_SHARED_LINKER_FLAGS_INIT": "/Brepro", "CMAKE_EXE_LINKER_FLAGS_INIT": "/Brepro"
+  }
+}
