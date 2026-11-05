@@ -1,3 +1,25 @@
+DLL produites par ce script : NON QUALIFIÉES. Les DLL installées restent la référence. Ne pas supprimer target/parakeet-feasibility/.
+
+# Procédure courante — BUILD-NATIF-C1001
+
+État actuel : voir le [bilan C1001](BUILD-NATIF-C1001-BILAN.md). Le lot s'arrête sur WHEA corrigé APIC 24 avant la fin de CPU1. Répétabilité et équivalence fonctionnelle restent à démontrer ; les résultats antérieurs et le relevé historique ci-dessous ne constituent pas une qualification du nouveau cache.
+
+Les sources/options sont épinglées dans `native/build-config.json` : llama `bd4f514db14d87fded667787a7a963bfbaa98e89`, NeMo `6a3ca369370782acee0dd155e34394ba60b920c4`, vcpkg `9e593bb18ea69cc5095e012465dcd675a822ed0d`, 19 patches amont et patch local du commit ggml. Aucun pin, outil ou choix ISA n'est modifié par C1001. Le getter du commit épinglé avait été contrôlé sur cpu7c4 ; les énoncés historiques sur le getter cpu6 ne décrivent pas le candidat actuel.
+
+Après préflight et autorisation du lot applicable, une commande publique par variante, séquentiellement : `pwsh -NoProfile -File ./ci/build-native.ps1 -Variant cpu -BuildId identifiant-cpu-neuf`, ou la même commande avec `-Variant gpu` et un identifiant neuf. Sources/build/profils/temporaires au chemin physique fixe `C:/wb/native/<cpu|gpu>` ; préservation stricte du précédent espace selon `ci/native-workspace.ps1`. Les contrôles de la garde et des flags `/EHsc`, `/Brepro`, C4530 sont inchangés. Les DLL, journaux et manifestes sont sous `target/native-build/` ; les sources et téléchargements persistants restent sous `native/cache/`.
+
+Nouveau cache binaire local : `native/cache/dependency-binaries/`, hors target. Sa clé comprend configuration/pins, patches ordonnés et SHA, outils, SDK, triplets et features. La première configuration remplit une génération neuve ; ses archives sont inventoriées et vérifiées par SHA avant publication atomique du sélecteur courant. La restauration revérifie les empreintes, utilise un fournisseur en lecture seule et `--only-binarycaching`, sans recompilation silencieuse d'une dépendance manquante. Une corruption d'empreinte/inventaire crée une génération distincte en préservant l'ancienne ; une erreur de chemin/provenance ou un lien provoque l'arrêt. Les manifests consignent entrées, archives et statut des paquets vcpkg. Auto-tests : `ci/test-native-cache.ps1` (16 PASS), puis `ci/build-native.ps1 -SelfTest` et garde `NativeDllCpu` en mode `SelfTest`. Remplissage et réutilisation réels restent non qualifiés : CPU1 a été interrompu avant scellement.
+
+Qualification requise : deux constructions neuves donnant les mêmes cinq SHA CPU ou six ggml/NeMo GPU ; exports nom+ordinal et imports DLL+symboles directs/différés identiques à l'installation, CPU sans CUDA via `ci/check-worker-imports.ps1` ; runtime alternatif épinglé par `WHISPER_N2_PERSONAL_RUNTIME_ROOT`, seules DLL ggml/NeMo remplacées, mêmes TXT/SRT/WAV et assertions N2, N1 identique à main. Les DLL CUDA restent des copies vérifiées du toolkit attendu. Aucun remplacement installé ni nettoyage n'est réalisé. Les recettes de reproduction C1001 sont bornées au lot et archivées, pas des contrôles permanents dépendant d'un target jetable.
+
+- Lot suivant prioritaire : qualifier la portabilité de `GGML_NATIVE=ON`, conservé ici.
+- Comparer une base AVX2 avec des variantes CPU sélectionnées au lancement.
+- Définir les capacités nécessaires et le refus d'une variante incompatible.
+- Vérifier sur plusieurs processeurs surfaces et sorties fonctionnelles.
+- Faire accepter ce cadrage avant toute modification d'ISA ou de dispatch.
+
+## Relevé historique conservé — jusqu'au premier lot de clôture
+
 Avancée : cpu6 reste le dernier build terminé ; stabilisations de clôture codées et relues.
 Blocage : cpu7 interrompu par la garde ; cpu7b refusé avant lancement pour une jonction Windows dans l'espace fixe.
 Décision : qualification de clôture non démontrée ; aucune installation ni fusion, voir le nouveau bilan.

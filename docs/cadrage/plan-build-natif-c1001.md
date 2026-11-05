@@ -1,6 +1,6 @@
-Avancée : protection préparée et N1 PASS ; environnement reconstruit, essai-0 et prétraitement PASS ; 64 compilations A réussies.
-Blocage : premier B1 achevé sans crash mais concurrence réelle de quatre non atteinte ; ordonnanceur synchronisé à qualifier.
-Décision : appliquer l'arbitrage utilisateur du 5 novembre ci-dessous ; aucune fusion ni installation automatique.
+Avancée : protection préparée et N1 PASS ; stress A100/B1 synchronisé200 PASS ; cache relu et auto-tests PASS.
+Blocage : CPU1 interrompu sur WHEA 19, Internal parity error APIC 24, le 5 novembre à 20:29:15 Paris.
+Décision : arrêt définitif des essais de ce lot, MATÉRIEL À REVÉRIFIER ; clôture documentaire et archivage uniquement.
 
 # BUILD-NATIF-C1001 — plan d'exécution
 
@@ -61,3 +61,5 @@ Seulement si temps/quotas et préconditions permettent deux constructions et com
 ## 7 — Clôture
 
 Fermer tous les processus possédés, arrêter les Intensive par leurs fichiers stop, attendre leur fin, relever mémoire/pools/TopNombre/WHEA et survivants. Archiver journaux/CSV/dumps/prétraité et manifestes utiles dans de nouvelles archives horodatées ; vérifier noms, nombres, tailles et SHA après réouverture. Proposer retrait WER ciblé et commandes de nettoyage, sans les exécuter. Bilan d'une page avec précondition, surveillance, séries, critères CPU/GPU, verdict et décisions de fusion de protection, remplacement et rétention ; les anciennes preuves restent figées.
+
+Arrêt constaté : événement System/WHEA-Logger 19, RecordId 527992, à 19:29:15.8835477 UTC, corrigé, Internal parity error, APIC 24. Détection à 19:29:17.299 UTC, fermeture possédée terminée à 19:29:17.857 UTC, sans erreur ; aucun processus natif/du lot survivant au contrôle. CPU1 était dans Protobuf hôte Release, avant scellement du cache et production des DLL attendues. Aucune reprise, GPU ou N2 ; aucun remplacement installé ni nettoyage. Le lien causal avec les C1001 historiques n'est pas établi.
