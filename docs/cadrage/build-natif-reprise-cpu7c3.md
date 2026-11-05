@@ -19,3 +19,5 @@ La préparation de l'espace fixe a réussi : `junction-preparation.json` porte `
 Ce point d'entrée construit lui-même l'appel absolu à la garde (`ci/build-native.ps1:405–408`). Puis cpu8 seulement si PASS, arrêt au premier échec et borne du complément toujours **13:00 Paris / 12:00 UTC**. L'arbitrage demandé dans la session est en attente à la rédaction ; aucune reprise implicite.
 
 **Archive vérifiée** : [parent-stop.zip](../architecture/raw/build-natif-cpu7c3/parent-stop.zip), 8 fichiers + manifeste, 4 746 octets, SHA-256 `901f71190f63d00dd294e75feb40ed15415140ddf65fcdb983b89e991fc9ea6b`. Nombres, tailles et SHA contrôlés après réouverture du ZIP ; copie persistante de même empreinte. Les anciens bilans/archives et les espaces protégés restent intacts. Aucun remplacement de DLL, nettoyage, push ou fusion.
+
+Suite : [reprise CPU cpu7c4/cpu8](build-natif-cpu7c4-cpu8-bilan.md).
