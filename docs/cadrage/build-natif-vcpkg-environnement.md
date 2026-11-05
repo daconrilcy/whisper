@@ -1,6 +1,6 @@
-Avancée : complément limité de transmission vcpkg accepté explicitement par l'utilisateur.
-Blocage : perte de VSCMD_SKIP_SENDTELEMETRY dans vcpkg non encore démontrée ; aucune correction à appliquer sans témoin.
-Décision : comparer les deux environnements, puis conserver uniquement cette variable si la perte est confirmée ; garde inchangée.
+Avancée : les deux préparations vcpkg réelles réussissent, avec mêmes versions MSVC/SDK.
+Blocage : la variable vaut déjà 1 sans conservation explicite ; hypothèse de perte non reproduite dans ce témoin.
+Décision : condition du correctif non remplie ; aucun KEEP ajouté, aucune compilation relancée, garde inchangée.
 
 # BUILD-NATIF — complément environnement vcpkg
 
@@ -13,3 +13,11 @@ Autorisation reçue dans cette session : deux préparations vcpkg réelles avec/
 5. Nouveau bilan/archives vérifiés et revue des conclusions. Les bilans figés précédents, archives existantes, installation et dossiers protégés restent intacts ; aucune fusion, suppression ou installation.
 
 Le mécanisme documenté par Microsoft conserve une liste explicite de variables dans l'environnement nettoyé : [VCPKG_KEEP_ENV_VARS](https://learn.microsoft.com/en-us/vcpkg/users/config-environment), [vcpkg env](https://learn.microsoft.com/en-us/vcpkg/commands/env). Les valeurs ainsi conservées ne changent pas les ABI calculées par vcpkg ; le réglage est destiné seulement au lanceur de télémétrie et sera figé/consigné, pas aux options de compilation.
+
+## Résultat du complément
+
+Exécutable vérifié par SHA-256 `13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741`, appel `env --triplet=x64-windows-static-md`, deux profils isolés dont seul le réglage fonctionnel KEEP diffère ; leurs chemins d'isolation et dossiers courants sont distincts. Sans KEEP, stdout contient déjà `VSCMD_SKIP_SENDTELEMETRY=1` ; avec KEEP, deux lignes de cette même valeur sont présentes. Les deux commandes retournent **0**, MSVC `14.44.35207` et SDK `10.0.26100.0` identiques. Le témoin échoue donc à démontrer la perte attendue : **FAIL du témoin de nécessité, pas échec de lancement de vcpkg**.
+
+La condition de l'autorisation n'étant pas remplie, arrêt sans ajout KEEP ni changement de manifeste ou de pilote. La fonction de diagnostic a été conservée avec les preuves puis sa seule addition préparatoire à `ci/test-native-workspace.ps1` a été retirée après comparaison exacte du reste avec HEAD. Aucun diff dans ci/, native/ ou le code Rust/Cargo. Le témoin couvre l'appel env du triplet cible ; il ne démontre pas le comportement des environnements internes de ports ou du triplet hôte. L'origine de la télémétrie observée reste indéterminée ; ne pas corriger au hasard ces autres chemins.
+
+Revue indépendante des preuves et conclusions : **CLEAN**, arrêt justifié. Pas de nouvelle compilation CPU/GPU ni de cas N2, N1 non exécuté ; compteurs cumulés toujours 2 CPU commencées sur 4, zéro GPU, zéro N2. Les deux compilations restantes ne sont pas consommées. Le bilan antérieur reste figé ; nouveau [bilan du témoin](../architecture/BUILD-NATIF-VCPKG-ENV-BILAN.md).
