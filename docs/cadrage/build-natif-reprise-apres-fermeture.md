@@ -1,6 +1,6 @@
-Avancée : après fermeture des fenêtres par l'utilisateur, handles Explorer absents et reliquat préservé séparément.
-Blocage : aucun au préflight actuel ; qualification binaire et fonctionnelle toujours à exécuter.
-Décision : reprise autorisée du processus, sans modifier les règles d'arrêt ni les budgets cumulés.
+Avancée : après fermeture des fenêtres par l'utilisateur, handles Explorer non retrouvés et reliquat préservé séparément.
+Blocage : cpu7c2 interrompu pendant les dépendances sur une ambiguïté de renommage de télémétrie MSVC.
+Décision : arrêt avant cpu8 ; complément vcpkg soumis à arbitrage, aucun assouplissement ni relance implicite.
 
 # BUILD-NATIF — reprise du 5 novembre 2026
 
@@ -18,3 +18,13 @@ Le mécanisme reproduit dans la fixture, les handles Explorer observés avant fe
 Budgets initiaux maintenus : une construction CPU ancienne commencée (cpu7) sur quatre ; les refus de préparation cpu7b/cpu7c n'ont pas démarré de compilateur. Reste au plus trois constructions CPU, deux GPU et dix cas N2. Les deux cycles du correctif de jonction/déplacement sont clos CLEAN ; pas de nouvelle correction implicite de la garde. Borne conservatrice initiale conservée : **11:00 UTC / 12:00 Paris**. Aucun travail de campagne au-delà sans décision distincte.
 
 Les bilans figés [clôture](../architecture/BUILD-NATIF-CLOTURE-BILAN.md) et [jonction](../architecture/BUILD-NATIF-JONCTION-BILAN.md) restent des instantanés exacts à leur clôture. Le [diagnostic Windows](build-natif-refus-windows.md) décrit les preuves précédentes ; ce document consigne le fait nouveau et l'autorisation de reprise.
+
+## Résultat du passage
+
+cpu7c2 démarre le 5 novembre à 10:21 Paris et s'arrête sur la garde à 10:23 Paris pendant l'installation/compilation des dépendances vcpkg. Le relevé en échec contient deux paires OLD/NEW pour une même identité de fichier sous `localappdata/Microsoft/VSApplicationInsights`, reçues à dix secondes d'écart dans un même drainage. Le collecteur refuse explicitement ce cas ; aucune règle modifiée. Aucune des cinq DLL livrables produite, getter et répétabilité non contrôlés, cpu8/N2/N1/GPU non exécutés. Compteur cumulé : **deux constructions CPU commencées sur quatre**, zéro GPU, zéro cas N2.
+
+Le manifeste porte `VSCMD_SKIP_SENDTELEMETRY=1` dans le pilote. La conservation dans l'environnement interne vcpkg reste une hypothèse à vérifier, pas une cause attribuée définitivement : [Microsoft documente](https://learn.microsoft.com/en-us/vcpkg/commands/env) le nettoyage des variables et le mécanisme VCPKG_KEEP_ENV_VARS. Un arbitrage est demandé pour deux préparations vcpkg comparées, puis un correctif borné et les deux constructions restantes seulement si le témoin confirme cette perte. Aucun de ces nouveaux essais ni correctifs exécuté dans ce passage.
+
+Revue indépendante : conclusions Windows CLEAN, reçu de préservation conservant les 30 entrées (dont trois fichiers). Le parseur PE préparatoire ne permet à ce stade aucune conclusion de qualification ; son relevé d'exports se limite aux noms/ordinaux, sans cible d'éventuelle redirection. Aucune identité PE nouvelle annoncée.
+
+Traces : [archive cpu7c2](../architecture/raw/build-natif-reprise/cpu7c2-stop.zip), 21 fichiers + manifeste, 8 389 706 octets, SHA-256 `efe7d3241b05a7c7e7b9c37de253ab239a6cc9560ab8f56be3a0b4014eee43cd`. ZIP rouvert ; nombres, tailles et empreintes vérifiés. Aucun nettoyage exécuté ; dossier cpu7c2, workspace et deux parties précédentes conservés.
