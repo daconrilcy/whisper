@@ -21,6 +21,7 @@ $script:Lot = $null
 $script:RunRoot = $null
 $script:LogRoot = $null
 $script:Utf8NoBom = [Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'native-workspace.ps1')
 $script:AllowedReadRoots = @(
     $script:Repo,
     'C:\dev\whisper\target\parakeet-tests',
@@ -101,6 +102,7 @@ function Test-ProgramW6432ProfileId([string]$ProfileId) {
     return $ProfileId -cin @(
         'GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports',
         'PersonalUnified','PersonalUnifiedGpuOnly',
+        'NativeClosureGpuReference','NativeClosureGpuRebuilt',
         'ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong',
         'ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong',
         'NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness'
@@ -349,6 +351,77 @@ function Assert-ProfileFeatureScope([object]$Profile) {
     }
 }
 
+function Get-NativeClosurePinName([string]$Id) {
+    switch -CaseSensitive ($Id) {
+        'NativeClosureCpuReference' { 'reference' }
+        'NativeClosureGpuReference' { 'reference' }
+        'NativeClosureCpuRebuilt' { 'cpu' }
+        'NativeClosureGpuRebuilt' { 'gpu' }
+        default { throw 'Unknown native closure profile.' }
+    }
+}
+
+function Assert-NativeClosureProfile([object]$Profile,[object]$Template) {
+    if ($Profile.id -cnotmatch '^NativeClosure') { return }
+    $pin=Get-NativeClosurePinName $Profile.id
+    if ($Profile.runtimePin -cne "native/runtime-pins/$pin.json") { throw 'Native closure runtime pin path differs.' }
+    $gpu=$Profile.id -cmatch '^NativeClosureGpu'
+    $expected=@($Template.cases | Where-Object { ($_.exactTest -cmatch '_gpu_') -eq $gpu })
+    foreach ($name in @('status','operation','package','features','compileEnvironment','inputs','values','outputs')) {
+        if (($Profile.$name | ConvertTo-Json -Depth 8 -Compress) -cne ($Template.$name | ConvertTo-Json -Depth 8 -Compress)) { throw "Native closure descriptor differs: $name" }
+    }
+    if (($Profile.cases | ConvertTo-Json -Depth 8 -Compress) -cne ($expected | ConvertTo-Json -Depth 8 -Compress)) { throw 'Native closure exact cases differ.' }
+    $staging=$Template.staging | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    $staging[0].requiredBytes=1
+    if (($Profile.staging | ConvertTo-Json -Depth 8 -Compress) -cne ($staging | ConvertTo-Json -Depth 8 -Compress)) { throw 'Native closure staging descriptor differs.' }
+}
+
+function Read-NativeClosurePin([string]$Name) {
+    if ($Name -cnotin @('reference','cpu','gpu')) { throw 'Unknown native runtime pin.' }
+    $relative="native/runtime-pins/$Name.json"
+    $path=Join-Path $script:Repo $relative
+    Assert-NoReparseChain $path 'persistent native runtime pin'
+    $tracked=@(& git.exe --no-optional-locks -C $script:Repo ls-files --error-unmatch -- $relative 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $tracked.Count -ne 1) { throw "Persistent runtime pin is missing or unversioned: $relative" }
+    & git.exe --no-optional-locks -C $script:Repo diff --quiet HEAD -- $relative
+    if ($LASTEXITCODE -ne 0) { throw "Persistent runtime pin differs from HEAD: $relative" }
+    $pin=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    if ($pin.schemaVersion -ne 1 -or $pin.id -cne $Name -or @($pin.files).Count -ne 21) { throw 'Native runtime pin schema/count/id differs.' }
+    $map=@{}; $total=[long]0
+    foreach ($file in $pin.files) {
+        $key=(Get-SafeRelativePath ([string]$file.path) 'native runtime pin').Replace('\','/').ToLowerInvariant()
+        if ($map.ContainsKey($key) -or [long]$file.bytes -le 0 -or $file.sha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid/duplicate native runtime pin file.' }
+        $map[$key]=$file; $total+=[long]$file.bytes
+    }
+    if ([long]$pin.totalBytes -ne $total) { throw 'Native runtime pin total differs.' }
+    return [pscustomobject]@{document=$pin;files=$map;totalBytes=$total}
+}
+
+function Assert-NativeClosurePayload([object]$pin,[object]$reference,[string]$name,[object[]]$files) {
+    if ($name -ne 'reference' -and $pin.document.llamaCommit -cne 'bd4f514db14d87fded667787a7a963bfbaa98e89') { throw 'Rebuilt runtime source commit differs.' }
+    $allowed=@('ggml-base.dll','ggml-cpu.dll','ggml.dll','nemo_speech_asr.dll','nemo_speech_asr_c.dll')
+    if ($name -eq 'gpu') { $allowed+='ggml-cuda.dll' }
+    foreach ($key in $reference.files.Keys) {
+        if (-not $pin.files.ContainsKey($key)) { throw 'Native runtime pin file names differ.' }
+        $old=$reference.files[$key]; $new=$pin.files[$key]
+        $replacement=$name -ne 'reference' -and $key -cin @($allowed | ForEach-Object { "native/$name/$_" })
+        if (-not $replacement -and ($old.sha256 -cne $new.sha256 -or $old.bytes -ne $new.bytes)) { throw "Native runtime changed a protected payload: $key" }
+    }
+    if ($files.Count -ne 21) { throw 'Native runtime input count differs from persistent pin.' }
+    foreach ($file in $files) {
+        $key=([string]$file.path).Replace('\','/').ToLowerInvariant()
+        if (-not $pin.files.ContainsKey($key) -or $pin.files[$key].sha256 -cne $file.sha256 -or $pin.files[$key].bytes -ne $file.bytes) { throw "Native runtime input differs from persistent pin: $key" }
+    }
+}
+
+function Assert-NativeClosureValues([object]$Profile,[hashtable]$Inputs) {
+    if ($Profile.id -cnotmatch '^NativeClosure') { return }
+    $name=Get-NativeClosurePinName $Profile.id
+    $pin=Read-NativeClosurePin $name; $reference=Read-NativeClosurePin 'reference'
+    Assert-NativeClosurePayload $pin $reference $name @($Inputs.personalRuntime.files)
+    $Profile.staging[0].requiredBytes=$pin.totalBytes
+}
+
 function Get-ProfileRegistry {
     if (-not (Test-Path -LiteralPath $script:ProfilesPath -PathType Leaf)) { throw "Profile registry is missing: $script:ProfilesPath" }
     Assert-NoReparseChain $script:ProfilesPath 'profile registry'
@@ -377,6 +450,7 @@ function Get-ProfileRegistry {
         foreach ($feature in @($profile.features)) { if (-not $featureSet.Contains([string]$feature)) { throw "Unapproved feature '$feature' in profile $($profile.id)." } }
         Assert-ProfileFeatureScope $profile
         Assert-VoxPopuliProfileContract $profile
+        Assert-NativeClosureProfile $profile (@($registry.profiles | Where-Object id -CEQ 'PersonalUnified')[0])
         foreach ($entry in @($profile.compileEnvironment)) {
             $name = [string]$entry.name
             if (-not $script:AllowedCompileEnvironment.ContainsKey($name) -or [string]$entry.value -cne $script:AllowedCompileEnvironment[$name]) {
@@ -1031,6 +1105,7 @@ function Get-ValuesDocument([string]$Path, [object]$Profile) {
         }
     }
     Assert-VoxPopuliValues $Profile $assetMap
+    Assert-NativeClosureValues $Profile $assetMap
     return [pscustomobject]@{ inputs = $assetMap; values = $valuesDoc.values }
 }
 
@@ -2916,6 +2991,35 @@ function Invoke-StagingSelfTests([string]$Lot) {
 }
 
 function Invoke-SelfTests([object]$Registry, [string]$Lot) {
+    $closureTemplate=Get-Profile $Registry 'PersonalUnified'
+    foreach ($id in @('NativeClosureCpuReference','NativeClosureCpuRebuilt','NativeClosureGpuReference','NativeClosureGpuRebuilt')) {
+        $closure=Get-Profile $Registry $id
+        Assert-NativeClosureProfile $closure $closureTemplate
+        foreach ($field in @('runtimePin','package')) {
+            $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+            $bad.$field='unapproved'
+            Test-Rejects "closure profile $id $field" { Assert-NativeClosureProfile $bad $closureTemplate }
+        }
+        $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+        $bad.cases[0].exactTest='arbitrary_test'
+        Test-Rejects "closure profile $id selector" { Assert-NativeClosureProfile $bad $closureTemplate }
+        $bad=$closure | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+        $bad.staging[0].requiredBytes=2
+        Test-Rejects "closure profile $id byte override" { Assert-NativeClosureProfile $bad $closureTemplate }
+    }
+    Test-Rejects 'unknown closure pin' { Get-NativeClosurePinName 'NativeClosureUnknown' }
+    Test-Rejects 'unknown persistent pin' { Read-NativeClosurePin '../outside' }
+    $referencePin=Read-NativeClosurePin 'reference'
+    Assert-NativeClosurePayload $referencePin $referencePin 'reference' @($referencePin.files.Values)
+    foreach ($variant in @('cpu','gpu')) {
+        $replacement=$referencePin | ConvertTo-Json -Depth 12 | ConvertFrom-Json -AsHashtable
+        $replacement.document.llamaCommit='bd4f514db14d87fded667787a7a963bfbaa98e89'
+        $replacement.files["native/$variant/ggml-base.dll"].sha256='0'*64
+        Assert-NativeClosurePayload $replacement $referencePin $variant @($replacement.files.Values)
+        $replacement.files['worker/whisper-worker-parakeet-cpu.exe'].sha256='1'*64
+        Test-Rejects "closure $variant changed worker" { Assert-NativeClosurePayload $replacement $referencePin $variant @($replacement.files.Values) }
+    }
+    Test-Rejects 'closure input missing file' { Assert-NativeClosurePayload $referencePin $referencePin 'reference' @($referencePin.files.Values | Select-Object -First 20) }
     $processInfoFunction = Get-Command New-NvidiaDiagnosticProcessInfo -CommandType Function -ErrorAction Stop
     $functionTokens = $null; $functionParseErrors = $null
     $processInfoAst = [System.Management.Automation.Language.Parser]::ParseInput($processInfoFunction.Definition,[ref]$functionTokens,[ref]$functionParseErrors)
@@ -3095,11 +3199,11 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
         $validatedProgramW = Get-ValidatedProgramW6432Directory
         $programWEnvironment = @{} + $syntheticEnvironment
         $programWEnvironment['ProgramW6432'] = $validatedProgramW
-        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong')) {
+        foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','NativeClosureGpuReference','NativeClosureGpuRebuilt','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong')) {
             $profilePsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $programWEnvironment $syntheticVs $syntheticRunRoot $profileId
             if (-not $profilePsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$profilePsi.EnvironmentVariables['ProgramW6432'] -ine $validatedProgramW) { throw "Authorized GPU profile did not pass validated ProgramW6432: $profileId" }
         }
-        foreach ($profileId in @('TurboCpu','PersonalAutoFallback','PersonalLongCpu','PreparationNoRun')) {
+        foreach ($profileId in @('TurboCpu','PersonalAutoFallback','NativeClosureCpuReference','NativeClosureCpuRebuilt','PersonalLongCpu','PreparationNoRun')) {
             $profilePsi = New-CargoProcessInfo 'C:\toolchain\cargo.exe' 'C:\toolchain\rustc.exe' 'C:\toolchain' @('test','--offline','--locked') $syntheticEnvironment $syntheticVs $syntheticRunRoot $profileId
             if ($profilePsi.EnvironmentVariables.ContainsKey('ProgramW6432')) { throw "Non-GPU profile inherited ProgramW6432 through the Visual Studio environment: $profileId" }
         }
@@ -3122,10 +3226,10 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     foreach ($name in @('package','features','inputs','values','outputs','staging')) {
         if ((ConvertTo-Json -InputObject $personalUnifiedProfile.$name -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $personalGpuOnlyProfile.$name -Depth 12 -Compress)) { throw "PersonalUnifiedGpuOnly differs from PersonalUnified $name." }
     }
-    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
+    foreach ($profileId in @('GpuCudaProbe','TurboGpu','TurboGpuLive','TurboGpuReusableImports','PersonalUnified','PersonalUnifiedGpuOnly','NativeClosureGpuReference','NativeClosureGpuRebuilt','ParakeetGpu','ParakeetGpuFrenchShort','ParakeetGpuFrenchLong','ParakeetGpuEnglishLong','ParakeetGpuFrenchAutoLong','ParakeetGpuEnglishAutoLong','NvidiaSmiInventoryDiagnostic','NvidiaSmiEnvironmentCompareDiagnostic','NvidiaProgramW6432Witness')) {
         if (-not (Test-ProgramW6432ProfileId $profileId)) { throw "Approved ProgramW6432 profile is not on the exact allowlist: $profileId" }
     }
-    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','PersonalLongCpu','ParakeetGpuPreparation','ParakeetGpuInventory')) {
+    foreach ($profileId in @('PreparationNoRun','InventoryList','WasapiInventory','WasapiCapture','TurboCpu','PersonalAutoFallback','NativeClosureCpuReference','NativeClosureCpuRebuilt','PersonalLongCpu','ParakeetGpuPreparation','ParakeetGpuInventory')) {
         if (Test-ProgramW6432ProfileId $profileId) { throw "Non-GPU or pending profile entered the ProgramW6432 allowlist: $profileId" }
     }
     $nvidiaDiagnosticProfile = Get-Profile $Registry 'NvidiaSmiInventoryDiagnostic'
@@ -3460,7 +3564,7 @@ function Get-ProfileResult([object]$Profile, [object]$ValuesDoc, [string]$Lot, [
 function Assert-NativeBuildProfile([object]$Entry) {
     $variant = switch -CaseSensitive ([string]$Entry.id) { 'NativeDllCpu' { 'cpu' }; 'NativeDllGpu' { 'gpu' }; default { throw 'Unknown native DLL build profile.' } }
     $keys = @($Entry.PSObject.Properties.Name | Sort-Object) -join '|'
-    if ($keys -cne 'cache|id|outputs|script|timeoutSeconds|variant' -or $Entry.variant -cne $variant -or $Entry.script -cne 'ci/build-native.ps1' -or $Entry.cache -cne 'native/cache' -or $Entry.outputs -cne 'target/native-build' -or $Entry.timeoutSeconds -ne 3600) {
+    if ($keys -cne 'cache|id|outputs|script|timeoutSeconds|variant|workspace' -or $Entry.workspace -cne "C:/wb/native/$variant" -or $Entry.variant -cne $variant -or $Entry.script -cne 'ci/build-native.ps1' -or $Entry.cache -cne 'native/cache' -or $Entry.outputs -cne 'target/native-build' -or $Entry.timeoutSeconds -ne 3600) {
         throw 'Native DLL build profile differs from its bounded contract.'
     }
 }
@@ -3522,10 +3626,21 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
     $before=Get-GitState $script:Repo
     $userTemp=Join-Path $env:LOCALAPPDATA 'Temp'
     $allowed=@($script:Lot,$CacheRoot)
+    $workspace=$null
+    if (-not $Probe -and -not $NativePrepareOnly) {
+        $workspace=Initialize-NativeWorkspace $Entry.variant $BuildId $Root
+        $allowed+=@($workspace)
+    }
     $protected=@((Join-Path $script:Repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved')
     $record=[ordered]@{profile=$Entry.id;variant=$Entry.variant;buildId=$BuildId;probe=$Probe;status='STARTED';startedUtc=[DateTimeOffset]::UtcNow.ToString('o');stdout=(Join-Path $Root 'stdout.log');stderr=(Join-Path $Root 'stderr.log');allowedRoots=$allowed;sourceScriptSha256=(Get-Sha256 (Join-Path $script:Repo $Entry.script))}
     try {
-        $watch=Start-NativeBuildWatchState (Get-RunWatchSpecs $script:Lot) $Root
+        $specs=[Collections.Generic.List[object]]::new()
+        foreach ($spec in @(Get-RunWatchSpecs $script:Lot)) { $specs.Add($spec) }
+        if ($workspace) {
+            Register-Watch $specs $workspace $true
+            Register-Watch $specs (Split-Path -Parent $workspace) $false
+        }
+        $watch=Start-NativeBuildWatchState $specs $Root
         $capture=Register-ProcessStreamHandlers $process $queue
         $outWriter=[IO.StreamWriter]::new($record.stdout,$false,$script:Utf8NoBom)
         $errWriter=[IO.StreamWriter]::new($record.stderr,$false,$script:Utf8NoBom)
@@ -3591,7 +3706,7 @@ function Invoke-NativeBuildEntry {
     if ($Mode -eq 'SelfTest') {
         $root=Join-Path $script:Lot ('guard/selftest-'+[guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $root -Force | Out-Null
-        foreach ($change in @('variant','script','cache','outputs','timeoutSeconds')) {
+        foreach ($change in @('variant','script','cache','outputs','timeoutSeconds','workspace')) {
             $bad=$entry | ConvertTo-Json | ConvertFrom-Json
             if ($change -eq 'timeoutSeconds') { $bad.$change=3601 } else { $bad.$change='unapproved' }
             Test-Rejects "native DLL profile $change" { Assert-NativeBuildProfile $bad }

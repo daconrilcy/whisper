@@ -16,6 +16,7 @@ $configPath = Join-Path $repo 'native/build-config.json'
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json -AsHashtable
 $cache = Join-Path $repo 'native/cache'
 $utf8 = [Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'native-workspace.ps1')
 
 function Assert-Within([string]$Path, [string]$Root) {
     $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -57,7 +58,7 @@ function Assert-ExecutableDigest([string]$Actual, [string]$Expected) {
 function Assert-VcpkgExecutable {
     $metadata = Get-Content -LiteralPath (Join-Path $vcpkg 'scripts/vcpkg-tool-metadata.txt') -Raw | ConvertFrom-StringData
     Assert-Version 'vcpkg bootstrap release metadata' $metadata.VCPKG_TOOL_RELEASE_TAG $config.vcpkgExecutable.release
-    $path = Assert-Within (Join-Path $vcpkg 'vcpkg.exe') $cache
+    $path = Assert-Within (Join-Path $vcpkg 'vcpkg.exe') $workspace
     $digest = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
     Assert-ExecutableDigest $digest $config.vcpkgExecutable.sha256
     return $digest
@@ -137,7 +138,8 @@ function Invoke-Logged([string]$Program, [string[]]$Arguments, [string]$Label) {
     [IO.File]::AppendAllText((Join-Path $run 'commands.log'), ($Program + ' ' + ($Arguments | ConvertTo-Json -Compress) + "`n"), $utf8)
     $log = Join-Path $run ($Label + '.log')
     $psi=[Diagnostics.ProcessStartInfo]::new($Program)
-    $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true; $psi.WorkingDirectory=$run
+    $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true
+    $psi.WorkingDirectory=if ($workspace) { $workspace } else { $run }
     $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
     foreach ($argument in $Arguments) { $psi.ArgumentList.Add($argument) }
     $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
@@ -309,8 +311,8 @@ function Import-BuildEnvironment([hashtable]$Tools) {
         Remove-Item -LiteralPath ('Env:' + $entry.Name)
     }
     Clear-VcpkgEnvironment
-    foreach ($entry in @{TEMP='temp';TMP='temp';LOCALAPPDATA='localappdata';APPDATA='appdata';XDG_CACHE_HOME='xdg';GNUPGHOME='gnupg'}.GetEnumerator()) {
-        $path = Assert-Within (Join-Path $run $entry.Value) $run
+    foreach ($entry in @{TEMP='temp';TMP='temp';LOCALAPPDATA='localappdata';APPDATA='appdata';HOME='home';USERPROFILE='userprofile';XDG_CACHE_HOME='xdg';GNUPGHOME='gnupg'}.GetEnumerator()) {
+        $path = Assert-Within (Join-Path $workspace $entry.Value) $workspace
         New-Item -ItemType Directory -Path $path -Force | Out-Null
         [Environment]::SetEnvironmentVariable($entry.Key, $path, 'Process')
     }
@@ -320,7 +322,8 @@ function Import-BuildEnvironment([hashtable]$Tools) {
         [Environment]::SetEnvironmentVariable($entry.Key, $path, 'Process')
     }
     $env:VCPKG_ROOT = $vcpkg
-    $env:VCPKG_BINARY_SOURCES = 'clear;files,' + $env:VCPKG_DEFAULT_BINARY_CACHE + ',readwrite'
+    # Rebuild dependencies at the fixed path; old binary caches embed other paths.
+    $env:VCPKG_BINARY_SOURCES = 'clear'
     $env:VCPKG_VISUAL_STUDIO_PATH = $Tools.vs
     $env:VCPKG_DISABLE_METRICS = '1'
     $env:VCPKG_MAX_CONCURRENCY = '4'
@@ -384,6 +387,8 @@ if ($SelfTest) {
     $rejects++
     . (Join-Path $PSScriptRoot 'test-native-build-flags.ps1')
     Invoke-NativeBuildFlagTests $run
+    . (Join-Path $PSScriptRoot 'test-native-workspace.ps1')
+    Invoke-NativeWorkspaceTests $run
     "PASS native script self-tests: negative controls=$rejects; no downloads or compilation."
     return
 }
@@ -443,6 +448,27 @@ try {
     $manifest.stage = 'SOURCES_PREPARED'
     Save-BuildManifest $manifest $manifestPath
     if ($PrepareOnly) { $manifest.status='SOURCES_PREPARED'; return }
+    $cachedNemo=$nemo; $cachedLlama=$llama; $cachedVcpkg=$vcpkg
+    $workspace=Assert-NativeWorkspacePath (Get-NativeWorkspacePath $Variant) $Variant
+    $owner=Get-Content -LiteralPath (Join-Path $workspace '.whisper-native-workspace.json') -Raw | ConvertFrom-Json
+    if ($owner.buildId -cne $BuildId -or $owner.variant -cne $Variant -or [string]$owner.guardPid -cne $env:WHISPER_NATIVE_BUILD_GUARD_PID) { throw 'Fixed workspace is not owned by this guard invocation.' }
+    $manifest.workspace=$workspace
+    New-Item -ItemType Directory -Path (Join-Path $workspace 'temp') -Force | Out-Null
+    $env:TEMP=Join-Path $workspace 'temp'; $env:TMP=$env:TEMP
+    $nemo=Join-Path $workspace 'src/nemo'; $llama=Join-Path $nemo 'llama.cpp'; $vcpkg=Join-Path $workspace 'src/vcpkg'
+    Export-NativeSource $cachedNemo $nemo 'nemo'
+    # Git archives represent submodules by an empty directory.
+    if (Test-Path -LiteralPath $llama) {
+        if (@(Get-ChildItem -LiteralPath $llama -Force).Count) { throw 'Exported llama gitlink is not empty.' }
+        [IO.Directory]::Delete($llama,$false)
+    }
+    Export-NativeSource $cachedLlama $llama 'llama'
+    Export-NativeSource $cachedVcpkg $vcpkg 'vcpkg'
+    if (Test-Path -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe')) { Copy-Item -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe') -Destination $vcpkg }
+    $localPatch=Join-Path $repo 'native/patches/ggml-pinned-build-commit.patch'
+    Copy-Item -LiteralPath $localPatch -Destination (Join-Path $nemo 'patches/ggml-pinned-build-commit.patch')
+    [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`nggml-pinned-build-commit.patch`n",$utf8)
+    $manifest.localPatches=@(@{name='ggml-pinned-build-commit.patch';sha256=(Get-FileHash -LiteralPath $localPatch).Hash})
     Import-BuildEnvironment $tools
     $manifest.stage = 'BOOTSTRAP'
     Save-BuildManifest $manifest $manifestPath
@@ -453,8 +479,9 @@ try {
         Invoke-Logged $tools.bootstrapPowerShell @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',(Join-Path $vcpkg 'scripts/bootstrap.ps1'),'-disableMetrics') 'vcpkg-bootstrap'
     }
     $manifest.vcpkgExecutableSha256 = Assert-VcpkgExecutable
-    $build = Join-Path $run 'build'
+    $build = Join-Path $workspace 'build'
     $options = @{} + $requestedBuildOptions
+    $options.GGML_BUILD_COMMIT=$config.sources.llama.commit
     $options.GGML_CUDA = if ($Variant -eq 'gpu') { 'ON' } else { 'OFF' }
     $options.CMAKE_C_COMPILER = $tools.cl.Replace('\','/')
     $options.CMAKE_CXX_COMPILER = $options.CMAKE_C_COMPILER
@@ -486,16 +513,33 @@ try {
     $manifest.stage = 'BUILD'
     Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake @('--build',$build,'--parallel','4') 'build'
+    $manifest.ggmlCommit=Get-NativePeCommit (Join-Path $build 'bin/ggml-base.dll')
+    if ($manifest.ggmlCommit -cne $config.sources.llama.commit) { throw 'Decoded ggml_commit differs from pinned llama source.' }
+    $dllOutput=Join-Path $run 'dll'
+    New-Item -ItemType Directory -Path $dllOutput | Out-Null
     $expected = @('ggml-base.dll','ggml-cpu.dll','ggml.dll','nemo_speech_asr.dll','nemo_speech_asr_c.dll')
     if ($Variant -eq 'gpu') { $expected += 'ggml-cuda.dll' }
     $manifest.dlls = @($expected | ForEach-Object {
-        $path = Assert-Within (Join-Path $build "bin/$_") $run
+        $path = Assert-Within (Join-Path $build "bin/$_") $workspace
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Expected DLL missing: $path" }
+        Copy-Item -LiteralPath $path -Destination $dllOutput
+        $path=Join-Path $dllOutput $_
         @{name=$_;path=$path;bytes=(Get-Item -LiteralPath $path).Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash}
     })
-    Assert-Source $nemo $config.sources.nemo
-    Assert-Source $llama $config.sources.llama
-    Assert-Source $vcpkg $config.sources.vcpkg
+    if ($Variant -eq 'gpu') {
+        $installedInventory=Get-Content -LiteralPath (Join-Path $repo 'docs/architecture/raw/native-build/installed-inventory.json') -Raw | ConvertFrom-Json
+        $manifest.cudaRedistributed=@(foreach ($name in @('cublas64_12.dll','cublasLt64_12.dll','cudart64_12.dll')) {
+            $path=Join-Path $tools.cuda "bin/$name"
+            $hash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+            $reference=@($installedInventory | Where-Object RelativePath -IEQ "gpu\$name")
+            if ($reference.Count -ne 1 -or $reference[0].Sha256 -ine $hash -or $reference[0].Size -ne (Get-Item -LiteralPath $path).Length) { throw "Toolkit CUDA runtime differs from installed reference: $name" }
+            Copy-Item -LiteralPath $path -Destination $dllOutput
+            [pscustomobject]@{name=$name;source=$path;path=(Join-Path $dllOutput $name);sha256=$hash;bytes=(Get-Item -LiteralPath $path).Length;compiled=$false}
+        })
+    }
+    Assert-Source $cachedNemo $config.sources.nemo
+    Assert-Source $cachedLlama $config.sources.llama
+    Assert-Source $cachedVcpkg $config.sources.vcpkg
     $manifest.status = 'BUILT_NOT_QUALIFIED'
     Write-Host "Built $Variant. Equivalence NOT established. Manifest: $manifestPath"
 } catch {
