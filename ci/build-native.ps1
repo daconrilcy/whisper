@@ -63,15 +63,146 @@ function Assert-VcpkgExecutable {
     return $digest
 }
 
+function New-NativeBuildOptions([hashtable]$Base, [string]$BuildVariant) {
+    $options = @{} + $Base
+    foreach ($key in $options.Keys) {
+        if ($key -match '^CMAKE_(C|CXX|CUDA|SHARED_LINKER|EXE_LINKER)_FLAGS(?:_(DEBUG|RELEASE|RELWITHDEBINFO|MINSIZEREL))?$') {
+            throw "Full flag override refused: $key. Add determinism through *_FLAGS_INIT to preserve platform defaults."
+        }
+    }
+    foreach ($key in @('CMAKE_C_FLAGS_INIT','CMAKE_CXX_FLAGS_INIT','CMAKE_SHARED_LINKER_FLAGS_INIT','CMAKE_EXE_LINKER_FLAGS_INIT')) {
+        if ($options[$key] -cne '/Brepro') { throw "Expected additive /Brepro initializer: $key" }
+    }
+    if ($BuildVariant -eq 'gpu') { $options.CMAKE_CUDA_FLAGS_INIT='-Xcompiler=/Brepro' }
+    elseif ($BuildVariant -ne 'cpu') { throw 'Native build options require cpu or gpu.' }
+    return $options
+}
+
+function Assert-NativeEffectiveFlags([Collections.IDictionary]$Effective, [string]$BuildVariant) {
+    $requirements = [ordered]@{
+        CMAKE_C_FLAGS=@('/Brepro','/DWIN32','/D_WINDOWS')
+        CMAKE_CXX_FLAGS=@('/Brepro','/DWIN32','/D_WINDOWS','/EHsc')
+        CMAKE_SHARED_LINKER_FLAGS=@('/Brepro','/machine:x64')
+        CMAKE_EXE_LINKER_FLAGS=@('/Brepro','/machine:x64')
+    }
+    if ($BuildVariant -eq 'gpu') { $requirements.CMAKE_CUDA_FLAGS=@('/Brepro','/DWIN32','/D_WINDOWS','/EHsc') }
+    elseif ($BuildVariant -ne 'cpu') { throw 'Effective native flag checks require cpu or gpu.' }
+    $checked = [ordered]@{}
+    foreach ($key in $requirements.Keys) {
+        if (-not $Effective.Contains($key) -or -not $Effective.Contains($key+'_RELEASE')) { throw "Effective flags missing: $key or ${key}_RELEASE" }
+        $flags=([string]$Effective[$key]+' '+[string]$Effective[$key+'_RELEASE']).Trim()
+        # CUDA host options are quoted/comma-separated inside -Xcompiler. Never match partial flags.
+        $flat=if ($key -eq 'CMAKE_CUDA_FLAGS') { $flags.Replace('-Xcompiler=','') } else { $flags }
+        $tokens=@($flat.Replace('"','').Split([char[]]" `t`r`n,",[StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_ -replace '^-','/' })
+        foreach ($token in $tokens) {
+            if (($key -in @('CMAKE_CXX_FLAGS','CMAKE_CUDA_FLAGS') -and $token.StartsWith('/EH',[StringComparison]::OrdinalIgnoreCase) -and $token -cne '/EHsc') -or
+                $token -ieq '/Brepro-' -or $token -imatch '^/U(?:WIN32|_WINDOWS)$' -or
+                ($token -imatch '^/machine:' -and $token -ine '/machine:x64')) {
+                throw "Conflicting effective native flag in ${key}: $token"
+            }
+        }
+        foreach ($required in $requirements[$key]) {
+            if ($required -notin $tokens) { throw "Required effective native flag missing in ${key}: $required" }
+        }
+        $checked[$key]=$flags
+    }
+    return [ordered]@{status='PASS';variant=$BuildVariant;checkedFlags=$checked;diagnosticPolicy='C4530 fails during streaming; no automatic retry'}
+}
+
+function Assert-NativeDiagnostic([string]$Line) {
+    if ($Line -match '\bC4530\b') { throw 'C4530 detected: C++ exception-unwinding semantics are missing. Stop; no automatic retry.' }
+}
+
+function Initialize-NativeProcessHelpers {
+    if ($script:NativeProcessHelpersLoaded) { return }
+    $source=Join-Path $PSScriptRoot 'guard-native.ps1'
+    [void](Assert-Within $source $repo)
+    $tokens=$null; $parseErrors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($source,[ref]$tokens,[ref]$parseErrors)
+    if ($parseErrors.Count) { throw 'Cannot load the existing process-family controls: guard parse failed.' }
+    # Import only these versioned function definitions; never execute the guard entry point.
+    foreach ($name in @('New-VoxPopuliProcessFamily','Assert-VoxPopuliCleanupDeadline','Update-VoxPopuliProcessFamily',
+        'Stop-VoxPopuliKnownProcesses','Stop-VoxPopuliProcessFamily','Close-VoxPopuliProcessFamily')) {
+        $definitions=@($ast.EndBlock.Statements | Where-Object { $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq $name })
+        if ($definitions.Count -ne 1) { throw "Existing process-family helper missing or duplicated: $name" }
+        $definition=$definitions[0].Extent.Text.Replace("function $name(","function script:${name}(")
+        . ([scriptblock]::Create($definition))
+    }
+    $script:NativeProcessHelpersSha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+    $script:NativeProcessHelpersLoaded=$true
+}
+
 function Invoke-Logged([string]$Program, [string[]]$Arguments, [string]$Label) {
+    Initialize-NativeProcessHelpers
     [IO.File]::AppendAllText((Join-Path $run 'commands.log'), ($Program + ' ' + ($Arguments | ConvertTo-Json -Compress) + "`n"), $utf8)
     $log = Join-Path $run ($Label + '.log')
-    & $Program @Arguments 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $log | ForEach-Object {
-        if ($_ -match '^-- |^\[\d+/\d+\]|error|Error|FAILED|Installing|Downloading|Building package') { Write-Host $_ }
+    $psi=[Diagnostics.ProcessStartInfo]::new($Program)
+    $psi.UseShellExecute=$false; $psi.CreateNoWindow=$true; $psi.WorkingDirectory=$run
+    $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
+    foreach ($argument in $Arguments) { $psi.ArgumentList.Add($argument) }
+    $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
+    $writer=[IO.StreamWriter]::new($log,$false,$utf8); $writer.AutoFlush=$true
+    $started=$false; $streamDeadline=$null; $family=$null
+    try {
+        if (-not $process.Start()) { throw "Could not start $Label." }
+        $started=$true
+        $family=New-VoxPopuliProcessFamily $process
+        $streams=@(
+            @{reader=$process.StandardOutput;task=$process.StandardOutput.ReadLineAsync();done=$false},
+            @{reader=$process.StandardError;task=$process.StandardError.ReadLineAsync();done=$false}
+        )
+        while (-not ($streams[0].done -and $streams[1].done -and $process.HasExited)) {
+            Update-VoxPopuliProcessFamily $family
+            $received=$false
+            foreach ($stream in $streams) {
+                # Bounded batches keep stderr diagnostics responsive under a busy stdout.
+                for ($batch=0; $batch -lt 64 -and -not $stream.done -and $stream.task.IsCompleted; $batch++) {
+                    $line=$stream.task.GetAwaiter().GetResult()
+                    if ($null -eq $line) { $stream.done=$true; break }
+                    $received=$true; $writer.WriteLine($line)
+                    Assert-NativeDiagnostic $line
+                    if ($line -match '^-- |^\[\d+/\d+\]|error|Error|FAILED|Installing|Downloading|Building package') { Write-Host $line }
+                    $stream.task=$stream.reader.ReadLineAsync()
+                }
+            }
+            if ($process.HasExited) {
+                if ($null -eq $streamDeadline) {
+                    Update-VoxPopuliProcessFamily $family -Force
+                    if (@($family.entries.Values | Where-Object { -not $_.process.HasExited }).Count) { throw "$Label exited while an observed descendant remained alive." }
+                    $streamDeadline=[DateTimeOffset]::UtcNow.AddSeconds(10)
+                }
+                if ([DateTimeOffset]::UtcNow -ge $streamDeadline) { throw "$Label output streams did not close within ten seconds." }
+            }
+            if (-not $received) { Start-Sleep -Milliseconds 10 }
+        }
+        $process.WaitForExit(); $code=$process.ExitCode
+        Update-VoxPopuliProcessFamily $family -Force
+        if (@($family.entries.Values | Where-Object { -not $_.process.HasExited }).Count) { throw "$Label exited while an observed descendant remained alive." }
+        [IO.File]::AppendAllText((Join-Path $run 'commands.log'), "exit=$code label=$Label`n", $utf8)
+        if ($code -ne 0) { throw "$Label failed (exit $code); see $log. Stop; no automatic retry." }
+    } catch {
+        [IO.File]::AppendAllText((Join-Path $run 'commands.log'), "pipeline_failed label=$Label message=$($_.Exception.Message)`n", $utf8)
+        throw
+    } finally {
+        try {
+            if ($null -ne $family) {
+                try { Stop-VoxPopuliProcessFamily $family }
+                finally {
+                    try {
+                        $receipt=[ordered]@{label=$Label;helperSourceSha256=$script:NativeProcessHelpersSha256
+                            cleanupClosed=$family.cleanupClosed;cleanupPasses=$family.cleanupPasses
+                            entries=@(foreach($entry in $family.entries.GetEnumerator()) {
+                                [pscustomobject]@{pid=$entry.Key;createdUtc=$entry.Value.createdUtc.ToString('o');exited=$entry.Value.process.HasExited}
+                            })}
+                        [IO.File]::AppendAllText((Join-Path $run 'process-control.jsonl'),(($receipt|ConvertTo-Json -Depth 6 -Compress)+"`n"),$utf8)
+                    } finally { Close-VoxPopuliProcessFamily $family }
+                }
+            } elseif ($started -and -not $process.HasExited) {
+                $process.Kill($true)
+                if (-not $process.WaitForExit(5000)) { throw "$Label owned process did not stop after interruption." }
+            }
+        } finally { $writer.Dispose(); $process.Dispose() }
     }
-    $code = $LASTEXITCODE
-    [IO.File]::AppendAllText((Join-Path $run 'commands.log'), "exit=$code label=$Label`n", $utf8)
-    if ($code -ne 0) { throw "$Label failed (exit $code); see $log. Stop; no automatic retry." }
 }
 
 function Assert-Source([string]$Path, [hashtable]$Pin) {
@@ -251,11 +382,14 @@ if ($SelfTest) {
     try { Save-BuildManifest @{status='INVALID'} ($run+'-outside.json') } catch { $rejected=$true }
     if (-not $rejected -or (Test-Path -LiteralPath ($run+'-outside.json'))) { throw 'Manifest outside-root negative control failed.' }
     $rejects++
+    . (Join-Path $PSScriptRoot 'test-native-build-flags.ps1')
+    Invoke-NativeBuildFlagTests $run
     "PASS native script self-tests: negative controls=$rejects; no downloads or compilation."
     return
 }
 
 if ($CheckOnly -and $PrepareOnly) { throw '-CheckOnly and -PrepareOnly are mutually exclusive.' }
+$requestedBuildOptions = New-NativeBuildOptions $config.options $Variant
 if (-not $CheckOnly) {
     if ($env:WHISPER_NATIVE_BUILD_GUARD_PID) { Assert-GuardContext }
     else {
@@ -285,6 +419,8 @@ New-Item -ItemType Directory -Path (Join-Path $cache 'empty-hooks') -Force | Out
 $savedEnvironment = @{}
 foreach ($entry in Get-ChildItem Env:) { $savedEnvironment[$entry.Name] = $entry.Value }
 $manifest = [ordered]@{schemaVersion=1;status='STARTED';variant=$Variant;buildId=$BuildId;startedUtc=[DateTime]::UtcNow.ToString('o');configSha256=(Get-FileHash $configPath -Algorithm SHA256).Hash;sources=$config.sources;versions=$config.tools;tools=$tools;assumptions=$config.assumptions;determinism='MSVC /Brepro (C/C++, CUDA host compiler, linker); not a proof of binary reproducibility';output=$run}
+Initialize-NativeProcessHelpers
+$manifest.processFamilyHelperSha256=$script:NativeProcessHelpersSha256
 $manifestPath = Join-Path $run 'manifest.json'
 $manifest.stage = 'ACQUIRE_SOURCES'
 Save-BuildManifest $manifest $manifestPath
@@ -318,7 +454,7 @@ try {
     }
     $manifest.vcpkgExecutableSha256 = Assert-VcpkgExecutable
     $build = Join-Path $run 'build'
-    $options = @{} + $config.options
+    $options = @{} + $requestedBuildOptions
     $options.GGML_CUDA = if ($Variant -eq 'gpu') { 'ON' } else { 'OFF' }
     $options.CMAKE_C_COMPILER = $tools.cl.Replace('\','/')
     $options.CMAKE_CXX_COMPILER = $options.CMAKE_C_COMPILER
@@ -331,7 +467,6 @@ try {
         $options.CMAKE_CUDA_ARCHITECTURES='61'
         $options.CMAKE_CUDA_COMPILER=$tools.nvcc.Replace('\','/')
         $options.CMAKE_CUDA_HOST_COMPILER=$options.CMAKE_C_COMPILER
-        $options.CMAKE_CUDA_FLAGS='-Xcompiler=/Brepro'
     }
     $manifest.requestedOptions = $options
     $configure = @('-S',$nemo,'-B',$build,'-G','Ninja')
@@ -344,9 +479,10 @@ try {
         if ($line -match '^([^/#][^:]*):[^=]+=(.*)$') { $effective[$matches[1]]=$matches[2] }
     }
     $manifest.effectiveOptions = $effective
-    foreach ($key in @('GGML_NATIVE','GGML_CUDA','CMAKE_BUILD_TYPE','VCPKG_TARGET_TRIPLET')) {
+    foreach ($key in @('GGML_NATIVE','GGML_CUDA','CMAKE_BUILD_TYPE','CMAKE_MSVC_RUNTIME_LIBRARY','VCPKG_TARGET_TRIPLET')) {
         if ($effective[$key] -cne $options[$key]) { throw "Effective CMake option differs: $key" }
     }
+    $manifest.flagValidation = Assert-NativeEffectiveFlags $effective $Variant
     $manifest.stage = 'BUILD'
     Save-BuildManifest $manifest $manifestPath
     Invoke-Logged $tools.cmake @('--build',$build,'--parallel','4') 'build'
