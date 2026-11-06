@@ -1,6 +1,6 @@
 Avancée : garde corrigée, témoin personnel remis et premiers résultats humains reçus.
-Blocage : référence T3 partielle au regard du protocole accepté ; correctifs produit T4 en attente.
-Décision : proposer l'acceptation de cette référence réduite avant de commencer T4.
+Blocage : vérifications compilantes toujours soumises au préalable natif applicable.
+Décision : référence réduite acceptée par l'utilisateur ; commencer T4 dans les chemins prévus.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -164,4 +164,4 @@ Les 20 ressources installées hors ancien desktop correspondent en taille et SHA
 
 Mesures avant déclarées par l'utilisateur : lancement → interface utilisable environ 1 s ; clic micro → compteur capturés environ 1,5 s. Précision fournie ensuite : quatre essais Parakeet, langue Auto, calcul Auto ; délai micro déclaré identique en Parakeet/CPU, Parakeet/GPU, Turbo/CPU et Turbo/GPU, un essai par configuration. Il s'agit de valeurs approximatives globales, pas de relevés individuels chronométrés par l'agent. Le délai interface n'est pas ventilé par configuration. Source microphone, état des caches, moteur effectif en Auto et mesure Turbo/Auto non précisés. Aucun min/max ou gain mesuré n'est déduit. La tentative de contrôle Windows par l'agent a échoué avec `GetCursorPos failed: Accès refusé (0x80070005)` ; aucune mesure agent n'en provient.
 
-Arbitrage proposé, en attente : retenir ces huit essais déclarés comme référence réduite suffisante pour commencer T4, sans exiger les six répétitions par configuration ni la couverture de Turbo/Auto et de toutes les sources microphone avant le code. La comparaison de performance resterait indicative, avec ses configurations non mesurées explicitement signalées. Les contrats produit et tests automatiques du lot ne changeraient pas. Aucune modification produit ne commence avant cette décision de périmètre.
+Arbitrage accepté dans la session courante (« oui je valide ») : retenir ces huit essais déclarés comme référence réduite suffisante pour commencer T4, sans exiger les six répétitions par configuration ni la couverture de Turbo/Auto et de toutes les sources microphone avant le code. La comparaison de performance reste indicative, avec ses configurations non mesurées explicitement signalées. Les contrats produit et tests automatiques du lot ne changent pas. T3 est accepté avec ces limites ; T4 est autorisé par la demande d'implémentation courante.
