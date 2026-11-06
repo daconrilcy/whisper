@@ -21,6 +21,8 @@ Branche `inspect-ciblee`, worktree `C:/wt/inspect-ciblee`. Objectif : supprimer 
 
 ## Responsabilités et chemins
 
+Revue pré-code `rust_review_coordinator` du 6 novembre : les trois N1 sans variable de la tâche 8 sont exactement les trois validations finales de la tâche 10, pas trois campagnes supplémentaires. La garde native peut être relue statiquement et testée sur fixtures ; sa vérification contre les racines réelles finales reste bloquée tant que l'humain n'a pas exécuté et confirmé P5. Le bilan ne présentera pas ce point comme validé avant observation.
+
 La session principale écrit/commite le plan, les notes, renvois documentaires, AGENTS et bilan. `rust_implementer` IMPLEMENT possède seul les changements Rust/tests ci-dessus et les gardes/supports `ci` listés ; il lit AGENTS de chaque crate avant édition et rapporte le diff exact. Des fichiers de tests séparés et leur déclaration sont autorisés dans les modules concernés. Pas d'édition desktop produit (diagnostic seul). Tout chemin supplémentaire substantiel nécessite arbitrage. Le coordinateur demandé relit d'abord le plan sans édition, puis coordonne la revue du candidat concret.
 
 ## Préflight, arrêt et rétention
