@@ -1,6 +1,6 @@
 Avancée : trois N1 complets PASS (714/0/128) ; quatorze répétitions lib PASS ; correctif C et témoin PASS.
 Blocage : répétition 15 en échec sur trois collisions de fixtures PID ; campagne arrêtée, fenêtres NON ATTESTÉES.
-Décision : soumettre la proposition 7 ci-dessous avant toute correction ou reprise ; TH-R4 reste MINEUR ouvert.
+Décision : proposition 7 autorisée le 6 novembre ; correction puis un cycle supplémentaire de revue, revalidation depuis zéro ; TH-R4 reste MINEUR ouvert.
 
 # TESTS-HYGIENE — plan
 
@@ -66,7 +66,7 @@ Relever les dossiers temporaires effectivement créés et les préexistants corr
 
 Bilan ≤1 page : causes A/B/C, anti-régression, recherche d'environnements regroupée, trois campagnes, cinquante itérations, totaux/durées/écarts, attestation humaine, mémoire et dettes. Données détaillées dans l'archive. Commit(s) locaux sur tests-hygiene uniquement, aucun merge/push. Si une attestation ou un critère manque, le marquer NON EXÉCUTÉ/NON ATTESTÉ, sans annoncer l'objectif atteint.
 
-## 7 — Proposition en attente d'accord : isolation des fixtures entre processus
+## 7 — Extension autorisée le 6 novembre : isolation des fixtures entre processus
 
 Preuve : répétition 5 verte puis répétition 15 en échec ont réutilisé les chemins suffixés 62576 sous le TMP persistant. Le fichier `status-selftest-62576/d2-engine-status.json` est créé à 05:27:33 et complété à 05:28:47 ; ses deux objets JSON expliquent l'erreur de lecture. Les racines d'alias et de file correspondantes existaient également avant la seconde exécution. Aucun défaut produit n'est démontré.
 
@@ -74,4 +74,4 @@ Périmètre de correction proposé : `crates/whisper-adapters/src/worker_ipc/tes
 
 Conserver le helper path-only sans création implicite : noms uniques par allocation avec PID, horodatage et compteur. Pour les trois cas fautifs, réserver la racine par `create_dir` (parents créés séparément si nécessaire), refuser toute racine préexistante et nettoyer seulement la racine neuve après assertions et fermeture des propriétaires de handles. Conserver les assertions JSON, identité/canonicalité et FIFO. Ne pas tronquer les diagnostics, changer les jobs ni supprimer un ancien dossier pour obtenir un vert. Ajouter un témoin simple : deux allocations du même cas donnent deux chemins différents, sans création par le helper.
 
-Arbitrages nécessaires : extension à ces quatre fichiers/registre, un cycle supplémentaire de correction/relecture indépendant au-delà des deux cycles déjà consommés, puis reprise des trois N1 et des cinquante suites lib depuis zéro sur le candidat corrigé. Arrêt au premier échec, seuils et garde inchangés. Les quatorze répétitions antérieures et les trois N1 restent archivés comme preuves de l'ancien candidat ; garde native toujours NON EXÉCUTÉE. Les racines PID-only ignorées sans `native-tests` sont signalées hors périmètre ; leurs recettes natives restent suspendues.
+Accord utilisateur reçu sur l'extension à ces quatre fichiers/registre, un cycle supplémentaire de correction/relecture indépendant au-delà des deux cycles déjà consommés, puis reprise des trois N1 et des cinquante suites lib depuis zéro sur le candidat corrigé. Arrêt au premier échec, seuils et garde inchangés. Les quatorze répétitions antérieures et les trois N1 restent archivés comme preuves de l'ancien candidat ; garde native toujours NON EXÉCUTÉE. Les racines PID-only ignorées sans `native-tests` sont signalées hors périmètre ; leurs recettes natives restent suspendues.
