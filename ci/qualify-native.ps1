@@ -2,25 +2,25 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateSet('SelfTest','SurfaceCpu','SurfaceGpu','RepeatCpu','RepeatGpu','Prepare','NativeSelfTest','N2SelfTest','Cpu1','Cpu2','Gpu1','Gpu2','CpuReference1','CpuReference2','CpuRebuilt','GpuReference1','GpuReference2','GpuRebuilt')][string]$Stage,
-    [ValidateSet('r1','r2','r3')][string]$RepriseId
+    [ValidateSet('r1','r2','r3','r4')][string]$RepriseId
 )
 $ErrorActionPreference='Stop'
 $PSNativeCommandUseErrorActionPreference=$false
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
 function Get-QualificationRouting([string]$Reprise) {
-    if($Reprise -and $Reprise -cnotin @('r1','r2','r3')){throw 'Only the explicitly authorized r1/r2/r3 qualification reprises are supported.'}
+    if($Reprise -and $Reprise -cnotin @('r1','r2','r3','r4')){throw 'Only the explicitly authorized r1/r2/r3/r4 qualification reprises are supported.'}
     $original='C:\wb\native-qualif'
     return [pscustomobject]@{root=$(if($Reprise){Join-Path $original ('reprise-'+$Reprise.Substring(1))}else{$original});original=$original;buildPrefix=$(if($Reprise){'qualif-'+$Reprise}else{'qualif'})}
 }
 function Get-QualificationBuildId([string]$Variant,[int]$Number,[string]$Reprise) {
     if($Variant -cnotin @('cpu','gpu') -or $Number -notin @(1,2)){throw 'Qualification build ID requires cpu/gpu and build 1/2.'}
-    if($Reprise -ceq 'r3' -and $Variant -cne 'gpu'){throw 'Qualification reprise r3 is GPU-only; CPU r2 qualification is preserved.'}
+    if($Reprise -cin @('r3','r4') -and $Variant -cne 'gpu'){throw "Qualification reprise $Reprise is GPU-only; CPU r2 qualification is preserved."}
     return (Get-QualificationRouting $Reprise).buildPrefix+'-'+$Variant+$Number
 }
 function Assert-QualificationStageRouting([string]$RequestedStage,[string]$Reprise) {
     $null=Get-QualificationRouting $Reprise
-    if($Reprise -ceq 'r3' -and $RequestedStage -notin @('SelfTest','NativeSelfTest','SurfaceGpu','RepeatGpu','Gpu1','Gpu2','GpuReference1','GpuReference2','GpuRebuilt')){
-        throw 'Qualification reprise r3 permits only GPU qualification and its bounded self-tests.'
+    if($Reprise -cin @('r3','r4') -and $RequestedStage -notin @('SelfTest','NativeSelfTest','SurfaceGpu','RepeatGpu','Gpu1','Gpu2','GpuReference1','GpuReference2','GpuRebuilt')){
+        throw "Qualification reprise $Reprise permits only GPU qualification and its bounded self-tests."
     }
 }
 $routing=Get-QualificationRouting $RepriseId
@@ -59,37 +59,70 @@ function Import-QualificationProcessControls {
         . ([scriptblock]::Create($definitions[0].Extent.Text.Replace("function $name(","function script:${name}(")))
     }
 }
-function Get-QualificationExceptionDetails([Exception]$Exception,[int]$Depth=0) {
+function ConvertTo-QualificationText([object]$Value,[int]$Maximum=4096) {
+    if($null -eq $Value){return $null}
+    $text=[string]$Value
+    if($text.Length -gt $Maximum){return $text.Substring(0,$Maximum)+' [truncated]'}
+    return $text
+}
+function Get-QualificationExceptionDetails([Exception]$Exception,[int]$Depth=0,[hashtable]$Budget=$null) {
     if($null -eq $Exception){return $null}
-    if($Depth -ge 16){return [ordered]@{type=$Exception.GetType().FullName;message=$Exception.Message;truncated=$true}}
-    [ordered]@{type=$Exception.GetType().FullName;message=$Exception.Message;hResult=$Exception.HResult;source=$Exception.Source
-        targetSite=[string]$Exception.TargetSite;stackTrace=$Exception.StackTrace;data=[string]$Exception.Data
-        inner=Get-QualificationExceptionDetails $Exception.InnerException ($Depth+1)
-        aggregateInners=@(if($Exception -is [AggregateException]){foreach($inner in $Exception.InnerExceptions){Get-QualificationExceptionDetails $inner ($Depth+1)}})}
+    if($null -eq $Budget){$Budget=@{remaining=16}}
+    $summary=[ordered]@{type=$Exception.GetType().FullName;message=ConvertTo-QualificationText $Exception.Message;hResult=$Exception.HResult}
+    if($Depth -ge 8 -or $Budget.remaining -le 0){$summary.truncated=$true;return $summary}
+    $Budget.remaining--
+    $summary.source=ConvertTo-QualificationText $Exception.Source
+    $summary.targetSite=ConvertTo-QualificationText $Exception.TargetSite
+    $summary.stackTrace=ConvertTo-QualificationText $Exception.StackTrace 16384
+    $summary.inner=Get-QualificationExceptionDetails $Exception.InnerException ($Depth+1) $Budget
+    $summary.aggregateInners=@(if($Exception -is [AggregateException]){
+        for($i=0;$i -lt [Math]::Min(4,$Exception.InnerExceptions.Count) -and $Budget.remaining -gt 0;$i++){Get-QualificationExceptionDetails $Exception.InnerExceptions[$i] ($Depth+1) $Budget}
+    })
+    return $summary
+}
+function Write-QualificationJsonAtomic([string]$Path,[object]$Value) {
+    $pending=$Path+'.pending-'+[guid]::NewGuid().ToString('N')
+    [IO.File]::WriteAllText($pending,($Value|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
+    [IO.File]::Move($pending,$Path,$true)
+}
+function Get-QualificationErrorProjection([Management.Automation.ErrorRecord]$ErrorRecord,[int]$Number,[string]$Phase,[string]$Operation,[string]$Path) {
+    $info=$ErrorRecord.InvocationInfo
+    [ordered]@{number=$Number;at=[DateTimeOffset]::UtcNow.ToString('o');phase=ConvertTo-QualificationText $Phase;operation=ConvertTo-QualificationText $Operation
+        exception=Get-QualificationExceptionDetails $ErrorRecord.Exception;fullyQualifiedErrorId=ConvertTo-QualificationText $ErrorRecord.FullyQualifiedErrorId
+        category=[ordered]@{category=[string]$ErrorRecord.CategoryInfo.Category;activity=ConvertTo-QualificationText $ErrorRecord.CategoryInfo.Activity;reason=ConvertTo-QualificationText $ErrorRecord.CategoryInfo.Reason;targetName=ConvertTo-QualificationText $ErrorRecord.CategoryInfo.TargetName;targetType=ConvertTo-QualificationText $ErrorRecord.CategoryInfo.TargetType}
+        invocation=[ordered]@{invocationName=ConvertTo-QualificationText $info.InvocationName;scriptName=ConvertTo-QualificationText $info.ScriptName;scriptLineNumber=[int]$info.ScriptLineNumber;offsetInLine=[int]$info.OffsetInLine;line=ConvertTo-QualificationText $info.Line;positionMessage=ConvertTo-QualificationText $info.PositionMessage 16384;command=ConvertTo-QualificationText $info.MyCommand.Name}
+        scriptStackTrace=ConvertTo-QualificationText $ErrorRecord.ScriptStackTrace 16384;errorDetails=ConvertTo-QualificationText $ErrorRecord.ErrorDetails.Message
+        recommendedAction=ConvertTo-QualificationText $ErrorRecord.ErrorDetails.RecommendedAction;diagnosticPath=$Path;capture='Bounded primitive projection; no raw ErrorRecord graph.'}
 }
 function Add-QualificationFailure([object]$Context,[object]$Failure,[string]$Phase=$Context.phase,[string]$Operation=$Context.operation) {
     $errorRecord=if($Failure -is [Management.Automation.ErrorRecord]){$Failure}else{
         $exception=if($Failure -is [Exception]){$Failure}else{[InvalidOperationException]::new([string]$Failure)}
         [Management.Automation.ErrorRecord]::new($exception,'QualificationFailure',[Management.Automation.ErrorCategory]::NotSpecified,$null)
     }
-    $Message=$errorRecord.Exception.Message
+    $Message=ConvertTo-QualificationText $errorRecord.Exception.Message
     if(-not $Context.failures.Contains($Message)){$Context.failures.Add($Message)}
     $Context.record.status='FAIL';$Context.record.failure=($Context.failures -join '; ')
-    $number=$Context.errors.Count+1;$rawPath=Join-Path $Context.evidence ('error-{0:d4}.clixml' -f $number)
-    $info=$errorRecord.InvocationInfo
-    $details=[ordered]@{number=$number;at=[DateTimeOffset]::UtcNow.ToString('o');phase=$Phase;operation=$Operation
-        exception=Get-QualificationExceptionDetails $errorRecord.Exception;fullyQualifiedErrorId=$errorRecord.FullyQualifiedErrorId
-        category=[ordered]@{category=[string]$errorRecord.CategoryInfo.Category;activity=$errorRecord.CategoryInfo.Activity;reason=$errorRecord.CategoryInfo.Reason;targetName=$errorRecord.CategoryInfo.TargetName;targetType=$errorRecord.CategoryInfo.TargetType}
-        invocation=[ordered]@{invocationName=$info.InvocationName;scriptName=$info.ScriptName;scriptLineNumber=$info.ScriptLineNumber;offsetInLine=$info.OffsetInLine;line=$info.Line;positionMessage=$info.PositionMessage;command=[string]$info.MyCommand;boundParameters=$info.BoundParameters}
-        scriptStackTrace=$errorRecord.ScriptStackTrace;errorDetails=[string]$errorRecord.ErrorDetails;targetObject=[string]$errorRecord.TargetObject;rawErrorRecord=$rawPath}
-    try{$errorRecord|Export-Clixml -LiteralPath $rawPath -Depth 32 -Force}
-    catch{$details.rawRecordWriteError=Get-QualificationExceptionDetails $_.Exception}
+    $number=$Context.errors.Count+1;$path=Join-Path $Context.evidence ('error-{0:d4}.json' -f $number)
+    $details=[ordered]@{number=$number;at=[DateTimeOffset]::UtcNow.ToString('o');phase=ConvertTo-QualificationText $Phase;operation=ConvertTo-QualificationText $Operation
+        exception=[ordered]@{type=$errorRecord.Exception.GetType().FullName;message=$Message;hResult=$errorRecord.Exception.HResult};fullyQualifiedErrorId=ConvertTo-QualificationText $errorRecord.FullyQualifiedErrorId;diagnosticPath=$path}
     $Context.errors.Add($details)
     if(-not $Context.record.Contains('firstError')){$Context.record.firstError=$details}
     $Context.record.errors=$Context.errors.ToArray()
-    $details|ConvertTo-Json -Depth 32|Set-Content -LiteralPath (Join-Path $Context.evidence ('error-{0:d4}.json' -f $number)) -Encoding utf8
-    [ordered]@{stage=$Context.stage;at=[DateTimeOffset]::UtcNow.ToString('o');failures=$Context.failures.ToArray();firstError=$Context.record.firstError;errors=$Context.errors.ToArray()}|
-        ConvertTo-Json -Depth 32|Set-Content -LiteralPath (Join-Path $Context.root 'STOP.json') -Encoding utf8
+    # Persist the first cause and FAIL/STOP before any optional diagnostic capture.
+    Write-QualificationJsonAtomic (Join-Path $Context.root 'STOP.json') ([ordered]@{stage=$Context.stage;status='FAIL';at=[DateTimeOffset]::UtcNow.ToString('o');failures=$Context.failures.ToArray();firstError=$Context.record.firstError})
+    try{
+        $projection=Get-QualificationErrorProjection $errorRecord $number $Phase $Operation $path
+        foreach($key in $projection.Keys){$details[$key]=$projection[$key]}
+        & $Context.writeDiagnostic $path $details
+    }catch{
+        $secondary=Get-QualificationErrorProjection $_ ($Context.errors.Count+1) 'diagnostic' 'CaptureErrorProjection' ''
+        $Context.errors.Add($secondary)
+        $Context.failures.Add('Diagnostic capture failed: '+$secondary.exception.message)
+        $Context.record.failure=($Context.failures -join '; ')
+    }
+    $Context.record.errors=$Context.errors.ToArray()
+    try{Write-QualificationJsonAtomic (Join-Path $Context.root 'STOP.json') ([ordered]@{stage=$Context.stage;status='FAIL';at=[DateTimeOffset]::UtcNow.ToString('o');failures=$Context.failures.ToArray();firstError=$Context.record.firstError;errors=$Context.errors.ToArray()})}
+    catch{$Context.record.stopDetailWriteFailure=ConvertTo-QualificationText $_.Exception.Message} # Minimal STOP is already durable.
 }
 function Assert-QualificationCanStart([string]$Root) {
     if(Test-Path -LiteralPath (Join-Path $Root 'STOP.json')){throw 'Qualification previously stopped; no further attempt without user decision.'}
@@ -105,10 +138,22 @@ function Assert-QualificationWhea([object]$Context,[object[]]$Events) {
     throw 'New WHEA event of any type since the persistent lot baseline; qualification stopped.'
 }
 function Read-QualificationMemWatchLevel([string]$Path) {
-    $sample=Get-Item -LiteralPath $Path
+    $deadline=[DateTimeOffset]::UtcNow.AddMilliseconds(500)
+    $sample=Get-Item -LiteralPath $Path -ErrorAction Stop
     if(([datetime]::UtcNow-$sample.LastWriteTimeUtc).TotalSeconds -gt 20){throw 'MemWatch level sample stale.'}
-    $level=(Get-Content -LiteralPath $Path -Raw).Trim();$deadline=[DateTimeOffset]::UtcNow.AddMilliseconds(500)
-    while(-not $level -and [DateTimeOffset]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 20;$level=(Get-Content -LiteralPath $Path -Raw).Trim()}
+    $raw=Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    if($null -eq $raw){$raw=''}
+    $level=$raw.Trim()
+    while(-not $level){
+        $remaining=($deadline-[DateTimeOffset]::UtcNow).TotalMilliseconds
+        if($remaining -le 0){throw 'MemWatch level remained empty for the single 500 ms read window.'}
+        Start-Sleep -Milliseconds ([int][Math]::Min(20,[Math]::Ceiling($remaining)))
+        if([DateTimeOffset]::UtcNow -ge $deadline){throw 'MemWatch level remained empty for the single 500 ms read window.'}
+        $raw=Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+        if($null -eq $raw){$raw=''}
+        $level=$raw.Trim()
+    }
+    if($level -cnotin @('OK','ALERTE','STOP-LANCEMENTS','INTERROMPRE')){throw "Invalid MemWatch level: $level"}
     return $level
 }
 function Read-QualificationMemWatchSample([string]$MonitorRoot,[DateTimeOffset]$Now=[DateTimeOffset]::UtcNow) {
@@ -417,6 +462,7 @@ function New-QualificationContext([string]$Root,[string]$Evidence,[string]$Stage
         failures=[Collections.Generic.List[string]]::new();errors=[Collections.Generic.List[object]]::new();phase='initialization';operation='CreateContext';peak=0.0;nextSample=[DateTimeOffset]::MinValue
         readWhea={Get-QualificationWhea};readMemory={Get-QualificationMemory};readSample={param($Path) Read-QualificationMemWatchSample $Path}
         readLevel={param($Path) Read-QualificationMemWatchLevel $Path};readMonitorHash={(Get-FileHash -LiteralPath 'C:/memwatch/MemWatch.ps1').Hash}
+        writeDiagnostic={param($Path,$Details) Write-QualificationJsonAtomic $Path $Details}
         monitor=$null;monitorStarted=$false;monitorWasStarted=$false;monitorIdentity=$null;levelPath=$null}
 }
 function Stop-QualificationChild([object]$Context,[Diagnostics.Process]$Child,[bool]$Started,[object]$Family,[scriptblock]$StopFamily={param($Owned) Stop-VoxPopuliProcessFamily $Owned}) {
@@ -468,6 +514,75 @@ function Complete-QualificationStep([object]$Context,[scriptblock[]]$Actions) {
     if(-not $Context.failures.Count){$Context.record.status='PASS'}
     $Context.record|ConvertTo-Json -Depth 32|Set-Content -LiteralPath (Join-Path $Context.evidence 'step.json') -Encoding utf8
 }
+function Invoke-QualificationLevelSelfTests([string]$FixtureRoot) {
+    New-Item -ItemType Directory -Path $FixtureRoot -Force|Out-Null
+    $checks=[Collections.Generic.List[object]]::new()
+    function New-LevelContext([string]$Name){
+        $caseRoot=Join-Path $FixtureRoot $Name;$caseEvidence=Join-Path $caseRoot 'step'
+        New-Item -ItemType Directory -Path $caseEvidence -Force|Out-Null
+        $state=New-QualificationContext $caseRoot $caseEvidence $Name 10 ([DateTimeOffset]::UtcNow) ([ordered]@{status='STARTED';memwatchSha256='fixture-hash'})
+        $state.readWhea={@()};$state.readMemory={throw 'No actual CIM or fallback is permitted in level tests.'};$state.readMonitorHash={'fixture-hash'}
+        $state.readSample={param($Path) [pscustomobject]@{percent=20.0;sourceTimestampUtc=[DateTimeOffset]::UtcNow.ToString('o');sourceAgeSeconds=0;source='fixture';ignoredTrailingBytes=0}}
+        $now=[datetime]::Now;$state.monitor=[pscustomobject]@{HasExited=$false;StartTime=$now};$state.monitorIdentity=$now.ToUniversalTime();$state.monitorStarted=$true
+        $state.levelPath=Join-Path $caseRoot 'level.txt';[IO.File]::WriteAllBytes($state.levelPath,[byte[]]@())
+        return $state
+    }
+    function Assert-LevelStopped([object]$State){
+        Complete-QualificationStep $State @({'level fixture proof'|Set-Content -LiteralPath (Join-Path $State.evidence 'proof.txt')})
+        if($State.record.status -ne 'FAIL' -or $State.record.firstError.operation -cne 'ReadMemWatchLevel' -or
+            -not (Test-Path (Join-Path $State.root 'STOP.json')) -or -not (Test-Path $State.record.firstError.diagnosticPath) -or
+            -not (Test-Path (Join-Path $State.evidence 'proof.txt'))){throw 'MemWatch level failure attribution/STOP/proofs missing.'}
+        $rejected=$false;try{Assert-QualificationCanStart $State.root}catch{$rejected=$true};if(-not $rejected){throw 'Stage accepted after level failure.'}
+    }
+    $state=New-LevelContext 'zero-then-filled'
+    $writer=[powershell]::Create();$pending=$null
+    try{
+        [void]$writer.AddScript('param($Destination) Start-Sleep -Milliseconds 100; [IO.File]::WriteAllText($Destination,"OK",[Text.UTF8Encoding]::new($false))').AddArgument($state.levelPath)
+        $pending=$writer.BeginInvoke();$clock=[Diagnostics.Stopwatch]::StartNew()
+        $level=Read-QualificationMemWatchLevel $state.levelPath;$clock.Stop()
+        if($level -cne 'OK' -or $clock.ElapsedMilliseconds -ge 500){throw 'Zero-byte level did not recover within the single read window.'}
+        if(-not $pending.AsyncWaitHandle.WaitOne(2000)){throw 'In-process level fixture writer did not complete.'}
+        [void]$writer.EndInvoke($pending);if($writer.HadErrors){throw 'In-process level fixture writer failed.'}
+        $checks.Add([ordered]@{test='real zero-byte file filled after 100ms by in-process runspace';result='PASS';elapsedMs=$clock.ElapsedMilliseconds})
+    }finally{if($pending -and -not $pending.IsCompleted){$writer.Stop()};$writer.Dispose()}
+    foreach($name in @('persistent-empty','invalid','missing','locked','stale')){
+        $state=New-LevelContext $name;$lock=$null
+        if($name -eq 'invalid'){[IO.File]::WriteAllText($state.levelPath,'INVALID')}
+        if($name -eq 'missing'){$state.levelPath=Join-Path $state.root 'absent.txt'}
+        if($name -eq 'locked'){$lock=[IO.File]::Open($state.levelPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
+        if($name -eq 'stale'){[IO.File]::WriteAllText($state.levelPath,'OK');[IO.File]::SetLastWriteTimeUtc($state.levelPath,[datetime]::UtcNow.AddSeconds(-25))}
+        $rejected=$false;$clock=[Diagnostics.Stopwatch]::StartNew()
+        try{Invoke-QualificationHealth $state -Force}catch{$rejected=$true}finally{$clock.Stop();if($lock){$lock.Dispose()}}
+        if(-not $rejected){throw "Invalid MemWatch level fixture accepted: $name"}
+        Assert-LevelStopped $state
+        if($name -eq 'missing' -and (-not $state.record.firstError.exception.type -or -not $state.record.firstError.fullyQualifiedErrorId -or
+            -not $state.record.firstError.invocation.positionMessage -or -not $state.record.firstError.scriptStackTrace)){throw 'Missing-file primitive diagnostic projection lacks type/FQID/site/stack.'}
+        if($name -eq 'persistent-empty'){
+            if($clock.ElapsedMilliseconds -lt 450 -or $clock.ElapsedMilliseconds -ge 750 -or $state.record.firstError.exception.message -notlike '*single 500 ms read window*'){throw 'Persistent empty level did not use one bounded 500ms deadline (including diagnostic-write overhead).'}
+        }elseif($clock.ElapsedMilliseconds -ge 450){throw "Nonempty/IO/stale level failure retried instead of failing immediately: $name"}
+        $checks.Add([ordered]@{test=$name;result='PASS';elapsedMs=$clock.ElapsedMilliseconds;operation=$state.record.firstError.operation})
+    }
+    $state=New-LevelContext 'secondary-diagnostic-failure';$state.levelPath=Join-Path $state.root 'absent-again.txt'
+    $state.writeDiagnostic={param($Path,$Details)
+        $stopPath=Join-Path $state.root 'STOP.json'
+        if(-not (Test-Path -LiteralPath $stopPath)){throw 'Minimal STOP did not precede diagnostic capture.'}
+        $saved=Get-Content -LiteralPath $stopPath -Raw|ConvertFrom-Json
+        if($saved.status -cne 'FAIL' -or $saved.firstError.operation -cne 'ReadMemWatchLevel'){throw 'First cause was not preserved before diagnostic capture.'}
+        throw [IO.IOException]::new('Injected secondary diagnostic serializer failure.')
+    }
+    $rejected=$false;$clock=[Diagnostics.Stopwatch]::StartNew()
+    try{Invoke-QualificationHealth $state -Force}catch{$rejected=$true};$clock.Stop()
+    Complete-QualificationStep $state @({'secondary capture proof'|Set-Content -LiteralPath (Join-Path $state.evidence 'proof.txt')})
+    $saved=Get-Content -LiteralPath (Join-Path $state.root 'STOP.json') -Raw|ConvertFrom-Json
+    if(-not $rejected -or $clock.ElapsedMilliseconds -ge 450 -or $state.record.status -cne 'FAIL' -or $state.record.firstError.operation -cne 'ReadMemWatchLevel' -or
+        $state.record.errors.Count -ne 2 -or $state.record.errors[1].operation -cne 'CaptureErrorProjection' -or
+        $state.record.errors[1].exception.message -notlike '*Injected secondary diagnostic serializer failure*' -or
+        $saved.firstError.operation -cne 'ReadMemWatchLevel' -or -not (Test-Path (Join-Path $state.evidence 'proof.txt'))){throw 'Secondary diagnostic failure changed the first cause or blocked failure/proof preservation.'}
+    $refused=$false;try{Assert-QualificationCanStart $state.root}catch{$refused=$true};if(-not $refused){throw 'Stage allowed after secondary diagnostic failure.'}
+    $checks.Add([ordered]@{test='minimal STOP precedes capture; secondary capture failure preserves first cause and cleanup';result='PASS';elapsedMs=$clock.ElapsedMilliseconds})
+    $checks.ToArray()|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $FixtureRoot 'level-tests.json') -Encoding utf8
+    "PASS W4 real-file level tests: $($checks.Count); no child process or watcher. fixtureRoot=$FixtureRoot"
+}
 function Invoke-QualificationReaderSelfTests([string]$FixtureRoot) {
     New-Item -ItemType Directory -Path $FixtureRoot -Force|Out-Null
     $checks=0
@@ -487,7 +602,7 @@ function Invoke-QualificationReaderSelfTests([string]$FixtureRoot) {
         Complete-QualificationStep $State @({'preserved fixture evidence'|Set-Content -LiteralPath (Join-Path $State.evidence 'proof.txt')})
         $first=$State.record.firstError
         if($State.record.status -ne 'FAIL' -or $first.operation -cne $ExpectedOperation -or -not $first.fullyQualifiedErrorId -or
-            -not $first.invocation.positionMessage -or -not $first.scriptStackTrace -or -not (Test-Path $first.rawErrorRecord) -or
+            -not $first.invocation.positionMessage -or -not $first.scriptStackTrace -or -not (Test-Path $first.diagnosticPath) -or
             -not (Test-Path (Join-Path $State.evidence 'proof.txt')) -or -not (Test-Path (Join-Path $State.root 'STOP.json'))){throw "Reader failure diagnostics incomplete: $ExpectedOperation"}
         $rejected=$false;try{Assert-QualificationCanStart $State.root}catch{$rejected=$true}
         if(-not $rejected){throw 'Reader failure allowed the next stage.'}
@@ -506,7 +621,7 @@ function Invoke-QualificationReaderSelfTests([string]$FixtureRoot) {
         $first=$state.record.firstError
         try{throw [TimeoutException]::new('Injected subsequent cleanup timeout.')}catch{Add-QualificationFailure $state $_ 'cleanup' 'InjectedSubsequentCleanup'}
         Assert-ReaderStopped $state $case.operation
-        $raw=Import-Clixml -LiteralPath $first.rawErrorRecord
+        $raw=Get-Content -LiteralPath $first.diagnosticPath -Raw|ConvertFrom-Json
         if($state.record.errors.Count -ne 2 -or $state.record.firstError.number -ne 1 -or $state.record.errors[1].operation -cne 'InjectedSubsequentCleanup' -or
             ($first.exception|ConvertTo-Json -Depth 32) -notmatch 'System.TimeoutException' -or ($first.exception|ConvertTo-Json -Depth 32) -notmatch 'System.IO.IOException' -or
             -not $first.exception.hResult -or $raw.Exception.Message -notlike '*Injected reader timeout*'){throw 'First full ErrorRecord or subsequent error was not retained.'}
@@ -569,11 +684,12 @@ function Invoke-QualificationReaderSelfTests([string]$FixtureRoot) {
     $route=Get-QualificationRouting 'r2'
     if($route.root -cne 'C:\wb\native-qualif\reprise-2' -or $route.original -cne 'C:\wb\native-qualif'){throw 'r2 evidence root differs.'}
     foreach($variant in @('cpu','gpu')){foreach($number in @(1,2)){if((Get-QualificationBuildId $variant $number 'r2') -cne "qualif-r2-$variant$number"){throw 'r2 build ID differs.'}}}
-    foreach($invalid in @('r4','R2','../reprise-2','C:/override')){$rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true};if(-not $rejected){throw 'Arbitrary reprise accepted.'}}
+    foreach($invalid in @('r5','R2','../reprise-2','C:/override')){$rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true};if(-not $rejected){throw 'Arbitrary reprise accepted.'}}
     $checks++
     "PASS W2 reader/CSV/cleanup/r2 fixture checks: $checks; fixtureRoot=$FixtureRoot"
 }
 if($Stage -eq 'SelfTest') {
+    Invoke-QualificationLevelSelfTests (Join-Path $repo ('target/native-qualif-level-selftests/'+[guid]::NewGuid().ToString('N')))
     Invoke-QualificationReaderSelfTests (Join-Path $repo ('target/native-qualif-reader-selftests/'+[guid]::NewGuid().ToString('N')))
     Assert-QualificationMemory 84.9 $true;Assert-QualificationMemory 89.9 $false
     $rejects=0
@@ -678,7 +794,7 @@ switch -Regex ($Stage) {
     '^(Surface|Repeat)(Cpu|Gpu)$' {$comparison=@{variant=$Matches[2].ToLowerInvariant();repeat=($Matches[1] -eq 'Repeat')}}
     '^Prepare$' {$arguments+=@((Join-Path $PSScriptRoot 'build-native.ps1'),'-Variant','cpu','-BuildId',($routing.buildPrefix+'-prepare'),'-PrepareOnly')}
     '^NativeSelfTest$' {
-        $selfTestProfile=if($RepriseId -ceq 'r3'){'NativeDllGpu'}else{'NativeDllCpu'}
+        $selfTestProfile=if($RepriseId -cin @('r3','r4')){'NativeDllGpu'}else{'NativeDllCpu'}
         $arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-Profile',$selfTestProfile,'-LotRoot','target/native-build')
     }
     '^N2SelfTest$' {$arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-LotRoot','target/n2-native')}
