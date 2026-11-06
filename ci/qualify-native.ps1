@@ -1,12 +1,23 @@
 #requires -Version 7.0
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('SelfTest','SurfaceCpu','SurfaceGpu','RepeatCpu','RepeatGpu','Prepare','NativeSelfTest','N2SelfTest','Cpu1','Cpu2','Gpu1','Gpu2','CpuReference1','CpuReference2','CpuRebuilt','GpuReference1','GpuReference2','GpuRebuilt')][string]$Stage
+    [Parameter(Mandatory)][ValidateSet('SelfTest','SurfaceCpu','SurfaceGpu','RepeatCpu','RepeatGpu','Prepare','NativeSelfTest','N2SelfTest','Cpu1','Cpu2','Gpu1','Gpu2','CpuReference1','CpuReference2','CpuRebuilt','GpuReference1','GpuReference2','GpuRebuilt')][string]$Stage,
+    [ValidateSet('r1')][string]$RepriseId
 )
 $ErrorActionPreference='Stop'
 $PSNativeCommandUseErrorActionPreference=$false
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
-$root='C:\wb\native-qualif'
+function Get-QualificationRouting([string]$Reprise) {
+    if($Reprise -and $Reprise -cne 'r1'){throw 'Only the explicitly authorized r1 qualification reprise is supported.'}
+    $original='C:\wb\native-qualif'
+    return [pscustomobject]@{root=$(if($Reprise){Join-Path $original 'reprise-1'}else{$original});original=$original;buildPrefix=$(if($Reprise){'qualif-r1'}else{'qualif'})}
+}
+function Get-QualificationBuildId([string]$Variant,[int]$Number,[string]$Reprise) {
+    if($Variant -cnotin @('cpu','gpu') -or $Number -notin @(1,2)){throw 'Qualification build ID requires cpu/gpu and build 1/2.'}
+    return (Get-QualificationRouting $Reprise).buildPrefix+'-'+$Variant+$Number
+}
+$routing=Get-QualificationRouting $RepriseId
+$root=$routing.root
 function Assert-QualificationMemory([double]$Percent,[bool]$Launching) {
     if ([double]::IsNaN($Percent) -or $Percent -lt 0 -or $Percent -gt 100) { throw 'Invalid committed memory measurement.' }
     if ($Percent -ge 90 -or ($Launching -and $Percent -ge 85)) { throw "Committed memory threshold reached: $Percent % (launch=$Launching)." }
@@ -289,8 +300,9 @@ function Invoke-QualificationDumpbin([string]$Executable,[string]$Path,[string]$
 }
 function Compare-QualificationDlls([string]$Variant,[bool]$Repeat,[scriptblock]$Check=$null) {
     if($Check){& $Check}
-    $first=Join-Path $root "$Variant/qualif-${Variant}1/dll"
-    $other=if($Repeat){Join-Path $root "$Variant/qualif-${Variant}2/dll"}else{Join-Path $env:LOCALAPPDATA "Whisper/native/$Variant"}
+    $firstId=Get-QualificationBuildId $Variant 1 $RepriseId;$secondId=Get-QualificationBuildId $Variant 2 $RepriseId
+    $first=Join-Path $root "$Variant/$firstId/dll"
+    $other=if($Repeat){Join-Path $root "$Variant/$secondId/dll"}else{Join-Path $env:LOCALAPPDATA "Whisper/native/$Variant"}
     Assert-QualificationPlainPath $first;Assert-QualificationPlainPath $other
     $names=@(Get-ChildItem -LiteralPath $first -File|ForEach-Object Name|Sort-Object)
     $otherNames=@(Get-ChildItem -LiteralPath $other -File|ForEach-Object Name|Sort-Object)
@@ -460,6 +472,13 @@ if($Stage -eq 'SelfTest') {
 if($repo -ine 'C:\wt\build-natif-qualif' -or [IO.Path]::GetFullPath((Get-Location).Path).TrimEnd('\') -ine $repo){throw 'Qualification requires its exact dedicated worktree and cwd.'}
 Assert-QualificationPlainPath $repo;Assert-QualificationPlainPath $root
 Assert-QualificationCanStart $root
+if($RepriseId){
+    foreach($name in @('initial.json','tools-cpu.json','tools-gpu.json')){
+        $original=Join-Path $routing.original "preflight/$name";$copy=Join-Path $root "preflight/$name"
+        Assert-QualificationPlainPath $original;Assert-QualificationPlainPath $copy
+        if((Get-FileHash -LiteralPath $original).Hash -cne (Get-FileHash -LiteralPath $copy).Hash){throw "Reprise preflight must preserve the original baseline and tool versions: $name"}
+    }
+}
 $preflight=Get-Content -LiteralPath (Join-Path $root 'preflight/initial.json') -Raw|ConvertFrom-Json
 if($null -eq $preflight.lastRecordId -or [long]$preflight.lastRecordId -lt 0){throw 'Persistent lot WHEA baseline missing or invalid.'}
 $budgetStart=[DateTimeOffset]$preflight.at
@@ -470,11 +489,11 @@ $arguments=@('-NoLogo','-NoProfile','-NonInteractive','-File')
 $buildVariant=$null;$buildId=$null;$comparison=$null
 switch -Regex ($Stage) {
     '^(Surface|Repeat)(Cpu|Gpu)$' {$comparison=@{variant=$Matches[2].ToLowerInvariant();repeat=($Matches[1] -eq 'Repeat')}}
-    '^Prepare$' {$arguments+=@((Join-Path $PSScriptRoot 'build-native.ps1'),'-Variant','cpu','-BuildId','qualif-prepare','-PrepareOnly')}
+    '^Prepare$' {$arguments+=@((Join-Path $PSScriptRoot 'build-native.ps1'),'-Variant','cpu','-BuildId',($routing.buildPrefix+'-prepare'),'-PrepareOnly')}
     '^NativeSelfTest$' {$arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-Profile','NativeDllCpu','-LotRoot','target/native-build')}
     '^N2SelfTest$' {$arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-LotRoot','target/n2-native')}
     '^(Cpu|Gpu)(1|2)$' {
-        $buildVariant=$Matches[1].ToLowerInvariant();$buildId='qualif-'+$buildVariant+$Matches[2]
+        $buildVariant=$Matches[1].ToLowerInvariant();$buildId=Get-QualificationBuildId $buildVariant ([int]$Matches[2]) $RepriseId
         $arguments+=@((Join-Path $PSScriptRoot 'build-native.ps1'),'-Variant',$buildVariant,'-BuildId',$buildId)
     }
     '^(Cpu|Gpu)(Reference[12]|Rebuilt)$' {
