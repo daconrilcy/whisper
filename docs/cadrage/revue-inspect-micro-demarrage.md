@@ -1,6 +1,6 @@
-Avancée : DESIGN et PLANS revus CLEAN documentaire, un cycle de correction chacun.
-Blocage : exécution ACTION_REQUIRED ; voie sans production native/réseau enfant non démontrée.
-Décision : livrer les documents revus sans autorisation de coder.
+Avancée : première revue du candidat implémenté effectuée ; deux constats IMPORTANT.
+Blocage : aucun nouveau blocage externe ; réserves de validation déjà acceptées maintenues.
+Décision : premier cycle de correction confié à l'implémenteur, fermeture réservée au reviewer.
 
 # INSPECT-MICRO-DEMARRAGE — revues documentaires
 
@@ -53,3 +53,13 @@ Le reviewer confirme le retrait de la construction workers et les contrôles EXE
 ## Vérifications de la mission documentaire
 
 Auteur principal : `git diff --check` réussi, chemins du diff confrontés à la mission ; dix tâches et onze lignes d'acceptation vérifiées dans le plan. Seuls les trois documents de cadrage/plan/revue ont été ajoutés depuis `48827173`. Aucune commande Cargo, compilation, installation, mesure de performance ou validation Windows. Commits locaux uniquement, aucun push. Les vérifications de contenu DESIGN/PLANS et la fermeture des constats appartiennent au reviewer identifié ci-dessus.
+
+## Implémentation — T8, revue initiale
+
+Reviewer indépendant `/root/review_loop/reviewer`, coordonné par `rust_review_coordinator` `/root/review_loop`. Baseline logique `a20e0d0e`, candidat source en worktree sur HEAD documentaire `2f7383dd`, epoch 0 ; nouveaux fichiers non suivis inclus au périmètre G1–G7. Verdict transmis : **FINDINGS**, deux constats **IMPORTANT**, aucune demande de vérification préalable. Les réserves N1/worker et la référence humaine réduite sont celles acceptées dans le plan §7 ; aucune réussite native ou Windows n'est déduite de cette revue.
+
+**R1 — IMPORTANT — DEC-05 / AC-11.** Dans `root.rs`, `poll_admission_catalog` termine une attente B à la publication d'un catalogue contenant encore B Uninspected, même si seule l'inspection A a terminé. Il peut afficher un faux échec, effacer l'attente puis ne plus inviter à relancer lorsque B devient Ready. Correction demandée par le reviewer : terminer sur une observation propre à la requête B, conserver l'attente lors d'une publication étrangère, gérer le résultat propre à B même s'il reste Uninspected ou en échec. Preuve attendue : A engagé, commande B, publication A puis B Ready ou B échoué ; diagnostic exact, aucun effet ni rejeu.
+
+**R2 — IMPORTANT — DEC-01 / DEC-05 / AC-11.** Dans le transport preferences, le wrapper root et le service catalogue, l'intérêt de commande B reste actif après le retrait effectif de l'action. Un changement d'identité ultérieur peut relancer un SHA sans besoin et laisser un avis de relance périmé. Correction demandée par le reviewer : terminer l'intérêt et l'avis liés au retrait, préserver les autres demandes valides pour B ; un calcul en cours peut finir sans conserver de suivi injustifié. Preuve attendue : commande B puis retrait avant réponse, fin du calcul et changement d'identité B sans réinspection ni invitation ; demande B indépendante préservée.
+
+Le coordinateur a transmis ces deux constats à `/root/implement` en mode CORRECT, cycle 1. Aucun constat n'est fermé par l'auteur du présent document ou par l'implémenteur ; même reviewer pour la vérification de fermeture, deux cycles de correction maximum.
