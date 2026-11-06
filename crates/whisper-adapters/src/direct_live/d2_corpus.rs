@@ -610,8 +610,16 @@ mod tests {
                 .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
         );
         fs::create_dir_all(&root).unwrap();
-        let case_root = root.join(format!("status-selftest-{}", std::process::id()));
-        fs::create_dir_all(&case_root).unwrap();
+        let allocation = CASE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after the Unix epoch")
+            .as_nanos();
+        let case_root = root.join(format!(
+            "status-selftest-{}-{timestamp}-{allocation}",
+            std::process::id()
+        ));
+        fs::create_dir(&case_root).unwrap();
         let status = serde_json::json!({
             "engine":"parakeet-cpu",
             "complete":false,
@@ -624,5 +632,6 @@ mod tests {
             serde_json::from_slice(&fs::read(case_root.join("d2-engine-status.json")).unwrap())
                 .unwrap();
         assert_eq!(saved, status);
+        fs::remove_dir_all(&case_root).unwrap();
     }
 }

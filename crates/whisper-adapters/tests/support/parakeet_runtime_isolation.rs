@@ -17,6 +17,35 @@ const HISTORICAL: [&str; 7] = [
 ];
 const CHILD_ROOT: &str = "WHISPER_P1_ISOLATION_ROOT";
 
+struct TestTempDir(PathBuf);
+
+impl TestTempDir {
+    fn new() -> Self {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("parakeet-p1-{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&path).expect("create isolated test directory");
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestTempDir {
+    fn drop(&mut self) {
+        if let Err(error) = std::fs::remove_dir_all(&self.0) {
+            eprintln!(
+                "could not remove test directory {}: {error}",
+                self.0.display()
+            );
+        }
+    }
+}
+
 fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProcess, String>) {
     if let Some(root) = std::env::var_os(CHILD_ROOT) {
         let root = PathBuf::from(root);
@@ -101,16 +130,8 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
         return;
     }
 
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let base = std::env::temp_dir().join(format!("parakeet-p1-{}-{stamp}", std::process::id()));
-    std::fs::create_dir_all(&base).unwrap();
-    let fake_exe =
-        PathBuf::from(std::env::var_os("CARGO_TARGET_DIR").expect("isolated Cargo target")).join(
-            format!("parakeet-p1-fake-{}-{stamp}.exe", std::process::id()),
-        );
+    let base = TestTempDir::new();
+    let fake_exe = base.path().join("fixture-worker.exe");
     let source =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/support/parakeet_fake_worker.rs");
     let compiled = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
@@ -138,7 +159,7 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
         ("gpu", "both"),
         ("historical", "both"),
     ] {
-        let root = base.join(format!("{backend}-{pollution}"));
+        let root = base.path().join(format!("{backend}-{pollution}"));
         let personal = root.join("Whisper");
         let worker = personal.join(format!("worker/whisper-worker-parakeet-{backend}.exe"));
         std::fs::create_dir_all(worker.parent().unwrap()).unwrap();
@@ -146,7 +167,7 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
         std::fs::create_dir_all(personal.join("models")).unwrap();
         std::fs::create_dir_all(personal.join("settings")).unwrap();
         std::fs::create_dir_all(root.join("session")).unwrap();
-        std::fs::copy(&fake_exe, &worker).unwrap();
+        crate::pe_fixture::copy_verified_pe(&fake_exe, &worker);
         std::fs::write(
             personal.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf"),
             b"fixture",
@@ -194,4 +215,7 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
             "{backend}/{pollution}: worker did not produce an observation"
         );
     }
+    let base_path = base.path().to_path_buf();
+    drop(base);
+    assert!(!base_path.exists(), "test directory was not cleaned up");
 }

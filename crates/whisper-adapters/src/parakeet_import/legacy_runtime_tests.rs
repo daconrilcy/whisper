@@ -2,6 +2,8 @@ use super::historical_runtime::{
     l3b_r6_cpu_read_runtime_root, l3b_r6_cpu_read_runtime_root_in_repository, validate_r6_read_root,
 };
 use super::*;
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
 
 fn fixture_root(label: &str) -> PathBuf {
     let stamp = SystemTime::now()
@@ -39,10 +41,15 @@ fn personal_cpu_and_gpu_do_not_require_l3b() {
                 l3b_r6_cpu_read_runtime_root_in_repository(&paths, &root, None, None).unwrap(),
                 None
             );
+            let _exclusive_handle = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(&paths.executable)
+                .expect("hold valid PE worker exclusively for launch failure");
             let result = ParakeetProcess::spawn(&paths);
             assert!(
                 matches!(result, Err(ref error) if error.starts_with("WorkerStart:")),
-                "the invalid fixture executable must reach the OS launch step"
+                "the exclusive handle must prevent the valid PE worker from starting"
             );
             if backend == "cpu" {
                 assert!(
@@ -65,7 +72,7 @@ fn personal_cpu_and_gpu_do_not_require_l3b() {
         std::fs::create_dir_all(paths.executable.parent().unwrap()).unwrap();
         std::fs::create_dir_all(&paths.native_dir).unwrap();
         std::fs::create_dir_all(paths.model.parent().unwrap()).unwrap();
-        std::fs::write(&paths.executable, b"fixture worker").unwrap();
+        crate::pe_fixture::compile_failing_worker(&root, &paths.executable);
         std::fs::write(&paths.model, b"fixture model").unwrap();
     }
     let output = Command::new(std::env::current_exe().unwrap())
@@ -92,7 +99,7 @@ fn historical_cpu_requires_exact_worker_configuration_and_hash() {
     let worker = l2b.join("r6/worker/whisper-worker-parakeet-cpu.exe");
     std::fs::create_dir_all(&l3b).unwrap();
     std::fs::create_dir_all(worker.parent().unwrap()).unwrap();
-    std::fs::write(&worker, b"not the qualified R6 worker").unwrap();
+    crate::pe_fixture::compile_failing_worker(&repository, &worker);
     let paths = ParakeetWorkerPaths {
         executable: worker.clone(),
         native_dir: l3b.join("native"),

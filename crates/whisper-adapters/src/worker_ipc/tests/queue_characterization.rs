@@ -1,7 +1,8 @@
 #[test]
 fn queue_effect_scan_and_remove_preserve_remaining_fifo_entry() {
     let destination = test_artifact_root("queue-effect-scan-remove");
-    fs::create_dir_all(&destination).unwrap();
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    fs::create_dir(&destination).unwrap();
     let mut first = test_request(JobId(0xd101), Generation::first());
     first.destination = destination.to_string_lossy().into_owned();
     first.source_sha256 = Some([1; 32]);
@@ -71,4 +72,15 @@ fn queue_effect_scan_and_remove_preserve_remaining_fifo_entry() {
             .collect::<Vec<_>>(),
         vec![second.job_id]
     );
+    drop(runtime);
+    fs::remove_dir_all(destination).unwrap();
+}
+
+#[test]
+fn test_artifact_root_allocates_distinct_uncreated_paths_for_same_case() {
+    let first = test_artifact_root("artifact-root-uniqueness");
+    let second = test_artifact_root("artifact-root-uniqueness");
+    assert_ne!(first, second);
+    assert!(!first.exists());
+    assert!(!second.exists());
 }

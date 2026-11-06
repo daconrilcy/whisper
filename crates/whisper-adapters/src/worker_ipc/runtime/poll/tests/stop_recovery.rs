@@ -162,6 +162,19 @@ fn poll_until_event(runtime: &mut ImportRuntime) -> ImportEvent {
     poll_until_result(runtime).unwrap_or_else(|error| panic!("unexpected poll error: {error:?}"))
 }
 
+fn poll_until_business_event(runtime: &mut ImportRuntime) -> ImportEvent {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline {
+        match runtime.poll() {
+            Some(Ok(ImportEvent::Diagnostic { .. })) => {}
+            Some(Ok(event)) => return event,
+            Some(Err(error)) => panic!("unexpected poll error: {error:?}"),
+            None => std::thread::sleep(Duration::from_millis(2)),
+        }
+    }
+    panic!("expected business event before deadline");
+}
+
 fn assert_live_request_preserved(
     runtime: &ImportRuntime,
     request: &whisper_core::ports::LiveRequest,
@@ -340,13 +353,63 @@ fn poll_stopped_manual_gpu_failure_waits_for_choice_and_preserves_pending_reques
         .start_live(request.clone(), Some(gpu_candidate()))
         .expect("start manual GPU live attempt");
     inject_gpu_failure(&mut runtime, job_id);
-    assert!(matches!(
-        poll_until_event(&mut runtime),
-        ImportEvent::LiveFinalizing { .. }
-    ));
+    let finalizing = poll_until_business_event(&mut runtime);
+    assert!(
+        matches!(&finalizing, ImportEvent::LiveFinalizing { .. }),
+        "expected GPU failure to enter finalization before the CPU choice; got {finalizing:?}"
+    );
 
     assert!(matches!(
-        poll_until_event(&mut runtime),
+        poll_until_business_event(&mut runtime),
+        ImportEvent::AwaitingCpuChoice { job_id: actual, generation }
+            if actual == job_id && generation == Generation::first()
+    ));
+    assert!(runtime.active.is_none());
+    assert!(runtime.transport.is_none());
+    assert_live_request_preserved(&runtime, &request);
+    assert_eq!(
+        runtime.pending_live.as_ref().unwrap().recovery,
+        LiveRecoveryState::AwaitingChoice
+    );
+    assert!(
+        !marker.exists(),
+        "manual GPU failure started CPU before user choice"
+    );
+}
+
+#[test]
+fn poll_diagnostic_notice_precedes_manual_gpu_failure_without_losing_choice() {
+    let root = TestRoot::new("stop-pending-manual-choice-diagnostic");
+    let marker = root.0.join("cpu-launched");
+    let gpu = compile_stop_worker(&root.0);
+    let cpu = compile_cpu_marker_worker(&root.0, &marker);
+    let gate = Arc::new(PublicationGate::default());
+    gate.activate();
+    let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
+    let job_id = JobId(0x99504);
+    let mut request = live_request(&root.0, job_id);
+    request.config.compute = ComputeChoice::Gpu;
+    runtime
+        .start_live(request.clone(), Some(gpu_candidate()))
+        .expect("start manual GPU live attempt");
+    inject_gpu_failure(&mut runtime, job_id);
+    runtime.diagnostic_start_failed = true;
+
+    assert!(matches!(
+        runtime.poll(),
+        Some(Ok(ImportEvent::Diagnostic {
+            job_id: actual,
+            generation,
+            notice: DiagnosticNotice::LoggingUnavailable,
+        })) if actual == job_id && generation == Generation::first()
+    ));
+    assert!(matches!(
+        poll_until_business_event(&mut runtime),
+        ImportEvent::LiveFinalizing { job_id: actual, generation }
+            if actual == job_id && generation == Generation::first()
+    ));
+    assert!(matches!(
+        poll_until_business_event(&mut runtime),
         ImportEvent::AwaitingCpuChoice { job_id: actual, generation }
             if actual == job_id && generation == Generation::first()
     ));

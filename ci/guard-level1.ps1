@@ -3,6 +3,7 @@ param(
     [string]$Mode = 'Run',
     [switch]$SelfTest,
     [switch]$DryRun,
+    [switch]$WithoutCargoTargetDir,
     [string]$FreshTarget,
     [string]$ExistingTarget,
     [string[]]$UnsetEnv = @(),
@@ -25,6 +26,7 @@ function Convert-CargoArgsJson([string]$Json) {
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lotRoot = Join-Path $repo $LotRoot
 $cargoRoot = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
+$script:externalTargetRoot = 'C:\wb\tests-hygiene\cargo-target'
 $cargoHome = Join-Path $repo 'target/cargo-home-shared'
 $tempRoot = Join-Path $lotRoot 'temp'
 $scratchRoot = Join-Path $lotRoot 'scratch'
@@ -146,19 +148,23 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     $list = $false
     $exact = $false
     $testFilter = $null
+    $testTarget = $null
+    $libSelection = $false
+    $noFailFast = $false
     for ($i = 1; $i -lt $normalizedArgs.Count; $i++) {
         $arg = $normalizedArgs[$i]
         if ($arg -eq '--') {
-            if ($sub -ne 'test' -or $i -ne ($normalizedArgs.Count - 2)) { throw 'Only the allowlisted cargo test options are allowed after --.' }
-            if ($normalizedArgs[$i + 1] -ceq '--list') {
+            if ($sub -ne 'test' -or $i -ge ($normalizedArgs.Count - 1)) { throw 'Only the allowlisted cargo test options are allowed after --.' }
+            $harnessArgs = @($normalizedArgs[($i + 1)..($normalizedArgs.Count - 1)])
+            if ($harnessArgs.Count -eq 1 -and $harnessArgs[0] -ceq '--list') {
                 $list = $true
-            } elseif ($normalizedArgs[$i + 1] -ceq '--exact') {
+            } elseif ($harnessArgs.Count -eq 1 -and $harnessArgs[0] -ceq '--exact') {
                 $exact = $true
             } else {
-                throw 'Only cargo test -- --list or the approved exact microphone test is allowed after --.'
+                throw 'Only cargo test -- --list or --exact is allowed after --.'
             }
-            $i++
-            continue
+            $i = $normalizedArgs.Count
+            break
         }
         if ($arg -in @('--fix','--allow-dirty','--all-features','--ignored','--include-ignored','--config','-Z','--target-dir','--workspace-dir','--all','--examples','--example','--benches','--bench','--bins','--bin','--tests','--doc','--no-default-features')) { throw "Cargo option is not allowed: $arg" }
         if ($arg -match '^--(fix|allow-dirty|all-features|ignored|include-ignored|config|target-dir)(=|$)' -or $arg -match '^-Z') { throw "Cargo option is not allowed: $arg" }
@@ -199,6 +205,23 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
             $noRun = $true
             continue
         }
+        if ($arg -eq '--no-fail-fast') {
+            if ($sub -ne 'test') { throw '--no-fail-fast is only allowed with cargo test.' }
+            $noFailFast = $true
+            continue
+        }
+        if ($arg -eq '--lib') {
+            if ($sub -ne 'test' -or $testTarget) { throw '--lib is only allowed alone as a cargo test target selector.' }
+            $libSelection = $true
+            continue
+        }
+        if ($arg -eq '--test') {
+            if ($sub -ne 'test' -or $libSelection -or $testTarget -or ($i + 1) -ge $normalizedArgs.Count) { throw '--test requires one test target and cannot be combined with --lib.' }
+            $i++
+            $testTarget = $normalizedArgs[$i]
+            if ($testTarget -notmatch '^[A-Za-z0-9_-]+$') { throw '--test accepts a simple test target name only.' }
+            continue
+        }
         if ($arg -eq '--all-targets') {
             if ($sub -ne 'clippy') { throw '--all-targets is only allowed with cargo clippy.' }
             continue
@@ -229,7 +252,7 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
             if ($sub -ne 'metadata') { throw '--no-deps is only allowed with cargo metadata.' }
             continue
         }
-        if ($isTest -and $arg -ceq 'worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end') {
+        if ($isTest -and -not $arg.StartsWith('-')) {
             if ($null -ne $testFilter) { throw 'Only one test filter is allowed.' }
             $testFilter = $arg
             continue
@@ -238,18 +261,10 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
         if ($arg.StartsWith('-')) { throw "Unrecognized Cargo option: $arg" }
         throw "Unrecognized Cargo argument: $arg"
     }
-    if ($exact -or $null -ne $testFilter) {
-        # The only exact-filter exception authorized for level 1 is this one micro regression test.
-        $expectedExact = @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
-        if (-not $exact -or $null -eq $testFilter -or $list -or $sub -cne 'test' -or $hasWorkspace -or $packages.Count -ne 1 -or $packages[0] -cne 'whisper-adapters' -or $features.Count -gt 0 -or $release -or $noRun -or $normalizedArgs.Count -ne $expectedExact.Count) {
-            throw 'Only the approved exact microphone test selection is allowed.'
-        }
-        for ($exactIndex = 0; $exactIndex -lt $expectedExact.Count; $exactIndex++) {
-            if ($normalizedArgs[$exactIndex] -cne $expectedExact[$exactIndex]) { throw 'Only the approved exact microphone test selection is allowed.' }
-        }
-    }
     if ($sub -eq 'test') {
+        if ($null -ne $testFilter -and $hasWorkspace -and $packages.Count -gt 0) { throw 'A cargo test filter cannot be combined with both --workspace and -p.' }
         if ($list -and $noRun) { throw 'cargo test --no-run cannot be combined with --list.' }
+        if ($exact -and ($null -eq $testFilter -or $list)) { throw '--exact requires one test filter and cannot be combined with --list.' }
         if (-not $list -and $packages -contains 'whisper-worker-gpu') { throw 'Direct whisper-worker-gpu tests are level 2; only -- --list is allowed through level 1.' }
         if ($noRun -and ($hasWorkspace -or $packages.Count -gt 0)) { $category = 'Compilation' }
         elseif ($noRun) { throw 'cargo test --no-run requires --workspace or -p.' }
@@ -273,7 +288,9 @@ function Assert-WriteRoots {
     foreach ($path in @($lotRoot, $cargoRoot, $cargoHome, $tempRoot, $scratchRoot, $runRoot, $script:targetRoot)) { Assert-NoReparseChain $path 'write root' }
     if ((Get-FullPath $cargoHome) -ine (Get-FullPath (Join-Path $repo 'target/cargo-home-shared'))) { throw 'CARGO_HOME shared root differs from its declared persistent location.' }
     if (-not (Test-InRoot $tempRoot $lotRoot) -or -not (Test-InRoot $scratchRoot $lotRoot)) { throw 'Campaign roots escaped the lot root.' }
-    if ((Get-FullPath $env:CARGO_TARGET_DIR) -ine (Get-FullPath $script:targetRoot)) { throw 'CARGO_TARGET_DIR differs from the selected target.' }
+    if ($script:useConfigTarget) {
+        if ((Get-FullPath $script:targetRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'The no-variable mode requires its exact declared external target.' }
+    } elseif ((Get-FullPath $env:CARGO_TARGET_DIR) -ine (Get-FullPath $script:targetRoot)) { throw 'CARGO_TARGET_DIR differs from the selected target.' }
     foreach ($name in @('TEMP','TMP','LOCALAPPDATA')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ([string]::IsNullOrWhiteSpace($value) -or -not (Test-InRoot $value $lotRoot)) { throw "$name is missing or outside the lot root." }
@@ -305,7 +322,13 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    if ($script:useConfigTarget) {
+        [void]$start.Environment.Remove('CARGO_TARGET_DIR')
+        if ($start.Environment.ContainsKey('CARGO_TARGET_DIR')) { throw 'CARGO_TARGET_DIR remains in the Cargo child environment; process launch refused.' }
+    }
     foreach ($argument in $Arguments) { [void]$start.ArgumentList.Add($argument) }
+    [IO.File]::WriteAllText($outPath,'',$utf8NoBom)
+    [IO.File]::WriteAllText($errPath,'',$utf8NoBom)
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     try {
@@ -319,7 +342,7 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
         [IO.File]::WriteAllText($errPath,$stderr,$utf8NoBom)
         Assert-NoReparseChain $outPath 'stdout log'
         Assert-NoReparseChain $errPath 'stderr log'
-        return [pscustomobject]@{ ExitCode=$process.ExitCode; Stdout=$stdout; Stderr=$stderr; OutPath=$outPath; ErrPath=$errPath }
+        return [pscustomobject]@{ ExitCode=$process.ExitCode; Stdout=$stdout; Stderr=$stderr; OutPath=$outPath; ErrPath=$errPath; CargoTargetEnvPresent=$start.Environment.ContainsKey('CARGO_TARGET_DIR') }
     } finally { $process.Dispose() }
 }
 
@@ -328,9 +351,11 @@ function Set-CleanEnvironment {
     foreach ($name in $UnsetEnv) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }
     $script:runRoot = Join-Path $scratchRoot ((Get-Date -Format 'yyyyMMddTHHmmssfff') + '-' + [guid]::NewGuid().ToString('N'))
     foreach ($path in @($script:runRoot,(Join-Path $runRoot 'localappdata'),(Join-Path $tempRoot 'temp'),(Join-Path $tempRoot 'tmp'))) { Initialize-Directory $path 'isolated run directory' }
+    $script:cargoTargetDirPresentBeforeClean = $null -ne [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
     foreach ($name in @('CARGO_HOME','CARGO_TARGET_DIR','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG','TEMP','TMP','LOCALAPPDATA')) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }
+    $script:cargoTargetDirPresentAfterClean = $null -ne [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
     $env:CARGO_HOME = $cargoHome
-    $env:CARGO_TARGET_DIR = $script:targetRoot
+    if (-not $script:useConfigTarget) { $env:CARGO_TARGET_DIR = $script:targetRoot }
     $env:CARGO_INCREMENTAL = '0'
     $env:CARGO_PROFILE_DEV_DEBUG = 'line-tables-only'
     $env:TEMP = Join-Path $tempRoot 'temp'
@@ -344,7 +369,9 @@ function Set-CargoCommandEnvironment([string]$Subcommand) {
 
 function Initialize-Roots {
     if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
-    foreach ($path in @($lotRoot,$cargoRoot,$cargoHome,$tempRoot,$scratchRoot)) { Assert-NoReparseChain $path 'lot root preflight' }
+    $roots = @($lotRoot,$cargoRoot,$cargoHome,$tempRoot,$scratchRoot)
+    if ($script:useConfigTarget) { $roots += $script:externalTargetRoot }
+    foreach ($path in $roots) { Assert-NoReparseChain $path 'lot root preflight' }
     foreach ($path in @($lotRoot,$tempRoot,$scratchRoot)) { Initialize-Directory $path 'lot root' }
 }
 
@@ -370,6 +397,19 @@ function Invoke-SelfTests {
         @('build','-p','whisper-worker-cpu'),
         @('test','--no-run','-p','whisper-worker-cpu'),
         @('test','--workspace'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end'),
+        @('test','-p','whisper-worker-cpu','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact'),
+        @('test','--no-fail-fast'),
+        @('test','-p','whisper-adapters','--lib'),
+        @('test','-p','whisper-adapters','--test','parakeet_runtime_isolation'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--release','--','--exact'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--no-run','--','--exact'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--list'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end_typo','--','--exact'),
+        @('test','-p','whisper-adapters','worker_ipc::tests::Microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact'),
+        @('test','-p','whisper-adapters','microphone_legacy_live_pump','--','--exact'),
+        @('test','-p','whisper-adapters','--lib','poll_stopped_manual_gpu_failure_waits_for_choice_and_preserves_pending_request'),
+        @('test','-p','whisper-adapters','poll_stopped_manual_gpu_failure_waits_for_choice_and_preserves_pending_request','--','--exact'),
         @('test'),
         @('test','--','--list'),
         @('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact'),
@@ -399,20 +439,16 @@ function Invoke-SelfTests {
     $negative += ,@('test','--workspace','--no-run','--','--list')
     $negative += ,@('test','-p','whisper-worker-cpu','--','--ignored')
     $negative += ,@('test','-p','whisper-worker-cpu','--','--list','--exact')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end')
     $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--nocapture')
+    $negative += ,@('test','--','--ignored')
+    $negative += ,@('test','--','--include-ignored')
+    $negative += ,@('test','-p','whisper-adapters','--lib','--test','parakeet_runtime_isolation')
+    $negative += ,@('test','--no-fail-fast','--unknown')
     $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--','--exact')
     $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
-    $negative += ,@('test','-p','whisper-worker-cpu','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
     $negative += ,@('test','-p','whisper-adapters','whisper-worker-common','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
     $negative += ,@('test','--workspace','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--release','--','--exact')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--no-run','--','--exact')
     $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--features','native-tests','--','--exact')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--list')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end_typo','--','--exact')
-    $negative += ,@('test','-p','whisper-adapters','worker_ipc::tests::Microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
-    $negative += ,@('test','-p','whisper-adapters','microphone_legacy_live_pump','--','--exact')
     $negative += ,@('check','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
     $negative += ,@('test','-p','whisper-worker-gpu')
     $negative += ,@('test','-p','whisper-worker-gpu','--no-run')
@@ -538,7 +574,23 @@ function Invoke-SelfTests {
     } finally {
         foreach ($name in $savedVariables.Keys) { [Environment]::SetEnvironmentVariable($name,$savedVariables[$name],'Process') }
     }
-    'PASS self-test parser cases (no Cargo): positives={0}, negatives={1}.' -f $pCount,$nCount
+    if ($script:useConfigTarget) {
+        $oldTargetEnv = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
+        try {
+            [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR','C:\\invalid-selftest-target','Process')
+            $cargo = (Get-Command cargo -ErrorAction Stop).Source
+            $config = 'build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot)
+            $probe = Invoke-Captured $cargo @('metadata','--offline','--locked','--no-deps','--format-version','1','--config',$config) 'selftest-cargo-target'
+            if ($probe.ExitCode -ne 0) { throw "Self-test cargo metadata failed ($($probe.ExitCode)): $($probe.ErrPath)" }
+            if ($probe.CargoTargetEnvPresent) { throw 'Self-test found CARGO_TARGET_DIR in the Cargo child environment.' }
+            $observedTarget = (ConvertFrom-Json $probe.Stdout).target_directory
+            if ((Get-FullPath $observedTarget) -ine (Get-FullPath $script:externalTargetRoot)) { throw "Self-test Cargo target_directory mismatch: $observedTarget" }
+            "CARGO_CHILD_ENV CARGO_TARGET_DIR=ABSENT target_directory=$observedTarget"
+            $pCount++
+        } finally { [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR',$oldTargetEnv,'Process') }
+    }
+    "CARGO_TARGET_DIR_CLEANUP present_before=$script:cargoTargetDirPresentBeforeClean present_after=$script:cargoTargetDirPresentAfterClean"
+    'PASS self-test parser cases: positives={0}, negatives={1}.' -f $pCount,$nCount
 }
 
 function Invoke-Structure {
@@ -565,6 +617,8 @@ $SelfTest = $SelfTest -or $Mode -eq 'SelfTest'
 Assert-AllowedUnset $UnsetEnv
 $lotRoot = Resolve-LotRoot $LotRoot
 if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
+$script:useConfigTarget = [bool]$WithoutCargoTargetDir
+if ($script:useConfigTarget -and ($FreshTarget -or $ExistingTarget)) { throw 'The no-variable mode uses only its fixed external target.' }
 if ($FreshTarget) {
     if ($ExistingTarget) { throw 'Choose either -FreshTarget or -ExistingTarget, not both.' }
     $script:targetRoot = Get-FreshTargetPath $lotRoot $FreshTarget
@@ -573,6 +627,8 @@ if ($FreshTarget) {
     Assert-NoReparseChain (Split-Path -Parent $script:targetRoot) 'fresh target parent'
 } elseif ($ExistingTarget) { $script:targetRoot = Get-ExistingTargetPath $lotRoot $ExistingTarget }
 else { $script:targetRoot = $cargoRoot }
+if ($script:useConfigTarget) { $script:targetRoot = $script:externalTargetRoot }
+if ($script:useConfigTarget -and (Get-FullPath $script:targetRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'Unexpected no-variable target path.' }
 if ($Mode -eq 'Structure' -and $CargoArgs.Count -gt 0) { throw 'Structure mode does not accept Cargo arguments.' }
 Initialize-Roots
 Set-CleanEnvironment
@@ -589,23 +645,37 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $checked = Test-CargoArguments $CargoArgs $members
 } else {
     Assert-OfflineCache $cargoHome
-    $metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source @('metadata','--offline','--locked','--no-deps','--format-version','1') 'workspace-metadata'
+    $metadataArgs = @('metadata','--offline','--locked','--no-deps','--format-version','1')
+    if ($script:useConfigTarget) { $metadataArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot))) }
+    $metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $metadataArgs 'workspace-metadata'
     if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode). If dependencies are missing, run guarded cargo fetch --locked." }
     $metadata = $metadataRun.Stdout | ConvertFrom-Json
+    if ($script:useConfigTarget -and ((Get-FullPath $metadata.target_directory) -ine (Get-FullPath $script:externalTargetRoot))) { throw "Cargo metadata target_directory mismatch: $($metadata.target_directory)" }
     $members = @($metadata.packages | ForEach-Object name)
     $checked = Test-CargoArguments $CargoArgs $members
 }
 Set-CargoCommandEnvironment $checked.Args[0]
+$cargoArgs = @($checked.Args)
+if ($script:useConfigTarget) {
+    if ($checked.Category -eq 'Fetch') { throw 'The no-variable mode is not available for cargo fetch.' }
+    $configArgs = @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot)))
+    $delimiter = [Array]::IndexOf([string[]]$cargoArgs,'--')
+    if ($delimiter -ge 0) { $cargoArgs = @($cargoArgs[0..($delimiter - 1)]) + $configArgs + @($cargoArgs[$delimiter..($cargoArgs.Count - 1)]) }
+    else { $cargoArgs += $configArgs }
+}
 Assert-WriteRoots
 if ($FreshTarget) {
     if (Test-Path -LiteralPath $script:targetRoot) { throw "Metadata created the target that was required to be fresh: $script:targetRoot" }
     Initialize-Directory (Split-Path -Parent $script:targetRoot) 'fresh target parent'
     Initialize-Directory $script:targetRoot 'fresh cargo target'
+} elseif ($script:useConfigTarget -and -not (Test-Path -LiteralPath $script:targetRoot)) {
+    Initialize-Directory (Split-Path -Parent $script:targetRoot) 'external target parent'
+    Initialize-Directory $script:targetRoot 'external cargo target'
 }
-if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$checked.Args)) target=$script:targetRoot"; exit 0 }
+if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$cargoArgs)) target=$script:targetRoot"; exit 0 }
 Assert-WriteRoots
-$result = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $checked.Args 'cargo-command'
+$result = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $cargoArgs 'cargo-command'
 Get-Content -LiteralPath $result.OutPath -Tail 30
 Get-Content -LiteralPath $result.ErrPath -Tail 30
-"N1_GUARD category=$($checked.Category) exit_code=$($result.ExitCode) stdout=$($result.OutPath) stderr=$($result.ErrPath)"
+"N1_GUARD category=$($checked.Category) exit_code=$($result.ExitCode) CARGO_TARGET_DIR_child=$($result.CargoTargetEnvPresent) target_directory=$script:targetRoot stdout=$($result.OutPath) stderr=$($result.ErrPath)"
 if ($result.ExitCode -ne 0) { throw "Guarded Cargo command failed with exit code $($result.ExitCode)." }

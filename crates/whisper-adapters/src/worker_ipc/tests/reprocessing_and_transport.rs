@@ -1,3 +1,6 @@
+    #[cfg(windows)]
+    use std::os::windows::fs::OpenOptionsExt;
+
     fn reprocessing_candidate(
         job_id: u128,
         source_sha256: &str,
@@ -159,10 +162,20 @@
     }
 
     fn test_artifact_root(name: &str) -> PathBuf {
+        static NEXT_CASE: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(0);
         let base = std::env::var_os("PARAKEET_R6_TEST_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::temp_dir().join("whisper-adapter-tests"));
-        base.join(format!("{name}-{}", std::process::id()))
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after the Unix epoch")
+            .as_nanos();
+        let allocation = NEXT_CASE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        base.join(format!(
+            "{name}-{}-{timestamp}-{allocation}",
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -896,8 +909,13 @@ fn main() {
         std::fs::create_dir_all(&root).unwrap();
         let marker = root.join("cpu-ready");
         let cpu = compile_fake_worker(&root, "cpu", &marker);
-        let gpu = root.join("broken-gpu.exe");
-        std::fs::write(&gpu, b"not an executable").unwrap();
+        let gpu = root.join("unlaunchable-gpu.exe");
+        crate::pe_fixture::compile_failing_worker(&root, &gpu);
+        let _gpu_exclusive_handle = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&gpu)
+            .expect("hold valid GPU PE exclusively for launch failure");
         let gate = Arc::new(PublicationGate::default());
         gate.activate();
         let mut runtime = ImportRuntime::new(WorkerPaths { cpu, gpu }, gate);
@@ -911,6 +929,7 @@ fn main() {
                 && backend.contains("CPU prend le relais")));
         assert!(marker.is_file());
         stop_worker(&mut runtime, request.job_id, request.generation);
+        drop(_gpu_exclusive_handle);
         std::fs::remove_dir_all(root).unwrap();
     }
 

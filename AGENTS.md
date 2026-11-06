@@ -37,6 +37,8 @@ Un contrôle permanent ne dépend jamais d’un fichier jetable sous `target/` n
 
 Suite de référence niveau 1 pour les tests CPU sans CUDA : `cargo test` (membres par défaut), `cargo test -p whisper-worker-cpu`, `cargo test -p whisper-worker-parakeet-cpu` et `cargo test -p whisper-worker-common`. Chaque sélection worker passe d’abord le contrôle PE sur ses harnais ; les inventaires utilisent le suffixe explicite `-- --list`, autorisé par la garde. Le GPU est niveau 2 : `cargo test -p whisper-worker-gpu -- --list` sert seulement à comparer les identités et son corps de tests ne s’exécute pas dans la campagne niveau 1. `cargo test --workspace` reste une commande permise, mais n’est plus la référence niveau 1.
 
+- Toute validation N1 inclut, dans un shell dédié, une exécution `cargo test --no-fail-fast` sans `CARGO_TARGET_DIR`, via la garde qui fixe la cible autorisée uniquement par `--config build.target-dir=...` et vérifie le `target_directory` effectif ; aucun fichier de configuration Cargo ni profil utilisateur n'est modifié.
+
 Paramètres de chaque appel :
 - Racine de lot explicitement contrôlée dans le worktree ; `CARGO_HOME`, `TEMP`, `TMP` et `LOCALAPPDATA` canoniquement isolés ; contrôle des jonctions et liens, espace libre minimal de 30 Gio.
 - `CARGO_TARGET_DIR` : cible partagée existante `C:/dev/whisper/target/parakeet-tests/cargo-shared/`, ou répertoire **neuf** sous la racine du lot via `-FreshTarget <nom>`. Pour le niveau 1, cette possibilité prévaut sur l’exigence historique de cible unique ci-dessous.

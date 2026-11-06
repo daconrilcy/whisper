@@ -8,6 +8,9 @@ use whisper_adapters::supervisor::ProgressPhase;
 use whisper_adapters::supervisor::{ProgressSupervisor, ProgressWatch, WorkerPaths};
 use whisper_core::{BackendAttempt, ComputeChoice, ComputePolicyError};
 
+#[path = "support/pe_fixture.rs"]
+mod pe_fixture;
+
 static NEXT_DIR: AtomicU64 = AtomicU64::new(1);
 
 fn paths() -> (PathBuf, WorkerPaths) {
@@ -27,8 +30,8 @@ fn paths() -> (PathBuf, WorkerPaths) {
 #[test]
 fn cpu_choice_uses_only_cpu_worker_even_when_gpu_exists() {
     let (root, workers) = paths();
-    fs::write(&workers.cpu, b"cpu").unwrap();
-    fs::write(&workers.gpu, b"gpu").unwrap();
+    pe_fixture::copy_current_executable(&workers.cpu);
+    pe_fixture::copy_current_executable(&workers.gpu);
     let selected = workers.select(ComputeChoice::Cpu).unwrap();
     assert_eq!(selected.backend, BackendAttempt::Cpu);
     assert_eq!(selected.path, workers.cpu);
@@ -38,11 +41,11 @@ fn cpu_choice_uses_only_cpu_worker_even_when_gpu_exists() {
 #[test]
 fn auto_prefers_gpu_and_uses_cpu_when_gpu_binary_is_absent() {
     let (root, workers) = paths();
-    fs::write(&workers.cpu, b"cpu").unwrap();
+    pe_fixture::copy_current_executable(&workers.cpu);
     let selected = workers.select(ComputeChoice::Auto).unwrap();
     assert_eq!(selected.backend, BackendAttempt::Cpu);
     assert_eq!(selected.path, workers.cpu);
-    fs::write(&workers.gpu, b"gpu").unwrap();
+    pe_fixture::copy_current_executable(&workers.gpu);
     let selected = workers.select(ComputeChoice::Auto).unwrap();
     assert_eq!(selected.backend, BackendAttempt::Gpu);
     assert_eq!(selected.path, workers.gpu);
@@ -52,7 +55,7 @@ fn auto_prefers_gpu_and_uses_cpu_when_gpu_binary_is_absent() {
 #[test]
 fn forced_gpu_fails_closed_when_worker_is_absent() {
     let (root, workers) = paths();
-    fs::write(&workers.cpu, b"cpu").unwrap();
+    pe_fixture::copy_current_executable(&workers.cpu);
     assert_eq!(
         workers.select(ComputeChoice::Gpu).unwrap_err(),
         ComputePolicyError::GpuUnavailable
