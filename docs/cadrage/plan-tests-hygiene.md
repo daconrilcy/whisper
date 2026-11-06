@@ -1,6 +1,6 @@
-Avancée : inventaire initial en lecture ; worktree tests-hygiene créé depuis 9f5ab7aa, aucun code ni Cargo exécuté.
-Blocage : aucun prérequis d'autorisation restant ; efficacité des corrections à démontrer.
-Décision : plan 4fb2b5c9 CLEAN, implémentation autorisée avec les bornes utilisateur ci-dessous.
+Avancée : plan accepté ; les deux entrées A passent ; corrections B/D à faire relire avant B4/C2.
+Blocage : cause C et qualification complète non démontrées ; fenêtres NON ATTESTÉES.
+Décision : appliquer les trois corrections autorisées le 6 novembre, organiser leur revue puis l'essai unique B4/C2.
 
 # TESTS-HYGIENE — plan
 
@@ -13,6 +13,8 @@ Décision : plan 4fb2b5c9 CLEAN, implémentation autorisée avec les bornes util
 - Contrôle anti-régression : constructeur partagé, test refusant les écritures de .exe hors constructeur dans les sources de tests, un témoin négatif ; viser ≤150 lignes, faux positifs acceptés et listés, aucun analyseur multiligne général.
 - Autres budgets, arrêts, attestation humaine, rétention, bilan d'une page et revue finale par rust_review_coordinator inchangés. Aucun merge/push.
 - Arbitrages après les deux premiers arrêts SelfTest, avant tout Cargo : contrôler l'absence de CARGO_TARGET_DIR dans l'environnement enfant juste avant lancement, journaliser sa présence hôte avant/après nettoyage et vérifier la cible effective ; maintenir le refus filtre+--workspace+-p, reclasser les six anciens cas de filtres (release/no-run/list/faute/casse/partiel) désormais admis. Une reprise autorisée après chaque arbitrage ; chaque validation ciblée doit attester le test sélectionné, jamais un résultat vide.
+- Arbitrage après B2 : les tests de journaux exigent un worker existant pour identifier le runtime personnel, et Auto exige un fichier GPU existant pour atteindre l'échec de lancement. Conserver ces préconditions avec le constructeur PE minimal ; pour Auto, tenir le verrou exclusif déjà validé. Le troisième et dernier essai B sera la suite adapters lib complète, également première observation diagnostique C ; arrêt sur échec, aucun délai ni code produit modifié. Les essais A et B1 automatisés passent mais leur absence de fenêtre reste NON ATTESTÉE (opérateur indisponible sur ces intervalles).
+- Arbitrage du 6 novembre après B3 : fermer le handle Auto avant nettoyage, centraliser la copie PE vérifiée et couvrir le témoin négatif dans une fonction ; revue indépendante puis un unique essai B4, également C2 (quota B porté à quatre). Le budget C de trente minutes de diagnostic actif n'est pas étendu ; l'attente de l'accord est consignée séparément. L'interprétation antérieure de ce budget comme échéance calendaire est retirée : le mandat n'en fixe aucune. Aucun lancement avant la revue et le préflight ; arrêt sur échec, quotas restants conservés.
 
 ## Mandat et périmètre
 
