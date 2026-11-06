@@ -4,6 +4,8 @@ Décision : LIVRÉ AVEC RÉSERVES après deux cycles ; aucune fusion ni publicat
 
 # INSPECT-CIBLEE — bilan figé du 6 novembre 2026
 
+[Complément de levée des réserves du 6 novembre 2026](INSPECT-CIBLEE-RESERVES-COMPLEMENT.md).
+
 Base `34975d43`, branche `inspect-ciblee`, worktree `C:/wt/inspect-ciblee`. Plan relu avant code, implémentation déléguée. **R2/R3 code fermés ; R1 OPEN_VERIFICATION, R4 OPEN ; aucun CLEAN.**
 
 **Cartographie/correctif.** Recherche inspections/SHA dans toutes les crates : démarrage desktop et quatre bindings micro inspectent tous les modèles ; import, archive, qualifications et workers ciblent leurs modèles. Queue/recovery réutilisent **`inspect_requested_model` de d7e6445a**. Appelants, coûts et contrôle de complétude : [annexe](INSPECT-CIBLEE-PRESERVATION.md).
