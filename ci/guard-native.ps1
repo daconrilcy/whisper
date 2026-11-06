@@ -548,6 +548,22 @@ function Get-Profile([object]$Registry, [string]$Id) {
     return $matches[0]
 }
 
+function Assert-PersonalUnifiedSelectors([object]$PersonalUnified, [object]$GpuOnly) {
+    $expected = @(
+        'native_personal_cpu_imports_french_mp3_through_the_unified_application',
+        'native_personal_gpu_imports_english_mp3_with_attested_candidate',
+        'native_personal_gpu_imports_french_mp3_with_attested_candidate',
+        'native_personal_auto_without_candidate_reports_preaudio_cpu_fallback'
+    )
+    $actual = @($PersonalUnified.cases | ForEach-Object { [string]$_.exactTest })
+    if ($actual.Count -ne $expected.Count -or @($expected | Where-Object { $actual -cnotcontains $_ }).Count) {
+        throw 'PersonalUnified must contain exactly its four accepted CPU/Auto/GPU selectors.'
+    }
+    if (@($GpuOnly.cases).Count -ne 1 -or $GpuOnly.cases[0].exactTest -cne 'native_personal_gpu_imports_english_mp3_with_attested_candidate') {
+        throw 'PersonalUnifiedGpuOnly must contain only the accepted GPU English selector.'
+    }
+}
+
 function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInstalledExecutable) {
     $expectedExe = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
     $configuredExe = Get-FullPath ([string]$Profile.command.executable)
@@ -3259,7 +3275,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $programWResolverEvidence = Invoke-ProgramW6432ResolverSelfTests $Lot
     $personalUnifiedProfile = Get-Profile $Registry 'PersonalUnified'
     $personalGpuOnlyProfile = Get-Profile $Registry 'PersonalUnifiedGpuOnly'
-    if (@($personalUnifiedProfile.cases).Count -ne 3 -or @($personalGpuOnlyProfile.cases).Count -ne 1 -or $personalGpuOnlyProfile.cases[0].exactTest -cne 'native_personal_gpu_imports_english_mp3_with_attested_candidate') { throw 'PersonalUnifiedGpuOnly must contain only the already accepted GPU selector while PersonalUnified retains its three cases.' }
+    Assert-PersonalUnifiedSelectors $personalUnifiedProfile $personalGpuOnlyProfile
     foreach ($name in @('package','features','inputs','values','outputs','staging')) {
         if ((ConvertTo-Json -InputObject $personalUnifiedProfile.$name -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $personalGpuOnlyProfile.$name -Depth 12 -Compress)) { throw "PersonalUnifiedGpuOnly differs from PersonalUnified $name." }
     }

@@ -110,4 +110,32 @@ foreach($id in @('NativeClosureCpuReference','NativeClosureCpuRebuilt','NativeCl
     & $selectCase $id $registry
     $passed++
 }
-"PASS worktree gate, N2 target and four closure profile selections: $passed positive/negative checks; no Cargo or native build."
+$selectorOracle=@($nativeAst.EndBlock.Statements|Where-Object {
+    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq 'Assert-PersonalUnifiedSelectors'
+})
+if($selectorOracle.Count -ne 1){throw 'PersonalUnified exact-selector oracle missing.'}
+. ([scriptblock]::Create($selectorOracle[0].Extent.Text))
+$personalUnified=Get-Profile $registry 'PersonalUnified'
+$gpuOnly=Get-Profile $registry 'PersonalUnifiedGpuOnly'
+Assert-PersonalUnifiedSelectors $personalUnified $gpuOnly
+$passed++
+foreach($mutation in @('missing','added','changed','gpu-only-added','gpu-only-french')){
+    $personalCopy=$personalUnified|ConvertTo-Json -Depth 12|ConvertFrom-Json
+    $gpuCopy=$gpuOnly|ConvertTo-Json -Depth 12|ConvertFrom-Json
+    switch($mutation){
+        'missing' {$personalCopy.cases=@($personalCopy.cases|Select-Object -Skip 1)}
+        'added' {$extra=$personalCopy.cases[0]|ConvertTo-Json|ConvertFrom-Json;$extra.exactTest='unapproved_added_selector';$personalCopy.cases+=$extra}
+        'changed' {$personalCopy.cases[2].exactTest='unapproved_selector'}
+        'gpu-only-added' {$gpuCopy.cases+=($personalCopy.cases[2]|ConvertTo-Json|ConvertFrom-Json)}
+        'gpu-only-french' {$gpuCopy.cases[0].exactTest=$personalCopy.cases[2].exactTest}
+    }
+    $rejected=$false
+    try{Assert-PersonalUnifiedSelectors $personalCopy $gpuCopy}
+    catch{
+        if($_.Exception.Message -notlike 'PersonalUnified*must contain*'){throw}
+        $rejected=$true
+    }
+    if(-not $rejected){throw "PersonalUnified selector mutation accepted: $mutation"}
+    $passed++
+}
+"PASS worktree gate, N2 target, closure profile selections and PersonalUnified selector oracles: $passed positive/negative checks; no Cargo or native build."
