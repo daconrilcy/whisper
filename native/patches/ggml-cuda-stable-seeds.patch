@@ -1,0 +1,17 @@
+diff --git a/ggml/src/ggml-cuda/CMakeLists.txt b/ggml/src/ggml-cuda/CMakeLists.txt
+--- a/ggml/src/ggml-cuda/CMakeLists.txt
++++ b/ggml/src/ggml-cuda/CMakeLists.txt
+@@ -131,3 +131,13 @@
++    # Stabilize nvcc's local PTX symbols and MSVC's generated lambda identities.
++    # A separate seed per relative source preserves uniqueness across translation units.
++    foreach(GGML_CUDA_SOURCE IN LISTS GGML_SOURCES_CUDA)
++        file(RELATIVE_PATH GGML_CUDA_SOURCE_RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${GGML_CUDA_SOURCE}")
++        string(SHA256 GGML_CUDA_SOURCE_HASH "${GGML_CUDA_SOURCE_RELATIVE}")
++        string(SUBSTRING "${GGML_CUDA_SOURCE_HASH}" 0 16 GGML_CUDA_SOURCE_SEED)
++        set_property(SOURCE "${GGML_CUDA_SOURCE}" APPEND PROPERTY
++                     COMPILE_OPTIONS "--frandom-seed=0x${GGML_CUDA_SOURCE_SEED}" "--objdir-as-tempdir")
++    endforeach()
++
+     if (GGML_CUDA_GRAPHS)
+         add_compile_definitions(GGML_CUDA_USE_GRAPHS)
+     endif()

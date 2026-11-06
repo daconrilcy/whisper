@@ -10,10 +10,10 @@ function Invoke-NativeQualificationRoutingTests {
     }
     $normal=Get-QualificationRouting ''
     if($normal.root -cne 'C:\wb\native-qualif'){throw 'Original qualification root differs.'}
-    foreach($id in @('r1','r2','r3','r4')){
+    foreach($id in @('r1','r2','r3','r4','r5')){
         $reprise=Get-QualificationRouting $id
         if($reprise.root -cne ('C:\wb\native-qualif\reprise-'+$id.Substring(1)) -or $reprise.original -cne $normal.root){throw 'Qualification reprise root differs from its exact authorized route.'}
-        $variants=if($id -cin @('r3','r4')){@('gpu')}else{@('cpu','gpu')}
+        $variants=if($id -cin @('r3','r4','r5')){@('gpu')}else{@('cpu','gpu')}
         foreach($variant in $variants){
             foreach($number in @(1,2)){
                 if((Get-QualificationBuildId $variant $number $id) -cne "qualif-$id-$variant$number" -or
@@ -21,11 +21,11 @@ function Invoke-NativeQualificationRoutingTests {
             }
         }
     }
-    foreach($invalid in @('r5','R1','R2','R3','R4','../reprise-1','C:/override')){
+    foreach($invalid in @('r6','R1','R2','R3','R4','R5','../reprise-1','C:/override')){
         $rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true}
         if(-not $rejected){throw "Unapproved qualification reprise accepted: $invalid"}
     }
-    foreach($id in @('r3','r4')){
+    foreach($id in @('r3','r4','r5')){
         foreach($stage in @('SelfTest','NativeSelfTest','SurfaceGpu','RepeatGpu','Gpu1','Gpu2','GpuReference1','GpuReference2','GpuRebuilt')){Assert-QualificationStageRouting $stage $id}
         foreach($stage in @('Prepare','Cpu1','Cpu2','SurfaceCpu','RepeatCpu','CpuReference1','CpuRebuilt','N2SelfTest')){
             $rejected=$false;try{Assert-QualificationStageRouting $stage $id}catch{$rejected=$true}
@@ -34,7 +34,7 @@ function Invoke-NativeQualificationRoutingTests {
         $rejected=$false;try{$null=Get-QualificationBuildId 'cpu' 1 $id}catch{$rejected=$true}
         if(-not $rejected){throw "CPU build ID accepted in GPU-only $id."}
     }
-    [ordered]@{test='bounded r1/r2 roots and GPU-only r3/r4 stages/build IDs; arbitrary override refused';result='PASS'}
+    [ordered]@{test='bounded r1/r2 roots and GPU-only r3/r4/r5 stages/build IDs; arbitrary override refused';result='PASS'}
 }
 function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs, [switch]$RecordTestsOnly) {
     Initialize-NativeDirectoryWatch (Join-Path $Root 'collector-temp')

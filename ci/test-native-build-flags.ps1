@@ -69,6 +69,23 @@ function Invoke-NativeBuildFlagTests([string]$Root,[switch]$InertOnly) {
     Assert-NativeDiagnostic 'the number C45300 is not the diagnostic'
     Assert-FlagRejects 'localized C4530' { Assert-NativeDiagnostic 'fichier.cpp: avertissement C4530 : test' } 'C4530 detected'
 
+    $cudaRoot=Join-Path $run 'cuda-sources'
+    $ninjaRules=@(foreach($relative in @('first.cu','template-instances/second.cu')){
+        $source=(Join-Path $cudaRoot $relative).Replace(':','$:')
+        $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($relative))).ToLowerInvariant()
+        "build $relative.obj: CUDA_COMPILER__ggml-cuda_unscanned_Release $source || cmake_object_order_depends_target_ggml-cuda`n  FLAGS = -Xcompiler=/Brepro --frandom-seed=0x$($hash.Substring(0,16)) --objdir-as-tempdir`n"
+    }) -join "`n"
+    $seedReceipt=Assert-NativeCudaSeeds $ninjaRules $cudaRoot
+    if($seedReceipt.unitCount -ne 2 -or $seedReceipt.units[0].seed -ceq $seedReceipt.units[1].seed){throw 'Stable distinct CUDA seed fixture failed.'}
+    $checks.Add([pscustomobject]@{test='stable distinct per-source CUDA seeds in generated rules';result='PASS';receipt=$seedReceipt})
+    Assert-FlagRejects 'no CUDA rules' {Assert-NativeCudaSeeds '' $cudaRoot} 'requires CUDA object rules'
+    Assert-FlagRejects 'CUDA seed absent' {Assert-NativeCudaSeeds ($ninjaRules -replace '--frandom-seed=0x[0-9a-f]{16}','') $cudaRoot} 'CUDA seed missing'
+    Assert-FlagRejects 'CUDA seed wrong' {Assert-NativeCudaSeeds ($ninjaRules -replace '--frandom-seed=0x[0-9a-f]{16}','--frandom-seed=0x0000000000000000') $cudaRoot} 'CUDA seed missing'
+    Assert-FlagRejects 'CUDA seed duplicate argument' {Assert-NativeCudaSeeds ($ninjaRules.Replace(' -Xcompiler=/Brepro',' --frandom-seed=0x0000000000000000 -Xcompiler=/Brepro')) $cudaRoot} 'CUDA seed missing'
+    Assert-FlagRejects 'CUDA source outside root' {Assert-NativeCudaSeeds $ninjaRules (Join-Path $cudaRoot 'child')} 'Invalid or duplicate CUDA source'
+    Assert-FlagRejects 'CUDA object-local temporaries absent' {Assert-NativeCudaSeeds ($ninjaRules.Replace(' --objdir-as-tempdir','')) $cudaRoot} 'CUDA object-local temporary option missing'
+    Assert-FlagRejects 'CUDA object-local temporaries duplicate' {Assert-NativeCudaSeeds ($ninjaRules.Replace(' --objdir-as-tempdir',' --objdir-as-tempdir --objdir-as-tempdir')) $cudaRoot} 'CUDA object-local temporary option missing'
+
     $metadata=@('set(CMAKE_CUDA_PLATFORM_ID "Windows")','set(CMAKE_CUDA_COMPILER_ARCHITECTURE_ID "x64")','set(CMAKE_CUDA_SIZEOF_DATA_PTR "8")')
     $metadataPath=Join-Path $run 'CMakeCUDACompiler.cmake'
     $metadata|Set-Content -LiteralPath $metadataPath -Encoding utf8

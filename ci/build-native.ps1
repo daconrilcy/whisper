@@ -129,6 +129,27 @@ function Read-NativeCudaPlatformMetadata([string]$Path) {
     return [ordered]@{status='PASS';source=[IO.Path]::GetFullPath($Path);sha256=(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash;values=$values;execution='Not executed; parsed generated set declarations only.'}
 }
 
+function Assert-NativeCudaSeeds([string]$NinjaText,[string]$CudaSourceRoot) {
+    $rules=@([regex]::Matches($NinjaText,'(?ms)^build [^\r\n]+\.cu\.obj: CUDA_COMPILER[^ \r\n]* (?<source>[^\r\n]+?)(?: \|\|[^\r\n]*)?\r?\n(?<body>.*?)(?=^build |\z)'))
+    if(-not $rules.Count){throw 'CUDA seed validation requires CUDA object rules.'}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $sources=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $receipts=@(foreach($rule in $rules){
+        $source=$rule.Groups['source'].Value.Replace('$:',':').Replace('$ ',' ').Replace('$$','$')
+        $relative=[IO.Path]::GetRelativePath($CudaSourceRoot,$source).Replace('\','/')
+        if($relative.StartsWith('../') -or [IO.Path]::IsPathRooted($relative) -or -not $sources.Add($relative)){throw "Invalid or duplicate CUDA source for seed validation: $relative"}
+        $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($relative))).ToLowerInvariant()
+        $expected='0x'+$hash.Substring(0,16)
+        $flags=@([regex]::Matches($rule.Groups['body'].Value,'(?m)^  FLAGS = (?<flags>[^\r\n]*)'))
+        if($flags.Count -ne 1){throw "CUDA flags missing or duplicated for seed validation: $relative"}
+        $seeds=@([regex]::Matches($flags[0].Groups['flags'].Value,'(?:^|\s)--frandom-seed(?:=|\s+)(?<seed>\S+)'))
+        if($seeds.Count -ne 1 -or $seeds[0].Groups['seed'].Value -cne $expected -or -not $seen.Add($expected)){throw "CUDA seed missing, incorrect or duplicated: $relative"}
+        if(@([regex]::Matches($flags[0].Groups['flags'].Value,'(?:^|\s)--objdir-as-tempdir(?=\s|$)')).Count -ne 1){throw "CUDA object-local temporary option missing or duplicated: $relative"}
+        [ordered]@{source=$relative;seed=$expected;temporaryFiles='object-directory'}
+    })
+    return [ordered]@{status='PASS';algorithm='SHA-256 of relative UTF-8 source path, first 64 bits';unitCount=$receipts.Count;units=$receipts}
+}
+
 function Assert-NativeDiagnostic([string]$Line) {
     if ($Line -match '\bC4530\b') { throw 'C4530 detected: C++ exception-unwinding semantics are missing. Stop; no automatic retry.' }
 }
@@ -487,10 +508,14 @@ try {
     Export-NativeSource $cachedLlama $llama 'llama'
     Export-NativeSource $cachedVcpkg $vcpkg 'vcpkg'
     if (Test-Path -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe')) { Copy-Item -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe') -Destination $vcpkg }
-    $localPatch=Join-Path $repo 'native/patches/ggml-pinned-build-commit.patch'
-    Copy-Item -LiteralPath $localPatch -Destination (Join-Path $nemo 'patches/ggml-pinned-build-commit.patch')
-    [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`nggml-pinned-build-commit.patch`n",$utf8)
-    $manifest.localPatches=@(@{name='ggml-pinned-build-commit.patch';sha256=(Get-FileHash -LiteralPath $localPatch).Hash})
+    $localPatchNames=@('ggml-pinned-build-commit.patch')
+    if($Variant -eq 'gpu'){$localPatchNames+='ggml-cuda-stable-seeds.patch'}
+    $manifest.localPatches=@(foreach($name in $localPatchNames){
+        $localPatch=Join-Path $repo "native/patches/$name"
+        Copy-Item -LiteralPath $localPatch -Destination (Join-Path $nemo "patches/$name")
+        [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`n$name`n",$utf8)
+        @{name=$name;sha256=(Get-FileHash -LiteralPath $localPatch).Hash}
+    })
     Import-BuildEnvironment $tools
     $manifest.environmentControls=@{VSCMD_SKIP_SENDTELEMETRY='1';reason='Disable detached VsDevCmd telemetry; NativeBuild stop policy unchanged'}
     $manifest.stage = 'BOOTSTRAP'
@@ -539,6 +564,7 @@ try {
         $manifest.cudaPlatformValidation=Read-NativeCudaPlatformMetadata $cudaMetadataPath
         if((Get-FileHash -LiteralPath $cudaMetadataProof -Algorithm SHA256).Hash -cne $manifest.cudaPlatformValidation.sha256){throw 'CUDA compiler metadata source changed while preserving its proof.'}
         $manifest.cudaPlatformValidation.proof=$cudaMetadataProof
+        $manifest.cudaSeedValidation=Assert-NativeCudaSeeds (Get-Content -LiteralPath (Join-Path $build 'build.ninja') -Raw) (Join-Path $build '_deps/llama.cpp/ggml/src/ggml-cuda')
     }
     $manifest.flagValidation = Assert-NativeEffectiveFlags $effective $Variant
     $manifest.stage = 'BUILD'
