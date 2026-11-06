@@ -1,6 +1,6 @@
-Avancée : T4–T6 implémentés ; N1 exécuté, 767 réussites, 3 échecs et 128 ignorés.
-Blocage : trois échecs micro et deux sélections workers non exécutées restent en réserve.
-Décision : reprise des autres contrôles et passage en revue sous ces réserves acceptés par l'utilisateur.
+Avancée : T7 complémentaire terminé ; common, Clippy et desktop personnel réussis.
+Blocage : trois échecs micro N1 et deux sélections workers non exécutées restent en réserve.
+Décision : engager la revue indépendante T8 sous les réserves acceptées par l'utilisateur.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -181,3 +181,5 @@ Arrêt T7 : la commande N1 exacte de la section 4 a terminé Cargo 101 / garde 1
 Préflight Parakeet CPU : `tests/decoder_parity.rs:56` utilise `CARGO_BIN_EXE_whisper-worker-parakeet-cpu` ; sa sélection peut reconstruire le binaire worker, au-delà de l'accord courant. Sélections Parakeet CPU et worker-cpu NON EXÉCUTÉES. Worker-common, Clippy et construction après NON EXÉCUTÉS à ce stade après arrêt N1.
 
 Arbitrage accepté dans la session courante : à la question ci-dessus, l'utilisateur choisit « Poursuivre avec ces réserves (recommandé) ». Reprendre les contrôles autorisés puis T8 si les autres vérifications réussissent, en conservant les trois échecs micro comme réserves et les deux sélections workers bloquées comme NON EXÉCUTÉES, sans annoncer N1 réussi ni étendre les chemins du lot. Les fichiers direct_live ne sont pas en édition. Aucune relance des trois tests matériels ni du N1 à environnement inchangé ; poursuivre worker-common après préflight/PE, Clippy et construction desktop personnelle. Cet accord ne transforme aucun échec ou contrôle non exécuté en réussite.
+
+T7 complémentaire réussi selon l'implémenteur en mode VERIFY, sans édition : worker-common graphe sans compilation native, harnais PE Cpu PASS avant exécution, 11 tests réussis et 1 ignoré MP3 réel ; Clippy core/adapters/desktop all-targets code 0 ; construction release personal-install code 0, 23,03 s, PE Desktop PASS. Quatre avertissements Clippy signalés dans les fichiers modifiés (closures redondantes et conditions repliables) restent à la revue. Candidat canonique : `target/parakeet-tests/cargo-shared/release/whisper-desktop.exe`, 15 294 464 octets, SHA-256 `1975915404c742666340c55b453945c2292059e840bc9508c8bd8b0ffc67f840`. Les trois EXE avant sont inchangés ; aucun EXE après copié ni lancé avant revue. N1 reste en échec avec ses réserves ; aucune sélection worker bloquée exécutée. T8 peut commencer conformément à l'arbitrage accepté.
