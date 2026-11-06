@@ -91,4 +91,23 @@ foreach ($case in @(
     }
     $passed++
 }
-"PASS worktree gate and N2 target: $passed positive/negative checks; no Cargo or native build."
+# Execute the actual entry-point selection assignment with its typed string
+# parameter. A case-only variable rename would turn the selected object into text.
+$getProfileDefinition=@($nativeAst.EndBlock.Statements|Where-Object {
+    $_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq 'Get-Profile'
+})
+if($getProfileDefinition.Count -ne 1){throw 'Profile selector definition missing.'}
+. ([scriptblock]::Create($getProfileDefinition[0].Extent.Text))
+$selection=@($nativeAst.FindAll({param($node)
+    $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+    $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and
+    $node.Left.VariablePath.UserPath -ceq 'selectedProfile' -and
+    $node.Right.Extent.Text -ceq 'Get-Profile $registry $Profile'
+},$true))
+if($selection.Count -ne 1){throw 'Distinct entry-point profile-object assignment missing.'}
+$selectCase=[scriptblock]::Create('param([string]$Profile,$registry) '+$selection[0].Extent.Text+'; if($Profile -isnot [string] -or $selectedProfile -is [string] -or $selectedProfile.id -cne $Profile -or $selectedProfile.operation -cne ''Run'' -or @($selectedProfile.cases).Count -ne 2){throw ''Closure preflight profile object was not preserved.''}')
+foreach($id in @('NativeClosureCpuReference','NativeClosureCpuRebuilt','NativeClosureGpuReference','NativeClosureGpuRebuilt')){
+    & $selectCase $id $registry
+    $passed++
+}
+"PASS worktree gate, N2 target and four closure profile selections: $passed positive/negative checks; no Cargo or native build."
