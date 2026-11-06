@@ -14,7 +14,7 @@ Reprise demandée après le [bilan initial figé](BUILD-NATIF-QUALIF-BILAN.md), 
 | b — Reference / Rebuilt, mêmes six sorties | PASS 6/6 | NON EXÉCUTÉ après c |
 | Verdict | **QUALIFIÉ** | **NON QUALIFIÉ** |
 
-**Écart GPU caractérisé :** seul `ggml-cuda.dll` varie : **33 210 368 → 33 210 880 octets**, soit +512. SHA-256 `A7BB922B…EBD3` / `6BEC3FDE…15DE` (valeurs complètes dans la preuve). Comparaison positionnelle : **11 496 801 différences**, dont `.nv_fatb` 11 480 984, `.text` 11 158, `.rdata` 86, `.pdata` 102 et en-têtes 11 ; autres écarts associés aux sections décalées/relocations. Ce comptage inclut les effets de décalage, pas seulement des mutations sémantiques. Surfaces PE toujours identiques. **Cause non établie ; signal matériel possible conservé comme tel**, aucune conclusion logicielle ou matérielle et aucun nouvel essai. STOP avant Reference GPU/Rebuilt.
+**Écart GPU caractérisé :** seul `ggml-cuda.dll` varie : **33 210 368 → 33 210 880 octets**, soit +512. SHA-256 complets dans la preuve. Comparaison positionnelle : **11 496 801 différences**, dont `.nv_fatb` 11 480 984, `.text` 11 158, `.rdata` 86, `.pdata` 102 et en-têtes 11 ; autres écarts associés aux sections décalées/relocations. Comptage positionnel, decalages inclus. Surfaces PE toujours identiques. **Cause non établie ; signal matériel possible conservé comme tel**, aucune conclusion logicielle ou matérielle et aucun nouvel essai. STOP avant Reference GPU/Rebuilt.
 
 | Étapes (ordre de chaque groupe) | WHEA avant → après | Pic engagé observé |
 |---|---|---:|
@@ -24,7 +24,7 @@ Reprise demandée après le [bilan initial figé](BUILD-NATIF-QUALIF-BILAN.md), 
 | r2 GPU1 / r3 GPU1 interrompus (contrôles) | 1→1 / 1→1 | 19,80 / 20,20 % |
 | r4 GPU1 / GPU2 / comparaison | 1→1 / 1→1 / 1→1 | **21,00** / 20,90 / 20,70 % |
 
-Aucune nouvelle WHEA ni ICE observé ; dernier événement Système 527992 du 05/11. MemWatch et contrôle WHEA directs actifs pendant les étapes et l’archivage. Quatre builds finis, trois tentatives de reprise interrompues. Seules jonctions CPU/GPU autorisées retirées, cibles et anciens workspaces préservés.
+Aucune nouvelle WHEA ni ICE observé ; dernier événement Système 527992 du 05/11. MemWatch et WHEA controles pendant etapes et archivage. Quatre builds finis ; trois essais de reprise interrompus. Seules jonctions CPU/GPU autorisées retirées, cibles et anciens workspaces préservés.
 
 **Preuves :** [dossier et rétention](C:/wb/native-qualif/reprise-4/RETENTION.md), `reprise-2/cpu/{surface,repeat,reference-determinism,equivalence}.json`, `reprise-4/gpu/{surface,repeat}.json`, reçus de copies et `all-stage-summary.json`. **14 DLL installées inchangées**, aucun outil natif restant. Aucun merge/push/nettoyage de clôture ; **346,57 Gio libres** au relevé. Un test de l’ancien sérialiseur a produit un intermédiaire CLIXML de **4,75 Gio** : contenu non lu/haché/copié, suppression humaine proposée ; capture brute remplacée par une projection bornée.
 
