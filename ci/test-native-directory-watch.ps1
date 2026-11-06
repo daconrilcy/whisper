@@ -8,19 +8,23 @@ function Invoke-NativeQualificationRoutingTests {
         if($definition.Count -ne 1){throw "Qualification routing helper missing: $name"}
         . ([scriptblock]::Create($definition[0].Extent.Text))
     }
-    $normal=Get-QualificationRouting '';$reprise=Get-QualificationRouting 'r1'
-    if($normal.root -cne 'C:\wb\native-qualif' -or $reprise.root -cne 'C:\wb\native-qualif\reprise-1' -or $reprise.original -cne $normal.root){throw 'Qualification reprise root differs from its exact authorized route.'}
-    foreach($variant in @('cpu','gpu')){
-        foreach($number in @(1,2)){
-            if((Get-QualificationBuildId $variant $number 'r1') -cne "qualif-r1-$variant$number" -or
-                (Get-QualificationBuildId $variant $number '') -cne "qualif-$variant$number"){throw 'Qualification reprise build ID routing differs.'}
+    $normal=Get-QualificationRouting ''
+    if($normal.root -cne 'C:\wb\native-qualif'){throw 'Original qualification root differs.'}
+    foreach($id in @('r1','r2')){
+        $reprise=Get-QualificationRouting $id
+        if($reprise.root -cne ('C:\wb\native-qualif\reprise-'+$id.Substring(1)) -or $reprise.original -cne $normal.root){throw 'Qualification reprise root differs from its exact authorized route.'}
+        foreach($variant in @('cpu','gpu')){
+            foreach($number in @(1,2)){
+                if((Get-QualificationBuildId $variant $number $id) -cne "qualif-$id-$variant$number" -or
+                    (Get-QualificationBuildId $variant $number '') -cne "qualif-$variant$number"){throw 'Qualification reprise build ID routing differs.'}
+            }
         }
     }
-    foreach($invalid in @('r2','R1','../reprise-1','C:/override')){
+    foreach($invalid in @('r3','R1','R2','../reprise-1','C:/override')){
         $rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true}
         if(-not $rejected){throw "Unapproved qualification reprise accepted: $invalid"}
     }
-    [ordered]@{test='bounded r1 evidence root and all CPU/GPU build IDs; arbitrary override refused';result='PASS'}
+    [ordered]@{test='bounded r1/r2 evidence roots and all CPU/GPU build IDs; arbitrary override refused';result='PASS'}
 }
 function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs, [switch]$RecordTestsOnly) {
     Initialize-NativeDirectoryWatch (Join-Path $Root 'collector-temp')
