@@ -24,3 +24,5 @@ Trois ajouts, aucun retrait : contrôle PE, diagnostic prioritaire, unicité san
 **Preuves :** [archive vérifiée](raw/TESTS-HYGIENE-20261106T070200.zip), 537 fichiers + manifeste ; nombres, tailles et SHA-256 vérifiés, inventaires et commandes de nettoyage inclus.
 
 SHA-256 : `BFDAA362A4F723EC1DF6F648979F523C948F744E8A4A60B7C4E1B3CB47344EA8`.
+
+[Complément : observation Windows du 6 novembre 2026](TESTS-HYGIENE-OBSERVATION-WINDOWS.md).
