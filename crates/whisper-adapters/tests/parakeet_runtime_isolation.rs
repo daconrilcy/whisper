@@ -2,6 +2,9 @@ mod parakeet_import {
     pub use whisper_adapters::parakeet_import::{ParakeetProcess, ParakeetWorkerPaths};
 }
 
+#[path = "support/pe_fixture.rs"]
+mod pe_fixture;
+
 mod support {
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -52,11 +55,7 @@ fn historical_gpu_rejects_invalid_log_root_and_qualification() {
     ));
     std::fs::create_dir_all(root.join("worker")).unwrap();
     std::fs::create_dir_all(root.join("native")).unwrap();
-    std::fs::write(
-        root.join("worker/whisper-worker-parakeet-gpu.exe"),
-        b"fixture",
-    )
-    .unwrap();
+    pe_fixture::copy_current_executable(&root.join("worker/whisper-worker-parakeet-gpu.exe"));
     std::fs::write(root.join("model"), b"fixture").unwrap();
     for (variable, expected) in [
         ("PARAKEET_L3C_EXEC_ROOT", "WorkerLogPath: L3c"),

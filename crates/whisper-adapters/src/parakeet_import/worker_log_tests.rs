@@ -26,10 +26,9 @@ fn fixture_root(label: &str) -> PathBuf {
 fn run_personal_log_case(test_name: &str, case: &str, settings_file: bool, logs_file: bool) {
     let root = fixture_root(case);
     let paths = personal_paths(&root);
-    std::fs::create_dir_all(paths.executable.parent().unwrap()).unwrap();
     std::fs::create_dir_all(&paths.native_dir).unwrap();
     std::fs::create_dir_all(paths.model.parent().unwrap()).unwrap();
-    std::fs::write(&paths.executable, b"fixture worker").unwrap();
+    crate::pe_fixture::compile_failing_worker(&root, &paths.executable);
     std::fs::write(&paths.model, b"fixture model").unwrap();
     if settings_file {
         std::fs::write(paths.runtime_root.join("settings"), b"settings sentinel").unwrap();

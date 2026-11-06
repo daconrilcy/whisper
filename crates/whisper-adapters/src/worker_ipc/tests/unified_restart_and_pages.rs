@@ -555,7 +555,8 @@ fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events() {
 
 #[test]
 fn corrupt_archive_alias_cannot_borrow_canonical_foreign_identity() {
-    let root = std::env::temp_dir().join(format!("parakeet-archive-alias-{}", std::process::id()));
+    let root = test_artifact_root("parakeet-archive-alias");
+    fs::create_dir_all(root.parent().unwrap()).unwrap();
     fs::create_dir(&root).unwrap();
     let (canonical_file, canonical_bytes, _) = install_foreign_corrupt_archive(&root);
     let unrelated_sha = "42".repeat(32);
@@ -574,4 +575,5 @@ fn corrupt_archive_alias_cannot_borrow_canonical_foreign_identity() {
     assert!(error.contains("StorageCorrupt:"), "{error}");
     assert_eq!(fs::read(&canonical_file).unwrap(), canonical_bytes);
     assert_eq!(fs::read(&alias_file).unwrap(), alias_bytes);
+    fs::remove_dir_all(&root).unwrap();
 }

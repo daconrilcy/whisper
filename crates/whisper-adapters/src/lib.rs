@@ -24,6 +24,12 @@ pub mod vad;
 mod windows_file_identity;
 pub mod worker_ipc;
 
+#[cfg(test)]
+#[path = "../tests/support/pe_fixture.rs"]
+mod pe_fixture;
+#[cfg(test)]
+mod test_support;
+
 /// Transport boundary supplied by the composition root in a later lot.
 pub trait WorkerTransport {
     fn request(

@@ -1,6 +1,6 @@
-Avancée : trois N1 complets PASS (714/0/128) ; quatorze répétitions lib PASS ; correctif C et témoin PASS.
-Blocage : répétition 15 en échec sur trois collisions de fixtures PID ; campagne arrêtée, fenêtres NON ATTESTÉES.
-Décision : proposition 7 autorisée le 6 novembre ; correction puis un cycle supplémentaire de revue, revalidation depuis zéro ; TH-R4 reste MINEUR ouvert.
+Avancée : candidat corrigé validé par trois N1 (715/0/128) et 50 suites lib (372/0/49), gardes et structure PASS.
+Blocage : fenêtres Windows NON ATTESTÉES et cargo simple depuis main NON EXÉCUTÉ, réservés à l'humain ; TH-R4 MINEUR ouvert.
+Décision : clôture technique avec réserves selon le bilan figé ; commit local seulement, fusion laissée à l'humain.
 
 # TESTS-HYGIENE — plan
 
@@ -74,4 +74,6 @@ Périmètre de correction proposé : `crates/whisper-adapters/src/worker_ipc/tes
 
 Conserver le helper path-only sans création implicite : noms uniques par allocation avec PID, horodatage et compteur. Pour les trois cas fautifs, réserver la racine par `create_dir` (parents créés séparément si nécessaire), refuser toute racine préexistante et nettoyer seulement la racine neuve après assertions et fermeture des propriétaires de handles. Conserver les assertions JSON, identité/canonicalité et FIFO. Ne pas tronquer les diagnostics, changer les jobs ni supprimer un ancien dossier pour obtenir un vert. Ajouter un témoin simple : deux allocations du même cas donnent deux chemins différents, sans création par le helper.
 
-Accord utilisateur reçu sur l'extension à ces quatre fichiers/registre, un cycle supplémentaire de correction/relecture indépendant au-delà des deux cycles déjà consommés, puis reprise des trois N1 et des cinquante suites lib depuis zéro sur le candidat corrigé. Arrêt au premier échec, seuils et garde inchangés. Les quatorze répétitions antérieures et les trois N1 restent archivés comme preuves de l'ancien candidat ; garde native toujours NON EXÉCUTÉE. Les racines PID-only ignorées sans `native-tests` sont signalées hors périmètre ; leurs recettes natives restent suspendues.
+Accord utilisateur reçu sur l'extension à ces quatre fichiers/registre, un cycle supplémentaire de correction/relecture indépendant au-delà des deux cycles déjà consommés, puis reprise des trois N1 et des cinquante suites lib depuis zéro sur le candidat corrigé. Arrêt au premier échec, seuils et garde inchangés. Les quatorze répétitions antérieures et les trois N1 restent archivés comme preuves de l'ancien candidat ; la garde native n'était pas encore exécutée au moment de cet accord. Les racines PID-only ignorées sans `native-tests` sont signalées hors périmètre ; leurs recettes natives restent suspendues.
+
+Clôture technique du 6 novembre : extension N7 relue CLEAN sans nouvelle correction de revue ; nouvelles trois suites N1 et cinquante suites lib réussies, garde native SelfTest PASS sans commande native/Cargo, archive vérifiée indépendamment. État final, limites et décisions dans [TESTS-HYGIENE-BILAN](../architecture/TESTS-HYGIENE-BILAN.md).
