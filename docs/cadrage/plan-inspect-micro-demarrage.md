@@ -1,6 +1,6 @@
-Avancée : exécution demandée ; tranche garde de T2 corrigée et deux auto-tests réussis.
-Blocage : témoin personnel attribuable non disponible ; voie de compilation conforme non démontrée.
-Décision : arbitrage de compilation nécessaire avant référence humaine T3 et correctifs produit T4.
+Avancée : garde corrigée, desktop personnel de référence construit et remise avant vérifiée.
+Blocage : référence humaine T3 non réalisée ; correctifs produit T4 en attente.
+Décision : remettre le témoin pour les mesures avant ; aucune modification produit avant leur relevé.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -154,4 +154,10 @@ Témoin T2 : l'utilisateur confirme ne pas disposer d'un dossier personnel attri
 
 Préflight statique : `webrtc-vad 0.4.0/build.rs` peut appeler Git puis compiler la bibliothèque C statique libfvad ; la réutilisation sans reconstruction n'est pas démontrée. Dans son dossier, `git rev-parse --show-toplevel` désigne le dépôt principal, dépourvu de `.gitmodules` et de configuration `submodule.*` observée : aucun sous-module à télécharger identifié. Cela ne constitue pas un confinement réseau. Aucune commande de compilation n'est lancée sur cette base.
 
-Arbitrage proposé, non accepté à ce stade : autoriser uniquement la construction du desktop personnel de référence via garde N1, avec compilation éventuelle de libfvad, sans reconstruction des workers ni des DLL ggml/NeMo/CUDA, sans téléchargement ni accès réseau ajouté. Cette exception doit être écrite précisément avant exécution ; elle ne débloque pas implicitement les sélections workers N1 ni les autres constructions natives. Maintenir les contrôles et arrêts existants. Une fois le témoin vérifié, l'utilisateur réalise T3 avant toute modification produit.
+Arbitrage accepté dans la session courante : l'utilisateur a autorisé la construction du desktop personnel de référence via garde N1, avec compilation éventuelle de libfvad uniquement, sans reconstruction des workers ni des DLL ggml/NeMo/CUDA, sans téléchargement. Cet accord ne débloque pas implicitement les sélections workers N1 ni les autres constructions natives.
+
+Construction T2 réussie : commande build release `personal-install` de la section 4, code 0, 26,96 s. Graphe préalablement vérifié par `tree --offline --locked -p whisper-desktop --features personal-install -e normal,build` via garde : aucun worker, whisper-rs ou CMake ; seule compilation C identifiée, libfvad. Sources produit inchangées depuis `48827173`, HEAD de construction `a5ef7d83`. Fingerprint desktop : features `default` et `personal-install`. Aucune fenêtre lancée ni installation.
+
+Remise avant : `deliverables/inspect-micro-demarrage/avant/whisper-desktop.exe`, 15 212 032 octets, SHA-256 `9d0a56abe9239cc2721267a3ac587d9fed20f50a133107f0d37605f484c55a3e`. Seuls les deux workers Turbo préexistants de `%LOCALAPPDATA%/Whisper/app/` sont copiés à côté ; SHA identiques à `native/runtime-pins/reference.json` et copies vérifiées. Contrôles PE des trois copies : Desktop, Cpu et Gpu PASS. Auto-tests PE versionnés : 4 positifs et 15 négatifs réussis ; témoin réel facultatif NON EXÉCUTÉ.
+
+Les 20 ressources installées hors ancien desktop correspondent en taille et SHA-256 à la référence versionnée : quatre workers, cinq DLL CPU, neuf DLL GPU et deux modèles. Le profil charge les ressources Parakeet et modèles depuis l'installation personnelle stable ; aucune copie supplémentaire dans la remise. Les mesures T3 restent à l'utilisateur : six couples de délais par configuration accessible retenue (modèles/modes/sources), mêmes conditions avant/après. Borne micro : progression du compteur « capturés » de la session courante, ou « échantillons capturés » sur la route unifiée. Apparition de fenêtre, état moteur et premier texte ne remplacent pas cette borne. Relever aussi moteur effectif, source, anomalies et conditions de cache ; le code produit T4 attend ces résultats.
