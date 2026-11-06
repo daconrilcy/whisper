@@ -1,6 +1,6 @@
 Avancée : Parakeet CPU exécuté, 26 réussis/0 échec/11 ignorés ; common déjà vérifié.
-Blocage : Turbo CPU nécessite une décision native précise, réutilisation du cache non démontrée.
-Décision : accord ponctuel demandé avant toute compilation CMake Turbo CPU.
+Blocage : aucun prérequis d'autorisation restant ; préflight et tests Turbo CPU à exécuter.
+Décision : exception native CPU ponctuelle acceptée, reprendre sous garde N1.
 
 # Validation des workers — mandat du 6 novembre 2026
 
@@ -20,4 +20,4 @@ Résultats Parakeet CPU : graphe gardé sans production native ; compilation Rus
 
 Turbo CPU : trois lectures diagnostiques, aucun appel compilant. L'unique bibliothèque whisper-rs-sys sans feature CUDA observée (`ab8a2755052481cb`) référence dans son fichier .d les sources de `C:/wt/build-natif/target/cargo-home-shared/`, tandis que la garde utilise le cache du dépôt courant. La réutilisation sans rerun n'est pas démontrée ; les autres variantes examinées sont CUDA et ne constituent pas une preuve CPU. `whisper-rs-sys 0.15.0/build.rs:301` appelle `config.build()` (CMake). Preuve `cpu-preflight.log`, aucun contournement ni modification de cache/environnement/source.
 
-Arbitrage demandé dans la session : exception ponctuelle de compilation native CPU de whisper-rs-sys par son build.rs/CMake lors de la seule sélection Cargo worker-cpu via garde N1, puis PE et tests. Pas de CUDA/GPU, téléchargement, installation ou remplacement des workers livrés. La suspension depuis la WHEA du 5 novembre reste applicable tant que cet accord précis n'est pas reçu. Aucun résultat CPU revendiqué.
+Arbitrage accepté dans la session : l'utilisateur répond « oui je t'autorise » à l'exception ponctuelle de compilation native CPU de whisper-rs-sys 0.15.0 par son build.rs/CMake lors de la seule sélection Cargo worker-cpu via garde N1, puis PE et tests. Pas de CUDA/GPU, téléchargement, installation ou remplacement des workers livrés. L'accord est limité à cette action et ne lève pas globalement la suspension depuis la WHEA du 5 novembre. L'implémenteur reprend en VERIFY ; aucun résultat CPU revendiqué avant exécution.
