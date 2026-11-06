@@ -24,3 +24,5 @@ Amélioration indicative ; valeurs globales non ventilées, sans relevés indivi
 **Remise :** `deliverables/inspect-micro-demarrage/avant/` et `apres/`, trois EXE chacun ; mêmes workers Turbo, SHA/PE vérifiés. Ressources Parakeet/modèles dans l'installation personnelle stable, 20 fichiers revérifiés conformes. Desktop après SHA-256 `2f6bce0608d167497028258ddd0aec5f2c3ae8881fd148a39585a22ed525fda7`.
 
 **Preuves/rétention :** [archive durable](raw/inspect-micro-demarrage.zip), 138 journaux, arborescence et chaque SHA vérifiés. ZIP SHA-256 `61b54043bb5ff96a32ba474da8a9f3453aaad02ca101bce8d0f1abe348a5ca29`. Aucun cache/cible de compilation isolé à supprimer ; partagés préservés, aucun nettoyage manuel, environ 427 Gio libres. Commits locaux, binaires non suivis, aucun push.
+
+[Complément : correction N1 des tests dépendant du microphone réel](correction-n1-micro-synthetique.md).
