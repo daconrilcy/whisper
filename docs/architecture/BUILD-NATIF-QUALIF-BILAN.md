@@ -28,3 +28,5 @@ Dernier événement Système : `527992`, ID19 du 05/11, APIC24. MemWatch intensi
 **Rétention et dettes :** [inventaire et commandes humaines](C:/wb/native-qualif/RETENTION.md), aucune suppression de clôture exécutée ; liens et workspace historique signalés. Renommage de la garde à corriger/qualifier avant décision de reprise. `GGML_NATIVE=ON` demandé, instructions effectives non enregistrées (configuration interrompue), portabilité non qualifiée. Remplacement des DLL installées : décision humaine distincte ; leur validité fonctionnelle après undervolt demeure non établie par ce lot.
 
 Complément ultérieur : [reprise, builds achevés et verdicts CPU/GPU](BUILD-NATIF-QUALIF-REPRISE1.md).
+
+[Clôture après correction du PTX et qualification GPU](BUILD-NATIF-QUALIF-PTX.md).
