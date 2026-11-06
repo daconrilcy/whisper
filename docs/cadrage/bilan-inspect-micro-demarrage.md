@@ -1,19 +1,26 @@
-Avancée : code implémenté, revu CLEAN, commité localement et remise après vérifiée.
-Blocage : mesures et validation Windows après attendues ; réserves N1/worker maintenues.
-Décision : remettre le candidat et compléter T9 avant de figer ce bilan.
+Avancée : code livré, revue CLEAN et essais Windows après déclarés effectués.
+Blocage : aucun sur la livraison ; réserves de validation maintenues.
+Décision : clôturer le lot avec comparaison indicative et réserves explicites.
 
-# INSPECT-MICRO-DEMARRAGE — bilan en préparation
+# INSPECT-MICRO-DEMARRAGE — bilan de clôture
 
-**Non figé : T9 reste en attente.** Code livré dans `df81bf92` ; [plan et décisions](plan-inspect-micro-demarrage.md), [revue indépendante](revue-inspect-micro-demarrage.md).
+**Clôturé le 6 novembre 2026, livré avec réserves de validation.** Code `df81bf92` ; [plan et décisions](plan-inspect-micro-demarrage.md), [revue indépendante](revue-inspect-micro-demarrage.md).
 
-Le démarrage et les quatre bindings micro inspectent le modèle demandé. Le catalogue distingue explicitement un modèle non inspecté. Le SHA et les lectures se font hors verrou global, avec coordination par clé et revalidation. Une commande nécessitant une inspection est refusée temporairement et doit être relancée explicitement ; aucune commande ni preuve GPU n'est conservée pour rejeu. CPU/GPU/Auto, capture, qualité et sorties gardent leurs contrats.
+Inspections ciblées au démarrage et dans les quatre bindings micro ; état non inspecté explicite ; SHA hors verrou global, coordination par clé et revalidation. Une inspection sur commande exige une relance explicite, sans rejeu automatique ni preuve GPU conservée. Les contrats CPU/GPU/Auto, capture et sorties sont préservés.
 
-**Revue : CLEAN code**, epoch 1, même reviewer ; R1/R2 fermés, deux revues et un cycle de correction. Vérifications ciblées réussies : concurrence 11, catalogue 19 (inclut les 11), bindings 9, file/reprise 7, cœur 6, composition finale 34 avec 3 ignorés historiques, contrôleur 4, widget 11. Format, Clippy avec avertissements et build personnel réussis. Ces nombres ne sont pas additionnés comme tests distincts.
+**Code CLEAN**, epoch 1 : R1/R2 fermés, deux revues et un cycle de correction. Tests ciblés cache/bindings/file/reprise/cœur/UI réussis ; composition finale 34 réussis/3 ignorés historiques, contrôleur 4 réussis. Format, Clippy avec avertissements et build personnel réussis ; détail des comptes dans le plan.
 
-**Réserves acceptées :** N1 global avant correction : 767 réussis, 3 échecs d'ouverture du microphone Windows réel, 128 ignorés ; non relancé à environnement inchangé et jamais annoncé vert. Worker-common : 11 réussis, 1 ignoré, PE avant exécution réussi. Worker-cpu et worker-parakeet-cpu NON EXÉCUTÉS selon arbitrage. Aucun moteur natif suspendu ni worker livré reconstruit ; libfvad seule exception de compilation C autorisée.
+**Réserves acceptées :** N1 antérieur 767 réussis/3 échecs microphone réel/128 ignorés, non relancé et jamais annoncé vert. Worker-common 11 réussis/1 ignoré, PE préalable réussi. Worker-cpu et worker-parakeet-cpu NON EXÉCUTÉS. Aucun moteur suspendu ni worker livré reconstruit ; libfvad seule compilation C autorisée. Qualité et TXT/SRT/WAV après non détaillés séparément dans le retour utilisateur.
 
-**Mesures :** référence réduite acceptée : quatre essais Parakeet Auto et un dans chaque combinaison Parakeet/Turbo CPU/GPU ; interface environ 1 s, capture environ 1,5 s. Valeurs globales approximatives, source/cache non documentés. Après : en attente ; aucun gain revendiqué. Automatisation Windows bloquée par `GetCursorPos` accès refusé ; aucune mesure agent déduite. Texte, qualité, interruptions et TXT/SRT/WAV après restent à observer dans la fenêtre.
+**Mesures humaines :** recette réduite acceptée, quatre essais Parakeet Auto puis un par combinaison Parakeet/Turbo CPU/GPU. Après, l'utilisateur déclare les essais effectués, « Pour toutes les configurations env 0.5 seconde », retenu comme estimation commune des deux délais demandés.
 
-**Remise :** `deliverables/inspect-micro-demarrage/avant/` et `apres/`, trois EXE chacun. Même paire de workers Turbo avant/après, SHA des copies et PE des trois EXE après réussis. Modèles, workers Parakeet et DLL chargés depuis l'installation personnelle stable ; 20 ressources installées revérifiées taille/SHA, conformes. Desktop après : SHA-256 `2f6bce0608d167497028258ddd0aec5f2c3ae8881fd148a39585a22ed525fda7`.
+| Borne | Avant | Après |
+|---|---|---|
+| Lancement → interface utilisable | ≈1 s | ≈0,5 s |
+| Clic micro → compteur capturés qui progresse | ≈1,5 s | ≈0,5 s |
 
-**Preuves/rétention :** [archive durable](raw/inspect-micro-demarrage.zip), 138 journaux (1 519 901 octets sources), arborescence et chaque SHA vérifiés. ZIP 195 686 octets, SHA-256 `61b54043bb5ff96a32ba474da8a9f3453aaad02ca101bce8d0f1abe348a5ca29`. Aucune cible de compilation fraîche ou cache Cargo isolé créé à supprimer ; cible/cache partagés préservés, aucun nettoyage manuel. Espace libre après préparation : environ 427 Gio. Binaires non commités ; commits locaux uniquement, aucun push.
+Amélioration indicative ; valeurs globales non ventilées, sans relevés individuels ni conditions de cache/source documentées. Aucun min/max ou gain statistique déduit. Automatisation Windows bloquée : ces mesures sont celles de l'utilisateur.
+
+**Remise :** `deliverables/inspect-micro-demarrage/avant/` et `apres/`, trois EXE chacun ; mêmes workers Turbo, SHA/PE vérifiés. Ressources Parakeet/modèles dans l'installation personnelle stable, 20 fichiers revérifiés conformes. Desktop après SHA-256 `2f6bce0608d167497028258ddd0aec5f2c3ae8881fd148a39585a22ed525fda7`.
+
+**Preuves/rétention :** [archive durable](raw/inspect-micro-demarrage.zip), 138 journaux, arborescence et chaque SHA vérifiés. ZIP SHA-256 `61b54043bb5ff96a32ba474da8a9f3453aaad02ca101bce8d0f1abe348a5ca29`. Aucun cache/cible de compilation isolé à supprimer ; partagés préservés, aucun nettoyage manuel, environ 427 Gio libres. Commits locaux, binaires non suivis, aucun push.

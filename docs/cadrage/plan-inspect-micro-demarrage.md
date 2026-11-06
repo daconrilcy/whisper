@@ -1,6 +1,6 @@
-Avancée : T8 code CLEAN, R1/R2 fermés ; remise après vérifiée et disponible.
-Blocage : contrôle Windows automatisé indisponible ; mesures après attendues en T9.
-Décision : remettre le candidat revu et préserver les réserves N1/worker acceptées.
+Avancée : implémentation livrée, code CLEAN, remise vérifiée et retour Windows après reçu.
+Blocage : aucun sur la livraison ; réserves N1/worker et limites de mesure explicites.
+Décision : clôturer avec réserves et bilan figé, sans annoncer N1 vert ni qualification native complète.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -190,4 +190,8 @@ Remise T9 : `deliverables/inspect-micro-demarrage/apres/` contient seulement le 
 
 Contrôle Windows après : `sky.launch_app` échoue encore avec `GetCursorPos failed: Accès refusé (0x80070005)` et aucune fenêtre Whisper n'est détectée ensuite. Lecture textuelle de l'Explorateur possible, mais capture d'écran également en échec (`CreateForMonitor`, 0x80070057). Aucune mesure après de l'agent n'est revendiquée. Les mêmes huit essais réduits ont été demandés à l'utilisateur dans la fenêtre, même microphone ; résultats et anomalies de texte/sorties attendus avant la comparaison et la clôture.
 
-Préparation T10 pendant l'attente T9 : code revu commité localement dans `df81bf92` (21 fichiers G1–G7, contenu inchangé depuis le CLEAN). Journaux archivés dans `docs/cadrage/raw/inspect-micro-demarrage.zip`, 138 fichiers avec arborescence et chaque SHA vérifiés ; aucun manifeste séparé. [Bilan en préparation, non figé](bilan-inspect-micro-demarrage.md). Aucune cible fraîche/cache isolé à supprimer ; caches partagés, modèles, audios et dossiers avant/après préservés. Aucun push ; les binaires restent non suivis par Git.
+Préparation T10 pendant l'attente T9 : code revu commité localement dans `df81bf92` (21 fichiers G1–G7, contenu inchangé depuis le CLEAN). Journaux archivés dans `docs/cadrage/raw/inspect-micro-demarrage.zip`, 138 fichiers avec arborescence et chaque SHA vérifiés ; aucun manifeste séparé. Aucune cible fraîche/cache isolé à supprimer ; caches partagés, modèles, audios et dossiers avant/après préservés. Aucun push ; les binaires restent non suivis par Git.
+
+Retour T9 reçu dans la session : l'utilisateur répond « les tests ont été effectués / Pour toutes les configurations env 0.5 seconde » à la demande des mêmes essais réduits et des deux délais. Retenu comme estimation après commune des deux bornes, pour toutes les configurations de cette recette ; pas de valeurs individuelles ni de ventilation supplémentaire fournies. Comparaison indicative : interface ≈1 s → ≈0,5 s, capture active ≈1,5 s → ≈0,5 s. Source/caches non documentés, pas de conclusion statistique ou de médiane/min/max inventés ; qualité, interruptions et formats de sortie non détaillés séparément. L'échec de l'automatisation ne fournit aucune donnée de mesure.
+
+T10 clôturé le 6 novembre 2026 : [bilan figé](bilan-inspect-micro-demarrage.md), livraison avec réserves de validation, code revu CLEAN et tous constats de code fermés. Archive durable vérifiée, Git local, aucun push ; seuls les binaires de remise restent non suivis. Les limites acceptées et les contrôles non exécutés restent visibles, sans reconstruction native suspendue.
