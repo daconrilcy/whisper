@@ -1,6 +1,6 @@
-Avancée : T4 implémenté et tests réussis ; T5 confié à l'implémenteur.
-Blocage : aucun sur T5 ; sélections workers toujours soumises à la suspension native.
-Décision : poursuivre le ciblage des quatre bindings dans les chemins prévus.
+Avancée : T4 et T5 implémentés avec tests ciblés réussis ; T6 confié à l'implémenteur.
+Blocage : aucun sur T6 ; sélections workers toujours soumises à la suspension native.
+Décision : poursuivre l'état non inspecté, le service catalogue et l'admission explicite prévus.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -169,3 +169,5 @@ Arbitrage accepté dans la session courante (« oui je valide ») : retenir ces 
 T4 : `rust_implementer` a préparé le cache à coordination par clé et onze tests séparés dans `model_catalog/concurrency_tests.rs`. Contrôle de format via garde et `git diff --check` réussis ; aucune preuve comportementale encore annoncée. Préflight de la sélection adapters : libfvad seule compilation native identifiée, sans worker/whisper-rs/CMake ; présence du cache insuffisante pour prouver l'absence de reconstruction. À la question précise d'extension aux tests, lints et constructions Rust non-workers prévus via garde N1, sans reconstruction workers/DLL ggml/NeMo/CUDA et sans téléchargement, l'utilisateur répond « Autoriser cette exception limitée ». Les premiers appels autorisés sont les tests adapters `concurrency_tests`, puis `model_catalog`. Cet accord ne lève pas la suspension des autres constructions natives.
 
 Résultats T4 : les deux appels ci-dessus passent, respectivement 11 puis 17 tests réussis, zéro échec/ignoré ; les 17 incluent les 11 de concurrence et six régressions existantes. Preuves temporaires sous la racine du lot, `scratch/20261106T121030490-02a4b3d6cef44d67b9b6519ff73fcd23` et `scratch/20261106T121116809-2be56e895b584160b623ba4c83d32d8c`, sorties/codes capturés par garde. Libfvad effectivement recompilé sous l'exception accordée ; aucun worker ni moteur natif suspendu construit. T4 est terminé selon le rapport de l'implémenteur, sans verdict de revue indépendante. T5 est confié au même implémenteur ; garde, remise avant et suivi documentaire restent préservés.
+
+Résultats T5 : résolution de chemin commune sans lecture, inspection par ModelId et quatre vrais points live modifiés. Tests `live_inspection` : 9 réussis ; `model_catalog` : 19 réussis, incluant les 11 de concurrence T4 ; `queue_inspection_characterization` : 7 réussis. Aucun échec/ignoré ; format et diff réussis. Preuves dans `scratch/20261106T121548024-5d49c0c2df0542a0a206145ff2418fd4`, `20261106T121621521-a0fa18e7a916482190dbd0ad2de7dbf2` et `20261106T121641152-c542e508ed454ede9f7d878d6d7fec0b` sous la même racine. Les fixtures prouvent le ciblage Turbo seul ou Parakeet seul et les refus ; le binding natif lie le chemin personnel sans inspection exhaustive, la classification lit zéro modèle. Aucune qualification officielle ou transcription complète n'est simulée. T5 est terminé selon l'implémenteur ; T6 est confié au même worker, sans revue indépendante encore rendue.
