@@ -94,11 +94,32 @@ pub(crate) struct DirectLive {
 
 impl DirectLive {
     pub(crate) fn start(
+        request: LiveRequest,
+        workers: &WorkerPaths,
+        instance: u64,
+        reusable_worker: Option<ChildWorkerTransport>,
+        gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+    ) -> Result<Self, String> {
+        Self::start_with_capture(
+            request,
+            workers,
+            instance,
+            reusable_worker,
+            gpu_candidate,
+            crate::capture::start_direct_with_gain,
+        )
+    }
+
+    fn start_with_capture(
         mut request: LiveRequest,
         workers: &WorkerPaths,
         instance: u64,
         reusable_worker: Option<ChildWorkerTransport>,
         mut gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
+        open_capture: impl FnOnce(
+            &whisper_core::microphone::MicrophoneChoice,
+            whisper_core::microphone_level::GainDb,
+        ) -> Result<CaptureStream, String>,
     ) -> Result<Self, String> {
         if request.destination.trim().is_empty() || request.model_path.trim().is_empty() {
             return Err("Micro : modèle ou dossier de sortie invalide".into());
@@ -171,16 +192,15 @@ impl DirectLive {
         };
         let initial_gain = whisper_core::microphone_level::GainDb::new(request.microphone_gain_db)
             .map_err(|error| format!("MicrophoneLevel: {error}"))?;
-        let mut capture =
-            match crate::capture::start_direct_with_gain(&request.microphone, initial_gain) {
-                Ok(capture) => capture,
-                Err(error) => {
-                    worker.abort();
-                    return Err(format!(
-                        "{MICROPHONE_ERROR} : ouverture impossible : {error}"
-                    ));
-                }
-            };
+        let mut capture = match open_capture(&request.microphone, initial_gain) {
+            Ok(capture) => capture,
+            Err(error) => {
+                worker.abort();
+                return Err(format!(
+                    "{MICROPHONE_ERROR} : ouverture impossible : {error}"
+                ));
+            }
+        };
         let converter = match Pcm16Converter::new(capture.sample_rate_hz(), capture.channels()) {
             Ok(converter) => converter,
             Err(error) => {

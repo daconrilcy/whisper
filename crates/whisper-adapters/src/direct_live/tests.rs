@@ -391,6 +391,18 @@ fn main() {
     executable
 }
 
+fn synthetic_startup_capture(
+    _: &whisper_core::microphone::MicrophoneChoice,
+    gain: whisper_core::microphone_level::GainDb,
+) -> Result<crate::capture::CaptureStream, String> {
+    Ok(crate::capture::CaptureStream::empty_test_capture_with_gain(
+        16_000,
+        1,
+        "test:startup-microphone",
+        gain,
+    ))
+}
+
 #[test]
 fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() {
     let directory = test_directory("auto-startup");
@@ -401,12 +413,13 @@ fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() 
         cpu: cpu.clone(),
         gpu,
     };
-    let mut live = super::DirectLive::start(
+    let mut live = super::DirectLive::start_with_capture(
         startup_request(&directory, ComputeChoice::Auto),
         &workers,
         1,
         None,
         Some(startup_gpu_candidate()),
+        synthetic_startup_capture,
     )
     .unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -447,12 +460,13 @@ fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() 
         cpu,
         gpu: directory.join("missing-gpu.exe"),
     };
-    let mut without_gpu = super::DirectLive::start(
+    let mut without_gpu = super::DirectLive::start_with_capture(
         startup_request(&directory, ComputeChoice::Auto),
         &absent,
         3,
         None,
         None,
+        synthetic_startup_capture,
     )
     .unwrap();
     assert_eq!(without_gpu.request.config.compute, ComputeChoice::Cpu);
@@ -464,12 +478,13 @@ fn auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference() 
     without_gpu.worker.as_mut().unwrap().abort();
     drop(without_gpu);
     std::fs::remove_file(directory.join(format!("micro-{:032x}.wav", 800))).unwrap();
-    let mut forced = super::DirectLive::start(
+    let mut forced = super::DirectLive::start_with_capture(
         startup_request(&directory, ComputeChoice::Gpu),
         &workers,
         4,
         None,
         Some(startup_gpu_candidate()),
+        synthetic_startup_capture,
     )
     .unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -498,12 +513,13 @@ fn auto_without_gpu_worker_clears_candidate_and_accepts_cpu_ready() {
         cpu,
         gpu: directory.join("missing-gpu-worker.exe"),
     };
-    let mut live = super::DirectLive::start(
+    let mut live = super::DirectLive::start_with_capture(
         startup_request(&directory, ComputeChoice::Auto),
         &workers,
         21,
         None,
         Some(startup_gpu_candidate()),
+        synthetic_startup_capture,
     )
     .unwrap();
     assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
@@ -535,15 +551,26 @@ fn auto_microphone_stop_before_gpu_ready_keeps_cpu_retry_for_recorded_audio() {
     let failure_marker = directory.join("auto-gpu-stop-fail.marker");
     let cpu_marker = directory.join("auto-cpu-marker.marker");
     let workers = crate::supervisor::WorkerPaths { cpu, gpu };
-    let mut live = super::DirectLive::start(
+    let mut live = super::DirectLive::start_with_capture(
         startup_request(&directory, ComputeChoice::Auto),
         &workers,
         20,
         None,
         Some(startup_gpu_candidate()),
+        synthetic_startup_capture,
     )
     .unwrap();
+    let captured_samples = vec![0.25; 16_000];
+    live.capture
+        .as_mut()
+        .unwrap()
+        .enqueue_test_block(captured_samples.clone());
     live.stop().unwrap();
+    let wav = live.wav.as_mut().unwrap();
+    assert_eq!(wav.sample_count(), captured_samples.len() as u64);
+    let recorded_pcm = wav.read_samples(0, captured_samples.len()).unwrap();
+    assert!(recorded_pcm.iter().any(|sample| *sample > 8_000));
+    assert!(!live.worker_ready, "Stop precedes GPU Ready");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
     while !failure_marker.is_file() && std::time::Instant::now() < deadline {
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -563,6 +590,12 @@ fn auto_microphone_stop_before_gpu_ready_keeps_cpu_retry_for_recorded_audio() {
     );
     assert_eq!(live.request.config.compute, ComputeChoice::Cpu);
     assert!(live.auto_preference);
+    let wav = live.wav.as_mut().unwrap();
+    assert_eq!(wav.sample_count(), recorded_pcm.len() as u64);
+    assert_eq!(
+        wav.read_samples(0, recorded_pcm.len()).unwrap(),
+        recorded_pcm
+    );
     drop(live);
     std::fs::remove_dir_all(directory).unwrap();
 }
