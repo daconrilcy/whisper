@@ -1,6 +1,6 @@
-Avancée : demande explicite de terminer les tests workers restants ; préflight engagé.
-Blocage : Turbo CPU peut relancer whisper-rs-sys/CMake, toujours suspendu.
-Décision : exécuter les sélections compatibles et demander seulement l'arbitrage natif éventuellement nécessaire.
+Avancée : Parakeet CPU exécuté, 26 réussis/0 échec/11 ignorés ; common déjà vérifié.
+Blocage : Turbo CPU nécessite une décision native précise, réutilisation du cache non démontrée.
+Décision : accord ponctuel demandé avant toute compilation CMake Turbo CPU.
 
 # Validation des workers — mandat du 6 novembre 2026
 
@@ -16,4 +16,8 @@ Trois tâches :
 
 Cargo passe exclusivement par `ci/guard-level1.ps1 -LotRoot target/parakeet-tests/inspect-micro-demarrage/validation-workers`. Cache/cible partagés, temporaires isolés, offline/locked, garde et PE existants inchangés. Complément et archive `docs/cadrage/raw/validation-workers-inspect-micro-demarrage.zip` ; les bilans figés peuvent seulement recevoir ce lien. Aucune cible fraîche ni cache isolé demandé.
 
-Résultats à compléter ; aucune sélection restante déclarée réussie à ce stade.
+Résultats Parakeet CPU : graphe gardé sans production native ; compilation Rust `--no-run` réussie, puis PE ParakeetCpu réussi sur les cinq harnais et le binaire avant première exécution. Sélection complète code 0 : main 23 réussis ; decoder_parity 0 réussi/1 ignoré ; native_diagnostics_absence 2 réussis/2 ignorés ; native_import 1 réussi/8 ignorés ; worker_contract zéro test. Total 26 réussis, zéro échec, 11 ignorés. Preuves dans la racine de lot : `pe-parakeet.log`, scratch `20261106T144918193-6efb4d14e9534301bcf3652f273cc1ed` et `20261106T144950582-926ad01665f24a6c834149f3b050ceae`. Aucun worker installé ou de remise remplacé.
+
+Turbo CPU : trois lectures diagnostiques, aucun appel compilant. L'unique bibliothèque whisper-rs-sys sans feature CUDA observée (`ab8a2755052481cb`) référence dans son fichier .d les sources de `C:/wt/build-natif/target/cargo-home-shared/`, tandis que la garde utilise le cache du dépôt courant. La réutilisation sans rerun n'est pas démontrée ; les autres variantes examinées sont CUDA et ne constituent pas une preuve CPU. `whisper-rs-sys 0.15.0/build.rs:301` appelle `config.build()` (CMake). Preuve `cpu-preflight.log`, aucun contournement ni modification de cache/environnement/source.
+
+Arbitrage demandé dans la session : exception ponctuelle de compilation native CPU de whisper-rs-sys par son build.rs/CMake lors de la seule sélection Cargo worker-cpu via garde N1, puis PE et tests. Pas de CUDA/GPU, téléchargement, installation ou remplacement des workers livrés. La suspension depuis la WHEA du 5 novembre reste applicable tant que cet accord précis n'est pas reçu. Aucun résultat CPU revendiqué.
