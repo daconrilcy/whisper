@@ -16,6 +16,14 @@ fn fixture_root(label: &str) -> PathBuf {
     root
 }
 
+struct FixtureRoot(PathBuf);
+
+impl Drop for FixtureRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 fn personal_paths(root: &Path, backend: &str) -> ParakeetWorkerPaths {
     ParakeetWorkerPaths {
         executable: root.join(format!("worker/whisper-worker-parakeet-{backend}.exe")),
@@ -64,7 +72,8 @@ fn personal_cpu_and_gpu_do_not_require_l3b() {
         return;
     }
 
-    let root = fixture_root("personal-no-l3b");
+    let fixture = FixtureRoot(fixture_root("personal-no-l3b"));
+    let root = fixture.0.as_path();
     let personal = root.join("Whisper");
     assert!(!personal.join("settings").exists());
     for backend in ["cpu", "gpu"] {

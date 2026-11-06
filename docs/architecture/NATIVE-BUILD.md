@@ -2,6 +2,8 @@ DLL produites par ce script : NON QUALIFIÉES. Les DLL installées restent la r�
 
 # DLL natives — provenance et reconstruction
 
+État du 6 novembre 2026 : voir la [note figée de perte du banc spike02](PERTE-SPIKE02-NOTE.md) ; la conservation historique du chemin absent est levée, les builds natifs restent suspendus et les DLL installées restent la référence.
+
 Cette chaîne versionnée protège les entrées de compilation ggml/NeMo du produit Windows. Elle ne remplace pas les DLL installées et n'est pas un installeur. La qualification exige surfaces PE, sorties fonctionnelles et répétabilité ; elle reste incomplète.
 
 ## Sources épinglées

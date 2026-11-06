@@ -1,6 +1,6 @@
 # Offline policy/journal parity and load gate; no compiler, process campaign, or watcher started.
 [CmdletBinding()]
-param([string]$EvidenceRoot, [string]$HistoricalRecords, [switch]$MeasureOnly, [switch]$Live, [switch]$ColdBurst)
+param([string]$EvidenceRoot, [string]$HistoricalRecords, [switch]$MeasureOnly, [switch]$Live, [switch]$ColdBurst, [switch]$ProtectionFixturesOnly)
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot
 if (-not $EvidenceRoot) { $EvidenceRoot=Join-Path $repo ('target/native-build/control-tests-'+[guid]::NewGuid().ToString('N')) }
@@ -39,22 +39,8 @@ public static class NativeBuildProfile {
 '@)
     $sources+=$profileSource
 }
-Add-Type -Path $sources
-if ($MeasureOnly) {
-    $measurement=[NativeBuildProfile]::Run($EvidenceRoot)
-    $measurement | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $EvidenceRoot 'measurement.json') -Encoding utf8NoBOM
-    $measurement | ConvertTo-Json -Depth 6
-    return
-}
-if ($Live -or $ColdBurst) {
-    $result=if ($ColdBurst) { [NativeBuildLiveLoad]::ColdBurst($EvidenceRoot) } else { [NativeBuildLiveLoad]::Run($EvidenceRoot,55414) }
-    $result | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $EvidenceRoot 'result.json') -Encoding utf8NoBOM
-    if ($result.Status -cne 'PASS') { throw $result.Failure }
-    "PASS NativeBuild load: evidence=$EvidenceRoot mode=$(if ($ColdBurst) {'cold-burst'} else {'live'})"
-    return
-}
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'guard-native.ps1'),[ref]$null,[ref]$null)
-foreach ($name in @('Get-FullPath','Test-InRoot','Get-EventDisposition','Write-JsonLine','Receive-NativeBuildWatchEvents','Complete-NativeBuildCleanup','Stop-WatchState','Drain-WatcherEvents','Receive-WatcherEvents','Stop-CargoProcessTree')) {
+foreach ($name in @('Get-FullPath','Test-InRoot','Get-EventDisposition','Write-JsonLine','Receive-NativeBuildWatchEvents','Complete-NativeBuildCleanup','Stop-WatchState','Drain-WatcherEvents','Receive-WatcherEvents','Stop-CargoProcessTree','Assert-NoReparseChain','Register-Watch','Add-NativeProtectedRootWatches')) {
     $f=$ast.Find({param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -ceq $name}.GetNewClosure(),$true)
     Invoke-Expression $f.Extent.Text
 }
@@ -69,6 +55,68 @@ trap {
     throw $_.Exception
 }
 function Assert([bool]$Condition,[string]$Label) { if (-not $Condition) { throw $Label }; $results.Add(@{test=$Label;result='PASS'}) }
+$existingProtectedRoot=Join-Path $EvidenceRoot 'protected-root-positive'
+New-Item -ItemType Directory -Path $existingProtectedRoot | Out-Null
+$missingProtectedRoot=Join-Path $EvidenceRoot 'protected-root-negative'
+$guardAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'guard-native.ps1'),[ref]$null,[ref]$null)
+$guardFullpath=$guardAst.Find({param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -ceq 'Get-FullPath'}.GetNewClosure(),$true).Extent.Text
+$guardAssert=$guardAst.Find({param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -ceq 'Assert-NativeProtectedRootsExist'}.GetNewClosure(),$true).Extent.Text
+$guardReparse=$guardAst.Find({param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -ceq 'Assert-NoReparseChain'}.GetNewClosure(),$true).Extent.Text
+$freshScript=@"
+`$ErrorActionPreference='Stop'
+if ('Whisper.NativeBuild.ProtectedRootPolicy' -as [type]) { throw 'C# policy unexpectedly preloaded' }
+`$script:Repo='$($repo -replace "'","''")'
+`$script:positive='$($existingProtectedRoot -replace "'","''")'
+`$script:missing='$($missingProtectedRoot -replace "'","''")'
+`$script:includeMissing=`$false
+function Get-NativeProtectedRoots { if (`$script:includeMissing) { @(`$script:positive,`$script:missing) } else { @(`$script:positive) } }
+$guardFullpath
+$guardReparse
+$guardAssert
+`$pass=Assert-NativeProtectedRootsExist
+if (`$pass.Count -ne 1) { throw "present root was not accepted: count=`$(`$pass.Count) value=`$pass expected=`$script:positive" }
+`$script:includeMissing=`$true
+`$refused=`$false
+try { `$null=Assert-NativeProtectedRootsExist } catch { `$refused=`$_.Exception.Message -like '*Protected native root is missing*' }
+if (-not `$refused -or (Test-Path -LiteralPath `$script:missing)) { throw 'missing root was not explicitly refused without creation' }
+'PASS fresh-process PowerShell protected root check'
+"@
+$encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($freshScript))
+$freshOutput=& (Get-Command pwsh.exe -ErrorAction Stop).Source -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded 2>&1
+Assert ($LASTEXITCODE -eq 0 -and ($freshOutput -join "`n") -match 'PASS fresh-process') "fresh PowerShell protected-root present/missing checks without C# load (exit=$LASTEXITCODE output=$($freshOutput -join ' | '))"
+
+$archiveRoots=@((Join-Path $EvidenceRoot 'poll-preserved'),(Join-Path $EvidenceRoot 'pile-preserved'))
+foreach ($root in $archiveRoots) { New-Item -ItemType Directory -Path $root | Out-Null }
+$protected=[string[]]@($protected + $archiveRoots)
+$archiveSpecs=[Collections.Generic.List[object]]::new()
+Add-NativeProtectedRootWatches $archiveSpecs ([string[]]$archiveRoots)
+Assert ($archiveSpecs.Count -eq 2 -and @($archiveSpecs | Where-Object { -not $_.recursive }).Count -eq 0) 'both preserved archives enter native watch specs recursively'
+foreach ($root in $archiveRoots) {
+    $eventPath=Join-Path $root 'synthetic-event.txt'
+    $eventDisposition=Get-EventDisposition ([pscustomobject]@{type='Changed';path=$eventPath;old_path=''}) $allowed $protected $tempRoot
+    Assert ($eventDisposition -ceq 'VIOLATION') "synthetic archive event refused under $root"
+}
+if ($ProtectionFixturesOnly) {
+    @{status='PASS';tests=$results;nativeBuildStarted=$false;watcherStarted=$false;protectedRootFixturesOnly=$true} | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $EvidenceRoot 'result.json') -Encoding utf8NoBOM
+    "PASS protected-root fixtures: evidence=$EvidenceRoot"
+    return
+}
+
+Add-Type -Path $sources
+if ($Live -or $ColdBurst) {
+    $result=if ($ColdBurst) { [NativeBuildLiveLoad]::ColdBurst($EvidenceRoot) } else { [NativeBuildLiveLoad]::Run($EvidenceRoot,55414) }
+    $result | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $EvidenceRoot 'result.json') -Encoding utf8NoBOM
+    if ($result.Status -cne 'PASS') { throw $result.Failure }
+    "PASS NativeBuild load: evidence=$EvidenceRoot mode=$(if ($ColdBurst) {'cold-burst'} else {'live'})"
+    return
+}
+if ($MeasureOnly) {
+    $measurement=[NativeBuildProfile]::Run($EvidenceRoot)
+    $measurement | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $EvidenceRoot 'measurement.json') -Encoding utf8NoBOM
+    $measurement | ConvertTo-Json -Depth 6
+    return
+}
+
 function Observation([string]$Type,[string]$Path,[string]$Old='') {
     $r=[Whisper.NativeWatch.Record]::new(); $r.Root=$EvidenceRoot; $r.Name='é&test'; $r.At='fixed'; $r.Session='s'; $r.Volume='v'; $r.FileId=41; $r.ParentFileId=7; $r.Sequence=1; $r.Action=3
     $e=[Whisper.NativeWatch.Observation]::new(); $e.Type=$Type; $e.Path=$Path; $e.OldPath=$Old; $e.At='fixed'; $e.Detail='detail'; $e.Records=@($r)
@@ -212,7 +260,7 @@ foreach ($records in @((,$pair[0]),(,$pair[1]),@($pair[0],$pair[1],$pair[0],$pai
 if ($HistoricalRecords) {
     $historicalWitnesses=[Collections.Generic.HashSet[long]]::new()
     $historicalGuard=Get-Content (Join-Path (Split-Path $HistoricalRecords) 'guard-result.json') -Raw | ConvertFrom-Json
-    $historicalProtected=[string[]]@((Join-Path $repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved')
+    $historicalProtected=[string[]]@((Join-Path $repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\wb\preserved\poll-preserved','C:\wb\preserved\pile-preserved')
     foreach ($line in [IO.File]::ReadLines($HistoricalRecords)) {
         $json=[Text.Json.JsonDocument]::Parse($line)
         $drain=$json.RootElement.GetProperty('Drain').GetInt64(); $json.Dispose()

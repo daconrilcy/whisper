@@ -25,8 +25,8 @@ function Convert-CargoArgsJson([string]$Json) {
 
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lotRoot = Join-Path $repo $LotRoot
-$cargoRoot = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
-$script:externalTargetRoot = 'C:\wb\tests-hygiene\cargo-target'
+$cargoRoot = 'C:\wb\inspect-ciblee\cargo-target'
+$script:externalTargetRoot = 'C:\wb\inspect-ciblee\cargo-target'
 $cargoHome = Join-Path $repo 'target/cargo-home-shared'
 $tempRoot = Join-Path $lotRoot 'temp'
 $scratchRoot = Join-Path $lotRoot 'scratch'
@@ -528,7 +528,7 @@ function Invoke-SelfTests {
         if (-not $rejected -or (Test-Path $outsideLot)) { throw 'Self-test did not reject an outside lot before creating it.' }
         $nCount++
     }
-    if ((Get-FullPath $cargoRoot) -cne 'C:\dev\whisper\target\parakeet-tests\cargo-shared') { throw 'Self-test found a noncanonical shared Cargo target.' }
+    if ((Get-FullPath $cargoRoot) -cne 'C:\wb\inspect-ciblee\cargo-target' -or (Get-FullPath $cargoRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'Self-test found a noncanonical lot Cargo target.' }
     $freshFixturePath = Get-FreshTargetPath $runRoot 'fresh-selftest-target'
     if (-not (Test-InRoot $freshFixturePath $runRoot) -or (Get-FullPath $freshFixturePath) -ieq (Get-FullPath $cargoRoot)) { throw 'Fresh target is not distinct and under the lot root.' }
     $pCount += 2
@@ -656,7 +656,7 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
 }
 Set-CargoCommandEnvironment $checked.Args[0]
 $cargoArgs = @($checked.Args)
-if ($script:useConfigTarget) {
+if ($script:useConfigTarget -and $checked.Args[0] -cne 'fmt') {
     if ($checked.Category -eq 'Fetch') { throw 'The no-variable mode is not available for cargo fetch.' }
     $configArgs = @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot)))
     $delimiter = [Array]::IndexOf([string[]]$cargoArgs,'--')
