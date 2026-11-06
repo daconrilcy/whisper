@@ -1,6 +1,6 @@
-Avancée : plan complet en dix tâches, revue indépendante CLEAN documentaire.
-Blocage : voie de compilation sans production native/réseau enfant non démontrée ; exécution ACTION_REQUIRED.
-Décision : livrer le plan revu, sans annoncer une exécution immédiate ni autoriser le code.
+Avancée : exécution demandée ; tranche garde de T2 corrigée et deux auto-tests réussis.
+Blocage : témoin personnel attribuable non disponible ; voie de compilation conforme non démontrée.
+Décision : arbitrage de compilation nécessaire avant référence humaine T3 et correctifs produit T4.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -143,3 +143,15 @@ Arrêt avant compilation/campagne : espace <30 Gio, racine/variable/jonction inv
 Avant clôture, les preuves utiles quittent target vers G8 ; archive unique, vérification nombre/SHA selon AGENTS, sans manifeste séparé. Identifier chemins exacts, appartenance au lot, absence de liens/processus consommateurs avant tout nettoyage ; préserver cible/cache partagés, modèles, sources, livrables et ressources de contrôles permanents. Aucun nettoyage n'est requis pour annoncer un résultat de mesure. Bilan d'une page figé à clôture, tout complément dans un nouveau document.
 
 Le bilan distingue diff, vérifications, revue, validation humaine, performance et limites NON EXÉCUTÉES. N1 vert ne prouve ni GPU matériel ni qualité Windows. La revue documentaire du présent plan ne confère aucune autorisation de coder.
+
+## 7. Suivi d'exécution — 6 novembre 2026
+
+La demande courante « implemente à partir de ces documents » autorise le lot prévu, sous ses prérequis. L'utilisateur a confirmé la borne capture réellement active, le protocole proposé sans seuil et six répétitions, puis toutes les configurations modèle/mode/micro accessibles. Aucun relevé humain n'est encore réalisé. Les sources produit de HEAD `a20e0d0e` sont inchangées depuis `48827173` ; seul le candidat de garde est modifié hors documentation.
+
+Tranche garde T2 : `ci/guard-level1.ps1` corrigé par `rust_implementer`. Les deux commandes SelfTest de la section 4, normale puis `-WithoutCargoTargetDir`, passent chacune avec 58 cas positifs et 85 refus attendus, code 0. Elles vérifient standard/fraîche et variable/config par metadata `--no-deps`, ainsi que restauration absent/présent vide des variables. Deux échecs antérieurs ont entraîné un arrêt, puis des corrections sur accords précis de l'utilisateur : restauration des variables, puis emplacement de la fixture fraîche. Syntaxe PowerShell et `git diff --check` réussis. Aucune compilation, aucun téléchargement ; revue indépendante de cette tranche non effectuée.
+
+Témoin T2 : l'utilisateur confirme ne pas disposer d'un dossier personnel attribuable à la base. Le desktop partagé release date du 4 novembre ; celui de `target/debug/` date du 6 novembre mais ses features sont `default` seules, profil Test. Aucun des deux n'est qualifié comme témoin personnel du lot. T3 et T4–T10 restent NON EXÉCUTÉS.
+
+Préflight statique : `webrtc-vad 0.4.0/build.rs` peut appeler Git puis compiler la bibliothèque C statique libfvad ; la réutilisation sans reconstruction n'est pas démontrée. Dans son dossier, `git rev-parse --show-toplevel` désigne le dépôt principal, dépourvu de `.gitmodules` et de configuration `submodule.*` observée : aucun sous-module à télécharger identifié. Cela ne constitue pas un confinement réseau. Aucune commande de compilation n'est lancée sur cette base.
+
+Arbitrage proposé, non accepté à ce stade : autoriser uniquement la construction du desktop personnel de référence via garde N1, avec compilation éventuelle de libfvad, sans reconstruction des workers ni des DLL ggml/NeMo/CUDA, sans téléchargement ni accès réseau ajouté. Cette exception doit être écrite précisément avant exécution ; elle ne débloque pas implicitement les sélections workers N1 ni les autres constructions natives. Maintenir les contrôles et arrêts existants. Une fois le témoin vérifié, l'utilisateur réalise T3 avant toute modification produit.
