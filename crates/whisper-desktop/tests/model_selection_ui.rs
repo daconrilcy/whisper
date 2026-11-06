@@ -361,6 +361,82 @@ fn rendered_text(shapes: Vec<egui::epaint::ClippedShape>) -> String {
 }
 
 #[test]
+fn uninspected_model_can_be_chosen_in_the_real_widget_without_becoming_admissible() {
+    let snapshot = model_registry::engine_snapshot(1, |_| ModelAvailability::Uninspected, vec![]);
+    let projection = whisper_core::model_selection_app::ModelSelectionApp::new(snapshot)
+        .projection(1)
+        .unwrap();
+    assert!(projection.models.iter().all(|model| !model.selectable));
+    let context = egui::Context::default();
+    let mut selection = SelectionWidgetState {
+        model: Some(ModelId::WhisperLargeV3Turbo),
+        manual_language: None,
+    };
+    let frame = |events, selection: &mut SelectionWidgetState| {
+        let mut chosen = false;
+        let output = context.run_ui(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                chosen = model_selection_combo(ui, &projection, selection);
+            },
+        );
+        (output, chosen)
+    };
+    let text_position = |output: &egui::FullOutput, label: &str| {
+        output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                Shape::Text(text) if text.galley.job.text == label => {
+                    Some(text.pos + text.galley.size() * 0.5)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("widget did not render {label}"))
+    };
+    let event = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Default::default(),
+    };
+    let (initial, _) = frame(vec![], &mut selection);
+    let selected_label = format!(
+        "{} (à vérifier)",
+        model_registry::model(ModelId::WhisperLargeV3Turbo).display_name
+    );
+    let position = text_position(&initial, &selected_label);
+    frame(
+        vec![egui::Event::PointerMoved(position), event(position, true)],
+        &mut selection,
+    );
+    frame(vec![event(position, false)], &mut selection);
+    let (opened, _) = frame(vec![], &mut selection);
+    let target = text_position(
+        &opened,
+        model_registry::model(ModelId::ParakeetTdt06BV3).display_name,
+    );
+    frame(
+        vec![egui::Event::PointerMoved(target), event(target, true)],
+        &mut selection,
+    );
+    let (_, chosen) = frame(vec![event(target, false)], &mut selection);
+    assert!(chosen);
+    assert_eq!(selection.model, Some(ModelId::ParakeetTdt06BV3));
+    assert!(
+        !projection
+            .models
+            .iter()
+            .find(|model| model.id == ModelId::ParakeetTdt06BV3)
+            .unwrap()
+            .selectable
+    );
+}
+
+#[test]
 fn parakeet_preserves_import_compute_preferences_and_legacy_live_availability_without_changing_turbo()
  {
     assert_eq!(

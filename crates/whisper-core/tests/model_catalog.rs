@@ -117,6 +117,10 @@ fn configuration_identity_includes_every_qualification_dimension() {
 #[test]
 fn availability_states_keep_both_catalog_entries_and_disable_unavailable_models() {
     let statuses = [
+        (
+            ModelAvailability::Uninspected,
+            Some(RefusalCause::ModelNotInspected),
+        ),
         (ModelAvailability::Ready, None),
         (ModelAvailability::Missing, Some(RefusalCause::ModelMissing)),
         (ModelAvailability::Corrupt, Some(RefusalCause::ModelCorrupt)),
@@ -159,6 +163,39 @@ fn availability_states_keep_both_catalog_entries_and_disable_unavailable_models(
                 .any(|option| option.id == ModelId::ParakeetTdt06BV3)
         );
     }
+}
+
+#[test]
+fn uninspected_model_is_retained_but_never_admitted_before_ready() {
+    let config = key(ModelId::WhisperLargeV3Turbo, "turbo-v1", Backend::Cpu, None);
+    let mut snapshot = EngineSnapshot {
+        generation: 3,
+        models: vec![model(
+            ModelId::WhisperLargeV3Turbo,
+            config.clone(),
+            ModelAvailability::Uninspected,
+        )],
+        capabilities: vec![qualified_capability(config.clone())],
+        preferred_model: Some(ModelId::WhisperLargeV3Turbo),
+        preferred_language: None,
+        resources: vec![],
+    };
+    let request = InferenceRequest {
+        generation: 3,
+        model: ModelId::WhisperLargeV3Turbo,
+        configuration: config,
+        language: LanguageChoice::Automatic,
+    };
+    assert_eq!(
+        project(&snapshot).models[0].cause,
+        Some(RefusalCause::ModelNotInspected)
+    );
+    assert_eq!(
+        validate(&snapshot, &request).unwrap_err().cause,
+        RefusalCause::ModelNotInspected
+    );
+    snapshot.models[0].availability = ModelAvailability::Ready;
+    assert!(validate(&snapshot, &request).is_ok());
 }
 
 #[test]

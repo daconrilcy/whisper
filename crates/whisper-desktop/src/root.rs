@@ -29,6 +29,8 @@ use whisper_desktop::ui::{
     model_preference_command_channel,
 };
 
+mod model_catalog;
+
 pub struct DesktopComposition {
     pub application: DesktopAdmissionApplication<AsyncImportIo>,
     pub compute_choice: ComputeChoice,
@@ -54,80 +56,13 @@ pub fn compose() -> DesktopComposition {
             .unwrap_or_else(|| std::path::Path::new("."))
             .join("models")
     };
-    let (catalog_sender, catalog_receiver) = std::sync::mpsc::channel();
-    let (admission_sender, admission_receiver) = std::sync::mpsc::channel();
-    let catalog_root = model_root.clone();
-    std::thread::spawn(move || {
-        let mut snapshot = LocalModelCatalog::new(catalog_root).inspect(1);
-        qualify_parakeet_catalog_entry(&mut snapshot);
-        let mut qualified = parakeet_available(&snapshot);
-        let mut gpu_qualified = parakeet_gpu_route_is_qualified(&snapshot);
-        let mut gpu_route_metadata = configured_gpu_parakeet_worker()
-            .as_ref()
-            .and_then(gpu_worker_file_metadata);
-        let mut model_metadata = configured_parakeet_worker()
-            .as_ref()
-            .and_then(|paths| file_metadata(&paths.model));
-        let mut generation = snapshot.generation;
-        if catalog_sender.send(snapshot.clone()).is_err()
-            || admission_sender.send(snapshot.clone()).is_err()
-        {
-            return;
-        }
-        loop {
-            std::thread::sleep(Duration::from_secs(1));
-            let paths = configured_parakeet_worker();
-            let next_model_metadata = paths.as_ref().and_then(|paths| file_metadata(&paths.model));
-            let artifact_changed = next_model_metadata != model_metadata;
-            model_metadata = next_model_metadata;
-            let key_is_valid = paths.is_some_and(|paths| {
-                let record = model_registry::model(ModelId::ParakeetTdt06BV3);
-                let key = model_registry::configuration_key(
-                    record,
-                    whisper_core::model_catalog::Backend::Cpu,
-                );
-                if artifact_changed {
-                    paths
-                        .verify_qualification(
-                            record.artifact.sha256,
-                            &key.runtime_build,
-                            &key.worker_build,
-                        )
-                        .is_ok()
-                } else {
-                    parakeet_worker_runtime_is_qualified(&paths)
-                }
-            });
-            let next_qualified = key_is_valid && parakeet_artifact_matches(&snapshot);
-            let next_gpu_qualified = parakeet_gpu_route_is_qualified(&snapshot);
-            let next_gpu_metadata = configured_gpu_parakeet_worker()
-                .as_ref()
-                .and_then(gpu_worker_file_metadata);
-            let gpu_route_changed = next_gpu_metadata != gpu_route_metadata;
-            gpu_route_metadata = next_gpu_metadata;
-            let next_gpu_qualified = if gpu_route_changed {
-                next_gpu_qualified
-            } else {
-                gpu_qualified
-            };
-            if next_qualified != qualified || next_gpu_qualified != gpu_qualified {
-                qualified = next_qualified;
-                gpu_qualified = next_gpu_qualified;
-                generation = generation.saturating_add(1);
-                snapshot.generation = generation;
-                apply_parakeet_key_availability(&mut snapshot, qualified);
-                apply_parakeet_gpu_availability(&mut snapshot, gpu_qualified);
-                if catalog_sender.send(snapshot.clone()).is_err()
-                    || admission_sender.send(snapshot.clone()).is_err()
-                {
-                    return;
-                }
-            }
-        }
-    });
+    let (inspection_requests, catalog_receiver, admission_receiver) =
+        model_catalog::start_catalog_service(model_root.clone());
 
     let (preference_command_sender, preference_command_receiver) =
         model_preference_command_channel();
+    let preference_command_sender =
+        preference_command_sender.with_inspection_requests(inspection_requests.clone());
     let (preference_event_sender, preference_event_receiver) = std::sync::mpsc::sync_channel(4);
     let personal_install = cfg!(feature = "personal-install");
     let preference_file = personal_root
@@ -295,7 +230,8 @@ pub fn compose() -> DesktopComposition {
         )
     };
     let application =
-        guarded_application(io, &model_root, historical_model_path, admission_receiver);
+        guarded_application(io, &model_root, historical_model_path, admission_receiver)
+            .with_inspection_requests(inspection_requests);
     DesktopComposition {
         application,
         compute_choice: ComputeChoice::Cpu,
@@ -406,6 +342,11 @@ fn personal_worker_paths(
 
 fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
     use whisper_core::model_catalog::{Backend, ModelId};
+    if !snapshot.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3 && entry.availability == ModelAvailability::Ready
+    }) {
+        return;
+    }
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
     let key = if cfg!(feature = "personal-install") {
         model_registry::personal_configuration_key(record, Backend::Cpu)
@@ -515,6 +456,12 @@ fn parakeet_available(snapshot: &CatalogSnapshot) -> bool {
 
 fn apply_parakeet_key_availability(snapshot: &mut CatalogSnapshot, key_verified: bool) {
     use whisper_core::model_catalog::ModelId;
+    if !snapshot.entries.iter().any(|entry| {
+        entry.id == ModelId::ParakeetTdt06BV3
+            && entry.availability != ModelAvailability::Uninspected
+    }) {
+        return;
+    }
     let catalog_model_ready = parakeet_artifact_matches(snapshot);
     if !(key_verified && catalog_model_ready)
         && let Some(entry) = snapshot
@@ -566,6 +513,12 @@ pub struct DesktopAdmissionApplication<P> {
     admission_catalog_failed: bool,
     historical_model_path: String,
     admission_notice: Option<String>,
+    inspection_requests: Option<whisper_desktop::ui::CatalogInspectionSender>,
+    admission_generation: u64,
+    inspection_interests: std::collections::BTreeMap<InspectionActionKey, InspectionInterest>,
+    visible_inspection: Option<InspectionActionKey>,
+    inspection_sequence: u64,
+    admission_snapshot: CatalogSnapshot,
     pending_gpu_candidate: Option<(
         whisper_core::JobId,
         whisper_core::Generation,
@@ -614,15 +567,233 @@ fn guarded_application<P: ImportIoPort>(
         admission_catalog_failed: false,
         historical_model_path,
         admission_notice: None,
+        inspection_requests: None,
+        admission_generation: 0,
+        inspection_interests: std::collections::BTreeMap::new(),
+        visible_inspection: None,
+        inspection_sequence: 0,
+        admission_snapshot: model_catalog::uninspected_snapshot(model_root, 1),
         pending_gpu_candidate: None,
     }
 }
 
 impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
+    fn with_inspection_requests(
+        mut self,
+        requests: whisper_desktop::ui::CatalogInspectionSender,
+    ) -> Self {
+        self.inspection_requests = Some(requests);
+        self.admission_guard = Some(self.guard_for_snapshot(&self.admission_snapshot));
+        self
+    }
+
+    fn guard_for_snapshot(&self, snapshot: &CatalogSnapshot) -> ModelCommandGuard {
+        let paths = snapshot
+            .entries
+            .iter()
+            .map(|entry| (entry.id, entry.path.to_string_lossy().into_owned()))
+            .chain(std::iter::once((
+                ModelId::WhisperLargeV3Turbo,
+                self.historical_model_path.clone(),
+            )));
+        ModelCommandGuard::new_with_model_paths(
+            snapshot.engine_snapshot(Vec::new()),
+            snapshot.generation,
+            paths,
+        )
+    }
+
+    fn requested_model(&self, path: &str) -> Option<ModelId> {
+        use whisper_core::model_selection_app::is_known_historical_path;
+        if is_known_historical_path(path, &self.historical_model_path) {
+            return Some(ModelId::WhisperLargeV3Turbo);
+        }
+        self.admission_snapshot
+            .entries
+            .iter()
+            .find(|entry| is_known_historical_path(path, &entry.path.to_string_lossy()))
+            .map(|entry| entry.id)
+    }
+
+    fn inspection_notice(&mut self, command: &AppCommand, reason: AdmissionFailure) -> String {
+        let id = match reason {
+            AdmissionFailure::NotInspected(id) => id,
+            AdmissionFailure::Unavailable(reason) => {
+                return format!("Modèle indisponible : {reason}");
+            }
+        };
+        let action = match command {
+            AppCommand::ProcessQueued { .. } => "cliquez à nouveau sur Traiter après vérification",
+            AppCommand::ResumeInterrupted { .. } => {
+                "confirmez à nouveau la reprise après vérification"
+            }
+            _ => "relancez l'action après vérification",
+        };
+        let key = inspection_action_key(command).expect("model-bearing admission refusal");
+        let superseded = self
+            .inspection_interests
+            .iter()
+            .filter_map(|(previous, interest)| {
+                (*previous != key && previous.kind == key.kind && !interest.queue_visible)
+                    .then_some(*previous)
+            })
+            .collect::<Vec<_>>();
+        for previous in superseded {
+            self.release_inspection(previous);
+        }
+        match self
+            .inspection_requests
+            .as_ref()
+            .map(|requests| requests.command(id))
+        {
+            Some(Ok(version)) => {
+                let queue_visible = key.kind.is_queued()
+                    && self.inner.view().queue.iter().any(|entry| {
+                        entry.request.job_id.0 == key.job
+                            && entry.request.generation.get() == key.generation
+                    });
+                self.inspection_sequence = self.inspection_sequence.saturating_add(1);
+                self.inspection_interests.insert(
+                    key,
+                    InspectionInterest {
+                        model: id,
+                        version,
+                        action,
+                        queue_visible,
+                        sequence: self.inspection_sequence,
+                    },
+                );
+                self.visible_inspection = Some(key);
+                format!("Vérification du modèle en cours ; {action}.")
+            }
+            _ => {
+                "Catalogue de modèles indisponible : demande de vérification non transmise.".into()
+            }
+        }
+    }
+
+    fn update_inspection_notice(&mut self) {
+        let Some(interest) = self
+            .visible_inspection
+            .and_then(|key| self.inspection_interests.get(&key))
+        else {
+            return;
+        };
+        let completed = self.inspection_requests.as_ref().is_some_and(|requests| {
+            requests.observation_completes(
+                interest.model,
+                interest.version,
+                self.admission_snapshot.generation,
+            )
+        });
+        self.admission_notice = Some(if completed {
+            let entry = self
+                .admission_snapshot
+                .entries
+                .iter()
+                .find(|entry| entry.id == interest.model)
+                .expect("known model");
+            if entry.availability == ModelAvailability::Ready {
+                format!("Modèle vérifié ; {}.", interest.action)
+            } else {
+                format!(
+                    "Vérification du modèle échouée : {}",
+                    entry.diagnostic.as_deref().unwrap_or("modèle indisponible")
+                )
+            }
+        } else {
+            format!("Vérification du modèle en cours ; {}.", interest.action)
+        });
+    }
+
+    fn release_inspection(&mut self, key: InspectionActionKey) {
+        let Some(removed) = self.inspection_interests.remove(&key) else {
+            return;
+        };
+        if !self
+            .inspection_interests
+            .values()
+            .any(|interest| interest.model == removed.model)
+            && let Some(requests) = &self.inspection_requests
+        {
+            requests.command_finished(removed.model);
+        }
+        if self.visible_inspection == Some(key) {
+            self.visible_inspection = self
+                .inspection_interests
+                .iter()
+                .max_by_key(|(_, interest)| interest.sequence)
+                .map(|(key, _)| *key);
+            self.admission_notice = None;
+            self.update_inspection_notice();
+        }
+    }
+
+    fn reconcile_inspection_interests(&mut self, view: &AppView) {
+        let removed = self
+            .inspection_interests
+            .iter_mut()
+            .filter_map(|(key, interest)| {
+                if !key.kind.is_queued() {
+                    return None;
+                }
+                let present = view.queue.iter().any(|entry| {
+                    entry.request.job_id.0 == key.job
+                        && entry.request.generation.get() == key.generation
+                });
+                let removed = interest.queue_visible && !present;
+                interest.queue_visible |= present;
+                removed.then_some(*key)
+            })
+            .collect::<Vec<_>>();
+        for key in removed {
+            self.release_inspection(key);
+        }
+    }
+
+    fn abandon_inspection_actions(&mut self, command: &AppCommand) {
+        let target = match command {
+            AppCommand::Stop { job_id, generation }
+            | AppCommand::Quit { job_id, generation }
+            | AppCommand::StopUnifiedLive { job_id, generation } => {
+                Some((job_id.0, generation.get()))
+            }
+            _ => None,
+        };
+        let cancelled = self
+            .inspection_interests
+            .keys()
+            .filter(|key| {
+                target
+                    .is_some_and(|(job, generation)| key.job == job && key.generation == generation)
+                    || matches!(command, AppCommand::CancelDuplicateImport)
+                        && matches!(
+                            key.kind,
+                            InspectionActionKind::StartImport | InspectionActionKind::EnqueueImport
+                        )
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        for key in cancelled {
+            self.release_inspection(key);
+        }
+    }
+
     fn poll_admission_catalog(&mut self) {
         loop {
             match self.admission_catalog.try_recv() {
-                Ok(snapshot) => {
+                Ok(mut snapshot) => {
+                    if self
+                        .inspection_requests
+                        .as_ref()
+                        .is_some_and(|requests| !requests.refresh_snapshot(&mut snapshot))
+                    {
+                        continue;
+                    }
+                    if snapshot.generation < self.admission_generation {
+                        continue;
+                    }
+                    self.admission_generation = snapshot.generation;
                     let paths = snapshot
                         .entries
                         .iter()
@@ -637,6 +808,8 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
                         paths,
                     );
                     self.admission_guard = Some(guard);
+                    self.admission_snapshot = snapshot;
+                    self.update_inspection_notice();
                     self.admission_catalog_failed = false;
                 }
                 Err(TryRecvError::Disconnected) => {
@@ -648,7 +821,7 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
         }
     }
 
-    fn admission_result(&self, command: &AppCommand) -> Option<Result<(), &'static str>> {
+    fn admission_result(&self, command: &AppCommand) -> Option<Result<(), AdmissionFailure>> {
         let import = match command {
             AppCommand::StartImport { request }
             | AppCommand::EnqueueImport { request }
@@ -665,13 +838,39 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
         if import.is_none() && live.is_none() {
             return None;
         }
+        if self.inspection_requests.is_some() && self.admission_catalog_failed {
+            return Some(Err(AdmissionFailure::Unavailable(
+                "catalogue de modèles indisponible",
+            )));
+        }
         let Some(guard) = self.admission_guard.as_ref() else {
-            return Some(Err(if self.admission_catalog_failed {
-                "catalogue de modèles indisponible"
-            } else {
-                "catalogue de modèles en cours de vérification"
-            }));
+            return Some(Err(AdmissionFailure::Unavailable(
+                if self.admission_catalog_failed {
+                    "catalogue de modèles indisponible"
+                } else {
+                    "catalogue de modèles en cours de vérification"
+                },
+            )));
         };
+        let path = import
+            .map(|request| request.model_path.as_str())
+            .or_else(|| live.map(|request| request.model_path.as_str()))
+            .expect("model-bearing command");
+        let model = self.requested_model(path);
+        let stale_snapshot = model
+            .filter(|id| {
+                self.inspection_requests.as_ref().is_some_and(|requests| {
+                    !requests.model_is_current(*id, self.admission_snapshot.generation)
+                })
+            })
+            .map(|id| {
+                let mut snapshot = self.admission_snapshot.clone();
+                if let Some(entry) = snapshot.entries.iter_mut().find(|entry| entry.id == id) {
+                    entry.availability = ModelAvailability::Uninspected;
+                }
+                self.guard_for_snapshot(&snapshot)
+            });
+        let guard = stale_snapshot.as_ref().unwrap_or(guard);
         let result = if let Some(request) = import {
             guard.admit_import(
                 request,
@@ -682,10 +881,17 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
         };
         Some(result.map(|_| ()).map_err(|error| match error {
             whisper_core::model_selection_app::SelectionRefusal::UnknownHistoricalModelPath => {
-                "chemin ou empreinte non reconnu dans le catalogue"
+                AdmissionFailure::Unavailable("chemin ou empreinte non reconnu dans le catalogue")
+            }
+            whisper_core::model_selection_app::SelectionRefusal::Capability(
+                whisper_core::engine_capabilities::Refusal {
+                    cause: whisper_core::engine_capabilities::RefusalCause::ModelNotInspected,
+                },
+            ) if model.is_some() => {
+                AdmissionFailure::NotInspected(model.expect("recognized model"))
             }
             whisper_core::model_selection_app::SelectionRefusal::Capability(_) => {
-                "combinaison modèle, calcul ou langue non admissible"
+                AdmissionFailure::Unavailable("combinaison modèle, calcul ou langue non admissible")
             }
         }))
     }
@@ -717,11 +923,19 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
     }
 }
 
+#[derive(Debug)]
+enum AdmissionFailure {
+    NotInspected(ModelId),
+    Unavailable(&'static str),
+}
+
 impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
     fn dispatch(&mut self, command: AppCommand) -> Result<AppView, ApplicationError> {
+        self.reconcile_inspection_interests(&self.inner.view());
+        self.abandon_inspection_actions(&command);
         self.poll_admission_catalog();
         if let Some(Err(reason)) = self.admission_result(&command) {
-            let notice = format!("Modèle indisponible : {reason}");
+            let notice = self.inspection_notice(&command, reason);
             self.admission_notice = Some(notice.clone());
             self.pending_gpu_candidate = None;
             let mut view = self.inner.view();
@@ -729,6 +943,14 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
             return Ok(view);
         }
         let is_refresh = matches!(&command, AppCommand::Refresh);
+        if matches!(&command, AppCommand::RequestClose) {
+            if let Some(requests) = &self.inspection_requests {
+                requests.close();
+            }
+            self.inspection_interests.clear();
+            self.visible_inspection = None;
+            self.admission_notice = None;
+        }
         let is_model_start = matches!(
             &command,
             AppCommand::StartImport { .. }
@@ -739,6 +961,9 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
                 | AppCommand::StartUnifiedLiveConfigured { .. }
                 | AppCommand::StartDirectLiveConfigured { .. }
         );
+        if let Some(key) = inspection_action_key(&command) {
+            self.release_inspection(key);
+        }
         if is_model_start
             && let Some((job_id, generation, candidate)) = self.pending_gpu_candidate.take()
             && command.targets(job_id, generation)
@@ -751,7 +976,9 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
             self.pending_gpu_candidate = None;
         }
         let mut view = self.inner.dispatch(command)?;
+        self.reconcile_inspection_interests(&view);
         if is_refresh {
+            self.update_inspection_notice();
             if let Some(notice) = &self.admission_notice {
                 view.message = Some(notice.clone());
             }
@@ -774,6 +1001,85 @@ impl<P: ImportIoPort> Application for DesktopAdmissionApplication<P> {
         self.pending_gpu_candidate = Some((job_id, generation, candidate));
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum InspectionActionKind {
+    StartImport,
+    EnqueueImport,
+    ProcessQueued,
+    ResumeInterrupted,
+    StartLive,
+    StartUnifiedLive,
+    StartDirectLive,
+}
+
+impl InspectionActionKind {
+    fn is_queued(self) -> bool {
+        matches!(self, Self::ProcessQueued | Self::ResumeInterrupted)
+    }
+}
+
+/// Identity/lifetime metadata only: no executable command, configuration or GPU proof.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct InspectionActionKey {
+    job: u128,
+    generation: u64,
+    kind: InspectionActionKind,
+}
+
+struct InspectionInterest {
+    model: ModelId,
+    version: u64,
+    action: &'static str,
+    queue_visible: bool,
+    sequence: u64,
+}
+
+fn inspection_action_key(command: &AppCommand) -> Option<InspectionActionKey> {
+    let (kind, job, generation) = match command {
+        AppCommand::StartImport { request } => (
+            InspectionActionKind::StartImport,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::EnqueueImport { request } => (
+            InspectionActionKind::EnqueueImport,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::ProcessQueued { request } => (
+            InspectionActionKind::ProcessQueued,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::ResumeInterrupted { request } => (
+            InspectionActionKind::ResumeInterrupted,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::StartLiveConfigured { request } => (
+            InspectionActionKind::StartLive,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::StartUnifiedLiveConfigured { request } => (
+            InspectionActionKind::StartUnifiedLive,
+            request.job_id,
+            request.generation,
+        ),
+        AppCommand::StartDirectLiveConfigured { request } => (
+            InspectionActionKind::StartDirectLive,
+            request.job_id,
+            request.generation,
+        ),
+        _ => return None,
+    };
+    Some(InspectionActionKey {
+        job: job.0,
+        generation: generation.get(),
+        kind,
+    })
 }
 
 #[cfg(test)]

@@ -36,7 +36,21 @@ impl<A: Application> DesktopApp<A> {
     pub(in crate::ui::model) fn poll_model_selection(&mut self) {
         while let Some(receiver) = &self.catalog_receiver {
             match receiver.try_recv() {
-                Ok(catalog) => {
+                Ok(mut catalog) => {
+                    if self
+                        .inspection_requests
+                        .as_ref()
+                        .is_some_and(|requests| !requests.refresh_snapshot(&mut catalog))
+                    {
+                        continue;
+                    }
+                    if self
+                        .catalog
+                        .as_ref()
+                        .is_some_and(|current| current.generation > catalog.generation)
+                    {
+                        continue;
+                    }
                     self.projection = ModelSelectionApp::new(catalog.engine_snapshot(vec![]))
                         .projection(catalog.generation)
                         .ok();
@@ -102,6 +116,52 @@ impl<A: Application> DesktopApp<A> {
                 }
             }
         }
+        self.request_current_model_inspection();
+    }
+
+    fn request_current_model_inspection(&mut self) {
+        if self.startup_preferences_loaded || self.selection_touched {
+            if let (Some(model), Some(requests), Some(preferences)) = (
+                self.selection.model,
+                self.inspection_requests.as_ref(),
+                self.preference_commands.as_ref(),
+            ) {
+                if requests.selected_model() != Some(model) {
+                    self.selection_notice = match preferences.inspect_selection(model) {
+                        Ok(()) => Some("Vérification du modèle en cours…".into()),
+                        Err(_) => Some(
+                            "Catalogue de modèles indisponible : vérification non transmise."
+                                .into(),
+                        ),
+                    };
+                }
+                if let Some(entry) = self
+                    .catalog
+                    .as_ref()
+                    .and_then(|catalog| catalog.entries.iter().find(|entry| entry.id == model))
+                {
+                    if (entry.availability
+                        != whisper_core::model_catalog::ModelAvailability::Uninspected
+                        || entry
+                            .diagnostic
+                            .as_deref()
+                            .is_some_and(|diagnostic| diagnostic != "Modèle non vérifié."))
+                        && requests.model_is_current(
+                            model,
+                            self.catalog.as_ref().expect("catalog entry").generation,
+                        )
+                    {
+                        self.selection_notice = if entry.availability
+                            == whisper_core::model_catalog::ModelAvailability::Ready
+                        {
+                            None
+                        } else {
+                            entry.diagnostic.clone()
+                        };
+                    }
+                }
+            }
+        }
     }
 
     pub(in crate::ui::model) fn selected_model_artifact(&self) -> Option<(String, [u8; 32])> {
@@ -131,6 +191,14 @@ impl<A: Application> DesktopApp<A> {
         let Some(id) = self.selection.model else {
             return false;
         };
+        if let Some(requests) = &self.inspection_requests
+            && !self
+                .catalog
+                .as_ref()
+                .is_some_and(|catalog| requests.model_is_current(id, catalog.generation))
+        {
+            return false;
+        }
         self.projection.as_ref().is_some_and(|projection| {
             projection
                 .models

@@ -3,7 +3,7 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::{
-        Mutex, OnceLock,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
     time::SystemTime,
@@ -13,29 +13,28 @@ use same_file::Handle;
 use sha2::{Digest, Sha256};
 use whisper_core::{model_catalog::ModelAvailability, model_registry::MODELS};
 
-static ARTIFACT_HASH_CACHE: OnceLock<Mutex<ModelFileHashCache>> = OnceLock::new();
+static ARTIFACT_HASH_CACHE: OnceLock<ModelFileHashCache> = OnceLock::new();
 static MODEL_HASH_FULL_READS: AtomicU64 = AtomicU64::new(0);
 static ARTIFACT_HASH_FULL_READS: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug)]
 struct CachedModelHash {
     canonical_path: PathBuf,
-    identity: Handle,
+    identity: Arc<Handle>,
     size_bytes: u64,
     modified: SystemTime,
-    sha256: [u8; 32],
-    full_reads: u64,
+    sha256: Mutex<Option<[u8; 32]>>,
 }
 
 #[derive(Default)]
 struct ModelFileHashCache {
-    entries: Vec<CachedModelHash>,
+    entries: Mutex<Vec<Arc<CachedModelHash>>>,
 }
 
 struct OpenModelFile {
     file: File,
     canonical_path: PathBuf,
-    identity: Handle,
+    identity: Arc<Handle>,
     size_bytes: u64,
     modified: SystemTime,
 }
@@ -63,7 +62,7 @@ impl OpenModelFile {
         Ok(Self {
             file,
             canonical_path,
-            identity,
+            identity: Arc::new(identity),
             size_bytes: metadata.len(),
             modified,
         })
@@ -78,115 +77,194 @@ impl OpenModelFile {
 }
 
 impl ModelFileHashCache {
-    fn sha256(&mut self, path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
+    fn sha256(&self, path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
+        self.sha256_with(path, |file, hasher| io::copy(file, hasher))
+    }
+
+    fn sha256_with(
+        &self,
+        path: &Path,
+        read: impl FnOnce(&mut File, &mut Sha256) -> io::Result<u64>,
+    ) -> io::Result<(u64, [u8; 32], bool)> {
         #[cfg(feature = "native-tests")]
         let open_started = std::time::Instant::now();
-        let mut opened = OpenModelFile::open(path)?;
-        let cached = self.entries.iter().find(|entry| {
-            entry.canonical_path == opened.canonical_path
-                && entry.identity == opened.identity
-                && entry.size_bytes == opened.size_bytes
-                && entry.modified == opened.modified
-        });
+        let opened = OpenModelFile::open(path)?;
         #[cfg(feature = "native-tests")]
-        if let Some(model) = catalog_model(path) {
+        let open_and_identity_ms = open_started.elapsed().as_secs_f64() * 1000.0;
+        let slot = self.slot(&opened)?;
+        let result = slot.sha256(path, opened, read);
+        #[cfg(feature = "native-tests")]
+        if let (Some(model), Ok((bytes, _, full_read))) = (catalog_model(path), &result) {
             crate::native_timing::record(
                 "model_cache.lookup",
                 serde_json::json!({
                     "model_id":format!("{:?}",model.artifact.id),
                     "model_name":model.display_name,
                     "path":path.to_string_lossy(),
-                    "bytes":opened.size_bytes,
-                    "cache_hit":cached.is_some(),
-                    "open_and_identity_ms":open_started.elapsed().as_secs_f64()*1000.0,
+                    "bytes":bytes,
+                    "cache_hit":!full_read,
+                    "open_and_identity_ms":open_and_identity_ms,
                 }),
             );
         }
-        if let Some(entry) = cached {
-            return Ok((entry.size_bytes, entry.sha256, false));
-        }
+        result
+    }
 
-        let mut hasher = Sha256::new();
-        #[cfg(feature = "native-tests")]
-        let hash_started = std::time::Instant::now();
-        let bytes_read = io::copy(&mut opened.file, &mut hasher)?;
-        #[cfg(feature = "native-tests")]
-        if let Some(model) = catalog_model(path) {
-            crate::native_timing::record(
-                "model_cache.full_read",
-                serde_json::json!({
-                    "model_id":format!("{:?}",model.artifact.id),
-                    "model_name":model.display_name,
-                    "path":path.to_string_lossy(),
-                    "bytes_read":bytes_read,
-                    "duration_ms":hash_started.elapsed().as_secs_f64()*1000.0,
-                }),
-            );
+    fn slot(&self, opened: &OpenModelFile) -> io::Result<Arc<CachedModelHash>> {
+        // Only immutable in-memory keys are examined under this index lock.
+        // No caller may acquire a slot lock while retaining the index guard.
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| io::Error::other("model hash cache index is poisoned"))?;
+        if let Some(slot) = entries.iter().find(|entry| entry.matches(opened)) {
+            return Ok(Arc::clone(slot));
         }
-        #[cfg(feature = "native-tests")]
-        let revalidation_started = std::time::Instant::now();
-        let after_read_result = OpenModelFile::open(path);
-        #[cfg(feature = "native-tests")]
-        if let Some(model) = catalog_model(path) {
-            crate::native_timing::record(
-                "model_cache.revalidation",
-                serde_json::json!({
-                    "model_id":format!("{:?}",model.artifact.id),
-                    "model_name":model.display_name,
-                    "path":path.to_string_lossy(),
-                    "duration_ms":revalidation_started.elapsed().as_secs_f64()*1000.0,
-                    "opened":after_read_result.is_ok(),
-                }),
-            );
-        }
-        let after_read = after_read_result?;
-        let identity_stable = opened.matches(&after_read);
-        #[cfg(feature = "native-tests")]
-        if let Some(model) = catalog_model(path) {
-            crate::native_timing::record(
-                "model_cache.identity_result",
-                serde_json::json!({
-                    "model_id":format!("{:?}",model.artifact.id),
-                    "path":path.to_string_lossy(),
-                    "identity_stable":identity_stable,
-                    "bytes_read":bytes_read,
-                    "expected_bytes":opened.size_bytes,
-                }),
-            );
-        }
-        if bytes_read != opened.size_bytes || !identity_stable {
-            return Err(io::Error::other(
-                "model identity changed while its SHA-256 was being computed",
-            ));
-        }
-
-        let digest: [u8; 32] = hasher.finalize().into();
-        let size_bytes = opened.size_bytes;
-        self.entries.push(CachedModelHash {
-            canonical_path: opened.canonical_path,
-            identity: opened.identity,
-            size_bytes,
+        let slot = Arc::new(CachedModelHash {
+            canonical_path: opened.canonical_path.clone(),
+            identity: Arc::clone(&opened.identity),
+            size_bytes: opened.size_bytes,
             modified: opened.modified,
-            sha256: digest,
-            full_reads: 1,
+            sha256: Mutex::new(None),
         });
-        Ok((size_bytes, digest, true))
+        entries.push(Arc::clone(&slot));
+        Ok(slot)
     }
 
     fn full_read_count(&self, path: &Path) -> io::Result<u64> {
         let opened = OpenModelFile::open(path)?;
-        Ok(self
-            .entries
-            .iter()
-            .filter(|entry| {
-                entry.canonical_path == opened.canonical_path
-                    && entry.identity == opened.identity
-                    && entry.size_bytes == opened.size_bytes
-                    && entry.modified == opened.modified
-            })
-            .map(|entry| entry.full_reads)
-            .sum())
+        let slot = {
+            let entries = self
+                .entries
+                .lock()
+                .map_err(|_| io::Error::other("model hash cache index is poisoned"))?;
+            entries.iter().find(|entry| entry.matches(&opened)).cloned()
+        };
+        let Some(slot) = slot else { return Ok(0) };
+        let cached = slot
+            .sha256
+            .lock()
+            .map_err(|_| io::Error::other("model hash cache entry is poisoned"))?;
+        opened.revalidate(path)?;
+        Ok(u64::from(cached.is_some()))
     }
+}
+
+impl CachedModelHash {
+    fn matches(&self, opened: &OpenModelFile) -> bool {
+        self.canonical_path == opened.canonical_path
+            && self.identity == opened.identity
+            && self.size_bytes == opened.size_bytes
+            && self.modified == opened.modified
+    }
+
+    fn sha256(
+        &self,
+        path: &Path,
+        opened: OpenModelFile,
+        read: impl FnOnce(&mut File, &mut Sha256) -> io::Result<u64>,
+    ) -> io::Result<(u64, [u8; 32], bool)> {
+        #[cfg(feature = "native-tests")]
+        let lock_started = std::time::Instant::now();
+        #[cfg(feature = "native-tests")]
+        record_cache_lock(path, "model_cache.lock_wait_begin", 0.0);
+        let mut cached = self
+            .sha256
+            .lock()
+            .map_err(|_| io::Error::other("model hash cache entry is poisoned"))?;
+        #[cfg(feature = "native-tests")]
+        record_cache_lock(
+            path,
+            "model_cache.lock_acquired",
+            lock_started.elapsed().as_secs_f64() * 1000.0,
+        );
+        // A caller may have waited for a previous calculation of this key.
+        // Revalidate even on a cache hit, before returning its digest.
+        if let Err(error) = opened.revalidate(path) {
+            *cached = None;
+            return Err(error);
+        }
+        if let Some(digest) = *cached {
+            return Ok((opened.size_bytes, digest, false));
+        }
+        let (size, digest) = hash_opened_file(path, opened, read)?;
+        *cached = Some(digest);
+        Ok((size, digest, true))
+    }
+}
+
+impl OpenModelFile {
+    fn revalidate(&self, path: &Path) -> io::Result<()> {
+        if !self.matches(&Self::open(path)?) {
+            return Err(io::Error::other(
+                "model identity changed while waiting for its SHA-256",
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn hash_opened_file(
+    path: &Path,
+    mut opened: OpenModelFile,
+    read: impl FnOnce(&mut File, &mut Sha256) -> io::Result<u64>,
+) -> io::Result<(u64, [u8; 32])> {
+    let mut hasher = Sha256::new();
+    #[cfg(feature = "native-tests")]
+    let hash_started = std::time::Instant::now();
+    let bytes_read = read(&mut opened.file, &mut hasher)?;
+    #[cfg(feature = "native-tests")]
+    if let Some(model) = catalog_model(path) {
+        crate::native_timing::record(
+            "model_cache.full_read",
+            serde_json::json!({
+                "model_id":format!("{:?}",model.artifact.id),
+                "model_name":model.display_name,
+                "path":path.to_string_lossy(),
+                "bytes_read":bytes_read,
+                "duration_ms":hash_started.elapsed().as_secs_f64()*1000.0,
+            }),
+        );
+    }
+    #[cfg(feature = "native-tests")]
+    let revalidation_started = std::time::Instant::now();
+    let after_read_result = OpenModelFile::open(path);
+    #[cfg(feature = "native-tests")]
+    if let Some(model) = catalog_model(path) {
+        crate::native_timing::record(
+            "model_cache.revalidation",
+            serde_json::json!({
+                "model_id":format!("{:?}",model.artifact.id),
+                "model_name":model.display_name,
+                "path":path.to_string_lossy(),
+                "duration_ms":revalidation_started.elapsed().as_secs_f64()*1000.0,
+                "opened":after_read_result.is_ok(),
+            }),
+        );
+    }
+    let after_read = after_read_result?;
+    let identity_stable = opened.matches(&after_read);
+    #[cfg(feature = "native-tests")]
+    if let Some(model) = catalog_model(path) {
+        crate::native_timing::record(
+            "model_cache.identity_result",
+            serde_json::json!({
+                "model_id":format!("{:?}",model.artifact.id),
+                "path":path.to_string_lossy(),
+                "identity_stable":identity_stable,
+                "bytes_read":bytes_read,
+                "expected_bytes":opened.size_bytes,
+            }),
+        );
+    }
+    if bytes_read != opened.size_bytes || !identity_stable {
+        return Err(io::Error::other(
+            "model identity changed while its SHA-256 was being computed",
+        ));
+    }
+
+    let digest: [u8; 32] = hasher.finalize().into();
+    Ok((opened.size_bytes, digest))
 }
 
 /// Returns the cached SHA-256 for a regular model file after checking the current
@@ -217,40 +295,25 @@ pub fn cached_artifact_sha256_with_read(path: &Path) -> io::Result<(u64, [u8; 32
 }
 
 fn cached_file_sha256(path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
+    ARTIFACT_HASH_CACHE
+        .get_or_init(ModelFileHashCache::default)
+        .sha256(path)
+}
+
+#[cfg(feature = "native-tests")]
+fn record_cache_lock(path: &Path, event: &str, wait_ms: f64) {
     #[cfg(feature = "native-tests")]
     if let Some(model) = catalog_model(path) {
         crate::native_timing::record(
-            "model_cache.lock_wait_begin",
+            event,
             serde_json::json!({
                 "model_id":format!("{:?}",model.artifact.id),
                 "model_name":model.display_name,
                 "path":path.to_string_lossy(),
+                "wait_ms":wait_ms,
             }),
         );
     }
-    #[cfg(feature = "native-tests")]
-    let lock_started = std::time::Instant::now();
-    let mut cache = ARTIFACT_HASH_CACHE
-        .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
-        .lock()
-        .map_err(|_| io::Error::other("model hash cache is poisoned"))?;
-    #[cfg(feature = "native-tests")]
-    let lock_wait_ms = lock_started.elapsed().as_secs_f64() * 1000.0;
-    #[cfg(feature = "native-tests")]
-    if let Some(model) = catalog_model(path) {
-        crate::native_timing::record(
-            "model_cache.lock_acquired",
-            serde_json::json!({
-                "model_id":format!("{:?}",model.artifact.id),
-                "model_name":model.display_name,
-                "path":path.to_string_lossy(),
-                "wait_ms":lock_wait_ms,
-            }),
-        );
-    }
-    let result = cache.sha256(path);
-    drop(cache);
-    result
 }
 
 #[cfg(feature = "native-tests")]
@@ -265,9 +328,7 @@ fn catalog_model(path: &Path) -> Option<&'static whisper_core::model_registry::M
 #[doc(hidden)]
 pub fn model_sha256_full_read_count(path: &Path) -> io::Result<u64> {
     ARTIFACT_HASH_CACHE
-        .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
-        .lock()
-        .map_err(|_| io::Error::other("model hash cache is poisoned"))?
+        .get_or_init(ModelFileHashCache::default)
         .full_read_count(path)
 }
 
@@ -275,9 +336,7 @@ pub fn model_sha256_full_read_count(path: &Path) -> io::Result<u64> {
 #[doc(hidden)]
 pub fn artifact_sha256_full_read_count(path: &Path) -> io::Result<u64> {
     ARTIFACT_HASH_CACHE
-        .get_or_init(|| Mutex::new(ModelFileHashCache::default()))
-        .lock()
-        .map_err(|_| io::Error::other("artifact hash cache is poisoned"))?
+        .get_or_init(ModelFileHashCache::default)
         .full_read_count(path)
 }
 
@@ -291,7 +350,7 @@ pub fn artifact_sha256_full_read_total() -> u64 {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ArtifactFileIdentity {
     canonical_path: PathBuf,
-    identity: Handle,
+    identity: Arc<Handle>,
     size_bytes: u64,
     modified: SystemTime,
 }
@@ -360,37 +419,51 @@ impl LocalModelCatalog {
         path: &str,
         known_historical_turbo_path: &str,
     ) -> Result<(whisper_core::model_catalog::ModelId, CatalogSnapshot), String> {
+        let id = self.resolve_requested_model(path, known_historical_turbo_path)?;
+        Ok((id, self.inspect_model(id, 0)))
+    }
+
+    /// Resolves a registered path or the historical Turbo alias without reading a model.
+    pub(crate) fn resolve_requested_model(
+        &self,
+        path: &str,
+        known_historical_turbo_path: &str,
+    ) -> Result<whisper_core::model_catalog::ModelId, String> {
         use whisper_core::{model_catalog::ModelId, model_selection_app::is_known_historical_path};
 
-        let id = if is_known_historical_path(path, known_historical_turbo_path) {
-            ModelId::WhisperLargeV3Turbo
-        } else {
-            MODELS
-                .iter()
-                .find(|record| {
-                    let catalog_path = self.root.join(record.artifact.file_name);
-                    let catalog_path = catalog_path.to_string_lossy();
-                    is_known_historical_path(path, catalog_path.as_ref())
-                })
-                .map(|record| record.artifact.id)
-                .ok_or_else(|| {
-                    format!(
-                        "ModelUnknown: chemin de modèle inconnu dans la file ou le checkpoint : {path}"
-                    )
-                })?
-        };
+        if is_known_historical_path(path, known_historical_turbo_path) {
+            return Ok(ModelId::WhisperLargeV3Turbo);
+        }
+        MODELS
+            .iter()
+            .find(|record| {
+                let catalog_path = self.root.join(record.artifact.file_name);
+                let catalog_path = catalog_path.to_string_lossy();
+                is_known_historical_path(path, catalog_path.as_ref())
+            })
+            .map(|record| record.artifact.id)
+            .ok_or_else(|| {
+                format!(
+                    "ModelUnknown: chemin de modèle inconnu dans la file ou le checkpoint : {path}"
+                )
+            })
+    }
+
+    /// Observes only one registered model, preserving the requested generation.
+    pub fn inspect_model(
+        &self,
+        id: whisper_core::model_catalog::ModelId,
+        generation: u64,
+    ) -> CatalogSnapshot {
         let record = MODELS
             .iter()
             .find(|record| record.artifact.id == id)
             .expect("every model id has a catalog record");
         let entry = inspect_entry(record, self.root.join(record.artifact.file_name));
-        Ok((
-            id,
-            CatalogSnapshot {
-                generation: 0,
-                entries: vec![entry],
-            },
-        ))
+        CatalogSnapshot {
+            generation,
+            entries: vec![entry],
+        }
     }
 
     pub fn root(&self) -> &Path {
@@ -409,7 +482,7 @@ impl CatalogSnapshot {
                 self.entries
                     .iter()
                     .find(|entry| entry.id == id)
-                    .map_or(ModelAvailability::Missing, |entry| entry.availability)
+                    .map_or(ModelAvailability::Uninspected, |entry| entry.availability)
             },
             resources,
         )
@@ -590,6 +663,9 @@ fn decode_sha256(value: &str) -> Result<[u8; 32], String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod concurrency_tests;
 
 #[cfg(test)]
 mod execution_artifact_cache_tests {

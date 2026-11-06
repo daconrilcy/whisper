@@ -2,9 +2,10 @@ mod model;
 mod presentation;
 
 pub use model::{
-    DesktopApp, ModelPreferenceCommand, ModelPreferenceCommandReceiver,
-    ModelPreferenceCommandSender, ModelPreferenceEvent, ModelSelectionRuntime,
-    PreferenceChannelError, SelectionWidgetState, model_preference_command_channel,
+    CatalogInspectionNeed, CatalogInspectionReceiver, CatalogInspectionSender, DesktopApp,
+    ModelPreferenceCommand, ModelPreferenceCommandReceiver, ModelPreferenceCommandSender,
+    ModelPreferenceEvent, ModelSelectionRuntime, PreferenceChannelError, SelectionWidgetState,
+    catalog_inspection_channel, model_preference_command_channel,
 };
 pub use presentation::{
     APPROVED_MODEL_SHA256, LanguageChoices, MicrophoneMeterPresentation, apply_initial_model,

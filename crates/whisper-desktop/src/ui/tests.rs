@@ -5,3 +5,4 @@ include!("tests/microphone_controls.rs");
 include!("tests/unified_sessions.rs");
 include!("tests/compute_and_catalog.rs");
 include!("tests/document_presentation.rs");
+include!("tests/catalog_inspection.rs");

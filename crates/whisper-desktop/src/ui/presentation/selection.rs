@@ -145,7 +145,11 @@ pub fn model_selection_combo(
         .iter()
         .find(|model| Some(model.id) == selection.model)
         .map(|model| {
-            if model.selectable {
+            if model.cause
+                == Some(whisper_core::engine_capabilities::RefusalCause::ModelNotInspected)
+            {
+                format!("{} (à vérifier)", model.display_name)
+            } else if model.selectable {
                 model.display_name.clone()
             } else {
                 format!("{} (indisponible)", model.display_name)
@@ -156,8 +160,11 @@ pub fn model_selection_combo(
         .selected_text(selected_text)
         .show_ui(ui, |ui| {
             for model in &projection.models {
+                let may_choose = model.selectable
+                    || model.cause
+                        == Some(whisper_core::engine_capabilities::RefusalCause::ModelNotInspected);
                 let response = ui.add_enabled(
-                    model.selectable,
+                    may_choose,
                     egui::Button::selectable(
                         selection.model == Some(model.id),
                         &model.display_name,
@@ -165,9 +172,17 @@ pub fn model_selection_combo(
                 );
                 let clicked = response.clicked();
                 if let Some(cause) = model.cause {
-                    response.on_hover_text(format!("Indisponible : {cause:?}"));
+                    response.on_hover_text(
+                        if cause
+                            == whisper_core::engine_capabilities::RefusalCause::ModelNotInspected
+                        {
+                            "Choisissez ce modèle pour vérifier sa disponibilité.".to_owned()
+                        } else {
+                            format!("Indisponible : {cause:?}")
+                        },
+                    );
                 }
-                if clicked && model.selectable {
+                if clicked && may_choose {
                     selection.model = Some(model.id);
                     chosen = true;
                 }

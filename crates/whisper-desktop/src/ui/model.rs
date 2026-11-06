@@ -30,9 +30,10 @@ use controller::{
 };
 mod view;
 pub use preferences::{
+    CatalogInspectionNeed, CatalogInspectionReceiver, CatalogInspectionSender,
     ModelPreferenceCommand, ModelPreferenceCommandReceiver, ModelPreferenceCommandSender,
     ModelPreferenceEvent, ModelSelectionRuntime, PreferenceChannelError, SelectionWidgetState,
-    model_preference_command_channel,
+    catalog_inspection_channel, model_preference_command_channel,
 };
 #[cfg(test)]
 #[path = "tests/catalog_fixture.rs"]
@@ -86,6 +87,7 @@ pub struct DesktopApp<A> {
     catalog_receiver: Option<Receiver<CatalogSnapshot>>,
     preference_events: Option<Receiver<ModelPreferenceEvent>>,
     preference_commands: Option<ModelPreferenceCommandSender>,
+    inspection_requests: Option<CatalogInspectionSender>,
     catalog: Option<CatalogSnapshot>,
     projection: Option<EngineProjection>,
     selection: SelectionWidgetState,
@@ -229,6 +231,7 @@ impl<A: Application> DesktopApp<A> {
             catalog_receiver: None,
             preference_events: None,
             preference_commands: None,
+            inspection_requests: None,
             catalog: None,
             projection: None,
             selection: SelectionWidgetState {
@@ -276,6 +279,9 @@ impl<A: Application> DesktopApp<A> {
     }
 
     pub fn with_model_selection_runtime(mut self, runtime: ModelSelectionRuntime) -> Self {
+        self.inspection_requests = runtime.inspection_requests();
+        self.catalog = None;
+        self.projection = None;
         self.catalog_receiver = Some(runtime.catalog);
         self.preference_events = Some(runtime.preference_events);
         self.preference_commands = Some(runtime.preference_commands);

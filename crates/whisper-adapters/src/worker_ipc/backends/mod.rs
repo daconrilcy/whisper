@@ -112,10 +112,6 @@ impl RuntimeModelCatalog {
         }
     }
 
-    pub(super) fn snapshot(&self) -> crate::model_catalog::CatalogSnapshot {
-        self.catalog.inspect(0)
-    }
-
     pub(super) fn bind_import(
         &self,
         request: &whisper_core::ports::ImportRequest,
@@ -226,8 +222,10 @@ impl RuntimeModelCatalog {
         &self,
         request: &whisper_core::ports::LiveRequest,
     ) -> Result<whisper_core::ports::LiveRequest, String> {
-        self.snapshot()
-            .bind_turbo_live_request(request, &self.known_historical_turbo_path)
+        let (_, snapshot) = self
+            .catalog
+            .inspect_requested_model(&request.model_path, &self.known_historical_turbo_path)?;
+        snapshot.bind_turbo_live_request(request, &self.known_historical_turbo_path)
     }
 
     pub(super) fn bind_native_unified_live(
@@ -236,8 +234,8 @@ impl RuntimeModelCatalog {
     ) -> Result<LiveRequest, String> {
         use whisper_core::model_catalog::ModelId;
         let id = self
-            .snapshot()
-            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)?;
+            .catalog
+            .resolve_requested_model(&request.model_path, &self.known_historical_turbo_path)?;
         if id != ModelId::ParakeetTdt06BV3 {
             return Err("ModelUnknown: native unified capture requires Parakeet TDT v3".into());
         }
@@ -270,9 +268,9 @@ impl RuntimeModelCatalog {
         String,
     > {
         use whisper_core::model_catalog::ModelId;
-        let snapshot = self.snapshot();
-        if snapshot
-            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)?
+        if self
+            .catalog
+            .resolve_requested_model(&request.model_path, &self.known_historical_turbo_path)?
             != ModelId::ParakeetTdt06BV3
         {
             return Err("ModelUnknown: la voie microphone Parakeet exige Parakeet TDT v3".into());
@@ -334,8 +332,8 @@ impl RuntimeModelCatalog {
     }
 
     pub(super) fn is_parakeet_live_request(&self, request: &LiveRequest) -> Result<bool, String> {
-        self.snapshot()
-            .resolve_model_identity(&request.model_path, &self.known_historical_turbo_path)
+        self.catalog
+            .resolve_requested_model(&request.model_path, &self.known_historical_turbo_path)
             .map(|id| id == whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
     }
 }

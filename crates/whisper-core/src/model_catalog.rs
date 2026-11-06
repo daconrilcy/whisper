@@ -35,6 +35,7 @@ pub struct ConfigurationKey {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModelAvailability {
+    Uninspected,
     Ready,
     Missing,
     Corrupt,

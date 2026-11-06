@@ -6,6 +6,61 @@ use std::{
 use whisper_core::{model_catalog::ModelId, model_registry::model};
 
 #[test]
+fn resolving_registered_paths_and_historical_alias_never_reads_models() {
+    let root = catalog_root(true);
+    let catalog = LocalModelCatalog::new(&root);
+    let historical = r"C:\legacy\large-v3-turbo.bin";
+    for id in [ModelId::WhisperLargeV3Turbo, ModelId::ParakeetTdt06BV3] {
+        let path = root.join(model(id).artifact.file_name);
+        assert_eq!(
+            catalog
+                .resolve_requested_model(&path.to_string_lossy(), historical)
+                .unwrap(),
+            id
+        );
+        assert_eq!(model_sha256_full_read_count(&path).unwrap(), 0);
+    }
+    assert_eq!(
+        catalog
+            .resolve_requested_model(&historical.replace('\\', "/").to_uppercase(), historical)
+            .unwrap(),
+        ModelId::WhisperLargeV3Turbo
+    );
+    assert!(
+        catalog
+            .resolve_requested_model("unregistered.gguf", historical)
+            .unwrap_err()
+            .starts_with("ModelUnknown:")
+    );
+    for record in whisper_core::model_registry::MODELS {
+        assert_eq!(
+            model_sha256_full_read_count(&root.join(record.artifact.file_name)).unwrap(),
+            0
+        );
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn targeted_inspection_preserves_generation_and_reads_only_the_requested_id() {
+    for id in [ModelId::WhisperLargeV3Turbo, ModelId::ParakeetTdt06BV3] {
+        let root = catalog_root(true);
+        let catalog = LocalModelCatalog::new(&root);
+        let snapshot = catalog.inspect_model(id, 17);
+        assert_eq!(snapshot.generation, 17);
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].id, id);
+        for record in whisper_core::model_registry::MODELS {
+            assert_eq!(
+                model_sha256_full_read_count(&root.join(record.artifact.file_name)).unwrap(),
+                u64::from(record.artifact.id == id)
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
 fn importing_parakeet_inspects_only_parakeet_and_full_catalog_still_inspects_both() {
     let root = catalog_root(true);
     let catalog = LocalModelCatalog::new(&root);

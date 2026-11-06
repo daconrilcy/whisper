@@ -25,8 +25,7 @@ function Convert-CargoArgsJson([string]$Json) {
 
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lotRoot = Join-Path $repo $LotRoot
-$cargoRoot = 'C:\wb\inspect-ciblee\cargo-target'
-$script:externalTargetRoot = 'C:\wb\inspect-ciblee\cargo-target'
+$cargoRoot = Join-Path $repo 'target/parakeet-tests/cargo-shared'
 $cargoHome = Join-Path $repo 'target/cargo-home-shared'
 $tempRoot = Join-Path $lotRoot 'temp'
 $scratchRoot = Join-Path $lotRoot 'scratch'
@@ -285,12 +284,17 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
 
 function Assert-WriteRoots {
     if (-not (Test-InRoot $lotRoot $repo)) { throw "Lot root must be inside the worktree: $lotRoot" }
+    $lotTargets = Join-Path $lotRoot 'targets'
+    if ((Get-FullPath $script:targetRoot) -ine (Get-FullPath $cargoRoot) -and
+        (-not (Test-InRoot $script:targetRoot $lotTargets) -or (Get-FullPath $script:targetRoot) -ieq (Get-FullPath $lotTargets))) {
+        throw 'Cargo target must be the shared worktree target or a selected target below the lot targets directory.'
+    }
     foreach ($path in @($lotRoot, $cargoRoot, $cargoHome, $tempRoot, $scratchRoot, $runRoot, $script:targetRoot)) { Assert-NoReparseChain $path 'write root' }
     if ((Get-FullPath $cargoHome) -ine (Get-FullPath (Join-Path $repo 'target/cargo-home-shared'))) { throw 'CARGO_HOME shared root differs from its declared persistent location.' }
     if (-not (Test-InRoot $tempRoot $lotRoot) -or -not (Test-InRoot $scratchRoot $lotRoot)) { throw 'Campaign roots escaped the lot root.' }
     if ($script:useConfigTarget) {
-        if ((Get-FullPath $script:targetRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'The no-variable mode requires its exact declared external target.' }
-    } elseif ((Get-FullPath $env:CARGO_TARGET_DIR) -ine (Get-FullPath $script:targetRoot)) { throw 'CARGO_TARGET_DIR differs from the selected target.' }
+        if ($null -ne [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')) { throw 'CARGO_TARGET_DIR must be absent in no-variable mode.' }
+    } elseif ([string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR) -or (Get-FullPath $env:CARGO_TARGET_DIR) -ine (Get-FullPath $script:targetRoot)) { throw 'CARGO_TARGET_DIR differs from the selected target.' }
     foreach ($name in @('TEMP','TMP','LOCALAPPDATA')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ([string]::IsNullOrWhiteSpace($value) -or -not (Test-InRoot $value $lotRoot)) { throw "$name is missing or outside the lot root." }
@@ -346,13 +350,22 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
     } finally { $process.Dispose() }
 }
 
+function Set-ProcessEnvironmentValue([string]$Name, [AllowNull()][object]$Value) {
+    if ($null -eq $Value) {
+        # A null passed to the .NET string parameter can leave an empty entry.
+        Remove-Item -LiteralPath "Env:$Name" -ErrorAction SilentlyContinue
+    } else {
+        [Environment]::SetEnvironmentVariable($Name,[string]$Value,'Process')
+    }
+}
+
 function Set-CleanEnvironment {
     foreach ($entry in @(Get-ChildItem Env: | Where-Object Name -Match '^(WHISPER_.*|PARAKEET_.*)$')) { Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue }
-    foreach ($name in $UnsetEnv) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }
+    foreach ($name in $UnsetEnv) { Set-ProcessEnvironmentValue $name $null }
     $script:runRoot = Join-Path $scratchRoot ((Get-Date -Format 'yyyyMMddTHHmmssfff') + '-' + [guid]::NewGuid().ToString('N'))
     foreach ($path in @($script:runRoot,(Join-Path $runRoot 'localappdata'),(Join-Path $tempRoot 'temp'),(Join-Path $tempRoot 'tmp'))) { Initialize-Directory $path 'isolated run directory' }
     $script:cargoTargetDirPresentBeforeClean = $null -ne [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
-    foreach ($name in @('CARGO_HOME','CARGO_TARGET_DIR','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG','TEMP','TMP','LOCALAPPDATA')) { [Environment]::SetEnvironmentVariable($name,$null,'Process') }
+    foreach ($name in @('CARGO_HOME','CARGO_TARGET_DIR','CARGO_INCREMENTAL','CARGO_PROFILE_DEV_DEBUG','TEMP','TMP','LOCALAPPDATA')) { Set-ProcessEnvironmentValue $name $null }
     $script:cargoTargetDirPresentAfterClean = $null -ne [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
     $env:CARGO_HOME = $cargoHome
     if (-not $script:useConfigTarget) { $env:CARGO_TARGET_DIR = $script:targetRoot }
@@ -364,13 +377,13 @@ function Set-CleanEnvironment {
 }
 
 function Set-CargoCommandEnvironment([string]$Subcommand) {
-    if ($Subcommand -eq 'clippy') { [Environment]::SetEnvironmentVariable('RUSTFLAGS',$null,'Process') }
+    if ($Subcommand -eq 'clippy') { Set-ProcessEnvironmentValue 'RUSTFLAGS' $null }
 }
 
 function Initialize-Roots {
     if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
     $roots = @($lotRoot,$cargoRoot,$cargoHome,$tempRoot,$scratchRoot)
-    if ($script:useConfigTarget) { $roots += $script:externalTargetRoot }
+    $roots += $script:targetRoot
     foreach ($path in $roots) { Assert-NoReparseChain $path 'lot root preflight' }
     foreach ($path in @($lotRoot,$tempRoot,$scratchRoot)) { Initialize-Directory $path 'lot root' }
 }
@@ -528,9 +541,9 @@ function Invoke-SelfTests {
         if (-not $rejected -or (Test-Path $outsideLot)) { throw 'Self-test did not reject an outside lot before creating it.' }
         $nCount++
     }
-    if ((Get-FullPath $cargoRoot) -cne 'C:\wb\inspect-ciblee\cargo-target' -or (Get-FullPath $cargoRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'Self-test found a noncanonical lot Cargo target.' }
-    $freshFixturePath = Get-FreshTargetPath $runRoot 'fresh-selftest-target'
-    if (-not (Test-InRoot $freshFixturePath $runRoot) -or (Get-FullPath $freshFixturePath) -ieq (Get-FullPath $cargoRoot)) { throw 'Fresh target is not distinct and under the lot root.' }
+    if ((Get-FullPath $cargoRoot) -ine (Get-FullPath (Join-Path $repo 'target/parakeet-tests/cargo-shared'))) { throw 'Self-test found a noncanonical worktree Cargo target.' }
+    $freshFixturePath = Get-FreshTargetPath $lotRoot ('selftest-' + [guid]::NewGuid().ToString('N'))
+    if (-not (Test-InRoot $freshFixturePath $lotRoot) -or (Get-FullPath $freshFixturePath) -ieq (Get-FullPath $cargoRoot)) { throw 'Fresh target is not distinct and under the lot root.' }
     $pCount += 2
     $existingFixtureLot = Join-Path $runRoot 'existing-fixture'
     Initialize-Directory $existingFixtureLot 'existing target fixture lot root'
@@ -547,6 +560,13 @@ function Invoke-SelfTests {
     $savedVariables = @{}
     try {
         foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        Set-ProcessEnvironmentValue 'WHISPER_N1_REVIEW' ''
+        if ($null -eq [Environment]::GetEnvironmentVariable('WHISPER_N1_REVIEW','Process') -or
+            [Environment]::GetEnvironmentVariable('WHISPER_N1_REVIEW','Process').Length -ne 0) { throw 'Self-test did not preserve a present empty variable.' }
+        $pCount++
+        Set-ProcessEnvironmentValue 'WHISPER_N1_REVIEW' $null
+        if ($null -ne [Environment]::GetEnvironmentVariable('WHISPER_N1_REVIEW','Process')) { throw 'Self-test did not restore an absent variable.' }
+        $pCount++
         $savedCargoHome = $env:CARGO_HOME
         try {
             $env:CARGO_HOME = Join-Path $runRoot 'unapproved-cargo-home'
@@ -556,38 +576,71 @@ function Invoke-SelfTests {
             $nCount++
         } finally { $env:CARGO_HOME = $savedCargoHome }
         foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW')) {
-            [Environment]::SetEnvironmentVariable($name,'not-cleared','Process')
+            Set-ProcessEnvironmentValue $name 'not-cleared'
             $rejected=$false
             try { Assert-WriteRoots } catch { $rejected=$true }
             if (-not $rejected) { throw "Self-test accepted surviving $name." }
-            [Environment]::SetEnvironmentVariable($name,$null,'Process')
+            Set-ProcessEnvironmentValue $name $null
+            if ($null -ne [Environment]::GetEnvironmentVariable($name,'Process')) { throw "Self-test did not remove $name." }
             $nCount++
         }
         [Environment]::SetEnvironmentVariable('RUSTFLAGS','-Dwarnings','Process')
         Set-CargoCommandEnvironment 'clippy'
-        if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('RUSTFLAGS'))) { throw 'Self-test did not clear RUSTFLAGS for clippy.' }
+        if ($null -ne [Environment]::GetEnvironmentVariable('RUSTFLAGS','Process')) { throw 'Self-test did not remove RUSTFLAGS for clippy.' }
         $pCount++
         [Environment]::SetEnvironmentVariable('RUSTFLAGS','-Dwarnings','Process')
         Set-CargoCommandEnvironment 'build'
         if ([Environment]::GetEnvironmentVariable('RUSTFLAGS') -cne '-Dwarnings') { throw 'Self-test changed RUSTFLAGS for a non-clippy command.' }
         $pCount++
     } finally {
-        foreach ($name in $savedVariables.Keys) { [Environment]::SetEnvironmentVariable($name,$savedVariables[$name],'Process') }
+        foreach ($name in $savedVariables.Keys) { Set-ProcessEnvironmentValue $name $savedVariables[$name] }
     }
-    if ($script:useConfigTarget) {
-        $oldTargetEnv = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
-        try {
-            [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR','C:\\invalid-selftest-target','Process')
-            $cargo = (Get-Command cargo -ErrorAction Stop).Source
-            $config = 'build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot)
-            $probe = Invoke-Captured $cargo @('metadata','--offline','--locked','--no-deps','--format-version','1','--config',$config) 'selftest-cargo-target'
-            if ($probe.ExitCode -ne 0) { throw "Self-test cargo metadata failed ($($probe.ExitCode)): $($probe.ErrPath)" }
-            if ($probe.CargoTargetEnvPresent) { throw 'Self-test found CARGO_TARGET_DIR in the Cargo child environment.' }
-            $observedTarget = (ConvertFrom-Json $probe.Stdout).target_directory
-            if ((Get-FullPath $observedTarget) -ine (Get-FullPath $script:externalTargetRoot)) { throw "Self-test Cargo target_directory mismatch: $observedTarget" }
-            "CARGO_CHILD_ENV CARGO_TARGET_DIR=ABSENT target_directory=$observedTarget"
-            $pCount++
-        } finally { [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR',$oldTargetEnv,'Process') }
+    $savedTargetRoot = $script:targetRoot
+    $savedConfigTarget = $script:useConfigTarget
+    $oldTargetEnv = [Environment]::GetEnvironmentVariable('CARGO_TARGET_DIR','Process')
+    try {
+        foreach ($withoutVariable in @($false,$true)) {
+            $script:useConfigTarget = $withoutVariable
+            foreach ($target in @($cargoRoot,$freshFixturePath)) {
+                $script:targetRoot = $target
+                Set-ProcessEnvironmentValue 'CARGO_TARGET_DIR' $(if ($withoutVariable) { $null } else { $target })
+                Assert-WriteRoots
+                $pCount++
+                $metadataArgs = @('metadata','--offline','--locked','--no-deps','--format-version','1')
+                if ($withoutVariable) {
+                    $metadataArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $target)))
+                    # Prove that the process boundary removes even a subsequently injected value.
+                    [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR','C:\invalid-selftest-target','Process')
+                }
+                $probe = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $metadataArgs ('selftest-cargo-target-' + $pCount)
+                if ($probe.ExitCode -ne 0) { throw "Self-test cargo metadata failed ($($probe.ExitCode)): $($probe.ErrPath)" }
+                if ($probe.CargoTargetEnvPresent -eq $withoutVariable) { throw 'Self-test found an unexpected Cargo child target environment.' }
+                $observedTarget = (ConvertFrom-Json $probe.Stdout).target_directory
+                if ((Get-FullPath $observedTarget) -ine (Get-FullPath $target)) { throw "Self-test Cargo target_directory mismatch: $observedTarget" }
+                "CARGO_CHILD_ENV CARGO_TARGET_DIR_present=$($probe.CargoTargetEnvPresent) target_directory=$observedTarget"
+                $pCount++
+            }
+            foreach ($invalidTarget in @('C:\wb\inspect-ciblee\cargo-target',(Join-Path $repo 'target/unapproved'),(Join-Path $lotRoot 'targets'))) {
+                $script:targetRoot = $invalidTarget
+                Set-ProcessEnvironmentValue 'CARGO_TARGET_DIR' $(if ($withoutVariable) { $null } else { $invalidTarget })
+                $rejected = $false
+                try { Assert-WriteRoots } catch { $rejected = $true }
+                if (-not $rejected) { throw "Self-test accepted an unapproved target: $invalidTarget" }
+                $nCount++
+            }
+            $script:targetRoot = $cargoRoot
+            foreach ($invalidEnv in @('C:\invalid-selftest-target',$(if ($withoutVariable) { $cargoRoot } else { $null }))) {
+                Set-ProcessEnvironmentValue 'CARGO_TARGET_DIR' $invalidEnv
+                $rejected = $false
+                try { Assert-WriteRoots } catch { $rejected = $true }
+                if (-not $rejected) { throw 'Self-test accepted an invalid CARGO_TARGET_DIR environment.' }
+                $nCount++
+            }
+        }
+    } finally {
+        $script:targetRoot = $savedTargetRoot
+        $script:useConfigTarget = $savedConfigTarget
+        Set-ProcessEnvironmentValue 'CARGO_TARGET_DIR' $oldTargetEnv
     }
     "CARGO_TARGET_DIR_CLEANUP present_before=$script:cargoTargetDirPresentBeforeClean present_after=$script:cargoTargetDirPresentAfterClean"
     'PASS self-test parser cases: positives={0}, negatives={1}.' -f $pCount,$nCount
@@ -618,7 +671,6 @@ Assert-AllowedUnset $UnsetEnv
 $lotRoot = Resolve-LotRoot $LotRoot
 if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
 $script:useConfigTarget = [bool]$WithoutCargoTargetDir
-if ($script:useConfigTarget -and ($FreshTarget -or $ExistingTarget)) { throw 'The no-variable mode uses only its fixed external target.' }
 if ($FreshTarget) {
     if ($ExistingTarget) { throw 'Choose either -FreshTarget or -ExistingTarget, not both.' }
     $script:targetRoot = Get-FreshTargetPath $lotRoot $FreshTarget
@@ -627,8 +679,6 @@ if ($FreshTarget) {
     Assert-NoReparseChain (Split-Path -Parent $script:targetRoot) 'fresh target parent'
 } elseif ($ExistingTarget) { $script:targetRoot = Get-ExistingTargetPath $lotRoot $ExistingTarget }
 else { $script:targetRoot = $cargoRoot }
-if ($script:useConfigTarget) { $script:targetRoot = $script:externalTargetRoot }
-if ($script:useConfigTarget -and (Get-FullPath $script:targetRoot) -cne (Get-FullPath $script:externalTargetRoot)) { throw 'Unexpected no-variable target path.' }
 if ($Mode -eq 'Structure' -and $CargoArgs.Count -gt 0) { throw 'Structure mode does not accept Cargo arguments.' }
 Initialize-Roots
 Set-CleanEnvironment
@@ -650,7 +700,7 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $metadataArgs 'workspace-metadata'
     if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode). If dependencies are missing, run guarded cargo fetch --locked." }
     $metadata = $metadataRun.Stdout | ConvertFrom-Json
-    if ($script:useConfigTarget -and ((Get-FullPath $metadata.target_directory) -ine (Get-FullPath $script:externalTargetRoot))) { throw "Cargo metadata target_directory mismatch: $($metadata.target_directory)" }
+    if ((Get-FullPath $metadata.target_directory) -ine (Get-FullPath $script:targetRoot)) { throw "Cargo metadata target_directory mismatch: $($metadata.target_directory)" }
     $members = @($metadata.packages | ForEach-Object name)
     $checked = Test-CargoArguments $CargoArgs $members
 }
@@ -668,9 +718,8 @@ if ($FreshTarget) {
     if (Test-Path -LiteralPath $script:targetRoot) { throw "Metadata created the target that was required to be fresh: $script:targetRoot" }
     Initialize-Directory (Split-Path -Parent $script:targetRoot) 'fresh target parent'
     Initialize-Directory $script:targetRoot 'fresh cargo target'
-} elseif ($script:useConfigTarget -and -not (Test-Path -LiteralPath $script:targetRoot)) {
-    Initialize-Directory (Split-Path -Parent $script:targetRoot) 'external target parent'
-    Initialize-Directory $script:targetRoot 'external cargo target'
+} elseif (-not (Test-Path -LiteralPath $script:targetRoot -PathType Container)) {
+    throw "Shared Cargo target must already exist: $script:targetRoot"
 }
 if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$cargoArgs)) target=$script:targetRoot"; exit 0 }
 Assert-WriteRoots

@@ -113,6 +113,7 @@ pub enum LanguageChoice {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RefusalCause {
     ModelUnknown,
+    ModelNotInspected,
     ModelMissing,
     ModelCorrupt,
     ModelCancelled,
@@ -459,6 +460,7 @@ fn find_capability<'a>(
 
 fn model_status_cause(model: &ModelDefinition) -> Option<RefusalCause> {
     match model.availability {
+        ModelAvailability::Uninspected => Some(RefusalCause::ModelNotInspected),
         ModelAvailability::Ready => None,
         ModelAvailability::Missing => Some(RefusalCause::ModelMissing),
         ModelAvailability::Corrupt => Some(RefusalCause::ModelCorrupt),
