@@ -26,3 +26,5 @@ Dernier événement Système : `527992`, ID19 du 05/11, APIC24. MemWatch intensi
 **Preuves :** [dossier du lot](C:/wb/native-qualif), `steps/*/step.json`, `steps/Cpu1/guard/*/guard-events.jsonl`, `cpu/qualif-cpu1/manifest.json`, reçus de copies nombre/SHA-256, `installed-final-check.json`. Premier échec N2 et STOP conservés sous leurs noms `failed-1`. Référence N2 conforme aux 21 fichiers épinglés ; fixtures EN/FR existantes.
 
 **Rétention et dettes :** [inventaire et commandes humaines](C:/wb/native-qualif/RETENTION.md), aucune suppression de clôture exécutée ; liens et workspace historique signalés. Renommage de la garde à corriger/qualifier avant décision de reprise. `GGML_NATIVE=ON` demandé, instructions effectives non enregistrées (configuration interrompue), portabilité non qualifiée. Remplacement des DLL installées : décision humaine distincte ; leur validité fonctionnelle après undervolt demeure non établie par ce lot.
+
+Complément ultérieur : [reprise, builds achevés et verdicts CPU/GPU](BUILD-NATIF-QUALIF-REPRISE1.md).
