@@ -30,4 +30,16 @@ Le CLEAN concerne uniquement le cadrage. Mesures humaines, tests produit et remi
 
 ## PLANS
 
-À produire et relire après la revue DESIGN, dans la mission de planification demandée. Aucun plan n'autorise le code.
+Reviewer indépendant inchangé `/root/design_review`. Parent DESIGN `09f5f976` vérifié. Première revue PLANS sur `4420df17b9ce4f90440c3b6217e52fac8ccb0f33`, lecture seule, HEAD/diff local contrôlés avant/après : **FINDINGS**, sans DESIGN_CHANGE_REQUIRED.
+
+### P-01 — BLOQUANT / High / REQUIRED
+
+La commande commune de construction CPU/GPU peut unifier la feature CUDA de leur dépendance `whisper-rs 0.16.0` et rendre le CPU dépendant de CUDA, contraire à REQ-06/AC-08. [Référence primaire Cargo consultée par le reviewer](https://doc.rust-lang.org/cargo/reference/features.html#feature-unification). Fermeture : workers inchangés existants identifiés/vérifiés ou constructions réellement séparées, PE explicite de l'EXE CPU livré, provenance et copies avant/après ; PE des harnais insuffisant pour qualifier les EXE.
+
+### P-02 — IMPORTANT / Medium / REQUIRED
+
+L'appellation build Rust ne garantit pas absence de production native : `whisper-rs-sys 0.15.0/build.rs` appelle CMake. La présence des DLL/cache ne prouve pas sa réutilisation sans reconstruction. Fermeture : voie autorisée démontrée avant appel, réutilisation workers inchangés ; si natif nécessaire, tâche bloquée et décision précise requise, aucun contournement.
+
+Autres conclusions : dix tâches/graphe cohérents ; baseline avant correctifs ; onze AC reliés aux vrais consommateurs, notamment AC-11 ; garde, N1, PE, revue et remise humaine distingués ; aucun autre REQUIRED.
+
+Correction PLAN v2 attribuée `/root/plan` : retirer toute construction workers, identifier/protéger mêmes EXE avant/après par provenance/SHA/PE ; préflight de toutes les commandes compilantes pour scripts natifs/réseau enfant. Découverte complémentaire statique : desktop→adapters→webrtc-vad, cc libfvad et git submodule possibles. Preuve de voie conforme non fournie : dépendance d'exécution explicite, pas de succès prétendu. Revue de correction à effectuer ; auteur ne ferme aucun constat.

@@ -1,12 +1,12 @@
 Avancée : plan proposé en dix tâches, relié au cadrage revu CLEAN.
-Blocage : revue PLANS à effectuer ; protocole et autorisation d'exécution restent requis.
+Blocage : voie de compilation sans production native/réseau enfant non démontrée ; revue PLANS de correction à effectuer.
 Décision : préparer l'implémentation sans la lancer.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
 ## 1. Parents et portée
 
-Parent : [cadrage](evo-inspect-micro-demarrage.md), Git `09f5f976` ; contrats revus CLEAN sur `426c16ec` par `/root/design_review`, D-01 CLOSED après un cycle. [Relevé de revue](revue-inspect-micro-demarrage.md). Code produit de référence : `48827173`. Contribution PLAN v1 de `/root/plan`, lecture seule, intégrée par l'auteur principal. Autorité : demande du 6 novembre 2026 « ok defini le cadrage et le plan d'implementation a partir de ce besoin ».
+Parent : [cadrage](evo-inspect-micro-demarrage.md), Git `09f5f976` ; contrats revus CLEAN sur `426c16ec` par `/root/design_review`, D-01 CLOSED après un cycle. [Relevé de revue](revue-inspect-micro-demarrage.md). Code produit de référence : `48827173`. Contributions PLAN v1 et correction v2 P-01/P-02 de `/root/plan`, lecture seule, intégrées par l'auteur principal. Autorité : demande du 6 novembre 2026 « ok defini le cadrage et le plan d'implementation a partir de ce besoin ».
 
 Ce plan applique DEC-01 à DEC-05 : ciblage démarrage/micro, connaissance non inspectée explicite, SHA hors mutex global et revalidation, commandes explicites sans rejeu automatique. Il préserve CPU/GPU/Auto, sélection micro, intégrité, audio, qualité et sorties. Aucun nouveau moteur/modèle, dépendance, feature, unsafe, accès réseau, service, watcher, installation ou build natif. SHA workers, algorithmes file/reprise et formats durables inchangés.
 
@@ -19,17 +19,17 @@ Même code/contrats partagés, aucune parallélisation d'édition. Coûts indica
 | ID | Travail, owner et sortie | Prérequis typés | Couverture / coût |
 |---|---|---|---|
 | T1 — Préflight | Principal : Git/design/plan/revues, accord, responsabilités concurrentes, AGENTS, espace ≥30 Gio, outils/ressources. Arrêter Q-M01/03/04 et identifier provenance du témoin. | DOCUMENT : cadrage revu, plan accepté, accord courant | Tous ; 20–40 min |
-| T2 — Garde et témoin | `rust_implementer` : garde N1 et auto-tests DEC-04, cible standard interne et mode sans variable, refus externe. Auto-tests avant Cargo. Préparer témoin Rust attribuable à `48827173` si aucun binaire équivalent vérifiable ; aucune modification produit ou reconstruction DLL. | EXECUTION : T1 ; ressources de build présentes | Préalable tous ; 45–90 min + build |
+| T2 — Garde et témoin | `rust_implementer` : garde N1/auto-tests DEC-04 avant Cargo. Identifier témoin desktop attribuable à `48827173` et workers Turbo préexistants inchangés (provenance/SHA/PE). Si reconstruction desktop nécessaire, voie sans production native/réseau enfant démontrée avant appel ; sinon arrêt et décision précise. Aucun worker reconstruit. | EXECUTION : T1 ; artefacts attribuables et préflight de la section 4 | Préalable tous ; 45–90 min + éventuel build autorisé |
 | T3 — Référence humaine | Utilisateur : mesurer avant avec protocole figé, vérifier signe de capture active. Principal : relever valeurs, configurations, profil et provenance. Aucun correctif produit avant cette référence. | CODE/ARTEFACT : témoin T2 ; EXECUTION : protocole/ressources vérifiés | REQ-05 / AC-10 ; 20–60 min |
 | T4 — Cache SHA | `rust_implementer` : index global bref, coordination par clé, IO/SHA hors global, revalidation après attente et lecture, erreurs/poison/compteurs. Tests séparés concurrence, mutation et reprise après erreur. | EXECUTION : T2/T3 ; DOCUMENT : DEC-02 | REQ-03/04 / AC-05/06/07 ; 2–4 h |
 | T5 — Quatre bindings | `rust_implementer` : résolveur commun sans lecture intégrale, inspection par ModelId, ciblage des quatre vrais points et contrôles aval/replis inchangés. Incrément vérifiable par tests synthétiques. | CODE : T4 ; EXECUTION : tests T4 réussis | REQ-02/06 / AC-03/04 ; 1–3 h |
 | T6 — Démarrage/admission/UI | `rust_implementer` : incrément cohérent core/adapters/desktop : Uninspected/refus, catalogue complet, service extrait, boîte bornée sélection/commandes, versions et publication, contrôleur/widget, helpers Parakeet. DEC-05 vrai wrapper, avis de relance sans commande/proof GPU conservée. Tests vrais consommateurs. | CODE : T5 ; DOCUMENT : DEC-01/05 | REQ-01/06/08 / AC-01/02/09/11 ; 3–6 h |
-| T7 — Vérifications | `rust_implementer` : diff, format, ciblés, référence N1 CPU, build Rust et lints via garde. PE des harnais workers avant exécution. Résultats attribuables au candidat, sans validation matérielle/fenêtre déduite. | CODE : T4–T6 ; EXECUTION : préflight N1 renouvelé | Tous automatisables ; 45–120 min + build |
+| T7 — Vérifications | `rust_implementer` : diff, format, ciblés, référence N1 CPU, build/lints via garde uniquement si préflight démontre compatibilité suspension native et absence de réseau enfant. Inclut tests/--no-run/check/Clippy pouvant déclencher un build.rs. PE harnais avant exécution. Une sélection bloquée reste NON EXÉCUTÉE, jamais supprimée de la référence ni annoncée verte. | CODE : T4–T6 ; EXECUTION : préflight N1 et condition native section 4 | Tous automatisables ; 45–120 min + build autorisé |
 | T8 — Revue/corrections | Principal confie le candidat à `rust_review_coordinator` ; reviewer indépendant, corrections par `rust_implementer`, deux cycles maximum. Rejouer contrôles affectés puis vérifications finales requises. Reviewer seul ferme/déclare CLEAN ; sinon LIVRÉ AVEC RÉSERVES. | EXECUTION : T7 réussi, diff/preuves attribuables | Tous ; 1–3 h |
-| T9 — Remise/après humain | Principal : remise intra dépôt du profil réellement construit, routages/ressources contrôlés. Utilisateur : CPU/GPU/Auto accessibles, audio/sorties/interruption et mesures après comparables T3. Aucun lancement fenêtre ou installation par l'agent. | CODE : candidat revu ; EXECUTION : build/remise/ressources équivalents T3 | AC-08/09/10 ; 30–90 min + build |
+| T9 — Remise/après humain | Principal : remise intra dépôt du profil réel, mêmes workers Turbo préexistants avant/après, provenance/SHA/PE des copies et ressources effectives vérifiées. Utilisateur : CPU/GPU/Auto accessibles, audio/sorties/interruption et mesures après comparables T3. Artefact compatible manquant → remise bloquée, aucun fallback reconstruction/installation. | CODE : candidat revu ; EXECUTION : desktop attribuable, workers/ressources équivalents T3 | AC-08/09/10 ; 30–90 min + build autorisé |
 | T10 — Clôture | Principal : bilan une page, résultats/limites, archivage durable hors target, rétention applicable, diff/commits locaux. Nettoyage seulement exact, sûr et autorisé selon AGENTS ; préserver caches/cible partagés. Aucun push. | EXECUTION : résultats T7–T9 ou réserves rapportées | Tous ; 20–45 min |
 
-Graphe sans cycle : T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9 → T10. Un exécutable installé ancien non attribuable à la base ne prouve pas la comparaison du lot. T2 peut construire les exécutables Rust utiles via garde corrigée ; T3 reste antérieur au premier correctif produit T4.
+Graphe sans cycle : T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9 → T10. Un exécutable installé ancien non attribuable à la base ne prouve pas la comparaison du lot. T2 ne reconstruit pas les workers ; un build desktop via garde corrigée reste conditionné à la voie autorisée démontrée. T3 reste antérieur au premier correctif produit T4.
 
 ## 3. Chemins proposés
 
@@ -54,6 +54,10 @@ Relatifs à `C:/dev/whisper`. Aucun chemin supplémentaire implicite. Les nouvea
 **Tout est NOT RUN.** PowerShell 7, cwd `C:/dev/whisper`. Cible standard `target/parakeet-tests/cargo-shared/`, cache persistant `target/cargo-home-shared/` : présence observée le 6 novembre, contenu/canonicalité/jonctions à vérifier avant exécution. Aucune cible externe INSPECT-CIBLEE transférée. Les cibles fraîches restent sous G9 via `-FreshTarget` ; elles ne sont pas nécessaires par défaut.
 
 Avant premier Cargo : contrôle des responsabilités Git et changements, outil/cible/features/dépendances natives par commande ; états READY/MISSING/NOT CHECKED/NOT REQUIRED attribués. La garde isole TEMP/TMP/LOCALAPPDATA, contrôle racines/environnement/espace, fixe `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, capture stdout/stderr/codes. Aucun Cargo direct ; aucune modification de profil/config utilisateur. Le cache hors ligne absent donne un diagnostic, pas un téléchargement implicite.
+
+**Préalable d'exécution natif non démontré.** Lectures statiques du plan writer/reviewer : workers CPU/GPU partagent `whisper-rs 0.16.0`, GPU active CUDA ; `whisper-rs-sys 0.15.0/build.rs` appelle CMake `config.build()`. Desktop → adapters → `webrtc-vad 0.4.0/build.rs` appelle `cc::Build::compile("libfvad")` et peut lancer `git submodule update --init` si `resources/libfvad/.git` manque. Sources locales du cache sous `target/cargo-home-shared/registry/src/index.crates.io-1949cf8c6b5b557f/`, à revérifier avant exécution. Cargo `--offline --locked` ne confine pas le réseau des enfants.
+
+Tout appel compilant, testant ou lintant susceptible d'activer ces scripts est interdit tant que la voie sans production native suspendue et sans réseau enfant n'est pas démontrée AVANT appel. La seule présence de DLL, EXE ou cache ne suffit pas. Si une reconstruction native serait nécessaire, arrêter la tâche consommatrice et demander la décision précise applicable ; aucun contournement par option/env/cible fraîche ou modification des dépendances. Le plan documentaire reste exploitable, mais T2/T3/T7/T9 et leurs descendants concernés sont ACTION_REQUIRED à cette entrée. Format/lecture statique ne remplacent aucun test manquant.
 
 Après correction T2, commandes proposées :
 
@@ -82,8 +86,7 @@ pwsh -NoProfile -File ci/guard-level1.ps1 -LotRoot target/parakeet-tests/inspect
 | Contrôleur | `["test","--offline","--locked","-p","whisper-desktop","catalog_inspection"]` |
 | Widget | `["test","--offline","--locked","-p","whisper-desktop","--test","model_selection_ui"]` |
 | Clippy | `["clippy","--offline","--locked","-p","whisper-core","-p","whisper-adapters","-p","whisper-desktop","--all-targets"]` |
-| Build desktop personnel | `["build","--offline","--locked","--release","-p","whisper-desktop","--features","personal-install"]` |
-| Workers Turbo remise | `["build","--offline","--locked","--release","-p","whisper-worker-cpu","-p","whisper-worker-gpu"]` |
+| Build desktop personnel conditionnel — NON EXÉCUTÉ tant que voie sans production native/réseau enfant non démontrée | `["build","--offline","--locked","--release","-p","whisper-desktop","--features","personal-install"]` |
 
 Les modules/tests nouveaux portent ces noms de filtres ; vérifier nombre et noms réellement exécutés, jamais zéro test présenté comme succès. Le test root compile le module consommé par le vrai binaire/composition, sans remplacer le wrapper par un helper isolé. L'injection de lecteur/qualification reste privée, sans API publique ou champ/branche produit réservé aux tests.
 
@@ -103,7 +106,7 @@ Cette sélection couvre les membres par défaut. Ajouter les trois sélections C
 
 Relever les chemins exacts de tous les harnais affichés. Avant leur première exécution : `pwsh -NoProfile -File ci/check-worker-imports.ps1 -Kind Cpu -Path '<harnais exact>'` pour CPU/common, `-Kind ParakeetCpu` pour Parakeet CPU. Puis lancer via garde les trois `test` correspondants sans `--no-run`. Les inventaires éventuels utilisent `-- --list` après PE, aucun corps GPU en N1. Aucun triplement de campagne historique. Aucun `native-tests`, `recette-hooks` release, argument inconnu ou téléchargement ajouté.
 
-La présence des ressources natives nécessaires à un build Rust est vérifiée avant celui-ci ; absence → blocage de cette tâche, aucune reconstruction native. Un exécutable préexistant utilisé pour la remise est identifié par provenance/profil et contrôlé avant/après ; la présence d'un fichier ne suffit pas.
+Les commandes test/--no-run/Clippy/build ci-dessus sont des propositions CONDITIONNELLES à ce préalable, jamais des autorisations de reconstruction native. Réutiliser exclusivement les workers Turbo préexistants et inchangés ; aucune commande de construction workers ne figure dans ce plan. Pour chaque copie livrée avant/après : provenance/profil, SHA identiques aux fichiers sélectionnés, et PE explicite des exécutables CPU/GPU (`-Kind Cpu`/`-Kind Gpu`) ; les tests PE sur harnais ne qualifient pas ces EXE. Absence d'un worker compatible ou desktop attribuable → blocage remise, pas reconstruction implicite.
 
 ## 5. Carte d'exécutabilité
 
@@ -129,7 +132,7 @@ Avant compilation, rechercher tous les consommateurs de `ModelAvailability` et `
 
 DEC-P01 acceptée : clic micro → **capture réellement active**, constatée sur la session/source courante par progression des échantillons. Avant T3 : identifier précisément cet indicateur pour chaque route retenue. Restent à valider avec l'utilisateur : Q-M01 lancement → interface utilisable ; Q-M03 comparaison sans seuil ; Q-M04 configurations et six répétitions proposées. Même méthode avant/après, distinction processus neuf/cache OS, aucun disque froid supposé. Aucune installation ou fenêtre n'est lancée par cette mission documentaire.
 
-Profil proposé identique avant/après : `personal-install`. Dossiers G9 : desktop et deux workers Turbo à côté. Workers Parakeet, leurs DLL et modèles chargés depuis l'installation stable effective selon AGENTS : vérifier présence, routage et SHA requis avant remise. Ne pas ajouter de copies Parakeet/DLL que le profil n'ouvre pas. Préserver le dossier avant pour éviter écrasement par le build après. Aucun binaire commité. Les accès/écritures nécessaires à la recette Windows sont réalisés par l'utilisateur ; toute installation agent hors dépôt demanderait un accord distinct.
+Profil proposé identique avant/après : `personal-install`. Dossiers G9 : desktop et les mêmes deux workers Turbo préexistants à côté, copies avant/après contrôlées par SHA/PE/provenance. Workers Parakeet, leurs DLL et modèles chargés depuis l'installation stable effective selon AGENTS : vérifier présence, routage et SHA requis avant remise. Ne pas ajouter de copies Parakeet/DLL que le profil n'ouvre pas. Préserver le dossier avant pour éviter écrasement par le build après. Aucun binaire commité. Les accès/écritures nécessaires à la recette Windows sont réalisés par l'utilisateur ; toute installation agent hors dépôt demanderait un accord distinct.
 
 Ni garde ni lanceur ne créent l'état produit (settings/logs/config) pour masquer un défaut de premier lancement. Un manque est un constat produit ; toute correction hors chemins prévus revient à l'arbitrage approprié.
 
