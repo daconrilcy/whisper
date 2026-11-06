@@ -1,6 +1,6 @@
-Avancée : DESIGN revu CLEAN ; D-01 fermé après un cycle de correction.
-Blocage : aucun pour la conception ; plan à produire et relire.
-Décision : passer à la planification autorisée, sans code.
+Avancée : DESIGN et PLANS revus CLEAN documentaire, un cycle de correction chacun.
+Blocage : exécution ACTION_REQUIRED ; voie sans production native/réseau enfant non démontrée.
+Décision : livrer les documents revus sans autorisation de coder.
 
 # INSPECT-MICRO-DEMARRAGE — revues documentaires
 
@@ -43,3 +43,13 @@ L'appellation build Rust ne garantit pas absence de production native : `whisper
 Autres conclusions : dix tâches/graphe cohérents ; baseline avant correctifs ; onze AC reliés aux vrais consommateurs, notamment AC-11 ; garde, N1, PE, revue et remise humaine distingués ; aucun autre REQUIRED.
 
 Correction PLAN v2 attribuée `/root/plan` : retirer toute construction workers, identifier/protéger mêmes EXE avant/après par provenance/SHA/PE ; préflight de toutes les commandes compilantes pour scripts natifs/réseau enfant. Découverte complémentaire statique : desktop→adapters→webrtc-vad, cc libfvad et git submodule possibles. Preuve de voie conforme non fournie : dépendance d'exécution explicite, pas de succès prétendu. Revue de correction à effectuer ; auteur ne ferme aucun constat.
+
+### Vérification de correction PLANS
+
+Reviewer inchangé `/root/design_review`, plan complet et diff `4420df17..62f309f0`, parent DESIGN inchangé, révision exacte `62f309f0a44fd313ecd1eab1bf033c396daaa551`. HEAD et absence de diff local sur les documents vérifiés directement. Verdict : **CLEAN documentaire — P-01 et P-02 CLOSED**, après un cycle de correction ; exécution **ACTION_REQUIRED**.
+
+Le reviewer confirme le retrait de la construction workers et les contrôles EXE avant/après, le blocage des commandes build.rs avant toute voie non démontrée, sans contournement ni succès supposé par présence DLL/cache. Il vérifie directement le build.rs webrtc-vad (git submodule et compilation libfvad possibles), donc la réserve touche aussi desktop/adapters. Aucun REQUIRED documentaire restant. Aucune compilation ni exécution de test. Le plan ne peut pas être présenté comme immédiatement exécutable ou comme une autorisation de coder.
+
+## Vérifications de la mission documentaire
+
+Auteur principal : `git diff --check` réussi, chemins du diff confrontés à la mission ; dix tâches et onze lignes d'acceptation vérifiées dans le plan. Seuls les trois documents de cadrage/plan/revue ont été ajoutés depuis `48827173`. Aucune commande Cargo, compilation, installation, mesure de performance ou validation Windows. Commits locaux uniquement, aucun push. Les vérifications de contenu DESIGN/PLANS et la fermeture des constats appartiennent au reviewer identifié ci-dessus.

@@ -1,6 +1,6 @@
-Avancée : plan proposé en dix tâches, relié au cadrage revu CLEAN.
-Blocage : voie de compilation sans production native/réseau enfant non démontrée ; revue PLANS de correction à effectuer.
-Décision : préparer l'implémentation sans la lancer.
+Avancée : plan complet en dix tâches, revue indépendante CLEAN documentaire.
+Blocage : voie de compilation sans production native/réseau enfant non démontrée ; exécution ACTION_REQUIRED.
+Décision : livrer le plan revu, sans annoncer une exécution immédiate ni autoriser le code.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -11,6 +11,8 @@ Parent : [cadrage](evo-inspect-micro-demarrage.md), Git `09f5f976` ; contrats re
 Ce plan applique DEC-01 à DEC-05 : ciblage démarrage/micro, connaissance non inspectée explicite, SHA hors mutex global et revalidation, commandes explicites sans rejeu automatique. Il préserve CPU/GPU/Auto, sélection micro, intégrité, audio, qualité et sorties. Aucun nouveau moteur/modèle, dépendance, feature, unsafe, accès réseau, service, watcher, installation ou build natif. SHA workers, algorithmes file/reprise et formats durables inchangés.
 
 **Planification autorisée ; implémentation non autorisée.** Avant exécution : plan accepté et accord écrit précis dans la session courante couvrant lot, chemins, campagnes et dossiers de remise. Push séparé. Aucun travail ci-dessous n'a été exécuté dans cette mission documentaire.
+
+Revue finale PLANS : `/root/design_review`, **CLEAN documentaire** sur `62f309f0a44fd313ecd1eab1bf033c396daaa551`, P-01/P-02 CLOSED après un cycle de correction. Aucun REQUIRED documentaire restant ; exécution **ACTION_REQUIRED**, notamment préalable natif/réseau enfant et protocole de référence. Les présentes lignes de statut enregistrent ce verdict sans changer les tâches/contrats revus.
 
 ## 2. Dix tâches séquentielles
 
