@@ -25,3 +25,5 @@ N1 exécuté par la garde avec `-WithoutCargoTargetDir`, `test --offline --locke
 **Limites :** sélections worker-cpu/worker-parakeet-cpu et validation native/Windows complète NON EXÉCUTÉES ; distinctes du N1 par défaut désormais vert. Aucun moteur suspendu ou worker livré reconstruit, aucun téléchargement ; libfvad seule compilation C autorisée. Pas de nouvelle mesure de performance revendiquée pour ce correctif.
 
 **Preuves/rétention :** [archive](raw/correction-n1-micro-synthetique.zip), 34 journaux, arborescence et chaque SHA vérifiés ; ZIP SHA-256 `f79bfad9bc3c97357f3f2e9b2a413c5dbf3fc1228b30635375ee4297d97b4efc`. Cible/cache partagés préservés, aucun cache/cible isolé à supprimer ni nettoyage manuel ; environ 431 Gio libres. Commits locaux, binaires non suivis, aucune fusion ni push.
+
+[Complément : validation des sélections workers CPU et Parakeet CPU](validation-workers-inspect-micro-demarrage.md).

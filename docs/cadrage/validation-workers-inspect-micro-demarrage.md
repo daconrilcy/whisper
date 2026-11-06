@@ -1,23 +1,26 @@
-Avancée : Parakeet CPU exécuté, 26 réussis/0 échec/11 ignorés ; common déjà vérifié.
-Blocage : aucun prérequis d'autorisation restant ; préflight et tests Turbo CPU à exécuter.
-Décision : exception native CPU ponctuelle acceptée, reprendre sous garde N1.
+Avancée : les trois sélections workers N1 disposent de résultats réussis.
+Blocage : aucun pour cette validation ; tests natifs ignorés et corps GPU non exécutés.
+Décision : clôturer les sélections workers, conserver séparées les limites de qualification native.
 
-# Validation des workers — mandat du 6 novembre 2026
+# Validation des workers — clôture du 6 novembre 2026
 
-Demande courante : « il reste à faire : les tests des workers, toujours non exécutés ». Candidat `3251ed41`, source corrigée `a2ef198d`. N1 membres par défaut : 774 réussis/0 échec/128 ignorés ; worker-common : 11 réussis/1 ignoré avec PE préalable, preuve encore applicable car ses entrées sont inchangées. Les sélections restantes sont worker-cpu et worker-parakeet-cpu, pas les corps de tests GPU de niveau 2.
+Demande : terminer les tests workers restants. Mandat initial `c0b45b60`, exception CPU acceptée dans la session (« oui je t'autorise »), consignée dans `9e617601`. Candidat source `a2ef198d` inchangé ; aucun code, manifeste, configuration ou dossier de remise modifié par cette validation. Aucun push.
 
-La demande autorise les compilations Rust nécessaires aux tests, y compris le binaire Parakeet référencé par CARGO_BIN_EXE, dans la cible de test. Aucune installation ou copie de remise n'est remplacée ; aucun moteur natif, DLL, dépendance ou configuration produit n'est reconstruit/modifié. La suspension native reste en vigueur : ni cache présent ni harnais synthétique ne prouvent à eux seuls l'absence de rerun de whisper-rs-sys/build.rs.
+| Sélection N1 | Réussis | Échecs | Ignorés |
+|---|---:|---:|---:|
+| Membres par défaut | 774 | 0 | 128 |
+| Worker-common | 11 | 0 | 1 |
+| Worker-parakeet-cpu | 26 | 0 | 11 |
+| Worker-cpu | 12 | 0 | 9 |
 
-Trois tâches :
+Les preuves des membres par défaut et de common sont antérieures et encore applicables (entrées inchangées) ; les deux autres sélections ont été exécutées ici. Les ignorés restent annoncés comme tels : aucune qualification native complète ni exécution du corps des tests GPU niveau 2 déduite.
 
-1. Principal/implémenteur VERIFY : état Git, espace ≥30 Gio, préflight des graphes, scripts et environnements ; budget de diagnostic trois essais ou trente minutes, sans outillage nouveau.
-2. Parakeet CPU : via garde, `test --offline --locked -p whisper-worker-parakeet-cpu --no-run`, PE de tous harnais `-Kind ParakeetCpu` et du binaire CPU éventuel avant exécution ; puis sélection `test --offline --locked -p whisper-worker-parakeet-cpu`, sans native-tests/ignored. Turbo CPU : même séquence seulement si la réutilisation sans production native suspendue est démontrée avant appel. Sinon arrêt de cette sélection et décision précise ; aucune option de contournement des build.rs.
-3. Principal : consigner compteurs, codes, ignorés et limites, archiver/vérifier les petites preuves et commiter localement. Aucun push ni modification Rust prévue ; un échec impose arrêt/arbitrage selon AGENTS, pas de correction implicite.
+**Parakeet CPU :** compilation Rust `--no-run`, PE ParakeetCpu des cinq harnais et du binaire avant exécution, puis sélection complète code 0. Worker_contract exécute zéro test et n'est pas compté comme couverture. Aucun moteur natif produit.
 
-Cargo passe exclusivement par `ci/guard-level1.ps1 -LotRoot target/parakeet-tests/inspect-micro-demarrage/validation-workers`. Cache/cible partagés, temporaires isolés, offline/locked, garde et PE existants inchangés. Complément et archive `docs/cadrage/raw/validation-workers-inspect-micro-demarrage.zip` ; les bilans figés peuvent seulement recevoir ce lien. Aucune cible fraîche ni cache isolé demandé.
+**Turbo CPU :** aucune compilation avant l'accord natif précis. Puis `--no-run` code 0 (22,21 s), PE Cpu des quatre harnais et du binaire avant exécution, sélection complète code 0.
 
-Résultats Parakeet CPU : graphe gardé sans production native ; compilation Rust `--no-run` réussie, puis PE ParakeetCpu réussi sur les cinq harnais et le binaire avant première exécution. Sélection complète code 0 : main 23 réussis ; decoder_parity 0 réussi/1 ignoré ; native_diagnostics_absence 2 réussis/2 ignorés ; native_import 1 réussi/8 ignorés ; worker_contract zéro test. Total 26 réussis, zéro échec, 11 ignorés. Preuves dans la racine de lot : `pe-parakeet.log`, scratch `20261106T144918193-6efb4d14e9534301bcf3652f273cc1ed` et `20261106T144950582-926ad01665f24a6c834149f3b050ceae`. Aucun worker installé ou de remise remplacé.
+Commandes via `ci/guard-level1.ps1 -LotRoot target/parakeet-tests/inspect-micro-demarrage/validation-workers` : `test --offline --locked -p <package> --no-run`, contrôles PE des chemins exacts, puis `test --offline --locked -p <package>`. Cwd `C:/dev/whisper`, cache/cible partagés, temporaires isolés, sans native-tests/ignored/CUDA ni téléchargement. Exécutables et SHA détaillés dans `pe-parakeet.log` et `pe-cpu.log` archivés.
 
-Turbo CPU : trois lectures diagnostiques, aucun appel compilant. L'unique bibliothèque whisper-rs-sys sans feature CUDA observée (`ab8a2755052481cb`) référence dans son fichier .d les sources de `C:/wt/build-natif/target/cargo-home-shared/`, tandis que la garde utilise le cache du dépôt courant. La réutilisation sans rerun n'est pas démontrée ; les autres variantes examinées sont CUDA et ne constituent pas une preuve CPU. `whisper-rs-sys 0.15.0/build.rs:301` appelle `config.build()` (CMake). Preuve `cpu-preflight.log`, aucun contournement ni modification de cache/environnement/source.
+**Exception native exécutée :** whisper-rs-sys 0.15.0/CMake CPU réellement compilé ; GGML_CUDA/HIP/SYCL/VULKAN OFF, BUILD_SHARED_LIBS OFF et WHISPER_CURL OFF. MSVC 14.44/SDK/CMake/libclang 22.1.8 présents. `cpu-native-proof.log` conserve sortie du 06/11 à 14:56:13 et cache CPU ; sorties CUDA historiques inchangées. Cet accord ponctuel ne vaut pas reprise générale des builds natifs suspendus. Workers installés et remises précédentes inchangés, aucune installation ou qualification Windows.
 
-Arbitrage accepté dans la session : l'utilisateur répond « oui je t'autorise » à l'exception ponctuelle de compilation native CPU de whisper-rs-sys 0.15.0 par son build.rs/CMake lors de la seule sélection Cargo worker-cpu via garde N1, puis PE et tests. Pas de CUDA/GPU, téléchargement, installation ou remplacement des workers livrés. L'accord est limité à cette action et ne lève pas globalement la suspension depuis la WHEA du 5 novembre. L'implémenteur reprend en VERIFY ; aucun résultat CPU revendiqué avant exécution.
+**Clôture :** [archive durable](raw/validation-workers-inspect-micro-demarrage.zip), 32 journaux, arborescence et chaque SHA vérifiés. ZIP SHA-256 `00ccbc5c61eb50dccca63c853a4ea2f7ef92ffc66442d3aeff6393b2c038cace`. Aucun cache/cible isolé à supprimer, caches partagés conservés, aucun nettoyage manuel ; environ 430 Gio libres. Seuls les compléments et preuves sont commités localement, sans fusion ni push.
