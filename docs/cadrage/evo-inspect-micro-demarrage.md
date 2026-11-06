@@ -1,6 +1,6 @@
-Avancée : cadrage INSPECT-MICRO-DEMARRAGE établi sur la base 48827173.
-Blocage : revue indépendante à effectuer ; exécution produit non autorisée.
-Décision : concevoir et planifier le périmètre demandé, sans coder ni lancer de campagne.
+Avancée : cadrage INSPECT-MICRO-DEMARRAGE revu CLEAN après correction D-01.
+Blocage : aucun pour la conception ; exécution produit non autorisée.
+Décision : DESIGN READY pour la planification demandée, sans code ni campagne.
 
 # INSPECT-MICRO-DEMARRAGE — cadrage v1
 
@@ -154,6 +154,6 @@ Le protocole sera arrêté avant toute modification produit affectant les mesure
 
 ## 7. État et passage au plan
 
-DESIGN : DRAFT, en attente de revue indépendante des fichiers Git. Les questions de mesure ne bloquent pas la conception ; elles bloquent seulement la référence humaine. Aucun essai technique natif ni nouveau railguard n'est nécessaire à cette évolution bornée. Les règles applicables restent celles des AGENTS existants.
+DESIGN : **READY documentaire**. `/root/design_review`, indépendant, a rendu CLEAN sur `426c16ec2b0bbf8911e1ce80c744d7b1f37cd4b3`, D-01 CLOSED après un cycle de correction ; [relevé de revue](revue-inspect-micro-demarrage.md). Les changements de statut de cette section et des trois lignes initiales enregistrent ce résultat sans modifier les contrats revus. Les questions de mesure ne bloquent pas la conception ; elles bloquent seulement la référence humaine. Aucun essai technique natif ni nouveau railguard n'est nécessaire à cette évolution bornée. Les règles applicables restent celles des AGENTS existants.
 
 Le plan doit rester à dix tâches maximum, couvrir chaque AC et nommer les chemins exacts, le préalable de garde, la référence humaine avant code, les vérifications, la revue indépendante et la remise. La demande de planification est explicite ; ni un verdict CLEAN ni le futur plan ne donnent l'autorisation de coder.

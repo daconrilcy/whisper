@@ -1,6 +1,6 @@
-Avancée : première revue DESIGN effectuée ; correction D-01 en préparation.
-Blocage : préservation de l'admission file/reprise pour un modèle non sélectionné.
-Décision : corriger le contrat avant la revue finale DESIGN et le plan.
+Avancée : DESIGN revu CLEAN ; D-01 fermé après un cycle de correction.
+Blocage : aucun pour la conception ; plan à produire et relire.
+Décision : passer à la planification autorisée, sans code.
 
 # INSPECT-MICRO-DEMARRAGE — revues documentaires
 
@@ -22,7 +22,11 @@ Autres conclusions du reviewer : couverture CAP-01 à CAP-08 par REQ/UC/AC ; con
 
 ## DESIGN — vérification de correction
 
-À effectuer sur le candidat Git corrigé. Aucun constat n'est fermé par l'auteur.
+Reviewer inchangé `/root/design_review`, révision `426c16ec2b0bbf8911e1ce80c744d7b1f37cd4b3` : document complet et diff `4ca07eb5..426c16ec` lus, HEAD et absence de diff local vérifiés directement. Verdict rendu : **CLEAN — D-01 CLOSED**, après un cycle de correction.
+
+Le reviewer confirme : DEC-05 déclenche l'inspection ciblée sur commande explicite sans changer le choix, conserver/rejouer une commande ou réutiliser une preuve GPU ; relance soumise aux contrôles actuels, demandes indépendantes de la coalescence du choix et version d'observation distincte. AC-11 couvre le vrai wrapper pour file/reprise et les variants requis. Aucun REQUIRED restant.
+
+Le CLEAN concerne uniquement le cadrage. Mesures humaines, tests produit et remise restent NOT RUN ; Q-M01/03/04 à arrêter avant référence. Aucun droit de coder déduit. La présente transcription n'était pas l'objet DESIGN revu.
 
 ## PLANS
 
