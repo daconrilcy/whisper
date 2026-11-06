@@ -2,21 +2,29 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateSet('SelfTest','SurfaceCpu','SurfaceGpu','RepeatCpu','RepeatGpu','Prepare','NativeSelfTest','N2SelfTest','Cpu1','Cpu2','Gpu1','Gpu2','CpuReference1','CpuReference2','CpuRebuilt','GpuReference1','GpuReference2','GpuRebuilt')][string]$Stage,
-    [ValidateSet('r1','r2')][string]$RepriseId
+    [ValidateSet('r1','r2','r3')][string]$RepriseId
 )
 $ErrorActionPreference='Stop'
 $PSNativeCommandUseErrorActionPreference=$false
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
 function Get-QualificationRouting([string]$Reprise) {
-    if($Reprise -and $Reprise -cnotin @('r1','r2')){throw 'Only the explicitly authorized r1/r2 qualification reprises are supported.'}
+    if($Reprise -and $Reprise -cnotin @('r1','r2','r3')){throw 'Only the explicitly authorized r1/r2/r3 qualification reprises are supported.'}
     $original='C:\wb\native-qualif'
     return [pscustomobject]@{root=$(if($Reprise){Join-Path $original ('reprise-'+$Reprise.Substring(1))}else{$original});original=$original;buildPrefix=$(if($Reprise){'qualif-'+$Reprise}else{'qualif'})}
 }
 function Get-QualificationBuildId([string]$Variant,[int]$Number,[string]$Reprise) {
     if($Variant -cnotin @('cpu','gpu') -or $Number -notin @(1,2)){throw 'Qualification build ID requires cpu/gpu and build 1/2.'}
+    if($Reprise -ceq 'r3' -and $Variant -cne 'gpu'){throw 'Qualification reprise r3 is GPU-only; CPU r2 qualification is preserved.'}
     return (Get-QualificationRouting $Reprise).buildPrefix+'-'+$Variant+$Number
 }
+function Assert-QualificationStageRouting([string]$RequestedStage,[string]$Reprise) {
+    $null=Get-QualificationRouting $Reprise
+    if($Reprise -ceq 'r3' -and $RequestedStage -notin @('SelfTest','NativeSelfTest','SurfaceGpu','RepeatGpu','Gpu1','Gpu2','GpuReference1','GpuReference2','GpuRebuilt')){
+        throw 'Qualification reprise r3 permits only GPU qualification and its bounded self-tests.'
+    }
+}
 $routing=Get-QualificationRouting $RepriseId
+Assert-QualificationStageRouting $Stage $RepriseId
 $root=$routing.root
 function Assert-QualificationMemory([double]$Percent,[bool]$Launching) {
     if ([double]::IsNaN($Percent) -or $Percent -lt 0 -or $Percent -gt 100) { throw 'Invalid committed memory measurement.' }
@@ -561,7 +569,7 @@ function Invoke-QualificationReaderSelfTests([string]$FixtureRoot) {
     $route=Get-QualificationRouting 'r2'
     if($route.root -cne 'C:\wb\native-qualif\reprise-2' -or $route.original -cne 'C:\wb\native-qualif'){throw 'r2 evidence root differs.'}
     foreach($variant in @('cpu','gpu')){foreach($number in @(1,2)){if((Get-QualificationBuildId $variant $number 'r2') -cne "qualif-r2-$variant$number"){throw 'r2 build ID differs.'}}}
-    foreach($invalid in @('r3','R2','../reprise-2','C:/override')){$rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true};if(-not $rejected){throw 'Arbitrary reprise accepted.'}}
+    foreach($invalid in @('r4','R2','../reprise-2','C:/override')){$rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true};if(-not $rejected){throw 'Arbitrary reprise accepted.'}}
     $checks++
     "PASS W2 reader/CSV/cleanup/r2 fixture checks: $checks; fixtureRoot=$FixtureRoot"
 }
@@ -669,7 +677,10 @@ $buildVariant=$null;$buildId=$null;$comparison=$null
 switch -Regex ($Stage) {
     '^(Surface|Repeat)(Cpu|Gpu)$' {$comparison=@{variant=$Matches[2].ToLowerInvariant();repeat=($Matches[1] -eq 'Repeat')}}
     '^Prepare$' {$arguments+=@((Join-Path $PSScriptRoot 'build-native.ps1'),'-Variant','cpu','-BuildId',($routing.buildPrefix+'-prepare'),'-PrepareOnly')}
-    '^NativeSelfTest$' {$arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-Profile','NativeDllCpu','-LotRoot','target/native-build')}
+    '^NativeSelfTest$' {
+        $selfTestProfile=if($RepriseId -ceq 'r3'){'NativeDllGpu'}else{'NativeDllCpu'}
+        $arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-Profile',$selfTestProfile,'-LotRoot','target/native-build')
+    }
     '^N2SelfTest$' {$arguments+=@((Join-Path $PSScriptRoot 'guard-native.ps1'),'-Mode','SelfTest','-LotRoot','target/n2-native')}
     '^(Cpu|Gpu)(1|2)$' {
         $buildVariant=$Matches[1].ToLowerInvariant();$buildId=Get-QualificationBuildId $buildVariant ([int]$Matches[2]) $RepriseId

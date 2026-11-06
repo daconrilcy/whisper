@@ -1,5 +1,5 @@
 # Versioned contract fixtures; no dependency on disposable previous build outputs.
-function Invoke-NativeBuildFlagTests([string]$Root) {
+function Invoke-NativeBuildFlagTests([string]$Root,[switch]$InertOnly) {
     $run=Assert-Within (Join-Path $Root 'flag-tests') $Root
     New-Item -ItemType Directory -Path $run -Force | Out-Null
     $checks=[Collections.Generic.List[object]]::new()
@@ -15,8 +15,8 @@ function Invoke-NativeBuildFlagTests([string]$Root) {
             CMAKE_CXX_FLAGS='/Brepro /DWIN32 /D_WINDOWS /EHsc'; CMAKE_CXX_FLAGS_RELEASE='/O2 /Ob2 /DNDEBUG'
             CMAKE_SHARED_LINKER_FLAGS='/Brepro /machine:x64'; CMAKE_SHARED_LINKER_FLAGS_RELEASE='/INCREMENTAL:NO'
             CMAKE_EXE_LINKER_FLAGS='/Brepro /machine:x64'; CMAKE_EXE_LINKER_FLAGS_RELEASE='/INCREMENTAL:NO'
-            CMAKE_CUDA_FLAGS='-Xcompiler=/Brepro -DWIN32 -D_WINDOWS -Xcompiler="/EHsc"'
-            CMAKE_CUDA_FLAGS_RELEASE='-Xcompiler="-O2,-Ob2" -DNDEBUG'
+            CMAKE_CUDA_FLAGS='-Xcompiler=/Brepro -D_WINDOWS -Xcompiler=" /EHsc"'
+            CMAKE_CUDA_FLAGS_RELEASE='-Xcompiler="-O2 -Ob2" -DNDEBUG'
         }
     }
     foreach ($variant in @('cpu','gpu')) {
@@ -55,11 +55,44 @@ function Invoke-NativeBuildFlagTests([string]$Root) {
     Assert-FlagRejects 'missing C++ exception model' { Assert-NativeEffectiveFlags $bad 'cpu' } 'Required effective native flag missing'
     $bad=New-EffectiveFlagFixture; $bad.CMAKE_CUDA_FLAGS=$bad.CMAKE_CUDA_FLAGS.Replace('/EHsc','')
     Assert-FlagRejects 'missing CUDA host exception model' { Assert-NativeEffectiveFlags $bad 'gpu' } 'Required effective native flag missing'
+    foreach($required in @('/Brepro','-D_WINDOWS')){
+        $bad=New-EffectiveFlagFixture;$bad.CMAKE_CUDA_FLAGS=$bad.CMAKE_CUDA_FLAGS.Replace($required,'')
+        Assert-FlagRejects "missing CUDA host flag $required" {Assert-NativeEffectiveFlags $bad 'gpu'} 'Required effective native flag missing'
+    }
+    foreach($extra in @('/EHsc-','/EHa','/Brepro-','/U_WINDOWS')){
+        $bad=New-EffectiveFlagFixture;$bad.CMAKE_CUDA_FLAGS_RELEASE+=' '+$extra
+        Assert-FlagRejects "contradicting CUDA host flag $extra" {Assert-NativeEffectiveFlags $bad 'gpu'} 'Conflicting effective native flag'
+    }
     $bad=New-EffectiveFlagFixture; $bad.CMAKE_SHARED_LINKER_FLAGS_RELEASE+=' /machine:ARM64'
     Assert-FlagRejects 'linker architecture override' { Assert-NativeEffectiveFlags $bad 'cpu' } 'Conflicting effective native flag'
     Assert-NativeDiagnostic 'file.cpp: warning C4244: ordinary unrelated diagnostic'
     Assert-NativeDiagnostic 'the number C45300 is not the diagnostic'
     Assert-FlagRejects 'localized C4530' { Assert-NativeDiagnostic 'fichier.cpp: avertissement C4530 : test' } 'C4530 detected'
+
+    $metadata=@('set(CMAKE_CUDA_PLATFORM_ID "Windows")','set(CMAKE_CUDA_COMPILER_ARCHITECTURE_ID "x64")','set(CMAKE_CUDA_SIZEOF_DATA_PTR "8")')
+    $metadataPath=Join-Path $run 'CMakeCUDACompiler.cmake'
+    $metadata|Set-Content -LiteralPath $metadataPath -Encoding utf8
+    $metadataReceipt=Read-NativeCudaPlatformMetadata $metadataPath
+    if($metadataReceipt.values.CMAKE_CUDA_PLATFORM_ID -cne 'Windows' -or $metadataReceipt.values.CMAKE_CUDA_COMPILER_ARCHITECTURE_ID -cne 'x64' -or $metadataReceipt.values.CMAKE_CUDA_SIZEOF_DATA_PTR -cne '8'){throw 'CUDA metadata positive fixture differs.'}
+    $checks.Add([pscustomobject]@{test='pinned generated CUDA Windows/x64/pointer8 metadata';result='PASS';receipt=$metadataReceipt})
+    for($index=0;$index -lt $metadata.Count;$index++){
+        foreach($mutation in @('missing','duplicate','wrong','malformed')){
+            $changed=[string[]]$metadata.Clone()
+            if($mutation -eq 'missing'){$changed=@($changed|Where-Object {$_ -cne $metadata[$index]})}
+            elseif($mutation -eq 'duplicate'){$changed+=($metadata[$index])}
+            elseif($mutation -eq 'wrong'){$changed[$index]=$changed[$index].Replace('Windows','Linux').Replace('x64','ARM64').Replace('"8"','"4"')}
+            else{$changed[$index]=$changed[$index].TrimEnd(')')}
+            $changed|Set-Content -LiteralPath $metadataPath -Encoding utf8
+            Assert-FlagRejects "CUDA metadata $mutation field $index" {Read-NativeCudaPlatformMetadata $metadataPath} 'CUDA compiler metadata (missing or duplicate|differs|malformed)'
+        }
+    }
+    Assert-FlagRejects 'CUDA metadata absent file' {Read-NativeCudaPlatformMetadata (Join-Path $run 'absent.cmake')} 'CUDA compiler metadata file is missing'
+    $metadata|Set-Content -LiteralPath $metadataPath -Encoding utf8
+    if($InertOnly){
+        $checks.ToArray()|ConvertTo-Json -Depth 12|Set-Content -LiteralPath (Join-Path $run 'flag-inert-tests.json') -Encoding utf8NoBOM
+        "PASS inert native flag/metadata tests: checks=$($checks.Count); no child process or native compiler. evidence=$run"
+        return
+    }
 
     # Exercise the actual streaming pipeline with owned PowerShell emitters, no native compiler.
     $saved=@{}

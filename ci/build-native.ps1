@@ -86,7 +86,7 @@ function Assert-NativeEffectiveFlags([Collections.IDictionary]$Effective, [strin
         CMAKE_SHARED_LINKER_FLAGS=@('/Brepro','/machine:x64')
         CMAKE_EXE_LINKER_FLAGS=@('/Brepro','/machine:x64')
     }
-    if ($BuildVariant -eq 'gpu') { $requirements.CMAKE_CUDA_FLAGS=@('/Brepro','/DWIN32','/D_WINDOWS','/EHsc') }
+    if ($BuildVariant -eq 'gpu') { $requirements.CMAKE_CUDA_FLAGS=@('/Brepro','/D_WINDOWS','/EHsc') }
     elseif ($BuildVariant -ne 'cpu') { throw 'Effective native flag checks require cpu or gpu.' }
     $checked = [ordered]@{}
     foreach ($key in $requirements.Keys) {
@@ -108,6 +108,25 @@ function Assert-NativeEffectiveFlags([Collections.IDictionary]$Effective, [strin
         $checked[$key]=$flags
     }
     return [ordered]@{status='PASS';variant=$BuildVariant;checkedFlags=$checked;diagnosticPolicy='C4530 fails during streaming; no automatic retry'}
+}
+
+function Read-NativeCudaPlatformMetadata([string]$Path) {
+    [void](Assert-Within $Path (Split-Path -Parent $Path))
+    if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){throw "CUDA compiler metadata file is missing: $Path"}
+    $lines=@(Get-Content -LiteralPath $Path -ErrorAction Stop)
+    $expected=[ordered]@{CMAKE_CUDA_PLATFORM_ID='Windows';CMAKE_CUDA_COMPILER_ARCHITECTURE_ID='x64';CMAKE_CUDA_SIZEOF_DATA_PTR='8'}
+    $values=[ordered]@{}
+    foreach($name in $expected.Keys){
+        $key=[regex]::Escape($name)
+        $entries=@($lines|Where-Object {$_ -cmatch ('^\s*(?i:set)\s*\(\s*'+$key+'(?:\s|\)|$)')})
+        if($entries.Count -ne 1){throw "CUDA compiler metadata missing or duplicate: $name"}
+        $pattern='^\s*(?i:set)\s*\(\s*'+$key+'\s+(?:"(?<value>[^"\r\n]*)"|(?<value>[A-Za-z0-9_]+))\s*\)\s*(?:#.*)?$'
+        if($entries[0] -cnotmatch $pattern){throw "CUDA compiler metadata malformed: $name"}
+        $value=$Matches.value
+        if($value -cne $expected[$name]){throw "CUDA compiler metadata differs: $name expected $($expected[$name]), found $value"}
+        $values[$name]=$value
+    }
+    return [ordered]@{status='PASS';source=[IO.Path]::GetFullPath($Path);sha256=(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash;values=$values;execution='Not executed; parsed generated set declarations only.'}
 }
 
 function Assert-NativeDiagnostic([string]$Line) {
@@ -512,6 +531,14 @@ try {
     $manifest.effectiveOptions = $effective
     foreach ($key in @('GGML_NATIVE','GGML_CUDA','CMAKE_BUILD_TYPE','CMAKE_MSVC_RUNTIME_LIBRARY','VCPKG_TARGET_TRIPLET')) {
         if ($effective[$key] -cne $options[$key]) { throw "Effective CMake option differs: $key" }
+    }
+    if($Variant -eq 'gpu'){
+        $cudaMetadataPath=Assert-Within (Join-Path $build "CMakeFiles/$($config.tools.cmake)/CMakeCUDACompiler.cmake") $workspace
+        $cudaMetadataProof=Assert-Within (Join-Path $run 'CMakeCUDACompiler.cmake') $run
+        Copy-Item -LiteralPath $cudaMetadataPath -Destination $cudaMetadataProof -ErrorAction Stop
+        $manifest.cudaPlatformValidation=Read-NativeCudaPlatformMetadata $cudaMetadataPath
+        if((Get-FileHash -LiteralPath $cudaMetadataProof -Algorithm SHA256).Hash -cne $manifest.cudaPlatformValidation.sha256){throw 'CUDA compiler metadata source changed while preserving its proof.'}
+        $manifest.cudaPlatformValidation.proof=$cudaMetadataProof
     }
     $manifest.flagValidation = Assert-NativeEffectiveFlags $effective $Variant
     $manifest.stage = 'BUILD'
