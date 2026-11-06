@@ -1,6 +1,6 @@
-Avancée : première revue du candidat implémenté effectuée ; deux constats IMPORTANT.
-Blocage : aucun nouveau blocage externe ; réserves de validation déjà acceptées maintenues.
-Décision : premier cycle de correction confié à l'implémenteur, fermeture réservée au reviewer.
+Avancée : code revu CLEAN sur epoch 1 ; R1 et R2 fermés par le reviewer.
+Blocage : aucun constat de code ouvert ; réserves de validation acceptées maintenues.
+Décision : remise du candidat corrigé, sans déduire de validation Windows ou de gain mesuré.
 
 # INSPECT-MICRO-DEMARRAGE — revues documentaires
 
@@ -63,3 +63,11 @@ Reviewer indépendant `/root/review_loop/reviewer`, coordonné par `rust_review_
 **R2 — IMPORTANT — DEC-01 / DEC-05 / AC-11.** Dans le transport preferences, le wrapper root et le service catalogue, l'intérêt de commande B reste actif après le retrait effectif de l'action. Un changement d'identité ultérieur peut relancer un SHA sans besoin et laisser un avis de relance périmé. Correction demandée par le reviewer : terminer l'intérêt et l'avis liés au retrait, préserver les autres demandes valides pour B ; un calcul en cours peut finir sans conserver de suivi injustifié. Preuve attendue : commande B puis retrait avant réponse, fin du calcul et changement d'identité B sans réinspection ni invitation ; demande B indépendante préservée.
 
 Le coordinateur a transmis ces deux constats à `/root/implement` en mode CORRECT, cycle 1. Aucun constat n'est fermé par l'auteur du présent document ou par l'implémenteur ; même reviewer pour la vérification de fermeture, deux cycles de correction maximum.
+
+## Implémentation — vérification de fermeture
+
+Même reviewer `/root/review_loop/reviewer`, candidat epoch 1 sur HEAD documentaire `abbb689a0101e6cc15c7dc7607d7576689b415e8`, source en worktree. Le reviewer a rendu **CLEAN**, `closed_finding_ids: [R1, R2]`, aucun constat restant, aucune demande de vérification ni lacune de revue, aucun blocage. Le coordinateur rapporte deux revues et un seul cycle de correction ; aucun second cycle nécessaire. Ce CLEAN porte le code dans le périmètre G1–G7, sous les limites de validation acceptées.
+
+L'implémenteur a modifié quatre fichiers autorisés : root, service catalogue, tests du service et transport preferences. Attentes liées à la version propre au modèle ; intérêts identifiés par action/job/génération sans conserver de commande ni preuve GPU. Les régressions vérifient la publication intermédiaire, les résultats Ready/Missing/Corrupt/invalidation, le retrait sans besoin restant et la préservation d'une demande indépendante B. Résultats epoch 1 : filtre R1/R2 5 réussis ; `root::` 34 réussis et 3 ignorés historiques ; contrôleur 4 réussis ; format, Clippy, build personnel et diff réussis. Preuves de correction sous la racine de lot : `20261106T140317091-b4c7513861ab4a08819a6567e0965a31`, `20261106T140332391-b7c55473de674a5bbddb68a8d8b2fbfd`, `20261106T140405892-2139635987f2430589042beb6bbf3d62`, `20261106T140455543-e207c1afa4b740f0a6d9cf4b8c614e38`, `20261106T140515184-a1e596c3502e4402944c56a29f944bee`.
+
+Le N1 global antérieur reste à 767 réussis, 3 échoués et 128 ignorés ; non relancé à environnement micro inchangé conformément à l'arbitrage. Worker-cpu et worker-parakeet-cpu NON EXÉCUTÉS. Validation native complète, fenêtre Windows après et gain de performance non établis par cette revue. Desktop corrigé : 15 305 728 octets, SHA-256 `2f6bce0608d167497028258ddd0aec5f2c3ae8881fd148a39585a22ed525fda7`.

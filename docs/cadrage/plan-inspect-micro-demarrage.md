@@ -1,6 +1,6 @@
-Avancée : T7 complémentaire terminé ; common, Clippy et desktop personnel réussis.
-Blocage : trois échecs micro N1 et deux sélections workers non exécutées restent en réserve.
-Décision : engager la revue indépendante T8 sous les réserves acceptées par l'utilisateur.
+Avancée : T8 code CLEAN, R1/R2 fermés ; remise après vérifiée et disponible.
+Blocage : contrôle Windows automatisé indisponible ; mesures après attendues en T9.
+Décision : remettre le candidat revu et préserver les réserves N1/worker acceptées.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -183,3 +183,9 @@ Préflight Parakeet CPU : `tests/decoder_parity.rs:56` utilise `CARGO_BIN_EXE_wh
 Arbitrage accepté dans la session courante : à la question ci-dessus, l'utilisateur choisit « Poursuivre avec ces réserves (recommandé) ». Reprendre les contrôles autorisés puis T8 si les autres vérifications réussissent, en conservant les trois échecs micro comme réserves et les deux sélections workers bloquées comme NON EXÉCUTÉES, sans annoncer N1 réussi ni étendre les chemins du lot. Les fichiers direct_live ne sont pas en édition. Aucune relance des trois tests matériels ni du N1 à environnement inchangé ; poursuivre worker-common après préflight/PE, Clippy et construction desktop personnelle. Cet accord ne transforme aucun échec ou contrôle non exécuté en réussite.
 
 T7 complémentaire réussi selon l'implémenteur en mode VERIFY, sans édition : worker-common graphe sans compilation native, harnais PE Cpu PASS avant exécution, 11 tests réussis et 1 ignoré MP3 réel ; Clippy core/adapters/desktop all-targets code 0 ; construction release personal-install code 0, 23,03 s, PE Desktop PASS. Quatre avertissements Clippy signalés dans les fichiers modifiés (closures redondantes et conditions repliables) restent à la revue. Candidat canonique : `target/parakeet-tests/cargo-shared/release/whisper-desktop.exe`, 15 294 464 octets, SHA-256 `1975915404c742666340c55b453945c2292059e840bc9508c8bd8b0ffc67f840`. Les trois EXE avant sont inchangés ; aucun EXE après copié ni lancé avant revue. N1 reste en échec avec ses réserves ; aucune sélection worker bloquée exécutée. T8 peut commencer conformément à l'arbitrage accepté.
+
+T8 terminé : reviewer indépendant `/root/review_loop/reviewer`, via coordinateur `/root/review_loop`, verdict CLEAN epoch 1 ; R1/R2 fermés après un cycle de correction et deux revues, aucun constat ni demande de vérification restant. [Transcription](revue-inspect-micro-demarrage.md). Tests de correction : 5 régressions, root 34 réussis/3 ignorés historiques, contrôleur 4 réussis ; format, Clippy et build personnel réussis. N1 antérieur non relancé, réserves acceptées maintenues ; le CLEAN est un verdict de code.
+
+Remise T9 : `deliverables/inspect-micro-demarrage/apres/` contient seulement le desktop personnel corrigé et les deux workers Turbo identiques à avant. Desktop 15 305 728 octets, SHA-256 `2f6bce0608d167497028258ddd0aec5f2c3ae8881fd148a39585a22ed525fda7`. SHA des copies vérifiés ; PE des trois EXE après Desktop/Cpu/Gpu PASS. Les 20 ressources installées hors ancien desktop ont été revérifiées en taille/SHA contre la référence versionnée, toutes conformes. Aucune installation, reconstruction worker/DLL moteur ou modification du dossier avant.
+
+Contrôle Windows après : `sky.launch_app` échoue encore avec `GetCursorPos failed: Accès refusé (0x80070005)` et aucune fenêtre Whisper n'est détectée ensuite. Lecture textuelle de l'Explorateur possible, mais capture d'écran également en échec (`CreateForMonitor`, 0x80070057). Aucune mesure après de l'agent n'est revendiquée. Les mêmes huit essais réduits ont été demandés à l'utilisateur dans la fenêtre, même microphone ; résultats et anomalies de texte/sorties attendus avant la comparaison et la clôture.
