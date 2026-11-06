@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "id": "gpu",
+  "totalBytes": 3195997611,
+  "files": [
+    {
+      "path": "app/whisper-desktop.exe",
+      "bytes": 15178752,
+      "sha256": "aa19791bac66c4c31511bcaf209baa16d38168d27e7b737a8f8ddf925302328d"
+    },
+    {
+      "path": "app/whisper-worker-cpu.exe",
+      "bytes": 2443264,
+      "sha256": "eb33d96b57ee47e5dcbe3238467df4f5656d055757374dbff5d58a5f751bbfef"
+    },
+    {
+      "path": "app/whisper-worker-gpu.exe",
+      "bytes": 20902912,
+      "sha256": "5ff4c494b86754d563c5d41cc7cdcd1b2748aed9c9ffa5f929be29973cf6001b"
+    },
+    {
+      "path": "worker/whisper-worker-parakeet-cpu.exe",
+      "bytes": 979456,
+      "sha256": "a965c9503f909124f8ddedad09e83e5d187e70edd1869e880e9f1ad5ae2fb99d"
+    },
+    {
+      "path": "worker/whisper-worker-parakeet-gpu.exe",
+      "bytes": 1084928,
+      "sha256": "7ffb0b4a022ec26909a8939b37787de6df6c9bdb2903edf14d3ffb32579eefc1"
+    },
+    {
+      "path": "native/cpu/nemo_speech_asr.dll",
+      "bytes": 4192256,
+      "sha256": "923a3a5258b196de6122e6ccc9b5cdd3e48c379dc53461e38921826b75f43019"
+    },
+    {
+      "path": "native/cpu/ggml-base.dll",
+      "bytes": 680960,
+      "sha256": "398cf89332451b547b44256d5e84bb5895a7c0fe97727e597be8989230544e0a"
+    },
+    {
+      "path": "native/cpu/ggml-cpu.dll",
+      "bytes": 947200,
+      "sha256": "f7546413e1e6e248df0bc8a0745a414de4c36532b201b3ba219d86864b5f1ab0"
+    },
+    {
+      "path": "native/cpu/nemo_speech_asr_c.dll",
+      "bytes": 56320,
+      "sha256": "9d67b716fe53accf05c8a1bb43fcac0a83f22c8425641f432ce1ed9dc871e764"
+    },
+    {
+      "path": "native/cpu/ggml.dll",
+      "bytes": 61952,
+      "sha256": "2eff3c476a9796580ec788429c87e479dc33e1066c74a77cbe3a7a909734b794"
+    },
+    {
+      "path": "native/gpu/ggml-base.dll",
+      "bytes": 680960,
+      "sha256": "63930c007dea9b245fed557e80d766ef33de94d722d6920126c85b53fa417748"
+    },
+    {
+      "path": "native/gpu/nemo_speech_asr.dll",
+      "bytes": 4207616,
+      "sha256": "f5bec97ce59af32391b9956182acdac6777c6945dec0efb2892cf7813aa1ed53"
+    },
+    {
+      "path": "native/gpu/cublasLt64_12.dll",
+      "bytes": 668673536,
+      "sha256": "71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5"
+    },
+    {
+      "path": "native/gpu/cudart64_12.dll",
+      "bytes": 583680,
+      "sha256": "760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1"
+    },
+    {
+      "path": "native/gpu/ggml-cuda.dll",
+      "bytes": 33209344,
+      "sha256": "f1bbf581b43fc334a2e6a11a85dc0f9dd22a0fb0a38af7fd6e4977c731748ad6"
+    },
+    {
+      "path": "native/gpu/cublas64_12.dll",
+      "bytes": 102518272,
+      "sha256": "52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82"
+    },
+    {
+      "path": "native/gpu/nemo_speech_asr_c.dll",
+      "bytes": 56320,
+      "sha256": "c082987836d5207bf79f52ba53d46505641c150616d6405c09482f4c61195ebb"
+    },
+    {
+      "path": "native/gpu/ggml.dll",
+      "bytes": 61952,
+      "sha256": "da4098ca0be2f92c31f9d5bc5dd9defd0e8dee4e435cb03588b957b11a3d073f"
+    },
+    {
+      "path": "native/gpu/ggml-cpu.dll",
+      "bytes": 947200,
+      "sha256": "c3d6d7bc89e8132c5c4542166ce872a352af6ae055ebcc6dac42f546209ef79f"
+    },
+    {
+      "path": "models/ggml-large-v3-turbo.bin",
+      "bytes": 1624555275,
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
+    },
+    {
+      "path": "models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "bytes": 713975456,
+      "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e"
+    }
+  ],
+  "llamaCommit": "bd4f514db14d87fded667787a7a963bfbaa98e89"
+}
