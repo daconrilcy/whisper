@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sharedCargoTarget": "C:/dev/whisper/target/parakeet-tests/cargo-shared",
+  "sharedCargoTarget": "target/parakeet-tests/cargo-shared",
   "allowedPackages": [
     "whisper-core",
     "whisper-adapters",
@@ -268,7 +268,8 @@
       "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
       "ignored": false,
       "verdict": "QUALIFICATION"
-    }
+    },
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_gpu_imports_french_mp3_with_attested_candidate","ignored":false,"verdict":"QUALIFICATION"}
   ],
   "runtimePin": "native/runtime-pins/reference.json"
 },
@@ -345,7 +346,8 @@
       "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate",
       "ignored": false,
       "verdict": "QUALIFICATION"
-    }
+    },
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_gpu_imports_french_mp3_with_attested_candidate","ignored":false,"verdict":"QUALIFICATION"}
   ],
   "runtimePin": "native/runtime-pins/gpu.json"
 },
@@ -1025,6 +1027,7 @@
       "cases": [
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_cpu_imports_french_mp3_through_the_unified_application", "ignored": false, "verdict": "QUALIFICATION"},
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_gpu_imports_english_mp3_with_attested_candidate", "ignored": false, "verdict": "QUALIFICATION"},
+        {"targetKind":"integration","targetName":"parakeet_unified_native","exactTest":"native_personal_gpu_imports_french_mp3_with_attested_candidate","ignored":false,"verdict":"QUALIFICATION"},
         {"targetKind": "integration", "targetName": "parakeet_unified_native", "exactTest": "native_personal_auto_without_candidate_reports_preaudio_cpu_fallback", "ignored": false, "verdict": "QUALIFICATION"}
       ]
     },

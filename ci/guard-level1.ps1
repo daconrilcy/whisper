@@ -14,6 +14,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
+
+function Assert-DedicatedWorktree([string]$WorkingDirectory, [string]$RepositoryRoot) {
+    $mainRoot = [IO.Path]::GetFullPath('C:/dev/whisper').TrimEnd('\', '/')
+    foreach ($path in @($WorkingDirectory, $RepositoryRoot)) {
+        $full = [IO.Path]::GetFullPath($path).TrimEnd('\', '/')
+        if ($full.Equals($mainRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Campaign refused in the main repository root C:/dev/whisper; use a dedicated worktree.'
+        }
+    }
+}
+
+# Reject both a main-root cwd and a main-checkout script before campaign side effects.
+Assert-DedicatedWorktree (Get-Location).ProviderPath (Join-Path $PSScriptRoot '..')
+
 function Convert-CargoArgsJson([string]$Json) {
     $parsed = ConvertFrom-Json -InputObject $Json
     if ($parsed -is [string]) { return ,([string[]]@($parsed)) }

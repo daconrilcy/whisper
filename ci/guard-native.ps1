@@ -14,9 +14,31 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSNativeCommandUseErrorActionPreference = $false
 
+function Assert-DedicatedWorktree([string]$WorkingDirectory, [string]$RepositoryRoot) {
+    $mainRoot = [IO.Path]::GetFullPath('C:/dev/whisper').TrimEnd('\', '/')
+    foreach ($path in @($WorkingDirectory, $RepositoryRoot)) {
+        $full = [IO.Path]::GetFullPath($path).TrimEnd('\', '/')
+        if ($full.Equals($mainRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Campaign refused in the main repository root C:/dev/whisper; use a dedicated worktree.'
+        }
+    }
+}
+
+# Reject both a main-root cwd and a main-checkout script before campaign side effects.
+Assert-DedicatedWorktree (Get-Location).ProviderPath (Join-Path $PSScriptRoot '..')
+
+
 $script:Repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path.TrimEnd('\')
 $script:ProfilesPath = Join-Path $PSScriptRoot 'native-profiles.json'
-$script:CargoTarget = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
+function Resolve-NativeSharedCargoTarget([string]$RepositoryRoot, [string]$DeclaredTarget) {
+    Assert-DedicatedWorktree $RepositoryRoot $RepositoryRoot
+    if ($DeclaredTarget -cne 'target/parakeet-tests/cargo-shared') {
+        throw 'Profile registry shared Cargo target must be the dedicated worktree-relative path target/parakeet-tests/cargo-shared.'
+    }
+    return [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $DeclaredTarget)).TrimEnd('\')
+}
+
+$script:CargoTarget = Resolve-NativeSharedCargoTarget $script:Repo 'target/parakeet-tests/cargo-shared'
 $script:Lot = $null
 $script:RunRoot = $null
 $script:LogRoot = $null
@@ -428,7 +450,7 @@ function Get-ProfileRegistry {
     try { $registry = Get-Content -LiteralPath $script:ProfilesPath -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw "Profile registry JSON is invalid: $($_.Exception.Message)" }
     if ($registry.schemaVersion -ne 1) { throw 'Unsupported native profile registry schema.' }
-    if ([IO.Path]::GetFullPath($registry.sharedCargoTarget).TrimEnd('\') -ine $script:CargoTarget) {
+    if ((Resolve-NativeSharedCargoTarget $script:Repo $registry.sharedCargoTarget) -ine $script:CargoTarget) {
         throw 'Profile registry shared Cargo target differs from the accepted canonical path.'
     }
     $packageSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -1522,7 +1544,7 @@ function Get-RunWatchSpecs([string]$Lot, [string[]]$AdditionalProtectedRoots = [
             if (Test-Path -LiteralPath $testsRoot -PathType Container) {
                 Register-Watch $specs $testsRoot $false
                 foreach ($child in (Get-ChildItem -LiteralPath $testsRoot -Directory -Force)) {
-                    if ($child.Name -ieq 'cargo-shared') { continue }
+                    # The main checkout's Cargo target is no longer an allowed write root.
                     Register-Watch $specs $child.FullName $true
                 }
             }

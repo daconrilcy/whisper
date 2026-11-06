@@ -1258,6 +1258,23 @@ fn native_personal_gpu_imports_english_mp3_with_attested_candidate() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+#[cfg_attr(
+    not(feature = "native-tests"),
+    ignore = "requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, real GPU identity and guarded WHISPER_PU_L4_FR_SOURCE"
+)]
+fn native_personal_gpu_imports_french_mp3_with_attested_candidate() {
+    run_native_import(
+        "WHISPER_PU_L4_FR_SOURCE",
+        "native-gpu-fr",
+        ComputeChoice::Gpu,
+        Some(personal_gpu_candidate()),
+        None,
+        false,
+    );
+}
+
 #[test]
 #[cfg(windows)]
 #[cfg_attr(
