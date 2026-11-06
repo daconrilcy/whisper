@@ -195,12 +195,10 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
     ) -> Result<(), (JobId, Generation, String)> {
         let id = (request.job_id, request.generation);
-        let model_catalog = self.model_catalog.as_ref().map(|catalog| {
-            (
-                catalog.snapshot(),
-                catalog.known_historical_turbo_path.clone(),
-            )
-        });
+        let model_catalog = self
+            .model_catalog
+            .as_ref()
+            .map(|catalog| catalog.clone_for_worker());
         let result = if request.strategy
             == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
             && self.unified_admission_full_for(whisper_core::parakeet_scheduler::SchedulerSession {
@@ -229,17 +227,28 @@ impl ImportRuntime {
                                     "InvalidInput: process queued jobs in FIFO order".into()
                                 );
                             }
+                            let mut inspected_catalog = None;
                             let same_model = if request_is_parakeet(&entry.request)
                                 && request_is_parakeet(&request)
                             {
                                 entry.request.model_sha256 == request.model_sha256
-                            } else if let Some((snapshot, known_path)) = &model_catalog {
-                                let durable_id = snapshot.resolve_model_identity(
-                                    &entry.request.model_path,
-                                    known_path,
-                                )?;
-                                let requested_id = snapshot
-                                    .resolve_model_identity(&request.model_path, known_path)?;
+                            } else if let Some(catalog) = model_catalog.as_ref() {
+                                let (durable_id, snapshot) = catalog
+                                    .catalog
+                                    .inspect_requested_model(
+                                        &entry.request.model_path,
+                                        &catalog.known_historical_turbo_path,
+                                    )?;
+                                let (requested_id, _) = catalog
+                                    .catalog
+                                    .inspect_requested_model(
+                                        &request.model_path,
+                                        &catalog.known_historical_turbo_path,
+                                    )?;
+                                inspected_catalog = Some((
+                                    snapshot,
+                                    catalog.known_historical_turbo_path.clone(),
+                                ));
                                 durable_id == requested_id
                             } else {
                                 false
@@ -320,7 +329,7 @@ impl ImportRuntime {
                             } else if request_is_parakeet(&durable_request) {
                                 self.bind_import_request(&durable_request)
                                     .map(|executable| (durable_request, executable, native_route))
-                            } else if let Some((snapshot, known_path)) = &model_catalog {
+                            } else if let Some((snapshot, known_path)) = &inspected_catalog {
                                 queue
                                     .resolve_queued_with_catalog(id.0, id.1, snapshot, known_path)
                                     .map(|executable| (durable_request, executable, native_route))
@@ -335,9 +344,8 @@ impl ImportRuntime {
                 if let Err(error) = binding_result {
                     Err((id.0, id.1, error))
                 } else {
-                    let executable_model_path = model_catalog
-                        .as_ref()
-                        .map(|_| verified_executable.model_path.as_str());
+                    let executable_model_path =
+                        model_catalog.map(|_| verified_executable.model_path.as_str());
                     let mut archive = ArchiveStore::new(&durable_request.destination);
                     let qualification = archive_qualification_for_request(
                         &durable_request,

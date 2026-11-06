@@ -1482,7 +1482,11 @@ function Add-SplitTreeWatches([System.Collections.Generic.List[object]]$Specs, [
     }
 }
 
-function Get-RunWatchSpecs([string]$Lot) {
+function Add-NativeProtectedRootWatches([System.Collections.Generic.List[object]]$Specs, [string[]]$Roots) {
+    foreach ($root in $Roots) { Register-Watch $Specs $root $true }
+}
+
+function Get-RunWatchSpecs([string]$Lot, [string[]]$AdditionalProtectedRoots = [string[]](Get-NativeProtectedRoots)) {
     $specs = [Collections.Generic.List[object]]::new()
     Add-SplitTreeWatches $specs $script:Repo @('.git','target')
     $repoTarget = Join-Path $script:Repo 'target'
@@ -1530,6 +1534,7 @@ function Get-RunWatchSpecs([string]$Lot) {
         if (-not (Test-Path -LiteralPath $path -PathType Container)) { continue }
         Register-Watch $specs $path $true
     }
+    Add-NativeProtectedRootWatches $specs $AdditionalProtectedRoots
     $unique = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     return @($specs | Where-Object { $unique.Add("$($_.path)|$($_.recursive)") })
 }
@@ -3641,7 +3646,26 @@ function Complete-NativeBuildCleanup([scriptblock[]]$Actions, [object]$Record, [
     if ($errors.Count -gt 0 -and -not $Record.Contains('failure')) { throw "NativeBuild cleanup failed: $($errors -join '; ')" }
 }
 
+function Get-NativeProtectedRoots {
+    @(
+        (Join-Path $script:Repo '.git'),
+        (Join-Path $env:LOCALAPPDATA 'Whisper'),
+        'C:\wb\preserved\poll-preserved',
+        'C:\wb\preserved\pile-preserved'
+    )
+}
+
+function Assert-NativeProtectedRootsExist {
+    $roots = [string[]](Get-NativeProtectedRoots)
+    foreach ($path in $roots) {
+        if (-not (Test-Path -LiteralPath $path)) { throw "Protected native root is missing: $path" }
+        Assert-NoReparseChain $path 'protected native root'
+    }
+    return $roots
+}
+
 function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Root, [string]$CacheRoot, [string]$Probe = '') {
+    $protected = Assert-NativeProtectedRootsExist
     $psi=New-NativeBuildProcessInfo $Entry $BuildId $Root $Probe
     $process=[Diagnostics.Process]::new(); $process.StartInfo=$psi
     $queue=[Collections.Concurrent.ConcurrentQueue[object]]::new()
@@ -3656,7 +3680,6 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
         $workspace=Initialize-NativeWorkspace $Entry.variant $BuildId $Root
         $allowed+=@($workspace)
     }
-    $protected=@((Join-Path $script:Repo '.git'),(Join-Path $env:LOCALAPPDATA 'Whisper'),'C:\dev\whisper\target\parakeet-feasibility','C:\dev\whisper\target\poll-preserved')
     $record=[ordered]@{profile=$Entry.id;variant=$Entry.variant;buildId=$BuildId;probe=$Probe;status='STARTED';startedUtc=[DateTimeOffset]::UtcNow.ToString('o');stdout=(Join-Path $Root 'stdout.log');stderr=(Join-Path $Root 'stderr.log');allowedRoots=$allowed;sourceScriptSha256=(Get-Sha256 (Join-Path $script:Repo $Entry.script))}
     try {
         $specs=[Collections.Generic.List[object]]::new()
@@ -3719,6 +3742,7 @@ function Invoke-NativeBuildProcess([object]$Entry, [string]$BuildId, [string]$Ro
 
 function Invoke-NativeBuildEntry {
     $entry=Get-NativeBuildProfile $Profile
+    $null=Assert-NativeProtectedRootsExist
     $expectedLot=Get-FullPath (Join-Path $script:Repo $entry.outputs)
     $script:Lot=Get-FullPath (Join-Path $script:Repo $LotRoot)
     if ($script:Lot -ine $expectedLot) { throw 'Native DLL build requires exact target/native-build root.' }

@@ -12,3 +12,4 @@ include!("tests/source_binding_entry.rs");
 include!("tests/worker_command_poll.rs");
 
 include!("tests/unified_restart_and_pages.rs");
+include!("tests/queue_inspection_characterization.rs");

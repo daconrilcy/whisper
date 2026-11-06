@@ -14,12 +14,10 @@ impl ImportRuntime {
     ) -> RecoveryEffect {
         RecoveryEffect::Continue({
             let id = (request.job_id, request.generation);
-            let model_catalog = self.model_catalog.as_ref().map(|catalog| {
-                (
-                    catalog.snapshot(),
-                    catalog.known_historical_turbo_path.clone(),
-                )
-            });
+            let model_catalog = self
+                .model_catalog
+                .as_ref()
+                .map(|catalog| catalog.clone_for_worker());
             let queue_validation =
                 crate::archive::assert_campaign_archive(Path::new(&request.destination))
                     .and_then(|()| crate::queue_store::QueueStore::open(&request.destination))
@@ -27,27 +25,51 @@ impl ImportRuntime {
                         if request_is_parakeet(&request) && request_is_parakeet(&previous) {
                             let mut comparable = request.clone();
                             comparable.model_path = previous.model_path.clone();
-                            queue.validate_resume(previous.job_id, previous.generation, &comparable)
-                        } else if let Some((snapshot, known_path)) = &model_catalog {
-                            queue.validate_resume_with_catalog(
-                                previous.job_id,
-                                previous.generation,
-                                &request,
-                                snapshot,
-                                known_path,
-                            )
+                            queue
+                                .validate_resume(previous.job_id, previous.generation, &comparable)
+                                .map(|()| None)
+                        } else if let Some(catalog) = model_catalog.as_ref() {
+                            let (previous_id, mut snapshot) =
+                                catalog.catalog.inspect_requested_model(
+                                    &previous.model_path,
+                                    &catalog.known_historical_turbo_path,
+                                )?;
+                            let (requested_id, requested_snapshot) =
+                                catalog.catalog.inspect_requested_model(
+                                    &request.model_path,
+                                    &catalog.known_historical_turbo_path,
+                                )?;
+                            if previous_id != requested_id {
+                                snapshot.entries.extend(requested_snapshot.entries);
+                            }
+                            queue
+                                .validate_resume_with_catalog(
+                                    previous.job_id,
+                                    previous.generation,
+                                    &request,
+                                    &snapshot,
+                                    &catalog.known_historical_turbo_path,
+                                )
+                                .map(|()| {
+                                    Some((snapshot, catalog.known_historical_turbo_path.clone()))
+                                })
                         } else {
-                            queue.validate_resume(previous.job_id, previous.generation, &request)
+                            queue
+                                .validate_resume(previous.job_id, previous.generation, &request)
+                                .map(|()| None)
                         }
                     });
-            if let Err(error) = queue_validation {
-                events.push_back(ImportEvent::Failed {
-                    job_id: id.0,
-                    generation: id.1,
-                    message: error,
-                });
-                return RecoveryEffect::Return;
-            }
+            let inspected_catalog = match queue_validation {
+                Ok(snapshot) => snapshot,
+                Err(error) => {
+                    events.push_back(ImportEvent::Failed {
+                        job_id: id.0,
+                        generation: id.1,
+                        message: error,
+                    });
+                    return RecoveryEffect::Return;
+                }
+            };
             let destination = Path::new(&request.destination);
             match crate::archive::ArchiveStore::publication_reconfirmation_required(
                 destination,
@@ -145,12 +167,15 @@ impl ImportRuntime {
             if model_catalog.is_some() {
                 durable_request.model_path = previous.model_path.clone();
             }
-            let executable_model_path = if let Some((snapshot, known_path)) = &model_catalog {
-                match if request_is_parakeet(&durable_request) {
+            let executable_model_path = if model_catalog.is_some() {
+                let verified = if request_is_parakeet(&durable_request) {
                     self.bind_import_request(&durable_request)
-                } else {
+                } else if let Some((snapshot, known_path)) = &inspected_catalog {
                     snapshot.bind_turbo_import_request(&durable_request, known_path)
-                } {
+                } else {
+                    Err("ModelUnknown: modèle Turbo non inspecté pour la reprise".into())
+                };
+                match verified {
                     Ok(request) => request.model_path,
                     Err(error) => {
                         events.push_back(ImportEvent::Failed {
@@ -257,7 +282,7 @@ impl ImportRuntime {
                                     previous.generation,
                                     prepared.clone(),
                                 )?;
-                            } else if let Some((snapshot, known_path)) = &model_catalog {
+                            } else if let Some((snapshot, known_path)) = &inspected_catalog {
                                 queue.resume_interrupted_with_catalog(
                                     previous.job_id,
                                     previous.generation,

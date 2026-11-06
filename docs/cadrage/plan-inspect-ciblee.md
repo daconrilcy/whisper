@@ -23,6 +23,10 @@ Branche `inspect-ciblee`, worktree `C:/wt/inspect-ciblee`. Objectif : supprimer 
 
 Revue pré-code `rust_review_coordinator` du 6 novembre : les trois N1 sans variable de la tâche 8 sont exactement les trois validations finales de la tâche 10, pas trois campagnes supplémentaires. La garde native peut être relue statiquement et testée sur fixtures ; sa vérification contre les racines réelles finales reste bloquée tant que l'humain n'a pas exécuté et confirmé P5. Le bilan ne présentera pas ce point comme validé avant observation.
 
+Arbitrage du 6 novembre après échec du premier N1 : l'utilisateur autorise explicitement les corrections de revue R1–R4 (fixture PE conforme, chargement C# avant appel, références de surveillance des archives déplacées, tests Turbo/reprise/alias/files hétérogènes), puis les trois N1 finaux, format/lints/build Rust utiles et seconde revue. Le coordinateur reprend avec le même implémenteur et le même reviewer ; aucun build natif, déplacement ou nettoyage manuel par l'agent.
+
+Dernier arbitrage du 6 novembre, après les échecs ciblés et le burst CI à 1057 ms : l'utilisateur autorise le cycle de correction 2, limité à R4 avec séparation explicite des preuves compteurs/intégrité, un seul nouvel essai du contrôle générique avec son seuil de 1 s inchangé, les focaux, les trois N1 finaux et la revue finale. Un nouvel échec arrête la campagne avec réserves ; aucun troisième cycle de correction n'est engagé.
+
 La session principale écrit/commite le plan, les notes, renvois documentaires, AGENTS et bilan. `rust_implementer` IMPLEMENT possède seul les changements Rust/tests ci-dessus et les gardes/supports `ci` listés ; il lit AGENTS de chaque crate avant édition et rapporte le diff exact. Des fichiers de tests séparés et leur déclaration sont autorisés dans les modules concernés. Pas d'édition desktop produit (diagnostic seul). Tout chemin supplémentaire substantiel nécessite arbitrage. Le coordinateur demandé relit d'abord le plan sans édition, puis coordonne la revue du candidat concret.
 
 ## Préflight, arrêt et rétention
