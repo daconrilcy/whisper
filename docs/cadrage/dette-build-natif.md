@@ -4,6 +4,8 @@ Décision : priorité supérieure aux renommages L4/L04 ; conservation du chemin
 
 # BUILD-NATIF — provenance et reconstruction des DLL ggml/NeMo
 
+État du 6 novembre 2026 : voir la [note figée de perte du banc spike02](../architecture/PERTE-SPIKE02-NOTE.md) ; la conservation historique du chemin absent est levée et les builds natifs restent suspendus.
+
 ## Constat et risque produit
 
 L'utilisateur signale que les DLL natives installées proviennent d'une compilation de spike de faisabilité sous `target/`, sans script versionné connu pour les reproduire. La [note Perso](note-parakeet-l6-perso.md) décrit une copie des DLL depuis `target/parakeet-tests/l2/l2b/native/` ; les [fiches R6](fiche-parakeet-r6.md) et [Perso](fiche-parakeet-l6-perso.md) consignent des identités binaires. Ces empreintes identifient les fichiers, mais ne suffisent pas à reconstruire leurs sources, options et outils de compilation.
