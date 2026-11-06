@@ -1,6 +1,6 @@
-Avancée : garde corrigée, témoin personnel remis et premiers résultats humains reçus.
-Blocage : vérifications compilantes toujours soumises au préalable natif applicable.
-Décision : référence réduite acceptée par l'utilisateur ; commencer T4 dans les chemins prévus.
+Avancée : T4 implémenté et tests réussis ; T5 confié à l'implémenteur.
+Blocage : aucun sur T5 ; sélections workers toujours soumises à la suspension native.
+Décision : poursuivre le ciblage des quatre bindings dans les chemins prévus.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -165,3 +165,7 @@ Les 20 ressources installées hors ancien desktop correspondent en taille et SHA
 Mesures avant déclarées par l'utilisateur : lancement → interface utilisable environ 1 s ; clic micro → compteur capturés environ 1,5 s. Précision fournie ensuite : quatre essais Parakeet, langue Auto, calcul Auto ; délai micro déclaré identique en Parakeet/CPU, Parakeet/GPU, Turbo/CPU et Turbo/GPU, un essai par configuration. Il s'agit de valeurs approximatives globales, pas de relevés individuels chronométrés par l'agent. Le délai interface n'est pas ventilé par configuration. Source microphone, état des caches, moteur effectif en Auto et mesure Turbo/Auto non précisés. Aucun min/max ou gain mesuré n'est déduit. La tentative de contrôle Windows par l'agent a échoué avec `GetCursorPos failed: Accès refusé (0x80070005)` ; aucune mesure agent n'en provient.
 
 Arbitrage accepté dans la session courante (« oui je valide ») : retenir ces huit essais déclarés comme référence réduite suffisante pour commencer T4, sans exiger les six répétitions par configuration ni la couverture de Turbo/Auto et de toutes les sources microphone avant le code. La comparaison de performance reste indicative, avec ses configurations non mesurées explicitement signalées. Les contrats produit et tests automatiques du lot ne changent pas. T3 est accepté avec ces limites ; T4 est autorisé par la demande d'implémentation courante.
+
+T4 : `rust_implementer` a préparé le cache à coordination par clé et onze tests séparés dans `model_catalog/concurrency_tests.rs`. Contrôle de format via garde et `git diff --check` réussis ; aucune preuve comportementale encore annoncée. Préflight de la sélection adapters : libfvad seule compilation native identifiée, sans worker/whisper-rs/CMake ; présence du cache insuffisante pour prouver l'absence de reconstruction. À la question précise d'extension aux tests, lints et constructions Rust non-workers prévus via garde N1, sans reconstruction workers/DLL ggml/NeMo/CUDA et sans téléchargement, l'utilisateur répond « Autoriser cette exception limitée ». Les premiers appels autorisés sont les tests adapters `concurrency_tests`, puis `model_catalog`. Cet accord ne lève pas la suspension des autres constructions natives.
+
+Résultats T4 : les deux appels ci-dessus passent, respectivement 11 puis 17 tests réussis, zéro échec/ignoré ; les 17 incluent les 11 de concurrence et six régressions existantes. Preuves temporaires sous la racine du lot, `scratch/20261106T121030490-02a4b3d6cef44d67b9b6519ff73fcd23` et `scratch/20261106T121116809-2be56e895b584160b623ba4c83d32d8c`, sorties/codes capturés par garde. Libfvad effectivement recompilé sous l'exception accordée ; aucun worker ni moteur natif suspendu construit. T4 est terminé selon le rapport de l'implémenteur, sans verdict de revue indépendante. T5 est confié au même implémenteur ; garde, remise avant et suivi documentaire restent préservés.
