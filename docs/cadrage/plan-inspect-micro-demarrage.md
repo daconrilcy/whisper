@@ -1,6 +1,6 @@
-Avancée : garde corrigée, desktop personnel de référence construit et remise avant vérifiée.
-Blocage : référence humaine T3 non réalisée ; correctifs produit T4 en attente.
-Décision : remettre le témoin pour les mesures avant ; aucune modification produit avant leur relevé.
+Avancée : garde corrigée, témoin personnel remis et premiers résultats humains reçus.
+Blocage : référence T3 partielle au regard du protocole accepté ; correctifs produit T4 en attente.
+Décision : proposer l'acceptation de cette référence réduite avant de commencer T4.
 
 # INSPECT-MICRO-DEMARRAGE — plan v1
 
@@ -160,4 +160,8 @@ Construction T2 réussie : commande build release `personal-install` de la secti
 
 Remise avant : `deliverables/inspect-micro-demarrage/avant/whisper-desktop.exe`, 15 212 032 octets, SHA-256 `9d0a56abe9239cc2721267a3ac587d9fed20f50a133107f0d37605f484c55a3e`. Seuls les deux workers Turbo préexistants de `%LOCALAPPDATA%/Whisper/app/` sont copiés à côté ; SHA identiques à `native/runtime-pins/reference.json` et copies vérifiées. Contrôles PE des trois copies : Desktop, Cpu et Gpu PASS. Auto-tests PE versionnés : 4 positifs et 15 négatifs réussis ; témoin réel facultatif NON EXÉCUTÉ.
 
-Les 20 ressources installées hors ancien desktop correspondent en taille et SHA-256 à la référence versionnée : quatre workers, cinq DLL CPU, neuf DLL GPU et deux modèles. Le profil charge les ressources Parakeet et modèles depuis l'installation personnelle stable ; aucune copie supplémentaire dans la remise. Les mesures T3 restent à l'utilisateur : six couples de délais par configuration accessible retenue (modèles/modes/sources), mêmes conditions avant/après. Borne micro : progression du compteur « capturés » de la session courante, ou « échantillons capturés » sur la route unifiée. Apparition de fenêtre, état moteur et premier texte ne remplacent pas cette borne. Relever aussi moteur effectif, source, anomalies et conditions de cache ; le code produit T4 attend ces résultats.
+Les 20 ressources installées hors ancien desktop correspondent en taille et SHA-256 à la référence versionnée : quatre workers, cinq DLL CPU, neuf DLL GPU et deux modèles. Le profil charge les ressources Parakeet et modèles depuis l'installation personnelle stable ; aucune copie supplémentaire dans la remise. Protocole accepté : six couples de délais par configuration accessible retenue (modèles/modes/sources), mêmes conditions avant/après. Borne micro : progression du compteur « capturés » de la session courante, ou « échantillons capturés » sur la route unifiée. Apparition de fenêtre, état moteur et premier texte ne remplacent pas cette borne.
+
+Mesures avant déclarées par l'utilisateur : lancement → interface utilisable environ 1 s ; clic micro → compteur capturés environ 1,5 s. Précision fournie ensuite : quatre essais Parakeet, langue Auto, calcul Auto ; délai micro déclaré identique en Parakeet/CPU, Parakeet/GPU, Turbo/CPU et Turbo/GPU, un essai par configuration. Il s'agit de valeurs approximatives globales, pas de relevés individuels chronométrés par l'agent. Le délai interface n'est pas ventilé par configuration. Source microphone, état des caches, moteur effectif en Auto et mesure Turbo/Auto non précisés. Aucun min/max ou gain mesuré n'est déduit. La tentative de contrôle Windows par l'agent a échoué avec `GetCursorPos failed: Accès refusé (0x80070005)` ; aucune mesure agent n'en provient.
+
+Arbitrage proposé, en attente : retenir ces huit essais déclarés comme référence réduite suffisante pour commencer T4, sans exiger les six répétitions par configuration ni la couverture de Turbo/Auto et de toutes les sources microphone avant le code. La comparaison de performance resterait indicative, avec ses configurations non mesurées explicitement signalées. Les contrats produit et tests automatiques du lot ne changeraient pas. Aucune modification produit ne commence avant cette décision de périmètre.
