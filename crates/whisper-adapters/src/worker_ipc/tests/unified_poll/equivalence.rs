@@ -894,11 +894,21 @@ fn unified_poll_real_ipc_eof_records_effects() {
     let trace = std::fs::read(local.join("eof-trace.json")).unwrap();
     let path = test_artifact_root("unified-poll-real-eof-trace").with_extension("json");
     std::fs::write(path, &trace).unwrap();
-    assert_eq!(trace.as_slice(), include_bytes!("reference_real_eof.json"));
+    let worker_hash = actual_fake_worker_hash(&local);
+    assert_portable_worker_trace(
+        &trace,
+        include_bytes!("reference_real_eof.json"),
+        &worker_hash,
+        "24fb0480df09f8af4251496186739992b13b61bebcd356aa9507c514484a3cbd",
+        2,
+    );
     let transitions = std::fs::read(local.join("eof-poll-transitions.json")).unwrap();
-    assert_eq!(
-        transitions.as_slice(),
-        include_bytes!("reference_real_eof_poll_transitions.json")
+    assert_portable_worker_trace(
+        &transitions,
+        include_bytes!("reference_real_eof_poll_transitions.json"),
+        &worker_hash,
+        "24fb0480df09f8af4251496186739992b13b61bebcd356aa9507c514484a3cbd",
+        2,
     );
 }
 
@@ -1836,15 +1846,26 @@ fn unified_poll_real_eof_restarts_and_completes_peer() {
     let trace = std::fs::read(local.join("recovery-trace.json")).unwrap();
     let path = test_artifact_root("unified-poll-real-eof-peer-trace").with_extension("json");
     std::fs::write(path, &trace).unwrap();
-    assert_eq!(
-        trace.as_slice(),
-        include_bytes!("reference_real_eof_peer.json")
+    let worker_hash = actual_fake_worker_hash(&local);
+    assert_portable_worker_trace(
+        &trace,
+        include_bytes!("reference_real_eof_peer.json"),
+        &worker_hash,
+        "967349c7e5a58ddf6c011b55c92b787d899ad8d1fcd1c8a243e41faebcd6241c",
+        5,
     );
     assert!(local.join("recovery-id-map.json").is_file());
     let segment_pid: u64 =
         serde_json::from_slice(&std::fs::read(local.join("recovery-id-map.json")).unwrap())
             .unwrap();
     let transitions = std::fs::read(local.join("recovery-poll-transitions.json")).unwrap();
+    let transitions = portable_worker_trace(
+        &transitions,
+        &worker_hash,
+        "967349c7e5a58ddf6c011b55c92b787d899ad8d1fcd1c8a243e41faebcd6241c",
+        5,
+    )
+    .expect("recovery transitions worker identity invalid");
     assert_portable_index_trace(
         &transitions,
         include_bytes!("reference_real_eof_peer_poll_transitions.json"),
@@ -1852,6 +1873,13 @@ fn unified_poll_real_eof_restarts_and_completes_peer() {
         "<PID2>",
     );
     let joined = std::fs::read(local.join("recovery-joined.json")).unwrap();
+    let joined = portable_worker_trace(
+        &joined,
+        &worker_hash,
+        "967349c7e5a58ddf6c011b55c92b787d899ad8d1fcd1c8a243e41faebcd6241c",
+        5,
+    )
+    .expect("recovery joined worker identity invalid");
     assert_portable_index_trace(
         &joined,
         include_bytes!("reference_real_eof_peer_joined_poll_effects.json"),

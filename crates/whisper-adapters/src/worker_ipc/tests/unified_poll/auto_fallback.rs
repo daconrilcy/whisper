@@ -201,10 +201,13 @@ fn unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model() {
         String::from_utf8_lossy(&result.stderr)
     );
     let trace = std::fs::read(local.join("fallback-trace.json")).expect("scenario trace");
-    assert_eq!(
-        trace.as_slice(),
+    let worker_hash = actual_fake_worker_hash(&local);
+    assert_portable_worker_trace(
+        &trace,
         include_bytes!("reference_auto_fallback.json"),
-        "fallback effects diverged from the frozen baseline"
+        &worker_hash,
+        "ec1caa0c4e1209d513f0f12ca0ba3d4d627b168f514e5088fda80ff803344db8",
+        3,
     );
     assert!(
         local.join("fallback-id-map.json").is_file(),
@@ -212,15 +215,21 @@ fn unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model() {
     );
     let complete_wire =
         std::fs::read(local.join("fallback-complete-wire.json")).expect("complete CPU IPC log");
-    assert_eq!(
-        complete_wire.as_slice(),
-        include_bytes!("reference_auto_fallback_complete_wire.json")
+    assert_portable_worker_trace(
+        &complete_wire,
+        include_bytes!("reference_auto_fallback_complete_wire.json"),
+        &worker_hash,
+        "ec1caa0c4e1209d513f0f12ca0ba3d4d627b168f514e5088fda80ff803344db8",
+        3,
     );
     let transitions = std::fs::read(local.join("fallback-poll-transitions.json"))
         .expect("fallback poll transitions");
-    assert_eq!(
-        transitions.as_slice(),
-        include_bytes!("reference_auto_poll_transitions.json")
+    assert_portable_worker_trace(
+        &transitions,
+        include_bytes!("reference_auto_poll_transitions.json"),
+        &worker_hash,
+        "ec1caa0c4e1209d513f0f12ca0ba3d4d627b168f514e5088fda80ff803344db8",
+        3,
     );
     let document_deltas = std::fs::read(local.join("fallback-document-deltas.json"))
         .expect("fallback document deltas");
@@ -235,6 +244,13 @@ fn unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model() {
         "<PID1>",
     );
     let joined = std::fs::read(local.join("fallback-joined.json")).expect("joined fallback trace");
+    let joined = portable_worker_trace(
+        &joined,
+        &worker_hash,
+        "ec1caa0c4e1209d513f0f12ca0ba3d4d627b168f514e5088fda80ff803344db8",
+        3,
+    )
+    .expect("fallback joined worker identity invalid");
     assert_portable_index_trace(
         &joined,
         include_bytes!("reference_auto_joined_poll_effects.json"),

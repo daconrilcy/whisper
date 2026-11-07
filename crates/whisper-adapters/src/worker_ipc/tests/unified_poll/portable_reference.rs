@@ -142,6 +142,195 @@ fn assert_portable_index_trace(actual: &[u8], frozen: &[u8], pid: u64, placehold
 }
 
 #[cfg(windows)]
+fn replace_worker_build_hashes(
+    lines: &mut [String],
+    expected_hash: &str,
+    replacement_hash: &str,
+    expected_count: usize,
+) -> Result<(), String> {
+    if expected_hash.len() != 64
+        || replacement_hash.len() != 64
+        || !expected_hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || !replacement_hash
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("worker build hashes must be 64 hexadecimal characters".into());
+    }
+
+    let mut replaced = 0;
+    for line in lines {
+        let mut cursor = 0;
+        while let Some(relative) = line[cursor..].find("build_sha256") {
+            let key_start = cursor + relative;
+            let mut value_start = key_start + "build_sha256".len();
+            while line.as_bytes().get(value_start) == Some(&b'\\') { value_start += 1; }
+            if line.as_bytes().get(value_start) != Some(&b'"') {
+                return Err("worker hash key is not a quoted JSON field".into());
+            }
+            value_start += 1;
+            while line
+                .as_bytes()
+                .get(value_start)
+                .is_some_and(u8::is_ascii_whitespace)
+            {
+                value_start += 1;
+            }
+            if line.as_bytes().get(value_start) != Some(&b':') {
+                return Err("worker hash field has no JSON separator".into());
+            }
+            value_start += 1;
+            while line
+                .as_bytes()
+                .get(value_start)
+                .is_some_and(u8::is_ascii_whitespace)
+            {
+                value_start += 1;
+            }
+            while line.as_bytes().get(value_start) == Some(&b'\\') {
+                value_start += 1;
+            }
+            if line.as_bytes().get(value_start) != Some(&b'"') {
+                return Err("worker hash value is not a quoted string".into());
+            }
+            value_start += 1;
+            let value_end = value_start + 64;
+            if line.len() < value_end
+                || !line.as_bytes()[value_start..value_end]
+                    .iter()
+                    .all(u8::is_ascii_hexdigit)
+            {
+                return Err("worker hash value is not 64 hexadecimal characters".into());
+            }
+            let mut closing = value_end;
+            while line.as_bytes().get(closing) == Some(&b'\\') {
+                closing += 1;
+            }
+            if line.as_bytes().get(closing) != Some(&b'"') {
+                return Err("worker hash string is not properly terminated".into());
+            }
+            let context_start = key_start.saturating_sub(512);
+            let context = &line[context_start..key_start];
+            if !context.contains("identity")
+                || !(context.contains("ready")
+                    || context.contains("transcribe")
+                    || context.contains("result"))
+            {
+                return Err("worker hash is outside an expected IPC identity".into());
+            }
+            if &line[value_start..value_end] != expected_hash {
+                return Err("worker build hash does not match its pinned identity".into());
+            }
+            line.replace_range(value_start..value_end, replacement_hash);
+            replaced += 1;
+            cursor = value_start + replacement_hash.len() + (closing - value_end) + 1;
+        }
+    }
+    if replaced != expected_count {
+        return Err(format!(
+            "worker build hash count mismatch: expected {expected_count}, found {replaced}"
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn portable_worker_trace(
+    bytes: &[u8],
+    expected_hash: &str,
+    replacement_hash: &str,
+    expected_count: usize,
+) -> Result<Vec<u8>, String> {
+    let mut lines: Vec<String> =
+        serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    if serde_json::to_vec_pretty(&lines).map_err(|error| error.to_string())? != bytes {
+        return Err("noncanonical worker trace encoding".into());
+    }
+    replace_worker_build_hashes(
+        &mut lines,
+        expected_hash,
+        replacement_hash,
+        expected_count,
+    )?;
+    serde_json::to_vec_pretty(&lines).map_err(|error| error.to_string())
+}
+
+#[cfg(windows)]
+fn assert_portable_worker_trace(
+    actual: &[u8],
+    frozen: &[u8],
+    actual_hash: &str,
+    historical_hash: &str,
+    expected_count: usize,
+) {
+    let actual = portable_worker_trace(actual, actual_hash, historical_hash, expected_count)
+        .expect("candidate worker identity invalid");
+    let frozen = portable_worker_trace(
+        frozen,
+        historical_hash,
+        historical_hash,
+        expected_count,
+    )
+    .expect("baseline worker identity invalid");
+    assert_eq!(actual, frozen, "worker trace differs from its frozen baseline");
+}
+
+#[cfg(windows)]
+fn actual_fake_worker_hash(local: &std::path::Path) -> String {
+    let path = local.join("Whisper/worker/whisper-worker-parakeet-cpu.exe");
+    crate::parakeet_import::sha256_file(&path)
+        .unwrap_or_else(|error| panic!("hash fake worker {}: {error}", path.display()))
+}
+
+#[cfg(windows)]
+#[test]
+fn unified_poll_portable_worker_trace_pins_identity_and_preserves_other_fields() {
+    const ACTUAL: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const HISTORICAL: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let line = |hash: &str| {
+        format!(
+            "wire OUT {{\"message\":{{\"type\":\"ready\",\"identity\":{{\"build_sha256\":\"{hash}\"}}}}}}"
+        )
+    };
+    let actual = serde_json::to_vec_pretty(&vec![line(ACTUAL), line(ACTUAL), line(ACTUAL)])
+        .unwrap();
+    let frozen = serde_json::to_vec_pretty(&vec![
+        line(HISTORICAL),
+        line(HISTORICAL),
+        line(HISTORICAL),
+    ])
+    .unwrap();
+    assert_eq!(
+        portable_worker_trace(&actual, ACTUAL, HISTORICAL, 3).unwrap(),
+        portable_worker_trace(&frozen, HISTORICAL, HISTORICAL, 3).unwrap()
+    );
+
+    assert!(portable_worker_trace(&actual, HISTORICAL, HISTORICAL, 3).is_err());
+    assert!(portable_worker_trace(&frozen, ACTUAL, HISTORICAL, 3).is_err());
+    assert!(portable_worker_trace(&actual, ACTUAL, HISTORICAL, 2).is_err());
+    let missing = serde_json::to_vec_pretty(&vec![line(ACTUAL), line(ACTUAL)]).unwrap();
+    assert!(portable_worker_trace(&missing, ACTUAL, HISTORICAL, 3).is_err());
+    let extra = serde_json::to_vec_pretty(&vec![
+        line(ACTUAL),
+        line(ACTUAL),
+        line(ACTUAL),
+        line(ACTUAL),
+    ])
+    .unwrap();
+    assert!(portable_worker_trace(&extra, ACTUAL, HISTORICAL, 3).is_err());
+    let changed = serde_json::to_vec_pretty(&vec![
+        line(ACTUAL).replace("ready", "result"),
+        line(ACTUAL),
+        line(ACTUAL),
+    ])
+    .unwrap();
+    assert_ne!(
+        portable_worker_trace(&changed, ACTUAL, HISTORICAL, 3).unwrap(),
+        portable_worker_trace(&frozen, HISTORICAL, HISTORICAL, 3).unwrap()
+    );
+}
+
+#[cfg(windows)]
 #[test]
 fn unified_poll_portable_index_validates_offsets_and_pid_widths() {
     fn sample(pid: u64) -> (Vec<u8>, Vec<u8>) {
