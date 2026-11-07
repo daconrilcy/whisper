@@ -35,59 +35,7 @@ impl ImportRuntime {
             )));
         }
         if let Err(reap_error) = reap {
-            let mut failure = format!("{error}; {reap_error}");
-            let sessions: Vec<_> = self.unified_sessions.keys().copied().collect();
-            for (other, state) in &mut self.unified_sessions {
-                if state.source.is_capture() && !state.source_closed {
-                    match state.source.stop_capture() {
-                        Ok(Some((total_samples, acknowledgements))) => {
-                            state.available_samples = total_samples;
-                            state.durable_samples = state
-                                .durable_samples
-                                .max(
-                                    acknowledgements
-                                        .iter()
-                                        .map(|ack| ack.flushed_samples)
-                                        .max()
-                                        .unwrap_or(0),
-                                )
-                                .min(total_samples);
-                            state.source_closed = true;
-                        }
-                        Ok(None) => {}
-                        Err(stop_error) => failure.push_str(&format!(
-                            "; capture {:?}/{:?} stop: {stop_error}",
-                            other.job_id, other.generation
-                        )),
-                    }
-                }
-            }
-            if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
-                failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
-            }
-            for other in &sessions {
-                if let Err(scheduler_error) = self.parakeet_scheduler.abort_session(*other) {
-                    failure.push_str(&format!("; SchedulerAbort: {scheduler_error:?}"));
-                }
-            }
-            if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
-                failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
-            }
-            for other in sessions {
-                self.unified_sessions.remove(&other);
-                self.release_unified_terminal_state(other.job_id, other.generation);
-                if other != session {
-                    self.parakeet_pending_events.push_back(ImportEvent::Failed {
-                        job_id: other.job_id,
-                        generation: other.generation,
-                        message: format!(
-                            "InferenceWorkerLost: peer session terminated after worker panic while processing {:?}/{:?}",
-                            session.job_id, session.generation
-                        ),
-                    });
-                }
-            }
-            return Some(Err((session.job_id, session.generation, failure)));
+            return self.recover_unified_reap_failure(call, session, error, reap_error);
         }
         let mut failure = error;
         if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
@@ -111,6 +59,68 @@ impl ImportRuntime {
                 .restart()
         {
             failure.push_str(&format!("; InferenceRestart: {restart_error}"));
+        }
+        Some(Err((session.job_id, session.generation, failure)))
+    }
+
+    fn recover_unified_reap_failure(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+        error: String,
+        reap_error: String,
+    ) -> UnifiedPollOutcome {
+        let mut failure = format!("{error}; {reap_error}");
+        let sessions: Vec<_> = self.unified_sessions.keys().copied().collect();
+        for (other, state) in &mut self.unified_sessions {
+            if state.source.is_capture() && !state.source_closed {
+                match state.source.stop_capture() {
+                    Ok(Some((total_samples, acknowledgements))) => {
+                        state.available_samples = total_samples;
+                        state.durable_samples = state
+                            .durable_samples
+                            .max(
+                                acknowledgements
+                                    .iter()
+                                    .map(|ack| ack.flushed_samples)
+                                    .max()
+                                    .unwrap_or(0),
+                            )
+                            .min(total_samples);
+                        state.source_closed = true;
+                    }
+                    Ok(None) => {}
+                    Err(stop_error) => failure.push_str(&format!(
+                        "; capture {:?}/{:?} stop: {stop_error}",
+                        other.job_id, other.generation
+                    )),
+                }
+            }
+        }
+        if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
+            failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
+        }
+        for other in &sessions {
+            if let Err(scheduler_error) = self.parakeet_scheduler.abort_session(*other) {
+                failure.push_str(&format!("; SchedulerAbort: {scheduler_error:?}"));
+            }
+        }
+        if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
+            failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
+        }
+        for other in sessions {
+            self.unified_sessions.remove(&other);
+            self.release_unified_terminal_state(other.job_id, other.generation);
+            if other != session {
+                self.parakeet_pending_events.push_back(ImportEvent::Failed {
+                    job_id: other.job_id,
+                    generation: other.generation,
+                    message: format!(
+                        "InferenceWorkerLost: peer session terminated after worker panic while processing {:?}/{:?}",
+                        session.job_id, session.generation
+                    ),
+                });
+            }
         }
         Some(Err((session.job_id, session.generation, failure)))
     }
