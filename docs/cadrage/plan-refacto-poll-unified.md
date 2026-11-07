@@ -4,6 +4,15 @@ Décision : soumettre ce périmètre concret à revue indépendante puis à acce
 
 # REFACTO-POLL-UNIFIED — plan d’exécution
 
+## Décisions utilisateur du 7 novembre 2026 — priorité sur les propositions ci-dessous
+
+- D1 : cible Cargo autorisée du worktree, sans adaptation des sélecteurs N1/N2. Ajouter seulement les options Clippy fermées de §7 et leurs tests, et utiliser CLIPPY_CONF_DIR sous le lot.
+- D2 : profil PersonalUnified existant complet, CPU/FR, GPU/EN, GPU/FR, Auto/EN, avant et après ; comparer TXT/SRT bruts cas par cas. Aucun test N2, sélecteur ou oracle supplémentaire.
+- D3 : U1–U4, réserve O1 et représentation stable des traces acceptées conformément à §2 ; étape 4 de la recette humaine incluse.
+- D4 : compilation de whisper-rs-sys via Cargo autorisée uniquement pour les tests worker-cpu, Cargo.lock inchangé ; aucun autre build CMake/ggml/NeMo/CUDA. WHEA avant/après ; crash compilateur ou nouvelle WHEA : STOP sans nouvel essai. Si `cargo tree -i whisper-adapters` démontre que worker-cpu n’en dépend pas, réutilisation de la preuve 12/0/9 et identité des sources acceptées, réexécution NON EXÉCUTÉE.
+- Phase 1 limitée à T1–T5, puis N1 ×3, N2, Clippy, revue du diff et bilan de phase. L’état après T5 doit être fusionnable seul ; recette humaine uniquement si l’orchestrateur est déjà ≤15. Phase 2 T6–T9 après fusion de la phase 1. T2 est limité à quatre heures : au-delà STOP, groupes couverts/restants et estimation. Chaque extraction donne un commit après N1 complet sans variable.
+- Les autres invariants et interdictions du plan sont acceptés. Les propositions contradictoires des sections historiques ci-dessous ne sont pas retenues. Aucun merge ni push dans cette autorisation.
+
 Revue de fond achevée : [compte rendu](revue-refacto-poll-unified.md). CLEAN documentaire uniquement ; D1–D4 restent à accepter. La présente mise à jour de statut ne modifie pas le plan relu.
 
 ## 1. Contrat, référence et autorité
