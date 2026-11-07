@@ -1,8 +1,14 @@
-Avancée : plan relu CLEAN sur 1c049c81, deux passages indépendants ; aucun code modifié.
-Blocage : décisions D1–D4 ci-dessous nécessaires ; compatibilité d’un cache binaire worker sans compilation native non établie.
-Décision : soumettre ce périmètre concret à revue indépendante puis à acceptation.
+Avancée : phase 1 fusionnée localement dans main à e22eed93 ; phase 2 T6–T9 autorisée.
+Blocage : aucun préalable de fusion restant ; contrôles de phase 2 à exécuter.
+Décision : exécuter T6–T9 sur refacto-poll-unified, sans push et en conservant preuves et dossiers.
 
 # REFACTO-POLL-UNIFIED — plan d’exécution
+
+## Autorisation de phase 2 du 7 novembre 2026
+
+Dans la session courante, l’utilisateur autorise précisément : « Fusionner localement la phase 1 (`e22eed93`) dans `main`, puis exécuter T6–T9, sans push ». La fusion locale par avance rapide de `08ddfde8` vers `e22eed93` est effectuée ; le prérequis de base fusionnée est satisfait. La phase 2 continue dans le worktree existant `C:/wt/refacto-poll`, sur `refacto-poll-unified`, avec commits locaux après les contrôles prévus. Cette autorisation ne comprend pas la fusion de la phase 2.
+
+Les décisions acceptées ci-dessous restent applicables, notamment la cible Cargo autorisée du worktree, le profil N2 PersonalUnified complet, les références d’équivalence figées et D4(b) pour le worker Turbo CPU inchangé après vérification d’identité et d’absence de dépendance à adapters. T6–T8 extraient successivement récupération, clôture documentaire et lancement des appels ; T9 vérifie le seuil ≤15 en production/test, l’équivalence, N1 ×3, workers/PE, format/Clippy, N2 et la remise Personal pour recette humaine. Les preuves et dossiers existants sont conservés ; aucune suppression ni déplacement automatique.
 
 ## Décisions utilisateur du 7 novembre 2026 — priorité sur les propositions ci-dessous
 
