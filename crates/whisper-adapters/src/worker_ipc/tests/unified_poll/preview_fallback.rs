@@ -1,15 +1,14 @@
 #[cfg(windows)]
 fn run_unified_poll_preview_fallback_child(preview: bool, cpu_identity_fails: bool) {
-    const MODEL: &str =
-        "C:/Users/cyril/AppData/Local/Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf";
     const MODEL_SHA: &str = "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e";
+    let model = verified_personal_model();
     let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap());
     let fake = if preview {
         "fake_preview_worker.rs"
     } else {
         "fake_worker.rs"
     };
-    let (cpu_paths, worker) = prepare_fake_personal_worker(&local, MODEL, MODEL_SHA, fake);
+    let (cpu_paths, worker) = prepare_fake_personal_worker(&local, &model, MODEL_SHA, fake);
     if cpu_identity_fails {
         let path = worker.with_extension("identity");
         let mut identity: serde_json::Value =
@@ -27,8 +26,9 @@ fn run_unified_poll_preview_fallback_child(preview: bool, cpu_identity_fails: bo
     auto.config.compute = ComputeChoice::Auto;
     let mut manual = unified_import_request(&local.join("manual"), &source, 73_111);
     manual.config.compute = ComputeChoice::Gpu;
+    let mut poll_trace = FallbackPollTrace::new(&worker, &local);
     let (mut runtime, session, mut trace) =
-        begin_gpu_fallback(&local, &auto, &manual, cpu_paths, preview);
+        begin_gpu_fallback(&local, &auto, &manual, cpu_paths, preview, &mut poll_trace);
     if cpu_identity_fails {
         std::fs::write(worker.with_extension("release"), b"release").unwrap();
         let deadline = Instant::now() + Duration::from_secs(20);
@@ -70,16 +70,16 @@ fn run_unified_poll_preview_fallback_child(preview: bool, cpu_identity_fails: bo
             .unwrap();
         return;
     }
-    complete_cpu_fallback_call(&mut runtime, &worker, &local, session, &mut trace);
-    assert!(runtime.poll_unified_sessions().is_none());
-    let retained = &runtime.unified_sessions[&session];
-    assert!(retained.pending_call.is_none());
-    assert!(retained.pending_window.is_none());
-    assert!(retained.pending_available_samples.is_none());
-    assert_eq!(
-        retained.native_route.as_ref().unwrap().compute,
-        ComputeChoice::Cpu
+    complete_cpu_fallback_call(
+        &mut runtime,
+        &worker,
+        &local,
+        session,
+        &mut trace,
+        &mut poll_trace,
     );
+    assert!(runtime.poll_unified_sessions().is_none());
+    assert_preview_fallback_retained(&runtime, session);
     trace.push(format!(
         "preview committed {}",
         unified_fallback_snapshot(&runtime)
@@ -95,6 +95,21 @@ fn run_unified_poll_preview_fallback_child(preview: bool, cpu_identity_fails: bo
         serde_json::to_vec_pretty(&trace).unwrap(),
     )
     .unwrap();
+}
+
+#[cfg(windows)]
+fn assert_preview_fallback_retained(
+    runtime: &ImportRuntime,
+    session: whisper_core::parakeet_scheduler::SchedulerSession,
+) {
+    let retained = &runtime.unified_sessions[&session];
+    assert!(retained.pending_call.is_none());
+    assert!(retained.pending_window.is_none());
+    assert!(retained.pending_available_samples.is_none());
+    assert_eq!(
+        retained.native_route.as_ref().unwrap().compute,
+        ComputeChoice::Cpu
+    );
 }
 
 #[cfg(windows)]

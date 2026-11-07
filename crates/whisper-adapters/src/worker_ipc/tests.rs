@@ -18,3 +18,4 @@ include!("tests/unified_poll/characterization.rs");
 include!("tests/unified_poll/auto_fallback.rs");
 include!("tests/unified_poll/equivalence.rs");
 include!("tests/unified_poll/preview_fallback.rs");
+include!("tests/unified_poll/portable_reference.rs");

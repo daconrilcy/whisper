@@ -6,6 +6,7 @@ param(
     [switch]$WithoutCargoTargetDir,
     [string]$FreshTarget,
     [string]$ExistingTarget,
+    [string]$PersonalParakeetModelPath,
     [string[]]$UnsetEnv = @(),
     [string[]]$CargoArgs = @(),
     [string]$CargoArgsJson,
@@ -79,6 +80,16 @@ function Assert-NoReparseChain([string]$Path, [string]$Name) {
         if (-not $parent -or $parent -eq $cursor) { return }
         $cursor = $parent
     }
+}
+
+function Assert-PersonalParakeetModel([string]$Path, [string]$ExpectedSha) {
+    if (-not [IO.Path]::IsPathFullyQualified($Path)) { throw 'Personal Parakeet model path must be absolute.' }
+    $full = Get-FullPath $Path
+    if ([IO.Path]::GetFileName($full) -cne 'parakeet-tdt-0.6b-v3.q8_0.gguf') { throw 'Unexpected personal Parakeet model name.' }
+    Assert-NoReparseChain $full 'personal Parakeet model'
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "Personal Parakeet model absent: $full" }
+    if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ine $ExpectedSha) { throw "Personal Parakeet model SHA-256 mismatch: $full" }
+    return $full
 }
 
 function Initialize-Directory([string]$Path, [string]$Name) {
@@ -355,6 +366,7 @@ function Assert-WriteRoots {
     foreach ($entry in Get-ChildItem Env:) {
         if ($entry.Name -match '^(WHISPER_|PARAKEET_)') { throw "Campaign variable was not cleared: $($entry.Name)" }
     }
+    if ([Environment]::GetEnvironmentVariable('N1_TEST_PERSONAL_PARAKEET_MODEL','Process') -cne $script:personalModel) { throw 'Personal model test path differs from the validated selection.' }
 }
 
 function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Label) {
@@ -419,6 +431,7 @@ function Set-CleanEnvironment {
     $env:TEMP = Join-Path $tempRoot 'temp'
     $env:TMP = Join-Path $tempRoot 'tmp'
     $env:LOCALAPPDATA = Join-Path $runRoot 'localappdata'
+    Set-ProcessEnvironmentValue 'N1_TEST_PERSONAL_PARAKEET_MODEL' $script:personalModel
 }
 
 function Set-CargoCommandEnvironment([string]$Subcommand) {
@@ -554,6 +567,17 @@ function Invoke-SelfTests {
     foreach ($case in $negative) { $rejected=$false; try { [void](Test-CargoArguments $case $members) } catch { $rejected=$true }; if (-not $rejected) { throw "Self-test accepted: $($case -join ' ')" }; $nCount++ }
     foreach ($bad in @('OTHER_VAR','CMAKE_PREFIX_PATH','CUDA_VISIBLE_DEVICES')) { $rejected=$false; try { Assert-AllowedUnset @($bad) } catch { $rejected=$true }; if (-not $rejected) { throw "Self-test accepted -UnsetEnv $bad" }; $nCount++ }
     foreach ($good in @('CUDA_PATH','CUDA_PATH_V12_8','GGML_CUDA','WHISPER_ENGINE','PARAKEET_MODEL')) { Assert-AllowedUnset @($good); $pCount++ }
+    $modelFixture = Join-Path $runRoot 'parakeet-tdt-0.6b-v3.q8_0.gguf'
+    [IO.File]::WriteAllText($modelFixture, 'synthetic personal model')
+    $modelSha = (Get-FileHash -LiteralPath $modelFixture -Algorithm SHA256).Hash
+    if ((Assert-PersonalParakeetModel $modelFixture $modelSha) -ine (Get-FullPath $modelFixture)) { throw 'Model fixture path changed.' }
+    $pCount++
+    foreach ($badModel in @('relative/parakeet-tdt-0.6b-v3.q8_0.gguf', (Join-Path $runRoot 'absent/parakeet-tdt-0.6b-v3.q8_0.gguf'), (Join-Path $runRoot 'wrong.gguf'))) {
+        $rejected=$false; try { [void](Assert-PersonalParakeetModel $badModel $modelSha) } catch { $rejected=$true }
+        if (-not $rejected) { throw "Self-test accepted invalid personal model: $badModel" }; $nCount++
+    }
+    $rejected=$false; try { [void](Assert-PersonalParakeetModel $modelFixture ('0' * 64)) } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Self-test accepted an incorrect personal model SHA.' }; $nCount++
     $rejected=$false
     try { Assert-AllowedUnset @('CUDA_PATH_NOT_V') } catch { $rejected=$true }
     if (-not $rejected) { throw 'Self-test accepted CUDA_PATH_NOT_V.' }
@@ -562,6 +586,8 @@ function Invoke-SelfTests {
     $outsideBase = Join-Path $runRoot 'junction-target'
     Initialize-Directory $outsideBase 'junction self-test target'
     New-Item -ItemType Junction -Path $junctionBase -Target $outsideBase | Out-Null
+    $rejected=$false; try { [void](Assert-PersonalParakeetModel (Join-Path $junctionBase 'parakeet-tdt-0.6b-v3.q8_0.gguf') $modelSha) } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Self-test accepted model path through a junction.' }; $nCount++
     $rejected=$false
     try { Assert-NoReparseChain (Join-Path $junctionBase 'fresh') 'fresh target fixture' } catch { $rejected=$true }
     if (-not $rejected) { throw 'Self-test accepted a fresh target below a junction.' }
@@ -611,7 +637,12 @@ function Invoke-SelfTests {
     }
     $savedVariables = @{}
     try {
-        foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS','CLIPPY_CONF_DIR')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS','CLIPPY_CONF_DIR','N1_TEST_PERSONAL_PARAKEET_MODEL')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        Set-ProcessEnvironmentValue 'N1_TEST_PERSONAL_PARAKEET_MODEL' 'unvalidated'
+        $rejected=$false; try { Assert-WriteRoots } catch { $rejected=$true }
+        if (-not $rejected) { throw 'Self-test accepted an unvalidated model environment.' }; $nCount++
+        Set-ProcessEnvironmentValue 'N1_TEST_PERSONAL_PARAKEET_MODEL' $script:personalModel
+        Assert-WriteRoots; $pCount++
         $confFixture = Join-Path $runRoot 'clippy-conf'
         Initialize-Directory $confFixture 'Clippy configuration fixture'
         $env:CLIPPY_CONF_DIR = $confFixture
@@ -705,6 +736,22 @@ function Invoke-SelfTests {
         $script:useConfigTarget = $savedConfigTarget
         Set-ProcessEnvironmentValue 'CARGO_TARGET_DIR' $oldTargetEnv
     }
+    $savedModel = $script:personalModel
+    try {
+        $script:personalModel = Assert-PersonalParakeetModel $modelFixture $modelSha
+        $env:WHISPER_N1_REVIEW = 'must-be-cleared'
+        $env:N1_TEST_PERSONAL_PARAKEET_MODEL = 'untrusted-input'
+        Set-CleanEnvironment
+        Assert-WriteRoots
+        $probe = Invoke-Captured (Get-Process -Id $PID).Path @('-NoProfile','-Command', '[pscustomobject]@{ model=$env:N1_TEST_PERSONAL_PARAKEET_MODEL; forbidden=$env:WHISPER_N1_REVIEW; local=$env:LOCALAPPDATA; temp=$env:TEMP; tmp=$env:TMP } | ConvertTo-Json -Compress') 'model-environment-selftest'
+        if ($probe.ExitCode -ne 0) { throw 'Model environment child probe failed.' }
+        $child = $probe.Stdout | ConvertFrom-Json
+        if ($child.model -cne $script:personalModel -or $null -ne $child.forbidden -or $child.local -cne $env:LOCALAPPDATA -or $child.temp -cne $env:TEMP -or $child.tmp -cne $env:TMP) { throw 'Model environment child probe observed incorrect isolation or variables.' }
+        $pCount++
+    } finally {
+        $script:personalModel = $savedModel
+        Set-CleanEnvironment
+    }
     "CARGO_TARGET_DIR_CLEANUP present_before=$script:cargoTargetDirPresentBeforeClean present_after=$script:cargoTargetDirPresentAfterClean"
     'PASS self-test parser cases: positives={0}, negatives={1}.' -f $pCount,$nCount
 }
@@ -732,6 +779,11 @@ function Invoke-Structure {
 $SelfTest = $SelfTest -or $Mode -eq 'SelfTest'
 Assert-AllowedUnset $UnsetEnv
 $lotRoot = Resolve-LotRoot $LotRoot
+$script:personalModel = $null
+if ($PersonalParakeetModelPath) {
+    $script:personalModel = Assert-PersonalParakeetModel $PersonalParakeetModelPath 'e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e'
+    if (Test-InRoot $script:personalModel (Join-Path $repo 'target')) { throw 'Personal model must be persistent outside target.' }
+}
 if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; campaign setup is forbidden.' }
 $script:useConfigTarget = [bool]$WithoutCargoTargetDir
 if ($FreshTarget) {

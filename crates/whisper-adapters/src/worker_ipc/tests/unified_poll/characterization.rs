@@ -277,6 +277,7 @@ fn unified_poll_refuses_route_replacement_for_a_reserved_call() {
 #[test]
 fn unified_poll_rejects_stale_result_without_losing_session() {
     let mut trace = Vec::<String>::new();
+    let mut transitions = Vec::<String>::new();
     for stale_field in [
         "attempt",
         "request",
@@ -286,7 +287,7 @@ fn unified_poll_rejects_stale_result_without_losing_session() {
         "unknown_job",
         "unknown_generation",
     ] {
-        characterize_stale_result(stale_field, &mut trace);
+        characterize_stale_result(stale_field, &mut trace, &mut transitions);
     }
     let trace_file = test_artifact_root("unified-poll-stale-trace").with_extension("json");
     let trace_bytes = serde_json::to_vec_pretty(&trace).unwrap();
@@ -295,6 +296,13 @@ fn unified_poll_rejects_stale_result_without_losing_session() {
         trace_bytes.as_slice(),
         include_bytes!("reference_stale.json"),
         "stale-result effects diverged from the frozen baseline"
+    );
+    let path = test_artifact_root("unified-poll-stale-transitions-baseline").with_extension("json");
+    let bytes = serde_json::to_vec_pretty(&transitions).unwrap();
+    std::fs::write(path, &bytes).unwrap();
+    assert_eq!(
+        bytes.as_slice(),
+        include_bytes!("reference_stale_poll_transitions.json")
     );
 }
 
@@ -2374,12 +2382,18 @@ fn unified_poll_panic_appends_peer_scheduler_abort_error_and_releases_both() {
     assert!(runtime.parakeet_pending_events.iter().any(|event| matches!(event, ImportEvent::Failed { job_id, generation, .. } if *job_id == peer_id.job_id && *generation == peer_id.generation)));
 }
 
-fn characterize_stale_result(stale_field: &str, trace: &mut Vec<String>) {
+fn characterize_stale_result(
+    stale_field: &str,
+    trace: &mut Vec<String>,
+    transitions: &mut Vec<String>,
+) {
     let (mut runtime, request) = unified_poll_import_fixture("unified-poll-stale", 73_005);
+    let archive = PathBuf::from(&request.destination);
     let session = whisper_core::parakeet_scheduler::SchedulerSession {
         job_id: request.job_id,
         generation: request.generation,
     };
+    let document = start_trace_diagnostics(&mut runtime, &archive, session);
     runtime.parakeet_scheduler.queue_final(session, 0).unwrap();
     let call = runtime.parakeet_scheduler.next_call().unwrap().unwrap();
     runtime.parakeet_scheduler.begin_call(call).unwrap();
@@ -2434,7 +2448,8 @@ fn characterize_stale_result(stale_field: &str, trace: &mut Vec<String>) {
         "{stale_field} before {}",
         unified_fallback_snapshot(&runtime)
     ));
-    let outcome = runtime.poll_unified_sessions();
+    transitions.push(format!("fixture stale field {stale_field}"));
+    let outcome = record_import_poll(&mut runtime, &document, transitions);
     trace.push(format!(
         "{stale_field} outcome {}",
         serde_json::to_string(&outcome).unwrap()
@@ -2465,6 +2480,7 @@ fn characterize_stale_result(stale_field: &str, trace: &mut Vec<String>) {
         .unwrap()
         .stop_and_reap()
         .unwrap();
+    assert_empty_diagnostics_after_join(&mut runtime, &archive);
 }
 
 #[test]
