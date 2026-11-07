@@ -650,14 +650,30 @@ function Invoke-SelfTests {
         Assert-WriteRoots
         $pCount++
         $previousDirectory = Get-Location
+        $previousProcessDirectory = [Environment]::CurrentDirectory
         try {
             Set-Location -LiteralPath $confFixture
+            [Environment]::CurrentDirectory = $confFixture
             $env:CLIPPY_CONF_DIR = '.'
+            if (-not (Test-InRoot $env:CLIPPY_CONF_DIR $lotRoot)) { throw 'Self-test relative fixture did not resolve inside the lot.' }
+            Assert-NoReparseChain $env:CLIPPY_CONF_DIR 'relative Clippy fixture'
+            $currentRootCheck = (Get-Command Assert-WriteRoots -CommandType Function).ScriptBlock
+            $absoluteRule = "        if (-not [IO.Path]::IsPathFullyQualified(`$env:CLIPPY_CONF_DIR)) { throw 'CLIPPY_CONF_DIR must be an absolute path.' }"
+            $previousRootCheck = $currentRootCheck.ToString().Replace($absoluteRule, '')
+            if ($previousRootCheck -ceq $currentRootCheck.ToString()) { throw 'Self-test could not construct the previous root check in memory.' }
+            try {
+                Set-Item -LiteralPath Function:script:Assert-WriteRoots -Value ([scriptblock]::Create($previousRootCheck))
+                Assert-WriteRoots
+            } finally {
+                Set-Item -LiteralPath Function:script:Assert-WriteRoots -Value $currentRootCheck
+            }
+            $pCount++
             $rejected = $false
-            try { Assert-WriteRoots } catch { $rejected = $true }
-            if (-not $rejected) { throw 'Self-test accepted a relative CLIPPY_CONF_DIR inside the lot.' }
+            try { Assert-WriteRoots } catch { $rejected = $_.Exception.Message -ceq 'CLIPPY_CONF_DIR must be an absolute path.' }
+            if (-not $rejected) { throw 'Self-test did not reject an internal relative CLIPPY_CONF_DIR for the absolute-path rule.' }
             $nCount++
         } finally {
+            [Environment]::CurrentDirectory = $previousProcessDirectory
             Set-Location -LiteralPath $previousDirectory
             $env:CLIPPY_CONF_DIR = $confFixture
         }
