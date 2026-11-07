@@ -1,8 +1,10 @@
-Avancée : cartographie statique et plan préparés sur main 08ddfde8 ; aucun code modifié.
+Avancée : plan relu CLEAN sur 1c049c81, deux passages indépendants ; aucun code modifié.
 Blocage : décisions D1–D4 ci-dessous nécessaires ; compatibilité d’un cache binaire worker sans compilation native non établie.
 Décision : soumettre ce périmètre concret à revue indépendante puis à acceptation.
 
 # REFACTO-POLL-UNIFIED — plan d’exécution
+
+Revue de fond achevée : [compte rendu](revue-refacto-poll-unified.md). CLEAN documentaire uniquement ; D1–D4 restent à accepter. La présente mise à jour de statut ne modifie pas le plan relu.
 
 ## 1. Contrat, référence et autorité
 
