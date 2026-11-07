@@ -1,10 +1,12 @@
-Avancée : inventaire et commandes préparés le 7 novembre 2026 ; aucune suppression exécutée.
-Blocage : aucun pour la préparation ; les copies et audios temporaires attendent l'approbation explicite du manifeste avant suppression.
+Avancée : inventaire et commandes préparés le 7 novembre 2026 ; manifeste des copies approuvé dans la session courante ; aucune suppression exécutée.
+Blocage : aucun pour la préparation ; l'exécution du nettoyage n'est pas autorisée par la demande « Ne supprime rien ».
 Décision : conserver toutes les données en place ; proposer uniquement les chemins recensés, avec simulation par défaut.
 
 # Refacto-poll — proposition de nettoyage des intermédiaires
 
 Complément aux bilans figés de [phase 1](../architecture/REFACTO-POLL-UNIFIED-PHASE1-BILAN.md) et de [phase 2](../architecture/REFACTO-POLL-UNIFIED-BILAN.md), selon la rétention du [plan](plan-refacto-poll-unified.md). Base locale observée : `main` et `refacto-poll-unified` à `ee3a4ccb`. La demande courante autorise la préparation, **aucune suppression**. Aucun Cargo, arrêt de processus, nettoyage ou push effectué.
+
+**Approbation du 7 novembre 2026.** Après remise de la proposition `ba276844`, l'utilisateur répond « ok approuvé ». L'approbation du manifeste des 18 303 copies et audios est consignée ; aucun chemin ni volume n'est ajouté. La consigne précédente « Ne supprime rien » reste appliquée. Les indicateurs d'exécution et d'inclusion des copies restent désactivés dans les commandes ci-dessous.
 
 ## Liste exacte et volume
 
@@ -14,12 +16,12 @@ La [liste des 457 dossiers](nettoyage-refacto-poll-dossiers.csv) donne pour chaq
 |---|---:|---:|---:|
 | Cache Cargo isolé N2 : `C:\wt\refacto-poll\target\n2-native\cargo-home` | 1 | 651 937 640 | 0,607 |
 | Autres intermédiaires sans copies de modèles/audio, preuves archivées | 410 | 224 564 671 | 0,209 |
-| Dossiers contenant des copies ou audios temporaires : manifeste à approuver | 46 | 395 037 210 574 | 367,907 |
+| Dossiers contenant des copies ou audios temporaires : manifeste approuvé | 46 | 395 037 210 574 | 367,907 |
 | **Total** | **457** | **395 913 712 885** | **368,723** |
 
 Les 411 premiers dossiers représentent 876 502 311 octets, soit 0,816 Gio. Les deux plus volumineux du troisième ensemble sont `C:\wt\refacto-poll\target\refacto-poll-unified\temp` (R457, 193,143 Gio) et `C:\wt\refacto-poll\target\refacto-poll-unified\phase2\temp` (R136, 37,599 Gio). Les 422 dossiers N1 représentent 347,279 Gio ; les 35 dossiers N2, 21,445 Gio. **Ne pas remplacer les lignes du CSV par la suppression des racines N1/N2.** Des fichiers et des jonctions y restent volontairement en place.
 
-Le [manifeste proposé des copies et audios](nettoyage-refacto-poll-copies.csv) énumère **18 303 fichiers** : 529 copies de modèles de campagne, 897 fixtures binaires/modèles synthétiques et 16 877 audios temporaires. Le statut est `PROPOSE_NON_APPROUVE`. Leur origine est celle des temporaires de tests et du staging N2 ; notamment le corpus `auto_fallback` copie le modèle dans son répertoire temporaire. Les copies n'ont pas toutes été rehachées. Le manifeste ne contient ni modèle installé ni audio source canonique. Les fixtures du cache Cargo isolé sont traitées comme contenu régénérable du cache.
+Le [manifeste approuvé des copies et audios](nettoyage-refacto-poll-copies.csv) énumère **18 303 fichiers** : 529 copies de modèles de campagne, 897 fixtures binaires/modèles synthétiques et 16 877 audios temporaires. Le statut est `APPROUVE_SESSION_2026-11-07`. Leur origine est celle des temporaires de tests et du staging N2 ; notamment le corpus `auto_fallback` copie le modèle dans son répertoire temporaire. Les copies n'ont pas toutes été rehachées. Le manifeste ne contient ni modèle installé ni audio source canonique. Les fixtures du cache Cargo isolé sont traitées comme contenu régénérable du cache.
 
 ## Conservation et contrôles observés
 
@@ -49,7 +51,7 @@ Les deux archives historiques sont inchangées. Le complément conserve l'arbore
 
 ## Commandes proposées, non exécutées
 
-Dans **PowerShell 7.2 ou ultérieur**, le bloc ci-dessous contrôle tous les chemins avant le premier appel de suppression. Par défaut, il ne sélectionne que les 411 dossiers sans copies et utilise `-WhatIf` : simulation. Après une autorisation ultérieure de suppression, `$Executer = $true` permet l'exécution ; `$InclureCopies = $true` ne doit être utilisé qu'après approbation explicite du manifeste des 18 303 fichiers. Aucun de ces accords n'est déduit de la demande de préparation.
+Dans **PowerShell 7.2 ou ultérieur**, le bloc ci-dessous contrôle tous les chemins avant le premier appel de suppression. Par défaut, il ne sélectionne que les 411 dossiers sans copies et utilise `-WhatIf` : simulation. Après une autorisation ultérieure de suppression, `$Executer = $true` permet l'exécution ; `$InclureCopies = $true` permet d'inclure les copies du manifeste désormais approuvé. L'accord sur ce manifeste est acquis ; aucune autorisation d'exécution n'est déduite de la demande de préparation.
 
 Une différence d'inventaire, de preuve, un lien externe ou une activité pertinente provoque un arrêt, sans suppression ni arrêt de processus automatique. Si une suppression future échoue après avoir commencé, conserver l'état et relever les chemins effectivement supprimés avant de proposer une suite ; ne pas relancer aveuglément. Le résultat et l'espace libéré appartiendront à un nouveau compte rendu, pas aux bilans figés.
 
@@ -57,7 +59,7 @@ Une différence d'inventaire, de preuve, un lien externe ou une activité pertin
 #requires -Version 7.2
 $ErrorActionPreference = 'Stop'
 $Executer = $false
-$InclureCopies = $false # Seulement après approbation du manifeste des copies.
+$InclureCopies = $false # Manifeste approuvé ; inclusion désactivée par défaut.
 $depot = 'C:\dev\whisper'
 $worktree = 'C:\wt\refacto-poll'
 $docs = Join-Path $depot 'docs\cadrage'
