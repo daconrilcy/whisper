@@ -354,6 +354,7 @@ function Assert-WriteRoots {
     if ([string]::IsNullOrWhiteSpace($env:CARGO_HOME) -or (Get-FullPath $env:CARGO_HOME) -ine (Get-FullPath $cargoHome)) { throw 'CARGO_HOME differs from its declared persistent location.' }
     Assert-NoReparseChain $env:CARGO_HOME 'CARGO_HOME'
     if ($env:CLIPPY_CONF_DIR) {
+        if (-not [IO.Path]::IsPathFullyQualified($env:CLIPPY_CONF_DIR)) { throw 'CLIPPY_CONF_DIR must be an absolute path.' }
         if (-not (Test-InRoot $env:CLIPPY_CONF_DIR $lotRoot)) { throw 'CLIPPY_CONF_DIR must be inside the lot root.' }
         Assert-NoReparseChain $env:CLIPPY_CONF_DIR 'CLIPPY_CONF_DIR'
         if (-not (Test-Path -LiteralPath $env:CLIPPY_CONF_DIR -PathType Container)) { throw 'CLIPPY_CONF_DIR must exist.' }
@@ -648,6 +649,18 @@ function Invoke-SelfTests {
         $env:CLIPPY_CONF_DIR = $confFixture
         Assert-WriteRoots
         $pCount++
+        $previousDirectory = Get-Location
+        try {
+            Set-Location -LiteralPath $confFixture
+            $env:CLIPPY_CONF_DIR = '.'
+            $rejected = $false
+            try { Assert-WriteRoots } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Self-test accepted a relative CLIPPY_CONF_DIR inside the lot.' }
+            $nCount++
+        } finally {
+            Set-Location -LiteralPath $previousDirectory
+            $env:CLIPPY_CONF_DIR = $confFixture
+        }
         $env:CLIPPY_CONF_DIR = Join-Path $repo 'unapproved-clippy-conf'
         $rejected = $false
         try { Assert-WriteRoots } catch { $rejected = $true }
