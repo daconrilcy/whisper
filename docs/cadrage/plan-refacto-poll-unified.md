@@ -1,8 +1,12 @@
-Avancée : T6–T8 et validations automatiques T9 terminés ; revue finale CLEAN, N1 ×3 et N2 réussis.
-Blocage : aucun pour la remise Personal ; recette dans la fenêtre Windows non exécutée.
-Décision : remettre les trois EXE pour recette utilisateur ; conserver preuves et dossiers, sans fusion de phase 2 ni push.
+Avancée : T6–T9 terminés ; revue finale CLEAN et recette Windows validée pour Parakeet et Turbo.
+Blocage : aucun pour la clôture.
+Décision : clôturer le bilan et intégrer localement la phase 2 dans main, sans push ni nettoyage, sur accord utilisateur.
 
 # REFACTO-POLL-UNIFIED — plan d’exécution
+
+## Clôture et fusion locale du 7 novembre 2026
+
+L’utilisateur confirme dans la session courante : « La recette Windows est validée pour Parakeet et Turbo. Tu peux clôturer le bilan et fusionner localement la phase 2 dans main, sans push ni nettoyage. » Cette décision lève l’attente de recette §8 et autorise précisément la fusion de phase 2 exclue de l’autorisation initiale ci-dessous. `main` a été avancé localement de `e22eed93` à `3605042e`, sans conflit ; le commit documentaire de clôture porte le [bilan désormais figé](../architecture/REFACTO-POLL-UNIFIED-BILAN.md). Aucun changement de code, nouvelle campagne, push ou nettoyage à la clôture.
 
 ## Autorisation de phase 2 du 7 novembre 2026
 
@@ -12,7 +16,7 @@ Les décisions acceptées ci-dessous restent applicables, notamment la cible Car
 
 Point de reprise : candidat source `63195ef5`, T6 `3a0655c0`, T7 `56560a50`, T8 `63195ef5`. Voir le [bilan intermédiaire de phase 2](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et la [revue indépendante](revue-refacto-poll-unified.md#revue-du-candidat-de-phase-2). L’arrêt N2 n’autorise aucune déclaration d’équivalence native finale. L’utilisateur a ensuite répondu précisément « Arrêter ce processus et reprendre N2 » : arrêt du seul VCTIP PID 72772 après revérification, puis reprise avec la garde inchangée. Son identité (chemin MSVC et création à 19:35:39) a été revérifiée ; le processus a disparu avant l’appel d’arrêt, puis son absence et celle de tout VCTIP ont été confirmées. Aucun processus n’a été arrêté. Cette disparition permet la reprise autorisée sans prétendre attribuer l’écriture antérieure ; observation conservée sous `phase2/n2/vctip-stop-authorized.json`.
 
-Résultat de reprise : N2 `PersonalUnified-ad787fbd9ffd4af0a11abd11f1bc740d` PASS 4/4, huit TXT/SRT identiques aux références baseline et finales de phase 1, WHEA inchangé à 1/RecordId 527992. Build Personal release sous garde N1 réussi, trois exécutables vérifiés sous `deliverables/refacto-poll-unified/`. Le même reviewer a accepté les nouvelles preuves sur le code inchangé, verdict final CLEAN. La recette utilisateur §8 reste NON EXÉCUTÉE et le bilan reste ouvert jusqu’à décision de clôture.
+Résultat de reprise : N2 `PersonalUnified-ad787fbd9ffd4af0a11abd11f1bc740d` PASS 4/4, huit TXT/SRT identiques aux références baseline et finales de phase 1, WHEA inchangé à 1/RecordId 527992. Build Personal release sous garde N1 réussi, trois exécutables vérifiés sous `deliverables/refacto-poll-unified/`. Le même reviewer a accepté les nouvelles preuves sur le code inchangé, verdict final CLEAN. La recette utilisateur §8, initialement en attente à la remise, est validée par le retour et la décision de clôture ci-dessus.
 
 ## Décisions utilisateur du 7 novembre 2026 — priorité sur les propositions ci-dessous
 

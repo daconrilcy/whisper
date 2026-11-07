@@ -1,6 +1,6 @@
 Avancée : revue finale CLEAN sur 63195ef5 après acceptation des preuves N2 et de remise.
-Blocage : aucun constat de revue ouvert ; recette dans la fenêtre Windows non exécutée.
-Décision : remettre le candidat Personal à l’utilisateur ; distinguer contrôles automatiques et recette humaine.
+Blocage : aucun constat de revue ouvert ; recette Windows ensuite validée par l’utilisateur pour Parakeet et Turbo.
+Décision : clôture et fusion locale autorisées par l’utilisateur, sans push ni nettoyage ; revue indépendante et validation humaine restent distinctes.
 
 # Revue du plan REFACTO-POLL-UNIFIED — 7 novembre 2026
 
@@ -32,3 +32,5 @@ Un passage de fond, zéro correction : **CLEAN pour le code T6–T8**, aucun con
 Le premier packet global était **BLOCKED** : N2 interrompu avant résultat et comparaison TXT/SRT, build release/remise non exécutés. Une clarification de présentation a séparé cette limite du verdict source ; elle ne constitue ni une seconde revue ni une correction. Après accord utilisateur et disparition de VCTIP, l’implémenteur a repris la garde inchangée : N2 **4/4**, huit TXT/SRT identiques aux deux références de phase 1, WHEA **1/527992** inchangé ; build Personal release exit 0, remise des trois EXE et vingt ressources installées vérifiées.
 
 Le même reviewer a réadjudé ces preuves sur le code inchangé `63195ef5`, compilé sous HEAD documentaire `761f4313` : verdict final **CLEAN**, aucune demande de vérification ni constat ouvert. Un passage de revue du code, zéro correction ; aucune nouvelle campagne par le reviewer/coordinateur. Réserves explicites : recette Windows §8 NON EXÉCUTÉE et confiée à l’utilisateur ; cause de l’écriture N2 initiale non prouvée, PID 72772 disparu avant l’arrêt envisagé ; échec desktop isolé sans cause établie. D4(b) conserve le retest Turbo CPU NON EXÉCUTÉ. Le [bilan de remise](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et son archive conservent succès et interruptions.
+
+Après remise, le 7 novembre, l’utilisateur confirme la recette Windows pour **Parakeet et Turbo** et autorise clôture du bilan et fusion locale dans `main`, sans push ni nettoyage. Cette validation humaine lève l’attente de recette rapportée ci-dessus ; elle ne transforme ni D4(b) en réexécution, ni les causes historiques indéterminées en diagnostics résolus. Aucun changement de code ni nouvelle revue n’a été nécessaire.
