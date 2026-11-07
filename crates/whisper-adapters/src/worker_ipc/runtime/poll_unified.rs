@@ -1,5 +1,7 @@
 use super::*;
 
+mod recovery;
+
 type UnifiedPollOutcome = Option<Result<ImportEvent, (JobId, Generation, String)>>;
 
 struct UnifiedCaptureUpdates {
@@ -911,7 +913,7 @@ impl ImportRuntime {
         if let std::ops::ControlFlow::Break(outcome) = self.ensure_unified_executor() {
             return outcome;
         }
-        let Some(executor) = self.unified_executor.as_mut() else {
+        if self.unified_executor.is_none() {
             let identity = self
                 .unified_sessions
                 .keys()
@@ -923,7 +925,11 @@ impl ImportRuntime {
                 "ModelNotQualified: unified inference executor is unavailable".into(),
             )));
         };
-        if let Err(error) = Self::restart_unified_executor(executor) {
+        if let Err(error) = Self::restart_unified_executor(
+            self.unified_executor
+                .as_mut()
+                .expect("executor remains present after initialization"),
+        ) {
             let session = self.unified_sessions.keys().next().copied()?;
             return Some(Err((
                 session.job_id,
@@ -935,157 +941,28 @@ impl ImportRuntime {
         if let std::ops::ControlFlow::Break(outcome) = self.publish_unified_capture(updates) {
             return outcome;
         }
-        let executor = self
+        let result = self
             .unified_executor
             .as_mut()
-            .expect("executor remains present during capture pump");
-        match executor.try_result() {
+            .expect("executor remains present during capture pump")
+            .try_result();
+        match result {
             Ok(Some(result)) => {
                 return self.apply_unified_result(result.call, result.instance_id, result.words);
             }
             Ok(None) => {}
-            Err(error) => {
-                let Some(call) = self.parakeet_scheduler.in_flight() else {
-                    let identity = self.unified_sessions.keys().next().copied().unwrap_or(
-                        whisper_core::parakeet_scheduler::SchedulerSession {
-                            job_id: JobId(0),
-                            generation: Generation::first(),
-                        },
-                    );
-                    return Some(Err((
-                        identity.job_id,
-                        identity.generation,
-                        format!("{error}; SchedulerCallMissing"),
-                    )));
-                };
-                let session = call.session;
-                let exited_instance = executor.thread.is_some();
-                let reap = executor.reap_disconnected();
-                if !exited_instance {
-                    return Some(Err((
-                        session.job_id,
-                        session.generation,
-                        format!("{error}; InferenceReap: disconnected instance exit is unproven"),
-                    )));
-                }
-                if let Err(reap_error) = reap {
-                    let mut failure = format!("{error}; {reap_error}");
-                    let sessions: Vec<_> = self.unified_sessions.keys().copied().collect();
-                    for (other, state) in &mut self.unified_sessions {
-                        if state.source.is_capture() && !state.source_closed {
-                            match state.source.stop_capture() {
-                                Ok(Some((total_samples, acknowledgements))) => {
-                                    state.available_samples = total_samples;
-                                    state.durable_samples = state
-                                        .durable_samples
-                                        .max(
-                                            acknowledgements
-                                                .iter()
-                                                .map(|ack| ack.flushed_samples)
-                                                .max()
-                                                .unwrap_or(0),
-                                        )
-                                        .min(total_samples);
-                                    state.source_closed = true;
-                                }
-                                Ok(None) => {}
-                                Err(stop_error) => failure.push_str(&format!(
-                                    "; capture {:?}/{:?} stop: {stop_error}",
-                                    other.job_id, other.generation
-                                )),
-                            }
-                        }
-                    }
-                    if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
-                        failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
-                    }
-                    for other in &sessions {
-                        if let Err(scheduler_error) = self.parakeet_scheduler.abort_session(*other)
-                        {
-                            failure.push_str(&format!("; SchedulerAbort: {scheduler_error:?}"));
-                        }
-                    }
-                    if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
-                        failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
-                    }
-                    for other in sessions {
-                        self.unified_sessions.remove(&other);
-                        self.release_unified_terminal_state(other.job_id, other.generation);
-                        if other != session {
-                            self.parakeet_pending_events.push_back(ImportEvent::Failed {
-                                job_id: other.job_id,
-                                generation: other.generation,
-                                message: format!(
-                                    "InferenceWorkerLost: peer session terminated after worker panic while processing {:?}/{:?}",
-                                    session.job_id, session.generation
-                                ),
-                            });
-                        }
-                    }
-                    return Some(Err((session.job_id, session.generation, failure)));
-                }
-                let mut failure = error;
-                if let Err(scheduler_error) = self.parakeet_scheduler.fail_call(call) {
-                    failure.push_str(&format!("; SchedulerCall: {scheduler_error:?}"));
-                    return Some(Err((session.job_id, session.generation, failure)));
-                }
-                if let Err(scheduler_error) = self.parakeet_scheduler.mark_terminal(session) {
-                    failure.push_str(&format!("; SchedulerTerminal: {scheduler_error:?}"));
-                    return Some(Err((session.job_id, session.generation, failure)));
-                }
-                if let Err(scheduler_error) = self.parakeet_scheduler.confirm_child_exited() {
-                    failure.push_str(&format!("; SchedulerReap: {scheduler_error:?}"));
-                    return Some(Err((session.job_id, session.generation, failure)));
-                }
-                self.unified_sessions.remove(&session);
-                if self.parakeet_scheduler.active_sessions() > 0
-                    && let Err(restart_error) = executor.restart()
-                {
-                    failure.push_str(&format!("; InferenceRestart: {restart_error}"));
-                }
-                return Some(Err((session.job_id, session.generation, failure)));
-            }
+            Err(error) => return self.recover_disconnected_unified_executor(error),
         }
-        if executor.in_flight {
+        if self
+            .unified_executor
+            .as_ref()
+            .expect("executor remains present during capture pump")
+            .in_flight
+        {
             return None;
         }
-        if let Some(session) = self
-            .unified_sessions
-            .iter()
-            .find_map(|(session, state)| state.failure.as_ref().map(|_| *session))
-        {
-            let mut state = self.unified_sessions.remove(&session)?;
-            let error = state.failure.take().unwrap_or_else(|| "CaptureLost".into());
-            if let Err(reap_error) = executor.stop_and_reap() {
-                state.failure = Some(error.clone());
-                self.unified_sessions.insert(session, state);
-                return Some(Err((
-                    session.job_id,
-                    session.generation,
-                    format!("{error}; InferenceReap: {reap_error}"),
-                )));
-            }
-            if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
-                state.failure = Some(error.clone());
-                self.unified_sessions.insert(session, state);
-                return Some(Err((
-                    session.job_id,
-                    session.generation,
-                    format!("{error}; SchedulerReap: {reap_error:?}"),
-                )));
-            }
-            if self.parakeet_scheduler.active_sessions() > 0
-                && let Err(restart_error) = executor.restart()
-            {
-                state.failure = Some(error.clone());
-                self.unified_sessions.insert(session, state);
-                return Some(Err((
-                    session.job_id,
-                    session.generation,
-                    format!("{error}; InferenceRestart: {restart_error}"),
-                )));
-            }
-            return Some(Err((session.job_id, session.generation, error)));
+        if let std::ops::ControlFlow::Break(outcome) = self.finish_failed_idle_capture() {
+            return outcome;
         }
         let finished_session = self.unified_sessions.iter().find_map(|(session, state)| {
             (state.source_closed
@@ -1137,7 +1014,12 @@ impl ImportRuntime {
                     format!("SchedulerTerminal: {error:?}"),
                 )));
             }
-            if let Err(error) = executor.stop_and_reap() {
+            if let Err(error) = self
+                .unified_executor
+                .as_mut()
+                .expect("executor remains present during document finalization")
+                .stop_and_reap()
+            {
                 self.unified_sessions.insert(session, state);
                 return Some(Err((
                     session.job_id,
@@ -1156,9 +1038,17 @@ impl ImportRuntime {
             if self.parakeet_scheduler.active_sessions() > 0 {
                 #[cfg(test)]
                 if let Some(gate) = self.controlled_ready_gate.take() {
-                    executor.ready_gate = Some(gate);
+                    self.unified_executor
+                        .as_mut()
+                        .expect("executor remains present during document finalization")
+                        .ready_gate = Some(gate);
                 }
-                if let Err(error) = executor.restart() {
+                if let Err(error) = self
+                    .unified_executor
+                    .as_mut()
+                    .expect("executor remains present during document finalization")
+                    .restart()
+                {
                     self.unified_sessions.insert(session, state);
                     return Some(Err((
                         session.job_id,
@@ -1259,7 +1149,12 @@ impl ImportRuntime {
         };
         match prepared {
             Ok(Some((window, pcm, true))) => {
-                match executor.is_ready() {
+                match self
+                    .unified_executor
+                    .as_mut()
+                    .expect("executor remains present during call preparation")
+                    .is_ready()
+                {
                     Ok(true) if state.native_route.is_some() && !state.backend_ready_reported => {
                         state.backend_ready_reported = true;
                         let backend = state
@@ -1289,7 +1184,10 @@ impl ImportRuntime {
                                 sessions: &mut self.unified_sessions,
                                 archives: &mut self.unified_archives,
                                 executor_route: &mut self.native_executor_route,
-                                executor,
+                                executor: self
+                                    .unified_executor
+                                    .as_mut()
+                                    .expect("executor remains present during native retry"),
                             },
                             &mut state,
                             call,
@@ -1346,12 +1244,16 @@ impl ImportRuntime {
                         format!("SchedulerBegin: {error:?}"),
                     )));
                 }
-                match executor.dispatch(UnifiedInferenceCommand {
-                    call,
-                    window,
-                    pcm,
-                    scratch_directory: state.inference_directory.clone(),
-                }) {
+                match self
+                    .unified_executor
+                    .as_mut()
+                    .expect("executor remains present during call dispatch")
+                    .dispatch(UnifiedInferenceCommand {
+                        call,
+                        window,
+                        pcm,
+                        scratch_directory: state.inference_directory.clone(),
+                    }) {
                     Ok(()) => {
                         state.pending_call = Some(call);
                         self.unified_sessions.insert(call.session, state);
@@ -1367,7 +1269,12 @@ impl ImportRuntime {
                 }
             }
             Ok(Some((window, pcm, false))) => {
-                match executor.is_ready() {
+                match self
+                    .unified_executor
+                    .as_mut()
+                    .expect("executor remains present during call preparation")
+                    .is_ready()
+                {
                     Ok(true) if state.native_route.is_some() && !state.backend_ready_reported => {
                         state.backend_ready_reported = true;
                         let backend = state
@@ -1397,7 +1304,10 @@ impl ImportRuntime {
                                 sessions: &mut self.unified_sessions,
                                 archives: &mut self.unified_archives,
                                 executor_route: &mut self.native_executor_route,
-                                executor,
+                                executor: self
+                                    .unified_executor
+                                    .as_mut()
+                                    .expect("executor remains present during native retry"),
                             },
                             &mut state,
                             call,
@@ -1456,12 +1366,16 @@ impl ImportRuntime {
                         format!("SchedulerBegin: {error:?}"),
                     )));
                 }
-                match executor.dispatch(UnifiedInferenceCommand {
-                    call,
-                    window,
-                    pcm,
-                    scratch_directory: state.inference_directory.clone(),
-                }) {
+                match self
+                    .unified_executor
+                    .as_mut()
+                    .expect("executor remains present during call dispatch")
+                    .dispatch(UnifiedInferenceCommand {
+                        call,
+                        window,
+                        pcm,
+                        scratch_directory: state.inference_directory.clone(),
+                    }) {
                     Ok(()) => {
                         state.pending_call = Some(call);
                         self.unified_sessions.insert(call.session, state);
