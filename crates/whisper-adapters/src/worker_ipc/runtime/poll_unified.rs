@@ -673,6 +673,237 @@ impl ImportRuntime {
         std::ops::ControlFlow::Continue(())
     }
 
+    fn finish_failed_unified_capture(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        mut state: UnifiedSessionState,
+        error: String,
+    ) -> UnifiedPollOutcome {
+        let session = call.session;
+        let executor = self
+            .unified_executor
+            .as_mut()
+            .expect("executor remains present while applying result");
+        let _ = self.parakeet_scheduler.fail_call(call);
+        if let Err(reap_error) = executor.stop_and_reap() {
+            state.failure = Some(error.clone());
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceReap: {reap_error}"),
+            )));
+        }
+        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+            state.failure = Some(error.clone());
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; SchedulerReap: {reap_error:?}"),
+            )));
+        }
+        if self.parakeet_scheduler.active_sessions() > 0
+            && let Err(restart_error) = executor.restart()
+        {
+            state.failure = Some(error.clone());
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceRestart: {restart_error}"),
+            )));
+        }
+        Some(Err((session.job_id, session.generation, error)))
+    }
+
+    fn finish_failed_unified_inference(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        state: UnifiedSessionState,
+        error: String,
+    ) -> UnifiedPollOutcome {
+        let session = call.session;
+        let executor = self
+            .unified_executor
+            .as_mut()
+            .expect("executor remains present while applying result");
+        let _ = self.parakeet_scheduler.fail_call(call);
+        let _ = self.parakeet_scheduler.mark_terminal(session);
+        #[cfg(test)]
+        let skip_recycle = self.controlled_skip_child_recycle;
+        #[cfg(not(test))]
+        let skip_recycle = false;
+        if !skip_recycle && let Err(reap_error) = executor.stop_and_reap() {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceReap: {reap_error}"),
+            )));
+        }
+        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; SchedulerReap: {reap_error:?}"),
+            )));
+        }
+        if self.parakeet_scheduler.active_sessions() > 0
+            && let Err(restart_error) = executor.restart()
+        {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceRestart: {restart_error}"),
+            )));
+        }
+        Some(Err((session.job_id, session.generation, error)))
+    }
+
+    fn commit_unified_window(
+        state: &mut UnifiedSessionState,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        instance_id: u64,
+        words: &[whisper_core::parakeet_ipc::Word],
+    ) -> Result<crate::parakeet_pipeline::FinalizationStep, String> {
+        let session = call.session;
+        match call.work {
+            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
+                .finalizer
+                .commit_prepared(&mut state.document, instance_id, words),
+            whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. } => {
+                match (
+                    state.pending_window.take(),
+                    state.pending_available_samples.take(),
+                ) {
+                    (Some(window), Some(boundary)) => crate::parakeet_pipeline::commit_preview(
+                        &mut state.document,
+                        window,
+                        boundary,
+                        instance_id,
+                        session.job_id,
+                        session.generation,
+                        words,
+                    )
+                    .map(|_| {
+                        crate::parakeet_pipeline::FinalizationStep::WaitingForAudio {
+                            processed_samples: state.finalizer.processed_samples(),
+                        }
+                    }),
+                    _ => Err("Pipeline: preview result has no matching prepared window".into()),
+                }
+            }
+        }
+    }
+
+    fn finish_failed_unified_commit(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        state: UnifiedSessionState,
+        error: String,
+    ) -> UnifiedPollOutcome {
+        let session = call.session;
+        let executor = self
+            .unified_executor
+            .as_mut()
+            .expect("executor remains present while applying result");
+        let _ = self.parakeet_scheduler.fail_call(call);
+        let _ = self.parakeet_scheduler.mark_terminal(session);
+        if let Err(reap_error) = executor.stop_and_reap() {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceReap: {reap_error}"),
+            )));
+        }
+        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; SchedulerReap: {reap_error:?}"),
+            )));
+        }
+        if self.parakeet_scheduler.active_sessions() > 0
+            && let Err(restart_error) = executor.restart()
+        {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("{error}; InferenceRestart: {restart_error}"),
+            )));
+        }
+        Some(Err((session.job_id, session.generation, error)))
+    }
+
+    fn apply_unified_result(
+        &mut self,
+        call: whisper_core::parakeet_scheduler::ScheduledCall,
+        instance_id: u64,
+        words: Result<Vec<whisper_core::parakeet_ipc::Word>, String>,
+    ) -> UnifiedPollOutcome {
+        let session = call.session;
+        let Some(mut state) = self.unified_sessions.remove(&session) else {
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                "SchedulerResponse: result belongs to an unknown session".into(),
+            )));
+        };
+        if state.pending_call != Some(call) || self.parakeet_scheduler.in_flight() != Some(call) {
+            self.unified_sessions.insert(session, state);
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                "SchedulerResponse: stale inference result".into(),
+            )));
+        }
+        state.pending_call = None;
+        if let Some(error) = state.failure.take() {
+            return self.finish_failed_unified_capture(call, state, error);
+        }
+        let words = match words {
+            Ok(words) => words,
+            Err(error) => return self.finish_failed_unified_inference(call, state, error),
+        };
+        let applied = Self::commit_unified_window(&mut state, call, instance_id, &words);
+        let valid_step = matches!(
+            call.work,
+            whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. }
+        ) || matches!(
+            &applied,
+            Ok(crate::parakeet_pipeline::FinalizationStep::WindowProcessed { .. })
+        );
+        match applied {
+            Ok(_) if valid_step => {
+                if let Err(error) = self.parakeet_scheduler.complete(call) {
+                    self.unified_sessions.insert(session, state);
+                    return Some(Err((
+                        session.job_id,
+                        session.generation,
+                        format!("SchedulerComplete: {error:?}"),
+                    )));
+                }
+                self.unified_sessions.insert(session, state);
+                None
+            }
+            Ok(_) => {
+                self.unified_sessions.insert(session, state);
+                Some(Err((
+                    session.job_id,
+                    session.generation,
+                    "Pipeline: inference response did not commit a final window".into(),
+                )))
+            }
+            Err(error) => self.finish_failed_unified_commit(call, state, error),
+        }
+    }
+
     pub(in crate::worker_ipc) fn poll_unified_sessions(&mut self) -> UnifiedPollOutcome {
         if self.unified_sessions.is_empty() {
             return None;
@@ -710,188 +941,7 @@ impl ImportRuntime {
             .expect("executor remains present during capture pump");
         match executor.try_result() {
             Ok(Some(result)) => {
-                let session = result.call.session;
-                let Some(mut state) = self.unified_sessions.remove(&session) else {
-                    return Some(Err((
-                        session.job_id,
-                        session.generation,
-                        "SchedulerResponse: result belongs to an unknown session".into(),
-                    )));
-                };
-                if state.pending_call != Some(result.call)
-                    || self.parakeet_scheduler.in_flight() != Some(result.call)
-                {
-                    self.unified_sessions.insert(session, state);
-                    return Some(Err((
-                        session.job_id,
-                        session.generation,
-                        "SchedulerResponse: stale inference result".into(),
-                    )));
-                }
-                state.pending_call = None;
-                if let Some(error) = state.failure.take() {
-                    let _ = self.parakeet_scheduler.fail_call(result.call);
-                    if let Err(reap_error) = executor.stop_and_reap() {
-                        state.failure = Some(error.clone());
-                        self.unified_sessions.insert(session, state);
-                        return Some(Err((
-                            session.job_id,
-                            session.generation,
-                            format!("{error}; InferenceReap: {reap_error}"),
-                        )));
-                    }
-                    if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
-                        state.failure = Some(error.clone());
-                        self.unified_sessions.insert(session, state);
-                        return Some(Err((
-                            session.job_id,
-                            session.generation,
-                            format!("{error}; SchedulerReap: {reap_error:?}"),
-                        )));
-                    }
-                    if self.parakeet_scheduler.active_sessions() > 0
-                        && let Err(restart_error) = executor.restart()
-                    {
-                        state.failure = Some(error.clone());
-                        self.unified_sessions.insert(session, state);
-                        return Some(Err((
-                            session.job_id,
-                            session.generation,
-                            format!("{error}; InferenceRestart: {restart_error}"),
-                        )));
-                    }
-                    return Some(Err((session.job_id, session.generation, error)));
-                }
-                let words = match result.words {
-                    Ok(words) => words,
-                    Err(error) => {
-                        let _ = self.parakeet_scheduler.fail_call(result.call);
-                        let _ = self.parakeet_scheduler.mark_terminal(session);
-                        #[cfg(test)]
-                        let skip_recycle = self.controlled_skip_child_recycle;
-                        #[cfg(not(test))]
-                        let skip_recycle = false;
-                        if !skip_recycle && let Err(reap_error) = executor.stop_and_reap() {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; InferenceReap: {reap_error}"),
-                            )));
-                        }
-                        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; SchedulerReap: {reap_error:?}"),
-                            )));
-                        }
-                        if self.parakeet_scheduler.active_sessions() > 0
-                            && let Err(restart_error) = executor.restart()
-                        {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; InferenceRestart: {restart_error}"),
-                            )));
-                        }
-                        return Some(Err((session.job_id, session.generation, error)));
-                    }
-                };
-                let applied = match result.call.work {
-                    whisper_core::parakeet_scheduler::ScheduledWork::Final { .. } => state
-                        .finalizer
-                        .commit_prepared(&mut state.document, result.instance_id, &words),
-                    whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. } => {
-                        match (
-                            state.pending_window.take(),
-                            state.pending_available_samples.take(),
-                        ) {
-                            (Some(window), Some(boundary)) => {
-                                crate::parakeet_pipeline::commit_preview(
-                                    &mut state.document,
-                                    window,
-                                    boundary,
-                                    result.instance_id,
-                                    session.job_id,
-                                    session.generation,
-                                    &words,
-                                )
-                                .map(|_| {
-                                    crate::parakeet_pipeline::FinalizationStep::WaitingForAudio {
-                                        processed_samples: state.finalizer.processed_samples(),
-                                    }
-                                })
-                            }
-                            _ => {
-                                Err("Pipeline: preview result has no matching prepared window"
-                                    .into())
-                            }
-                        }
-                    }
-                };
-                let valid_step = matches!(
-                    result.call.work,
-                    whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. }
-                ) || matches!(
-                    &applied,
-                    Ok(crate::parakeet_pipeline::FinalizationStep::WindowProcessed { .. })
-                );
-                match applied {
-                    Ok(_) if valid_step => {
-                        if let Err(error) = self.parakeet_scheduler.complete(result.call) {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("SchedulerComplete: {error:?}"),
-                            )));
-                        }
-                        self.unified_sessions.insert(session, state);
-                        return None;
-                    }
-                    Ok(_) => {
-                        self.unified_sessions.insert(session, state);
-                        return Some(Err((
-                            session.job_id,
-                            session.generation,
-                            "Pipeline: inference response did not commit a final window".into(),
-                        )));
-                    }
-                    Err(error) => {
-                        let _ = self.parakeet_scheduler.fail_call(result.call);
-                        let _ = self.parakeet_scheduler.mark_terminal(session);
-                        if let Err(reap_error) = executor.stop_and_reap() {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; InferenceReap: {reap_error}"),
-                            )));
-                        }
-                        if let Err(reap_error) = self.parakeet_scheduler.confirm_child_exited() {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; SchedulerReap: {reap_error:?}"),
-                            )));
-                        }
-                        if self.parakeet_scheduler.active_sessions() > 0
-                            && let Err(restart_error) = executor.restart()
-                        {
-                            self.unified_sessions.insert(session, state);
-                            return Some(Err((
-                                session.job_id,
-                                session.generation,
-                                format!("{error}; InferenceRestart: {restart_error}"),
-                            )));
-                        }
-                        return Some(Err((session.job_id, session.generation, error)));
-                    }
-                }
+                return self.apply_unified_result(result.call, result.instance_id, result.words);
             }
             Ok(None) => {}
             Err(error) => {
