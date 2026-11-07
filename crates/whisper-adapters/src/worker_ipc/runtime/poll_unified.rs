@@ -1,5 +1,7 @@
 use super::*;
 
+type UnifiedPollOutcome = Option<Result<ImportEvent, (JobId, Generation, String)>>;
+
 pub(in crate::worker_ipc) struct NativeAutoCpuRetry {
     pub(in crate::worker_ipc) call: whisper_core::parakeet_scheduler::ScheduledCall,
     pub(in crate::worker_ipc) failed_manual_gpu: Vec<FailedManualGpuPeer>,
@@ -379,12 +381,60 @@ impl ImportRuntime {
         }))
     }
 
-    pub(in crate::worker_ipc) fn poll_unified_sessions(
-        &mut self,
-    ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-        if self.unified_sessions.is_empty() {
-            return None;
+    fn start_unified_executor(&mut self) -> Result<UnifiedInferenceExecutor, String> {
+        #[cfg(test)]
+        let controlled_worker = self.controlled_transcriber.take();
+        #[cfg(not(test))]
+        let controlled_worker: Option<
+            Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
+        > = None;
+        let native_route = self
+            .unified_sessions
+            .values()
+            .find_map(|state| state.native_route.clone());
+        if let Some(worker) = controlled_worker {
+            #[cfg(test)]
+            {
+                match self.controlled_child_observer.clone() {
+                    Some(observer) if self.controlled_ready_gate.is_some() => {
+                        UnifiedInferenceExecutor::start_observed_with_ready_gate(
+                            worker,
+                            observer,
+                            self.controlled_ready_gate
+                                .take()
+                                .expect("ready gate checked"),
+                        )
+                    }
+                    Some(observer) => UnifiedInferenceExecutor::start_observed(worker, observer),
+                    None => UnifiedInferenceExecutor::start(worker),
+                }
+            }
+            #[cfg(not(test))]
+            {
+                UnifiedInferenceExecutor::start(worker)
+            }
+        } else if self.native_unified_candidate_enabled {
+            match native_route {
+                Some(route) => {
+                    self.native_executor_route = Some(route.clone());
+                    let worker = NativeParakeetWindowTranscriber::new(route);
+                    #[cfg(test)]
+                    let worker = match self.native_harness_observer.clone() {
+                        Some(observer) => worker.with_harness_observer(observer),
+                        None => worker,
+                    };
+                    UnifiedInferenceExecutor::start(Box::new(worker))
+                }
+                None => {
+                    Err("NativeCandidateUnavailable: no validated route for unified session".into())
+                }
+            }
+        } else {
+            Err("ModelNotQualified: unified inference executor is unavailable".into())
         }
+    }
+
+    fn ensure_unified_executor(&mut self) -> std::ops::ControlFlow<UnifiedPollOutcome> {
         let next_native_route = self
             .unified_sessions
             .values()
@@ -400,69 +450,20 @@ impl ImportRuntime {
                 .as_ref()
                 .is_none_or(|executor| executor.thread.is_none() && !executor.in_flight);
             if !executor_reaped || self.parakeet_scheduler.in_flight().is_some() {
-                let session = self.unified_sessions.keys().next().copied()?;
-                return Some(Err((
+                let Some(session) = self.unified_sessions.keys().next().copied() else {
+                    return std::ops::ControlFlow::Break(None);
+                };
+                return std::ops::ControlFlow::Break(Some(Err((
                     session.job_id,
                     session.generation,
                     "NativeRouteBusy: a different backend cannot replace a live executor incarnation".into(),
-                )));
+                ))));
             }
             self.unified_executor = None;
             self.native_executor_route = None;
         }
         if self.unified_executor.is_none() {
-            #[cfg(test)]
-            let controlled_worker = self.controlled_transcriber.take();
-            #[cfg(not(test))]
-            let controlled_worker: Option<
-                Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-            > = None;
-            let native_route = self
-                .unified_sessions
-                .values()
-                .find_map(|state| state.native_route.clone());
-            let start_result = if let Some(worker) = controlled_worker {
-                #[cfg(test)]
-                {
-                    match self.controlled_child_observer.clone() {
-                        Some(observer) if self.controlled_ready_gate.is_some() => {
-                            UnifiedInferenceExecutor::start_observed_with_ready_gate(
-                                worker,
-                                observer,
-                                self.controlled_ready_gate
-                                    .take()
-                                    .expect("ready gate checked"),
-                            )
-                        }
-                        Some(observer) => {
-                            UnifiedInferenceExecutor::start_observed(worker, observer)
-                        }
-                        None => UnifiedInferenceExecutor::start(worker),
-                    }
-                }
-                #[cfg(not(test))]
-                {
-                    UnifiedInferenceExecutor::start(worker)
-                }
-            } else if self.native_unified_candidate_enabled {
-                match native_route {
-                    Some(route) => {
-                        self.native_executor_route = Some(route.clone());
-                        let worker = NativeParakeetWindowTranscriber::new(route);
-                        #[cfg(test)]
-                        let worker = match self.native_harness_observer.clone() {
-                            Some(observer) => worker.with_harness_observer(observer),
-                            None => worker,
-                        };
-                        UnifiedInferenceExecutor::start(Box::new(worker))
-                    }
-                    None => Err(
-                        "NativeCandidateUnavailable: no validated route for unified session".into(),
-                    ),
-                }
-            } else {
-                Err("ModelNotQualified: unified inference executor is unavailable".into())
-            };
+            let start_result = self.start_unified_executor();
             match start_result {
                 Ok(executor) => {
                     #[cfg(test)]
@@ -477,17 +478,44 @@ impl ImportRuntime {
                             if let Err(error) =
                                 executor.stop_and_reap().and_then(|()| executor.restart())
                             {
-                                return Some(Err((JobId(0), Generation::first(), error)));
+                                return std::ops::ControlFlow::Break(Some(Err((
+                                    JobId(0),
+                                    Generation::first(),
+                                    error,
+                                ))));
                             }
                         }
                     }
                     self.unified_executor = Some(executor);
                 }
                 Err(error) => {
-                    let session = self.unified_sessions.keys().next().copied()?;
-                    return Some(Err((session.job_id, session.generation, error)));
+                    let Some(session) = self.unified_sessions.keys().next().copied() else {
+                        return std::ops::ControlFlow::Break(None);
+                    };
+                    return std::ops::ControlFlow::Break(Some(Err((
+                        session.job_id,
+                        session.generation,
+                        error,
+                    ))));
                 }
             }
+        }
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn restart_unified_executor(executor: &mut UnifiedInferenceExecutor) -> Result<(), String> {
+        if executor.thread.is_none() {
+            executor.restart()?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::worker_ipc) fn poll_unified_sessions(&mut self) -> UnifiedPollOutcome {
+        if self.unified_sessions.is_empty() {
+            return None;
+        }
+        if let std::ops::ControlFlow::Break(outcome) = self.ensure_unified_executor() {
+            return outcome;
         }
         let Some(executor) = self.unified_executor.as_mut() else {
             let identity = self
@@ -501,9 +529,7 @@ impl ImportRuntime {
                 "ModelNotQualified: unified inference executor is unavailable".into(),
             )));
         };
-        if executor.thread.is_none()
-            && let Err(error) = executor.restart()
-        {
+        if let Err(error) = Self::restart_unified_executor(executor) {
             let session = self.unified_sessions.keys().next().copied()?;
             return Some(Err((
                 session.job_id,
