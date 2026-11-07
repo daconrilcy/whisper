@@ -1,6 +1,6 @@
-Avancée : plan historique CLEAN ; revue indépendante du code de phase 2 CLEAN sur 63195ef5.
-Blocage : clôture T9 suspendue après interruption N2 ; release et remise non exécutées.
-Décision : distinguer la revue source réussie de la validation finale encore incomplète.
+Avancée : revue finale CLEAN sur 63195ef5 après acceptation des preuves N2 et de remise.
+Blocage : aucun constat de revue ouvert ; recette dans la fenêtre Windows non exécutée.
+Décision : remettre le candidat Personal à l’utilisateur ; distinguer contrôles automatiques et recette humaine.
 
 # Revue du plan REFACTO-POLL-UNIFIED — 7 novembre 2026
 
@@ -29,4 +29,6 @@ Après fusion locale de la phase 1, le coordinateur `rust_review_coordinator` a 
 
 Un passage de fond, zéro correction : **CLEAN pour le code T6–T8**, aucun constat ouvert. Le reviewer a vérifié l’ordre des phases, les sorties immédiates None/Err, la réinsertion en erreur, la libération avant redémarrage et l’ordre Ready/repli/dispatch. Preuves examinées : corpus figé et N1 final ×3 à 864/0/129, mêmes identités que la phase 1, mesures Clippy (poll 6/6, nouveaux helpers ≤10), format et diff-check. L’échec isolé du test desktop de catalogue reste sans cause établie ; ciblé et N1 suivants réussis, aucune assertion modifiée.
 
-Le packet global est **BLOCKED** : N2 interrompu avant résultat et comparaison TXT/SRT, build release/remise et recette humaine non exécutés. Une clarification de présentation du packet a séparé cette limite du verdict source ; elle ne constitue ni une seconde revue ni une correction. Aucun nouvel essai n’a été lancé par le coordinateur ou le reviewer. D4(b) conserve le retest Turbo CPU NON EXÉCUTÉ. Le [bilan intermédiaire](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et son archive contiennent les preuves disponibles ; la clôture de T9 reste à réaliser.
+Le premier packet global était **BLOCKED** : N2 interrompu avant résultat et comparaison TXT/SRT, build release/remise non exécutés. Une clarification de présentation a séparé cette limite du verdict source ; elle ne constitue ni une seconde revue ni une correction. Après accord utilisateur et disparition de VCTIP, l’implémenteur a repris la garde inchangée : N2 **4/4**, huit TXT/SRT identiques aux deux références de phase 1, WHEA **1/527992** inchangé ; build Personal release exit 0, remise des trois EXE et vingt ressources installées vérifiées.
+
+Le même reviewer a réadjudé ces preuves sur le code inchangé `63195ef5`, compilé sous HEAD documentaire `761f4313` : verdict final **CLEAN**, aucune demande de vérification ni constat ouvert. Un passage de revue du code, zéro correction ; aucune nouvelle campagne par le reviewer/coordinateur. Réserves explicites : recette Windows §8 NON EXÉCUTÉE et confiée à l’utilisateur ; cause de l’écriture N2 initiale non prouvée, PID 72772 disparu avant l’arrêt envisagé ; échec desktop isolé sans cause établie. D4(b) conserve le retest Turbo CPU NON EXÉCUTÉ. Le [bilan de remise](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et son archive conservent succès et interruptions.
