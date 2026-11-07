@@ -138,6 +138,18 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
         }
         return [pscustomobject]@{ Args = @('fetch','--locked'); Category = 'Fetch' }
     }
+    if ($CommandTokens[0] -ceq 'clippy') {
+        $delimiterIndex = [Array]::IndexOf($CommandTokens, '--')
+        if ($delimiterIndex -ge 0) {
+            if ($delimiterIndex -ge $CommandTokens.Count - 1) { throw 'Clippy lint arguments are required after --.' }
+            $rawLintArgs = @($CommandTokens[($delimiterIndex + 1)..($CommandTokens.Count - 1)])
+            $allowedLints = @('clippy::too_many_lines','clippy::cognitive_complexity','clippy::too_many_arguments','clippy::type_complexity')
+            if (($rawLintArgs.Count % 2) -ne 0) { throw 'Clippy requires -W and an allowed lint in pairs.' }
+            for ($j = 0; $j -lt $rawLintArgs.Count; $j += 2) {
+                if ($rawLintArgs[$j] -cne '-W' -or $rawLintArgs[$j + 1] -cnotin $allowedLints) { throw 'Only explicitly allowed Clippy warnings may follow --.' }
+            }
+        }
+    }
     $normalizedArgs = [Collections.Generic.List[string]]::new()
     foreach ($arg in $CommandTokens) {
         if ($arg -in @('--offline', '--locked')) { continue }
@@ -167,6 +179,16 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     for ($i = 1; $i -lt $normalizedArgs.Count; $i++) {
         $arg = $normalizedArgs[$i]
         if ($arg -eq '--') {
+            if ($sub -eq 'clippy') {
+                $lintArgs = @($normalizedArgs[($i + 1)..($normalizedArgs.Count - 1)])
+                $allowedLints = @('clippy::too_many_lines','clippy::cognitive_complexity','clippy::too_many_arguments','clippy::type_complexity')
+                if ($lintArgs.Count -eq 0 -or ($lintArgs.Count % 2) -ne 0) { throw 'Clippy requires -W and an allowed lint in pairs.' }
+                for ($j = 0; $j -lt $lintArgs.Count; $j += 2) {
+                    if ($lintArgs[$j] -cne '-W' -or $lintArgs[$j + 1] -cnotin $allowedLints) { throw 'Only explicitly allowed Clippy warnings may follow --.' }
+                }
+                $i = $normalizedArgs.Count
+                break
+            }
             if ($sub -ne 'test' -or $i -ge ($normalizedArgs.Count - 1)) { throw 'Only the allowlisted cargo test options are allowed after --.' }
             $harnessArgs = @($normalizedArgs[($i + 1)..($normalizedArgs.Count - 1)])
             if ($harnessArgs.Count -eq 1 -and $harnessArgs[0] -ceq '--list') {
@@ -237,6 +259,10 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
         }
         if ($arg -eq '--all-targets') {
             if ($sub -ne 'clippy') { throw '--all-targets is only allowed with cargo clippy.' }
+            continue
+        }
+        if ($arg -ceq '--message-format=json') {
+            if ($sub -ne 'clippy') { throw '--message-format=json is only allowed with cargo clippy.' }
             continue
         }
         if ($arg -in @('-e','--edges','-i','--invert','--format-version','--filter-platform')) {
@@ -316,6 +342,11 @@ function Assert-WriteRoots {
     }
     if ([string]::IsNullOrWhiteSpace($env:CARGO_HOME) -or (Get-FullPath $env:CARGO_HOME) -ine (Get-FullPath $cargoHome)) { throw 'CARGO_HOME differs from its declared persistent location.' }
     Assert-NoReparseChain $env:CARGO_HOME 'CARGO_HOME'
+    if ($env:CLIPPY_CONF_DIR) {
+        if (-not (Test-InRoot $env:CLIPPY_CONF_DIR $lotRoot)) { throw 'CLIPPY_CONF_DIR must be inside the lot root.' }
+        Assert-NoReparseChain $env:CLIPPY_CONF_DIR 'CLIPPY_CONF_DIR'
+        if (-not (Test-Path -LiteralPath $env:CLIPPY_CONF_DIR -PathType Container)) { throw 'CLIPPY_CONF_DIR must exist.' }
+    }
     if (-not (Test-InRoot $env:TEMP $tempRoot) -or -not (Test-InRoot $env:TMP $tempRoot)) { throw 'TEMP/TMP are not isolated below the lot root.' }
     if (-not (Test-InRoot $env:LOCALAPPDATA $runRoot)) { throw 'LOCALAPPDATA is not isolated under this run root.' }
     if ($env:CARGO_INCREMENTAL -cne '0' -or $env:CARGO_PROFILE_DEV_DEBUG -cne 'line-tables-only') { throw 'Cargo profile environment differs from level-1 settings.' }
@@ -443,6 +474,7 @@ function Invoke-SelfTests {
         @('test','--offline','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact','--locked'),
         @('test','-p','whisper-worker-common','--','--list'),
         @('clippy','--workspace','--all-targets'),
+        @('clippy','-p','whisper-adapters','--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity'),
         @('check','--workspace','--release')
     )
     $negative = @(
@@ -479,6 +511,12 @@ function Invoke-SelfTests {
     $negative += ,@('check','-p','whisper-adapters','worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end','--','--exact')
     $negative += ,@('test','-p','whisper-worker-gpu')
     $negative += ,@('test','-p','whisper-worker-gpu','--no-run')
+    $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::all')
+    $negative += ,@('clippy','-p','whisper-adapters','--','-D','clippy::too_many_lines')
+    $negative += ,@('clippy','-p','whisper-adapters','--','-W')
+    $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::too_many_lines','--config','bad')
+    $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::too_many_lines','--locked')
+    $negative += ,@('test','--message-format=json')
     $pCount = 1
     $fetch = Test-CargoArguments @('fetch','--locked') $members
     if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
@@ -573,7 +611,18 @@ function Invoke-SelfTests {
     }
     $savedVariables = @{}
     try {
-        foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        foreach ($name in @('WHISPER_N1_REVIEW','PARAKEET_N1_REVIEW','RUSTFLAGS','CLIPPY_CONF_DIR')) { $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name) }
+        $confFixture = Join-Path $runRoot 'clippy-conf'
+        Initialize-Directory $confFixture 'Clippy configuration fixture'
+        $env:CLIPPY_CONF_DIR = $confFixture
+        Assert-WriteRoots
+        $pCount++
+        $env:CLIPPY_CONF_DIR = Join-Path $repo 'unapproved-clippy-conf'
+        $rejected = $false
+        try { Assert-WriteRoots } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Self-test accepted CLIPPY_CONF_DIR outside the lot.' }
+        $nCount++
+        Set-ProcessEnvironmentValue 'CLIPPY_CONF_DIR' $null
         Set-ProcessEnvironmentValue 'WHISPER_N1_REVIEW' ''
         if ($null -eq [Environment]::GetEnvironmentVariable('WHISPER_N1_REVIEW','Process') -or
             [Environment]::GetEnvironmentVariable('WHISPER_N1_REVIEW','Process').Length -ne 0) { throw 'Self-test did not preserve a present empty variable.' }
