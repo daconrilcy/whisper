@@ -2,6 +2,17 @@ use super::*;
 
 type UnifiedPollOutcome = Option<Result<ImportEvent, (JobId, Generation, String)>>;
 
+struct UnifiedCaptureUpdates {
+    pump_error: Option<(whisper_core::parakeet_scheduler::SchedulerSession, String)>,
+    progress: Vec<(whisper_core::parakeet_scheduler::SchedulerSession, u64, u64)>,
+    preview: Vec<(whisper_core::parakeet_scheduler::SchedulerSession, u64)>,
+    gain: Vec<(
+        whisper_core::parakeet_scheduler::SchedulerSession,
+        crate::parakeet_live::AppliedCaptureGain,
+    )>,
+    telemetry: Vec<ImportEvent>,
+}
+
 pub(in crate::worker_ipc) struct NativeAutoCpuRetry {
     pub(in crate::worker_ipc) call: whisper_core::parakeet_scheduler::ScheduledCall,
     pub(in crate::worker_ipc) failed_manual_gpu: Vec<FailedManualGpuPeer>,
@@ -510,33 +521,7 @@ impl ImportRuntime {
         Ok(())
     }
 
-    pub(in crate::worker_ipc) fn poll_unified_sessions(&mut self) -> UnifiedPollOutcome {
-        if self.unified_sessions.is_empty() {
-            return None;
-        }
-        if let std::ops::ControlFlow::Break(outcome) = self.ensure_unified_executor() {
-            return outcome;
-        }
-        let Some(executor) = self.unified_executor.as_mut() else {
-            let identity = self
-                .unified_sessions
-                .keys()
-                .next()
-                .map(|session| (session.job_id, session.generation))?;
-            return Some(Err((
-                identity.0,
-                identity.1,
-                "ModelNotQualified: unified inference executor is unavailable".into(),
-            )));
-        };
-        if let Err(error) = Self::restart_unified_executor(executor) {
-            let session = self.unified_sessions.keys().next().copied()?;
-            return Some(Err((
-                session.job_id,
-                session.generation,
-                format!("InferenceRestart: {error}"),
-            )));
-        }
+    fn collect_unified_capture(&mut self) -> UnifiedCaptureUpdates {
         let mut pump_error = None;
         let mut progress_updates = Vec::new();
         let mut preview_updates = Vec::new();
@@ -596,6 +581,26 @@ impl ImportRuntime {
                 telemetry_updates.push(event);
             }
         }
+        UnifiedCaptureUpdates {
+            pump_error,
+            progress: progress_updates,
+            preview: preview_updates,
+            gain: gain_updates,
+            telemetry: telemetry_updates,
+        }
+    }
+
+    fn publish_unified_capture(
+        &mut self,
+        updates: UnifiedCaptureUpdates,
+    ) -> std::ops::ControlFlow<UnifiedPollOutcome> {
+        let UnifiedCaptureUpdates {
+            pump_error,
+            progress: progress_updates,
+            preview: preview_updates,
+            gain: gain_updates,
+            telemetry: telemetry_updates,
+        } = updates;
         for event in telemetry_updates {
             self.parakeet_pending_events
                 .retain(|pending| match (&event, pending) {
@@ -658,13 +663,51 @@ impl ImportRuntime {
         }
         for (session, boundary) in preview_updates {
             if let Err(error) = self.parakeet_scheduler.queue_preview(session, boundary) {
-                return Some(Err((
+                return std::ops::ControlFlow::Break(Some(Err((
                     session.job_id,
                     session.generation,
                     format!("SchedulerPreview: {error:?}"),
-                )));
+                ))));
             }
         }
+        std::ops::ControlFlow::Continue(())
+    }
+
+    pub(in crate::worker_ipc) fn poll_unified_sessions(&mut self) -> UnifiedPollOutcome {
+        if self.unified_sessions.is_empty() {
+            return None;
+        }
+        if let std::ops::ControlFlow::Break(outcome) = self.ensure_unified_executor() {
+            return outcome;
+        }
+        let Some(executor) = self.unified_executor.as_mut() else {
+            let identity = self
+                .unified_sessions
+                .keys()
+                .next()
+                .map(|session| (session.job_id, session.generation))?;
+            return Some(Err((
+                identity.0,
+                identity.1,
+                "ModelNotQualified: unified inference executor is unavailable".into(),
+            )));
+        };
+        if let Err(error) = Self::restart_unified_executor(executor) {
+            let session = self.unified_sessions.keys().next().copied()?;
+            return Some(Err((
+                session.job_id,
+                session.generation,
+                format!("InferenceRestart: {error}"),
+            )));
+        }
+        let updates = self.collect_unified_capture();
+        if let std::ops::ControlFlow::Break(outcome) = self.publish_unified_capture(updates) {
+            return outcome;
+        }
+        let executor = self
+            .unified_executor
+            .as_mut()
+            .expect("executor remains present during capture pump");
         match executor.try_result() {
             Ok(Some(result)) => {
                 let session = result.call.session;
