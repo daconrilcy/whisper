@@ -22,3 +22,5 @@ Décision : conserver les 14 DLL installées. Leur remplacement reste une décis
 | Reference interrompue / Reference1 / Reference2 / Rebuilt | 1→1 chacune | 20,2 / 20,2 / 20,1 / 20,2 % |
 
 Le premier essai Reference a été interrompu sur deux notifications de répertoire pendant l’archivage parallèle des auto-tests, sans PID attribuable. L’anglais avait réussi. L’essai et son STOP ont été conservés. Reprise autorisée, archivage séquencé, garde active. Aucun nouvel événement WHEA ni ICE. Dernière WHEA historique 527992. Les SHA-256 des 14 DLL installées correspondent toujours à l’inventaire. `GGML_NATIVE=ON`, backend CPU AVX2/FMA/F16C, CUDA compute_61/sm_61. Portabilité à qualifier séparément. [Mesures et reçus](C:/wb/native-qualif/reprise-5/gpu/verdict.json) · [Tailles et commandes de suppression humaine](C:/wb/native-qualif/reprise-5/RETENTION.md) · [Plan](../cadrage/plan-build-natif-qualif-ptx.md).
+
+[Fusion et suivi du nettoyage](BUILD-NATIF-QUALIF-FUSION-NETTOYAGE.md).
