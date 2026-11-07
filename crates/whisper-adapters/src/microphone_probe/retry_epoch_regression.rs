@@ -30,6 +30,7 @@ fn full_queue_invalidates_old_epoch_before_fresh_contiguous_audio() {
         source_identity: None,
         worker: None,
         processed_chunks: Arc::new(AtomicU64::new(0)),
+        publication_gate: Arc::new((std::sync::Mutex::new(true), std::sync::Condvar::new())),
     };
 
     let (retry_epoch, _) = probe.advance_epoch();

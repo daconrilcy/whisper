@@ -175,6 +175,43 @@ impl UnifiedSessionSource {
         }
     }
 
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn hold_probe_publication(
+        &self,
+    ) -> crate::microphone_probe::ProbePublicationHold {
+        match self {
+            Self::Capture(capture) => capture.hold_probe_publication(),
+            Self::Closed(_) => panic!("capture required"),
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn stage_acknowledgements(
+        &mut self,
+        acknowledgements: Vec<crate::parakeet_audio::CaptureWriteAck>,
+    ) {
+        match self {
+            Self::Capture(capture) => capture.stage_acknowledgements(acknowledgements),
+            Self::Closed(_) => panic!("capture required"),
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn probe_snapshot_ready(&self) -> bool {
+        match self {
+            Self::Capture(capture) => capture.probe_snapshot_ready(),
+            Self::Closed(_) => false,
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::worker_ipc) fn probe_processed_chunks(&self) -> u64 {
+        match self {
+            Self::Capture(capture) => capture.probe_processed_chunks(),
+            Self::Closed(_) => panic!("capture required"),
+        }
+    }
+
     pub(in crate::worker_ipc) fn pump(
         &mut self,
     ) -> Result<Vec<crate::parakeet_audio::CaptureWriteAck>, String> {

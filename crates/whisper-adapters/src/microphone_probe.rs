@@ -21,6 +21,8 @@ use whisper_core::{
 use crate::capture::ProbeAudioBlock;
 
 #[cfg(test)]
+mod publication_hold_tests;
+#[cfg(test)]
 mod retry_epoch_regression;
 
 const PROBE_QUEUE_BLOCKS: usize = 4;
@@ -213,6 +215,20 @@ pub struct MicrophoneProbe {
     worker: Option<JoinHandle<()>>,
     #[cfg(test)]
     processed_chunks: Arc<AtomicU64>,
+    #[cfg(test)]
+    publication_gate: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+}
+
+#[cfg(test)]
+pub(crate) struct ProbePublicationHold(Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>);
+
+#[cfg(test)]
+impl Drop for ProbePublicationHold {
+    fn drop(&mut self) {
+        let (open, changed) = &*self.0;
+        *open.lock().unwrap() = true;
+        changed.notify_all();
+    }
 }
 
 impl MicrophoneProbe {
@@ -240,6 +256,10 @@ impl MicrophoneProbe {
         let processed_chunks = Arc::new(AtomicU64::new(0));
         #[cfg(test)]
         let worker_processed_chunks = processed_chunks.clone();
+        #[cfg(test)]
+        let publication_gate = Arc::new((std::sync::Mutex::new(true), std::sync::Condvar::new()));
+        #[cfg(test)]
+        let worker_publication_gate = Arc::clone(&publication_gate);
         let worker = thread::Builder::new()
             .name("whisper-microphone-probe".into())
             .spawn(move || {
@@ -261,6 +281,12 @@ impl MicrophoneProbe {
                         worker_processed_chunks.fetch_add(1, Ordering::Release);
                         continue;
                     };
+                    #[cfg(test)]
+                    {
+                        let (open, changed) = &*worker_publication_gate;
+                        let open = open.lock().unwrap();
+                        drop(changed.wait_while(open, |open| !*open).unwrap());
+                    }
                     if analyzer.epoch == worker_epoch.load(Ordering::Acquire)
                         && let Ok(mut latest) = worker_latest.write()
                     {
@@ -289,7 +315,16 @@ impl MicrophoneProbe {
             worker: Some(worker),
             #[cfg(test)]
             processed_chunks,
+            #[cfg(test)]
+            publication_gate,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn hold_publication(&self) -> ProbePublicationHold {
+        let (open, _) = &*self.publication_gate;
+        *open.lock().unwrap() = false;
+        ProbePublicationHold(Arc::clone(&self.publication_gate))
     }
 
     /// Splits probe input into bounded chunks and never waits for the analyzer.
@@ -414,6 +449,12 @@ impl Drop for MicrophoneProbe {
     fn drop(&mut self) {
         self.valid.store(false, Ordering::Release);
         self.sender.take();
+        #[cfg(test)]
+        {
+            let (open, changed) = &*self.publication_gate;
+            *open.lock().unwrap_or_else(|error| error.into_inner()) = true;
+            changed.notify_all();
+        }
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }

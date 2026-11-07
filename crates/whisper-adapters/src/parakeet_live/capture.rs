@@ -15,6 +15,8 @@ pub(crate) struct UnifiedCapturePump {
     last_acknowledged_gain_revision: Option<u64>,
     gain_events: std::collections::VecDeque<AppliedCaptureGain>,
     acknowledgements_received: u64,
+    #[cfg(test)]
+    staged_acknowledgements: Vec<CaptureWriteAck>,
     closed: Option<Result<(u64, Vec<CaptureWriteAck>), String>>,
 }
 
@@ -91,6 +93,8 @@ impl UnifiedCapturePump {
             last_acknowledged_gain_revision: None,
             gain_events: std::collections::VecDeque::new(),
             acknowledgements_received: 0,
+            #[cfg(test)]
+            staged_acknowledgements: Vec::new(),
             closed: None,
         })
     }
@@ -108,6 +112,35 @@ impl UnifiedCapturePump {
             generation,
         )?);
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn hold_probe_publication(&self) -> crate::microphone_probe::ProbePublicationHold {
+        self.probe
+            .as_ref()
+            .expect("probe enabled")
+            .hold_publication()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn stage_acknowledgements(&mut self, acknowledgements: Vec<CaptureWriteAck>) {
+        self.staged_acknowledgements.extend(acknowledgements);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn probe_snapshot_ready(&self) -> bool {
+        self.probe
+            .as_ref()
+            .and_then(|probe| probe.latest_at(Instant::now()))
+            .is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn probe_processed_chunks(&self) -> u64 {
+        self.probe
+            .as_ref()
+            .expect("probe enabled")
+            .processed_chunks()
     }
 
     pub(crate) fn take_next_probe_telemetry(&mut self) -> Option<ImportEvent> {
@@ -178,7 +211,15 @@ impl UnifiedCapturePump {
         for (gain, first_frame) in gain_updates {
             self.record_gain_acknowledgement(gain, first_frame);
         }
-        self.collect_available_acknowledgements()
+        let acknowledgements = self.collect_available_acknowledgements()?;
+        #[cfg(test)]
+        {
+            let mut staged = std::mem::take(&mut self.staged_acknowledgements);
+            staged.extend(acknowledgements);
+            Ok(staged)
+        }
+        #[cfg(not(test))]
+        Ok(acknowledgements)
     }
 
     pub(crate) fn set_gain(
