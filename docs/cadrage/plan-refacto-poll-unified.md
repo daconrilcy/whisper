@@ -6,6 +6,8 @@ Décision : soumettre ce périmètre concret à revue indépendante puis à acce
 
 ## Décisions utilisateur du 7 novembre 2026 — priorité sur les propositions ci-dessous
 
+**Complément T2 distinct, accepté après les deux cycles de revue :** conserver et vérifier les octets bruts du document et de son index, puis comparer une représentation logique des offsets après validation de leur correspondance avec le document, y compris pour deux largeurs de PID. Pour le modèle, conserver les références figées et les événements bruts ; sélectionner le modèle installé vérifié indépendamment du compte Windows et comparer séparément une représentation portable bijective de son chemin. Aucun autre champ ni effet n’est écarté. Le complément corrige les constats T2-R1 et T2-R4 encore ouverts ; ses critères et les modifications sont soumis à une revue indépendante avant T3. Les résultats et réserves des deux cycles T2 précédents restent conservés. L’utilisateur autorise ce complément et sa revue ; aucun merge ni push.
+
 - D1 : cible Cargo autorisée du worktree, sans adaptation des sélecteurs N1/N2. Ajouter seulement les options Clippy fermées de §7 et leurs tests, et utiliser CLIPPY_CONF_DIR sous le lot.
 - D2 : profil PersonalUnified existant complet, CPU/FR, GPU/EN, GPU/FR, Auto/EN, avant et après ; comparer TXT/SRT bruts cas par cas. Aucun test N2, sélecteur ou oracle supplémentaire.
 - D3 : U1–U4, réserve O1 et représentation stable des traces acceptées conformément à §2 ; étape 4 de la recette humaine incluse.
