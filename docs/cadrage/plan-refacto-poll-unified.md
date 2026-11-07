@@ -1,6 +1,6 @@
 Avancée : phase 1 fusionnée ; T6–T8 commités, revue source CLEAN, N1 final ×3 à 864/0/129.
 Blocage : N2 interrompu par la garde ; build release et remise non exécutés.
-Décision : T9 reste ouvert ; reprise N2 soumise à l’arbitrage courant, preuves et dossiers conservés.
+Décision : reprise N2 autorisée après vérification de VCTIP ; preuves et dossiers conservés.
 
 # REFACTO-POLL-UNIFIED — plan d’exécution
 
@@ -10,7 +10,7 @@ Dans la session courante, l’utilisateur autorise précisément : « Fusionner 
 
 Les décisions acceptées ci-dessous restent applicables, notamment la cible Cargo autorisée du worktree, le profil N2 PersonalUnified complet, les références d’équivalence figées et D4(b) pour le worker Turbo CPU inchangé après vérification d’identité et d’absence de dépendance à adapters. T6–T8 extraient successivement récupération, clôture documentaire et lancement des appels ; T9 vérifie le seuil ≤15 en production/test, l’équivalence, N1 ×3, workers/PE, format/Clippy, N2 et la remise Personal pour recette humaine. Les preuves et dossiers existants sont conservés ; aucune suppression ni déplacement automatique.
 
-Point de reprise : candidat source `63195ef5`, T6 `3a0655c0`, T7 `56560a50`, T8 `63195ef5`. Voir le [bilan intermédiaire de phase 2](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et la [revue indépendante](revue-refacto-poll-unified.md#revue-du-candidat-de-phase-2). L’arrêt N2 n’autorise aucune déclaration d’équivalence native finale ; la demande courante porte sur l’arrêt du seul processus VCTIP identifié, après revérification, puis une reprise sous la garde inchangée. Aucune réponse à cette demande n’a été reçue à la rédaction de ce point.
+Point de reprise : candidat source `63195ef5`, T6 `3a0655c0`, T7 `56560a50`, T8 `63195ef5`. Voir le [bilan intermédiaire de phase 2](../architecture/REFACTO-POLL-UNIFIED-BILAN.md) et la [revue indépendante](revue-refacto-poll-unified.md#revue-du-candidat-de-phase-2). L’arrêt N2 n’autorise aucune déclaration d’équivalence native finale. L’utilisateur a ensuite répondu précisément « Arrêter ce processus et reprendre N2 » : arrêt du seul VCTIP PID 72772 après revérification, puis reprise avec la garde inchangée. Son identité (chemin MSVC et création à 19:35:39) a été revérifiée ; le processus a disparu avant l’appel d’arrêt, puis son absence et celle de tout VCTIP ont été confirmées. Aucun processus n’a été arrêté. Cette disparition permet la reprise autorisée sans prétendre attribuer l’écriture antérieure ; observation conservée sous `phase2/n2/vctip-stop-authorized.json`.
 
 ## Décisions utilisateur du 7 novembre 2026 — priorité sur les propositions ci-dessous
 
