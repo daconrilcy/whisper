@@ -14,9 +14,31 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSNativeCommandUseErrorActionPreference = $false
 
+function Assert-DedicatedWorktree([string]$WorkingDirectory, [string]$RepositoryRoot) {
+    $mainRoot = [IO.Path]::GetFullPath('C:/dev/whisper').TrimEnd('\', '/')
+    foreach ($path in @($WorkingDirectory, $RepositoryRoot)) {
+        $full = [IO.Path]::GetFullPath($path).TrimEnd('\', '/')
+        if ($full.Equals($mainRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Campaign refused in the main repository root C:/dev/whisper; use a dedicated worktree.'
+        }
+    }
+}
+
+# Reject both a main-root cwd and a main-checkout script before campaign side effects.
+Assert-DedicatedWorktree (Get-Location).ProviderPath (Join-Path $PSScriptRoot '..')
+
+
 $script:Repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path.TrimEnd('\')
 $script:ProfilesPath = Join-Path $PSScriptRoot 'native-profiles.json'
-$script:CargoTarget = 'C:\dev\whisper\target\parakeet-tests\cargo-shared'
+function Resolve-NativeSharedCargoTarget([string]$RepositoryRoot, [string]$DeclaredTarget) {
+    Assert-DedicatedWorktree $RepositoryRoot $RepositoryRoot
+    if ($DeclaredTarget -cne 'target/parakeet-tests/cargo-shared') {
+        throw 'Profile registry shared Cargo target must be the dedicated worktree-relative path target/parakeet-tests/cargo-shared.'
+    }
+    return [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $DeclaredTarget)).TrimEnd('\')
+}
+
+$script:CargoTarget = Resolve-NativeSharedCargoTarget $script:Repo 'target/parakeet-tests/cargo-shared'
 $script:Lot = $null
 $script:RunRoot = $null
 $script:LogRoot = $null
@@ -428,7 +450,7 @@ function Get-ProfileRegistry {
     try { $registry = Get-Content -LiteralPath $script:ProfilesPath -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw "Profile registry JSON is invalid: $($_.Exception.Message)" }
     if ($registry.schemaVersion -ne 1) { throw 'Unsupported native profile registry schema.' }
-    if ([IO.Path]::GetFullPath($registry.sharedCargoTarget).TrimEnd('\') -ine $script:CargoTarget) {
+    if ((Resolve-NativeSharedCargoTarget $script:Repo $registry.sharedCargoTarget) -ine $script:CargoTarget) {
         throw 'Profile registry shared Cargo target differs from the accepted canonical path.'
     }
     $packageSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -524,6 +546,22 @@ function Get-Profile([object]$Registry, [string]$Id) {
     if ($matches.Count -ne 1) { throw "Unknown native profile: $Id" }
     if ($matches[0].status -cne 'READY') { throw "Native profile $Id is pending exact test discovery; it cannot run yet." }
     return $matches[0]
+}
+
+function Assert-PersonalUnifiedSelectors([object]$PersonalUnified, [object]$GpuOnly) {
+    $expected = @(
+        'native_personal_cpu_imports_french_mp3_through_the_unified_application',
+        'native_personal_gpu_imports_english_mp3_with_attested_candidate',
+        'native_personal_gpu_imports_french_mp3_with_attested_candidate',
+        'native_personal_auto_without_candidate_reports_preaudio_cpu_fallback'
+    )
+    $actual = @($PersonalUnified.cases | ForEach-Object { [string]$_.exactTest })
+    if ($actual.Count -ne $expected.Count -or @($expected | Where-Object { $actual -cnotcontains $_ }).Count) {
+        throw 'PersonalUnified must contain exactly its four accepted CPU/Auto/GPU selectors.'
+    }
+    if (@($GpuOnly.cases).Count -ne 1 -or $GpuOnly.cases[0].exactTest -cne 'native_personal_gpu_imports_english_mp3_with_attested_candidate') {
+        throw 'PersonalUnifiedGpuOnly must contain only the accepted GPU English selector.'
+    }
 }
 
 function Assert-NvidiaSmiDiagnosticProfile([object]$Profile, [switch]$VerifyInstalledExecutable) {
@@ -1522,7 +1560,7 @@ function Get-RunWatchSpecs([string]$Lot, [string[]]$AdditionalProtectedRoots = [
             if (Test-Path -LiteralPath $testsRoot -PathType Container) {
                 Register-Watch $specs $testsRoot $false
                 foreach ($child in (Get-ChildItem -LiteralPath $testsRoot -Directory -Force)) {
-                    if ($child.Name -ieq 'cargo-shared') { continue }
+                    # The main checkout's Cargo target is no longer an allowed write root.
                     Register-Watch $specs $child.FullName $true
                 }
             }
@@ -3237,7 +3275,7 @@ function Invoke-SelfTests([object]$Registry, [string]$Lot) {
     $programWResolverEvidence = Invoke-ProgramW6432ResolverSelfTests $Lot
     $personalUnifiedProfile = Get-Profile $Registry 'PersonalUnified'
     $personalGpuOnlyProfile = Get-Profile $Registry 'PersonalUnifiedGpuOnly'
-    if (@($personalUnifiedProfile.cases).Count -ne 3 -or @($personalGpuOnlyProfile.cases).Count -ne 1 -or $personalGpuOnlyProfile.cases[0].exactTest -cne 'native_personal_gpu_imports_english_mp3_with_attested_candidate') { throw 'PersonalUnifiedGpuOnly must contain only the already accepted GPU selector while PersonalUnified retains its three cases.' }
+    Assert-PersonalUnifiedSelectors $personalUnifiedProfile $personalGpuOnlyProfile
     foreach ($name in @('package','features','inputs','values','outputs','staging')) {
         if ((ConvertTo-Json -InputObject $personalUnifiedProfile.$name -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $personalGpuOnlyProfile.$name -Depth 12 -Compress)) { throw "PersonalUnifiedGpuOnly differs from PersonalUnified $name." }
     }
@@ -3855,23 +3893,23 @@ try {
         Invoke-SelfTests $registry $script:Lot
         exit 0
     }
-    $profile = Get-Profile $registry $Profile
-    Assert-LotRootForProfile $profile.id $script:Lot
-    if ($Mode -eq 'List' -and $profile.operation -cne 'List') { throw "Profile $Profile does not define a List operation." }
-    if ($Mode -eq 'Run' -and $profile.operation -eq 'List') { throw 'Use -Mode List for the InventoryList profile.' }
-    if ($Mode -eq 'Preflight' -and $profile.operation -eq 'Run' -and @($profile.cases).Count -eq 0) { throw "Profile $Profile has no exact case selectors." }
-    if ($Mode -eq 'Preflight' -and $profile.operation -ne 'Run' -and @($profile.cases).Count -ne 0) { throw 'Preflight profile operation mismatch.' }
+    $selectedProfile = Get-Profile $registry $Profile
+    Assert-LotRootForProfile $selectedProfile.id $script:Lot
+    if ($Mode -eq 'List' -and $selectedProfile.operation -cne 'List') { throw "Profile $Profile does not define a List operation." }
+    if ($Mode -eq 'Run' -and $selectedProfile.operation -eq 'List') { throw 'Use -Mode List for the InventoryList profile.' }
+    if ($Mode -eq 'Preflight' -and $selectedProfile.operation -eq 'Run' -and @($selectedProfile.cases).Count -eq 0) { throw "Profile $Profile has no exact case selectors." }
+    if ($Mode -eq 'Preflight' -and $selectedProfile.operation -ne 'Run' -and @($selectedProfile.cases).Count -ne 0) { throw 'Preflight profile operation mismatch.' }
 
     if ($Mode -eq 'Preflight' -or $Mode -eq 'List' -or $Mode -eq 'Run') {
         if ($Mode -ne 'Preflight') { Initialize-LotDirectories $script:Lot }
-        $valuesDoc = Get-ValuesDocument $ValuesJson $profile
+        $valuesDoc = Get-ValuesDocument $ValuesJson $selectedProfile
         if ($Mode -eq 'Preflight') {
             $runRoot = Join-Path (Join-Path $script:Lot 'runs') ('preflight-' + [guid]::NewGuid().ToString('N'))
-            $environment = Get-ProfileEnvironment $profile $valuesDoc $runRoot $script:Lot $false
+            $environment = Get-ProfileEnvironment $selectedProfile $valuesDoc $runRoot $script:Lot $false
             Assert-CampaignRoots $script:Lot $runRoot $environment
-            if ($profile.operation -ceq 'Diagnostic') {
-                Assert-NvidiaSmiDiagnosticProfile $profile -VerifyInstalledExecutable
-                if ($profile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
+            if ($selectedProfile.operation -ceq 'Diagnostic') {
+                Assert-NvidiaSmiDiagnosticProfile $selectedProfile -VerifyInstalledExecutable
+                if ($selectedProfile.id -ceq 'NvidiaSmiEnvironmentCompareDiagnostic') {
                     $hostEnvironment = Get-NvidiaDiagnosticHostEnvironment
                     foreach ($contextId in @('clean','host-nvidia-filtered','path-only','vars-only')) {
                         $contextRoot = Join-Path $runRoot (Join-Path 'contexts' $contextId)
@@ -3881,7 +3919,7 @@ try {
                 $nvidiaExe = Get-FullPath (Join-Path $env:SystemRoot 'System32\nvidia-smi.exe')
                 $nvidiaVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($nvidiaExe).FileVersion
                 $nvidiaSha = Get-Sha256 $nvidiaExe
-                if ($profile.id -ceq 'NvidiaProgramW6432Witness') {
+                if ($selectedProfile.id -ceq 'NvidiaProgramW6432Witness') {
                     if (Test-Path -LiteralPath $runRoot) { throw 'ProgramW6432 witness preflight RunRoot unexpectedly exists.' }
                     $previousRunRoot = $script:RunRoot
                     try {
@@ -3889,32 +3927,32 @@ try {
                         New-Item -ItemType Directory -Path $runRoot,(Join-Path $runRoot 'temp'),(Join-Path $runRoot 'tmp'),(Join-Path $runRoot 'localappdata'),(Join-Path $runRoot 'appdata') -Force -ErrorAction Stop | Out-Null
                         $witnessToolchain = Get-CargoExecutable
                         $witnessVsEnvironment = Get-VsEnvironment (Get-VsDevCommand) $environment.TEMP $environment.TMP $runRoot
-                        $witnessPair = New-NvidiaProgramW6432ProcessPair $profile $environment $witnessVsEnvironment $witnessToolchain $runRoot
+                        $witnessPair = New-NvidiaProgramW6432ProcessPair $selectedProfile $environment $witnessVsEnvironment $witnessToolchain $runRoot
                     } finally {
                         $script:RunRoot = $previousRunRoot
                         if (Test-InRoot $runRoot $script:Lot -and (Test-Path -LiteralPath $runRoot)) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }
                     }
-                } elseif ($profile.id -ceq 'NvidiaSmiInventoryDiagnostic') {
-                    $inventoryPsi = New-NvidiaSmiInventoryProcessInfo $profile $environment $runRoot
+                } elseif ($selectedProfile.id -ceq 'NvidiaSmiInventoryDiagnostic') {
+                    $inventoryPsi = New-NvidiaSmiInventoryProcessInfo $selectedProfile $environment $runRoot
                     if (-not $inventoryPsi.EnvironmentVariables.ContainsKey('ProgramW6432') -or [string]$inventoryPsi.EnvironmentVariables['ProgramW6432'] -ine (Get-ValidatedProgramW6432Directory)) { throw 'NVIDIA inventory preflight PSI did not contain the validated ProgramW6432 environment value.' }
                 } else {
-                    $null = New-NvidiaDiagnosticProcessInfo $profile.id $nvidiaExe ([string[]]$profile.command.arguments) $environment $runRoot
+                    $null = New-NvidiaDiagnosticProcessInfo $selectedProfile.id $nvidiaExe ([string[]]$selectedProfile.command.arguments) $environment $runRoot
                 }
-                "N2_PREFLIGHT profile=$($profile.id) operation=$($profile.operation) candidate=$script:Repo executable=$nvidiaExe version=$nvidiaVersion sha256=$nvidiaSha contexts=$($profile.command.contexts -join ',') programW6432=$(Get-ValidatedProgramW6432Directory) sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free) cargoStarted=false"
+                "N2_PREFLIGHT profile=$($selectedProfile.id) operation=$($selectedProfile.operation) candidate=$script:Repo executable=$nvidiaExe version=$nvidiaVersion sha256=$nvidiaSha contexts=$($selectedProfile.command.contexts -join ',') programW6432=$(Get-ValidatedProgramW6432Directory) sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free) cargoStarted=false"
                 exit 0
             }
             $toolchain = Get-CargoExecutable
             $vsDev = Get-VsDevCommand
-            "N2_PREFLIGHT profile=$($profile.id) operation=$($profile.operation) candidate=$script:Repo cargo=$($toolchain.cargo) rustc=$($toolchain.rustc) vsDevCmd=$vsDev sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free)"
+            "N2_PREFLIGHT profile=$($selectedProfile.id) operation=$($selectedProfile.operation) candidate=$script:Repo cargo=$($toolchain.cargo) rustc=$($toolchain.rustc) vsDevCmd=$vsDev sharedTarget=$script:CargoTarget lot=$script:Lot freeBytes=$((Get-PSDrive -Name C).Free)"
             exit 0
         }
         if ($DryRun) { Initialize-LotDirectories $script:Lot }
-        $result = Get-ProfileResult $profile $valuesDoc $script:Lot -DryRunOnly:$DryRun
+        $result = Get-ProfileResult $selectedProfile $valuesDoc $script:Lot -DryRunOnly:$DryRun
         if (-not $DryRun) {
             $resultPath = Join-Path $script:LogRoot 'result.json'
             $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath -Encoding UTF8
-            "N2_CAMPAIGN profile=$($profile.id) status=$($result.status) cases=$($result.cases.Count) logs=$script:LogRoot result=$resultPath"
-        } else { "N2_CAMPAIGN profile=$($profile.id) status=DRY_RUN" }
+            "N2_CAMPAIGN profile=$($selectedProfile.id) status=$($result.status) cases=$($result.cases.Count) logs=$script:LogRoot result=$resultPath"
+        } else { "N2_CAMPAIGN profile=$($selectedProfile.id) status=DRY_RUN" }
         if ($result.status -in @('PASS','NO_RUN_PASS','LIST_PASS','DRY_RUN','DIAGNOSTIC_ONLY')) { exit 0 }
         exit 1
     }

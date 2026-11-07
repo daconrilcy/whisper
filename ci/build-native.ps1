@@ -86,7 +86,7 @@ function Assert-NativeEffectiveFlags([Collections.IDictionary]$Effective, [strin
         CMAKE_SHARED_LINKER_FLAGS=@('/Brepro','/machine:x64')
         CMAKE_EXE_LINKER_FLAGS=@('/Brepro','/machine:x64')
     }
-    if ($BuildVariant -eq 'gpu') { $requirements.CMAKE_CUDA_FLAGS=@('/Brepro','/DWIN32','/D_WINDOWS','/EHsc') }
+    if ($BuildVariant -eq 'gpu') { $requirements.CMAKE_CUDA_FLAGS=@('/Brepro','/D_WINDOWS','/EHsc') }
     elseif ($BuildVariant -ne 'cpu') { throw 'Effective native flag checks require cpu or gpu.' }
     $checked = [ordered]@{}
     foreach ($key in $requirements.Keys) {
@@ -108,6 +108,46 @@ function Assert-NativeEffectiveFlags([Collections.IDictionary]$Effective, [strin
         $checked[$key]=$flags
     }
     return [ordered]@{status='PASS';variant=$BuildVariant;checkedFlags=$checked;diagnosticPolicy='C4530 fails during streaming; no automatic retry'}
+}
+
+function Read-NativeCudaPlatformMetadata([string]$Path) {
+    [void](Assert-Within $Path (Split-Path -Parent $Path))
+    if(-not (Test-Path -LiteralPath $Path -PathType Leaf)){throw "CUDA compiler metadata file is missing: $Path"}
+    $lines=@(Get-Content -LiteralPath $Path -ErrorAction Stop)
+    $expected=[ordered]@{CMAKE_CUDA_PLATFORM_ID='Windows';CMAKE_CUDA_COMPILER_ARCHITECTURE_ID='x64';CMAKE_CUDA_SIZEOF_DATA_PTR='8'}
+    $values=[ordered]@{}
+    foreach($name in $expected.Keys){
+        $key=[regex]::Escape($name)
+        $entries=@($lines|Where-Object {$_ -cmatch ('^\s*(?i:set)\s*\(\s*'+$key+'(?:\s|\)|$)')})
+        if($entries.Count -ne 1){throw "CUDA compiler metadata missing or duplicate: $name"}
+        $pattern='^\s*(?i:set)\s*\(\s*'+$key+'\s+(?:"(?<value>[^"\r\n]*)"|(?<value>[A-Za-z0-9_]+))\s*\)\s*(?:#.*)?$'
+        if($entries[0] -cnotmatch $pattern){throw "CUDA compiler metadata malformed: $name"}
+        $value=$Matches.value
+        if($value -cne $expected[$name]){throw "CUDA compiler metadata differs: $name expected $($expected[$name]), found $value"}
+        $values[$name]=$value
+    }
+    return [ordered]@{status='PASS';source=[IO.Path]::GetFullPath($Path);sha256=(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash;values=$values;execution='Not executed; parsed generated set declarations only.'}
+}
+
+function Assert-NativeCudaSeeds([string]$NinjaText,[string]$CudaSourceRoot) {
+    $rules=@([regex]::Matches($NinjaText,'(?ms)^build [^\r\n]+\.cu\.obj: CUDA_COMPILER[^ \r\n]* (?<source>[^\r\n]+?)(?: \|\|[^\r\n]*)?\r?\n(?<body>.*?)(?=^build |\z)'))
+    if(-not $rules.Count){throw 'CUDA seed validation requires CUDA object rules.'}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $sources=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $receipts=@(foreach($rule in $rules){
+        $source=$rule.Groups['source'].Value.Replace('$:',':').Replace('$ ',' ').Replace('$$','$')
+        $relative=[IO.Path]::GetRelativePath($CudaSourceRoot,$source).Replace('\','/')
+        if($relative.StartsWith('../') -or [IO.Path]::IsPathRooted($relative) -or -not $sources.Add($relative)){throw "Invalid or duplicate CUDA source for seed validation: $relative"}
+        $hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($relative))).ToLowerInvariant()
+        $expected='0x'+$hash.Substring(0,16)
+        $flags=@([regex]::Matches($rule.Groups['body'].Value,'(?m)^  FLAGS = (?<flags>[^\r\n]*)'))
+        if($flags.Count -ne 1){throw "CUDA flags missing or duplicated for seed validation: $relative"}
+        $seeds=@([regex]::Matches($flags[0].Groups['flags'].Value,'(?:^|\s)--frandom-seed(?:=|\s+)(?<seed>\S+)'))
+        if($seeds.Count -ne 1 -or $seeds[0].Groups['seed'].Value -cne $expected -or -not $seen.Add($expected)){throw "CUDA seed missing, incorrect or duplicated: $relative"}
+        if(@([regex]::Matches($flags[0].Groups['flags'].Value,'(?:^|\s)--objdir-as-tempdir(?=\s|$)')).Count -ne 1){throw "CUDA object-local temporary option missing or duplicated: $relative"}
+        [ordered]@{source=$relative;seed=$expected;temporaryFiles='object-directory'}
+    })
+    return [ordered]@{status='PASS';algorithm='SHA-256 of relative UTF-8 source path, first 64 bits';unitCount=$receipts.Count;units=$receipts}
 }
 
 function Assert-NativeDiagnostic([string]$Line) {
@@ -468,10 +508,14 @@ try {
     Export-NativeSource $cachedLlama $llama 'llama'
     Export-NativeSource $cachedVcpkg $vcpkg 'vcpkg'
     if (Test-Path -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe')) { Copy-Item -LiteralPath (Join-Path $cachedVcpkg 'vcpkg.exe') -Destination $vcpkg }
-    $localPatch=Join-Path $repo 'native/patches/ggml-pinned-build-commit.patch'
-    Copy-Item -LiteralPath $localPatch -Destination (Join-Path $nemo 'patches/ggml-pinned-build-commit.patch')
-    [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`nggml-pinned-build-commit.patch`n",$utf8)
-    $manifest.localPatches=@(@{name='ggml-pinned-build-commit.patch';sha256=(Get-FileHash -LiteralPath $localPatch).Hash})
+    $localPatchNames=@('ggml-pinned-build-commit.patch')
+    if($Variant -eq 'gpu'){$localPatchNames+='ggml-cuda-stable-seeds.patch'}
+    $manifest.localPatches=@(foreach($name in $localPatchNames){
+        $localPatch=Join-Path $repo "native/patches/$name"
+        Copy-Item -LiteralPath $localPatch -Destination (Join-Path $nemo "patches/$name")
+        [IO.File]::AppendAllText((Join-Path $nemo 'patches/series'),"`n$name`n",$utf8)
+        @{name=$name;sha256=(Get-FileHash -LiteralPath $localPatch).Hash}
+    })
     Import-BuildEnvironment $tools
     $manifest.environmentControls=@{VSCMD_SKIP_SENDTELEMETRY='1';reason='Disable detached VsDevCmd telemetry; NativeBuild stop policy unchanged'}
     $manifest.stage = 'BOOTSTRAP'
@@ -512,6 +556,15 @@ try {
     $manifest.effectiveOptions = $effective
     foreach ($key in @('GGML_NATIVE','GGML_CUDA','CMAKE_BUILD_TYPE','CMAKE_MSVC_RUNTIME_LIBRARY','VCPKG_TARGET_TRIPLET')) {
         if ($effective[$key] -cne $options[$key]) { throw "Effective CMake option differs: $key" }
+    }
+    if($Variant -eq 'gpu'){
+        $cudaMetadataPath=Assert-Within (Join-Path $build "CMakeFiles/$($config.tools.cmake)/CMakeCUDACompiler.cmake") $workspace
+        $cudaMetadataProof=Assert-Within (Join-Path $run 'CMakeCUDACompiler.cmake') $run
+        Copy-Item -LiteralPath $cudaMetadataPath -Destination $cudaMetadataProof -ErrorAction Stop
+        $manifest.cudaPlatformValidation=Read-NativeCudaPlatformMetadata $cudaMetadataPath
+        if((Get-FileHash -LiteralPath $cudaMetadataProof -Algorithm SHA256).Hash -cne $manifest.cudaPlatformValidation.sha256){throw 'CUDA compiler metadata source changed while preserving its proof.'}
+        $manifest.cudaPlatformValidation.proof=$cudaMetadataProof
+        $manifest.cudaSeedValidation=Assert-NativeCudaSeeds (Get-Content -LiteralPath (Join-Path $build 'build.ninja') -Raw) (Join-Path $build '_deps/llama.cpp/ggml/src/ggml-cuda')
     }
     $manifest.flagValidation = Assert-NativeEffectiveFlags $effective $Variant
     $manifest.stage = 'BUILD'

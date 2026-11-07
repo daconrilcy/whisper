@@ -1,11 +1,48 @@
 # NativeBuild notification tests only; dot-sourced by the guard, never launches CMake/Cargo.
-function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
+function Invoke-NativeQualificationRoutingTests {
+    $tokens=$null;$errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'qualify-native.ps1'),[ref]$tokens,[ref]$errors)
+    if($errors.Count){throw 'Qualification routing source does not parse.'}
+    foreach($name in @('Get-QualificationRouting','Get-QualificationBuildId','Assert-QualificationStageRouting')){
+        $definition=@($ast.EndBlock.Statements|Where-Object {$_ -is [Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -ceq $name})
+        if($definition.Count -ne 1){throw "Qualification routing helper missing: $name"}
+        . ([scriptblock]::Create($definition[0].Extent.Text))
+    }
+    $normal=Get-QualificationRouting ''
+    if($normal.root -cne 'C:\wb\native-qualif'){throw 'Original qualification root differs.'}
+    foreach($id in @('r1','r2','r3','r4','r5')){
+        $reprise=Get-QualificationRouting $id
+        if($reprise.root -cne ('C:\wb\native-qualif\reprise-'+$id.Substring(1)) -or $reprise.original -cne $normal.root){throw 'Qualification reprise root differs from its exact authorized route.'}
+        $variants=if($id -cin @('r3','r4','r5')){@('gpu')}else{@('cpu','gpu')}
+        foreach($variant in $variants){
+            foreach($number in @(1,2)){
+                if((Get-QualificationBuildId $variant $number $id) -cne "qualif-$id-$variant$number" -or
+                    (Get-QualificationBuildId $variant $number '') -cne "qualif-$variant$number"){throw 'Qualification reprise build ID routing differs.'}
+            }
+        }
+    }
+    foreach($invalid in @('r6','R1','R2','R3','R4','R5','../reprise-1','C:/override')){
+        $rejected=$false;try{$null=Get-QualificationRouting $invalid}catch{$rejected=$true}
+        if(-not $rejected){throw "Unapproved qualification reprise accepted: $invalid"}
+    }
+    foreach($id in @('r3','r4','r5')){
+        foreach($stage in @('SelfTest','NativeSelfTest','SurfaceGpu','RepeatGpu','Gpu1','Gpu2','GpuReference1','GpuReference2','GpuRebuilt')){Assert-QualificationStageRouting $stage $id}
+        foreach($stage in @('Prepare','Cpu1','Cpu2','SurfaceCpu','RepeatCpu','CpuReference1','CpuRebuilt','N2SelfTest')){
+            $rejected=$false;try{Assert-QualificationStageRouting $stage $id}catch{$rejected=$true}
+            if(-not $rejected){throw "Non-GPU stage accepted in ${id}: $stage"}
+        }
+        $rejected=$false;try{$null=Get-QualificationBuildId 'cpu' 1 $id}catch{$rejected=$true}
+        if(-not $rejected){throw "CPU build ID accepted in GPU-only $id."}
+    }
+    [ordered]@{test='bounded r1/r2 roots and GPU-only r3/r4/r5 stages/build IDs; arbitrary override refused';result='PASS'}
+}
+function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs, [switch]$RecordTestsOnly) {
     Initialize-NativeDirectoryWatch (Join-Path $Root 'collector-temp')
     $evidence=[Collections.Generic.List[object]]::new()
     function New-TestRecord([uint32]$Action, [string]$Name, [uint64]$Id=41, [long]$Sequence=1, [long]$Buffer=1) {
         $r=[Whisper.NativeWatch.Record]::new()
         $r.Root=$Root; $r.Session='test-session'; $r.Volume='test-volume'; $r.Name=$Name
-        $r.Action=$Action; $r.FileId=$Id; $r.ParentFileId=7; $r.Sequence=$Sequence; $r.Buffer=$Buffer
+        $r.Action=$Action; $r.FileId=$Id; $r.ParentFileId=7; $r.Sequence=$Sequence; $r.Buffer=$Buffer; $r.Index=[int]$Sequence
         $r.CreationTime=1; $r.At=[DateTimeOffset]::UtcNow.ToString('o')
         return $r
     }
@@ -22,6 +59,26 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
     $events=Assert-RecordResult 'interleaved across received buffers' @($old,$change,$new) $false
     $rename=@($events | Where-Object Type -CEQ 'Renamed')
     if ($rename.Count -ne 1 -or $rename[0].OldPath -ine (Join-Path $Root 'allowed/old.tmp') -or $rename[0].Path -ine (Join-Path $Root 'allowed/new.txt')) { throw 'Extended pair paths differ.' }
+    $chain=@((New-TestRecord 4 'allowed/a.tmp' 41 80731 79320),(New-TestRecord 5 'allowed/a.trn' 41 80732 79320),
+        (New-TestRecord 4 'allowed/a.trn' 41 80738 79326),(New-TestRecord 5 'allowed/b.trn' 41 80739 79326))
+    $chain[0].Index=0;$chain[1].Index=1;$chain[2].Index=0;$chain[3].Index=1
+    $chainEvents=Assert-RecordResult 'two sequential rename pairs of one generation in one drain' $chain $false
+    if($chainEvents.Count -ne 2 -or $chainEvents[0].OldPath -ine (Join-Path $Root 'allowed/a.tmp') -or
+        $chainEvents[0].Path -ine (Join-Path $Root 'allowed/a.trn') -or $chainEvents[1].OldPath -ine $chainEvents[0].Path -or
+        $chainEvents[1].Path -ine (Join-Path $Root 'allowed/b.trn')){throw 'Sequential rename chain lost or collapsed a transition.'}
+    foreach($mutation in @('generation','duplicate','sequence','buffer','index','broken-chain','parent-identity')){
+        $broken=@($chain|ForEach-Object {$copy=[Whisper.NativeWatch.Record]::new();foreach($field in $_.GetType().GetFields()){$field.SetValue($copy,$field.GetValue($_))};$copy})
+        switch($mutation){
+            'generation' {$broken[2].CreationTime=2;$broken[3].CreationTime=2}
+            'duplicate' {$broken+=($broken[3])}
+            'sequence' {$broken[2].Sequence=$broken[1].Sequence}
+            'buffer' {$broken[2].Buffer=$broken[0].Buffer-1}
+            'index' {$broken[1].Index=$broken[0].Index}
+            'broken-chain' {$broken[2].Name='allowed/unrelated.trn'}
+            'parent-identity' {$broken[2].ParentFileId=8}
+        }
+        $null=Assert-RecordResult "rename chain rejects $mutation" $broken $true
+    }
     foreach ($case in @(
         @{name='old orphan';records=@($old)}, @{name='new orphan';records=@($new)},
         @{name='different identity';records=@($old,(New-TestRecord 5 'allowed/new.txt' 42 3))},
@@ -83,6 +140,17 @@ function Invoke-NativeDirectoryWatchTests([string]$Root, [object[]]$Specs) {
         if ($result -cne $case.expected) { throw "Extended policy $($case.name): $result" }
         $evidence.Add([ordered]@{test=$case.name;result='PASS';disposition=$result})
     }
+    $boundaryChain=@((New-TestRecord 4 'allowed/a.tmp' 41 1),(New-TestRecord 5 'outside/a.trn' 41 2),
+        (New-TestRecord 4 'outside/a.trn' 41 3),(New-TestRecord 5 'allowed/b.trn' 41 4))
+    $boundaryEvents=Assert-RecordResult 'complete chain preserves both boundary crossings' $boundaryChain $false
+    if($boundaryEvents.Count -ne 2){throw 'Boundary chain must preserve two transitions.'}
+    foreach($transition in $boundaryEvents){
+        $event=[pscustomobject]@{type=$transition.Type;path=$transition.Path;old_path=$transition.OldPath}
+        if((Get-EventDisposition $event @((Join-Path $Root 'allowed')) @() (Join-Path $Root 'user-temp')) -cne 'VIOLATION'){throw 'Boundary crossing within rename chain was authorized.'}
+    }
+    $evidence.Add([ordered]@{test='both intermediate boundary crossings remain refused';result='PASS'})
+    $evidence.Add((Invoke-NativeQualificationRoutingTests))
+    if($RecordTestsOnly){return ,$evidence.ToArray()}
 
     # Arm the exact complete set, without writing to those watched roots.
     $availability=Start-NativeBuildWatchState $Specs $Root

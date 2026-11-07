@@ -111,12 +111,23 @@ namespace Whisper.NativeWatch
         {
             var events = new List<Observation>();
             var renames = new Dictionary<string, List<Record>>(StringComparer.Ordinal);
+            var sourceOrder = new Dictionary<string, Record>(StringComparer.Ordinal);
+            long previousSequence = 0;
             foreach (Record record in records)
             {
                 try
                 {
                     if (!string.IsNullOrEmpty(record.Error)) throw new InvalidDataException(record.Error);
                     string path = FullPath(record);
+                    if (record.Sequence <= previousSequence || record.Buffer <= 0 || record.Index < 0)
+                        throw new InvalidDataException("Duplicate or unordered notification sequence.");
+                    previousSequence = record.Sequence;
+                    string source = record.Session + "|" + record.Volume + "|" +
+                        System.IO.Path.GetFullPath(record.Root).TrimEnd('\\').ToUpperInvariant();
+                    if (sourceOrder.TryGetValue(source, out Record previous) &&
+                        (record.Buffer < previous.Buffer || (record.Buffer == previous.Buffer && record.Index <= previous.Index)))
+                        throw new InvalidDataException("Duplicate or unordered notification buffer position.");
+                    sourceOrder[source] = record;
                     if (record.Action < 1 || record.Action > 5) throw new InvalidDataException("Unknown notification action.");
                     if (record.Action == 4 || record.Action == 5)
                     {
@@ -134,13 +145,29 @@ namespace Whisper.NativeWatch
             }
             foreach (List<Record> group in renames.Values)
             {
-                Record[] pair = group.ToArray();
-                if (pair.Length != 2 || pair[0].Action != 4 || pair[1].Action != 5 ||
-                    pair[0].Sequence >= pair[1].Sequence || pair[0].CreationTime != pair[1].CreationTime ||
-                    !string.Equals(pair[0].Root, pair[1].Root, StringComparison.OrdinalIgnoreCase))
-                    events.Add(Failure(pair, "Incomplete, unordered or ambiguous rename at drain boundary."));
-                else events.Add(new Observation { Type = "Renamed", Path = FullPath(pair[1]), OldPath = FullPath(pair[0]),
-                    At = pair[0].At, Detail = "Paired by watcher session, volume and file identity.", Records = pair });
+                bool valid = group.Count % 2 == 0;
+                for (int i = 0; valid && i < group.Count; i += 2)
+                {
+                    Record old = group[i], next = group[i + 1];
+                    valid = old.Action == 4 && next.Action == 5 && old.Sequence < next.Sequence &&
+                        old.CreationTime == group[0].CreationTime && next.CreationTime == group[0].CreationTime &&
+                        string.Equals(old.Root, group[0].Root, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(next.Root, group[0].Root, StringComparison.OrdinalIgnoreCase);
+                    if (valid && i > 0)
+                    {
+                        Record preceding = group[i - 1];
+                        valid = preceding.Sequence < old.Sequence && preceding.ParentFileId == old.ParentFileId &&
+                            string.Equals(FullPath(preceding), FullPath(old), StringComparison.OrdinalIgnoreCase);
+                    }
+                }
+                if (!valid)
+                    events.Add(Failure(group.ToArray(), "Incomplete, unordered or conflicting rename chain at drain boundary."));
+                else for (int i = 0; i < group.Count; i += 2)
+                {
+                    Record[] pair = { group[i], group[i + 1] };
+                    events.Add(new Observation { Type = "Renamed", Path = FullPath(pair[1]), OldPath = FullPath(pair[0]),
+                        At = pair[0].At, Detail = "Sequential pair by watcher session, volume, file identity and creation generation.", Records = pair });
+                }
             }
             // Fail before authorizing any remaining observation in an incomplete snapshot.
             return events.OrderBy(e => e.Type == "WatcherError" ? 0 : 1)
