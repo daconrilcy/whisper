@@ -1,10 +1,16 @@
-Avancée : whisper-adapters 639/0/126 ; 13 traces polling ordinaires byte-identiques sur deux replays.
-Blocage : Q03 non exécuté : attribut #[test] omis lors du déplacement des sources du faux worker.
-Décision : restauration du seul attribut et appel exact Q03 autorisés à 19:56:57.
+Avancée : whisper-adapters 639/0/126 ; Q03 1/1 conforme ; 39 références cleanup et 14 polling gelées.
+Blocage : quatre avertissements Clippy nouveaux dans les fixtures à corriger ; couverture P à terminer.
+Décision : découpage mécanique des helpers de test, replays avant les derniers scénarios P.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Q03 rétabli et gel complémentaire, 9 novembre vers 20:00.** Run `20261109T195723732-27123c0ac940443184e6d23fad937304`, code 0 : **1/1 Q03 exact**, 608 autres tests filtrés. Parent vérifie les octets contre l'oracle : **6 469 octets**, SHA **4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**, worker **24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff**, inchangés. Les sept nouveaux oracles sont gelés dans `poll_parakeet_equivalence/added-direct-traces.json` : **16 513 octets**, SHA **4964ab4987aa6447f85918043d4d074baf4953e76a8fb8bc926745098aca4bb6**, comparaison inconditionnelle branchée, à rejouer après branchement. Les références précédentes restent intactes.
+
+Clippy qualité sans `CLIPPY_CONF_DIR`, run `20261109T200030211-ffa736201bfb4e81b3b6ae81ab2a8884`, code 0, **344 warnings** contre 340 baseline : **quatre nouveaux diagnostics uniques** dans les fixtures, vérifiés par le parent dans JSON. Cleanup : helper snapshot ligne84 **118/100**, emprunt inutile ligne1762. Polling : `compile_nominal_import_worker` ligne398 **116/100**, test EOF après résultat ligne830 **109/100**. Les alertes produit et anciennes de `poll/tests.rs` restent celles de la baseline (décalage d'une ligne de déclaration). La première lecture de l'auteur omettait les deux diagnostics cleanup ; corrigée par extraction parent. Corrections mécaniques T1 réparties entre propriétaires, sans allow ni assertion modifiée ; le helper Q03, exclu de cette mesure par cfg, sera aussi découpé statiquement sans changer les sources des faux workers. Aucun Cargo pendant les éditions.
+
+Journaux Q03/Clippy, deux traces Q03 et nouvelle référence conservés sous `q03-registered-and-quality/` : ZIP **4 147 membres**, **7 187 548 octets**, SHA-256 **9ea8b981923d0412d2fb014c529f49cf3292a45cbba7188905cf9a275c1470c9** ; 4 136 anciens membres inchangés, onze ajouts vérifiés. Les derniers scénarios P et N1 enrichi restent requis avant validation T1 ; aucun produit extrait, S2 non commencé.
 
 **Accord du 9 novembre à 19:56:57 Europe/Paris.** L'utilisateur répond « Accord » à la restauration du seul `#[test]` sur la fonction Q03, suivie d'un appel exact sous garde exigeant **1/1** et la trace conforme à sa référence gelée. Si vert, gel séparé des sept nouvelles traces ordinaires déjà byte-identiques puis reprise T1–T6. `rust_implementer` conserve cfg, assertions, sources workers et références anciennes ; aucun autre correctif implicite. Budget initial, STOP au premier échec et arrêt après nettoyage inchangés ; aucun changement produit, merge ni push.
 
