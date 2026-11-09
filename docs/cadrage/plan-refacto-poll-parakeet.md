@@ -1,5 +1,5 @@
-Avancée : reprise T1–T6 autorisée après le succès du témoin Q03.
-Blocage : aucun blocage technique établi ; corpus et références T1 restent à terminer.
+Avancée : N2 baseline PersonalUnified réussi 4/4 ; huit TXT/SRT bruts archivés.
+Blocage : corpus de caractérisation et références T1 restent à terminer.
 Décision : poursuivre corpus, S2 et nettoyage dans le budget initial ; arrêt obligatoire T6.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
@@ -222,6 +222,12 @@ N2 exact : `pwsh -NoProfile -File ci/guard-native.ps1 -Mode SelfTest`, puis `-Mo
 Cas exacts du profil, binaire `parakeet_unified_native` : `native_personal_cpu_imports_french_mp3_through_the_unified_application`, `native_personal_gpu_imports_english_mp3_with_attested_candidate`, `native_personal_gpu_imports_french_mp3_with_attested_candidate`, `native_personal_auto_without_candidate_reports_preaudio_cpu_fallback`. Les deux séries sont indépendantes, références baseline immuables ; comparer huit fichiers bruts. La garde N2 conserve sa surveillance et ses arrêts, distincts de N1. Nouvelle WHEA/crash/échec = STOP, pas d'autre profil substitué.
 
 ### Résultats de préparation déjà acquis
+
+**N2 baseline du 9 novembre, production inchangée :** actualisation autorisée des deux totaux de profil appliquée ; SelfTest lancé **15:03:52**, terminé **15:04:07**, code 0 ; Preflight **15:04:11**, code 0 ; Run **15:04:41–15:10:22**, code 0, **4/4 PASS**, identifiant `PersonalUnified-551f984185044befa7aaa2cc55a7ad36`. Extension close avant **15:17:06**, dépassement **0 seconde**. Cas CPU FR **57,553 s**, GPU EN **31,071 s**, GPU FR **30,705 s**, Auto sans candidat **13,586 s** (durées des cas de la garde, distinctes de la durée globale). Huit fichiers bruts de transcription, quatre TXT et quatre SRT, conservés ; les copies d'exports ne sont pas comptées comme sorties supplémentaires. Ces données forment la référence N2 avant extraction, pas la preuve N2 après refactor.
+
+Entrées copiées et vérifiées : **21 fichiers / 3 196 035 499 octets** sous `target/n2-native/inputs/personal-runtime`, deux audios **48 474 octets** sous `inputs/audio`, manifeste `inputs/request.json` **4 920 octets**, SHA-256 **838a5f8bf096740c4d8fd2d4e34fb8ed926d34c7e09e7ab51cc2e767508ca51f**. SHA source avant/après et copie identiques ; aucun réglage personnel copié. L'installation source est en lecture seule. Le manifeste et un instantané des deux profils actualisés accompagnent les journaux et sorties dans le ZIP.
+
+Archive de checkpoint : **182 membres**, **1 074 509 octets**, SHA-256 **65601d634f69e636a25b7953bd270962adcebb1f043b1cf1f59a188166ea27cc**. Les 58 entrées antérieures ont été vérifiées inchangées et les 124 nouvelles entrées comparées aux sources, sous `n2-baseline/` en conservant l'arborescence. Les références N2 archivées ne seront pas remplacées. WHEA avant (14:49:27) et après (15:12:14) : **1**, dernier RecordId **527992**, inchangés. Libre après : **455 503 343 616 octets**. Aucun nettoyage effectué ; cache N2 isolé, copies d'entrées, staging et temporaires restent à inventorier pour rétention humaine. Aucun build natif autonome lancé ; compilation Rust par la garde existante.
 
 Toolchain observée : rustc **1.98.1 (48a229cea 2026-09-01)**, Clippy **0.1.98**, mêmes versions que le lot de référence. N1 sur sources intactes **878/0/129**, code 0, sans CARGO_TARGET_DIR dans l'enfant ; run `20261109T135008485-293aadbe5b3d4a58a424267a6df86d4d`. WHEA après préparation **1**, dernier RecordId **527992** inchangé. Clippy qualité sans configuration de mesure : code 0, **340 warnings dont 328 Clippy**, run `20261109T135903672-5f54de5e43b54836b2bc0c42cf56a87b`. Workers et N2 restent à exécuter ; ces résultats ne sont pas déduits de Clippy/N1. Petites preuves de préparation archivées au chemin prévu, sans modifier le code ni geler prématurément un bilan de clôture. Cette préparation réussie ne constitue pas une preuve de terminaison bornée de futures commandes.
 
