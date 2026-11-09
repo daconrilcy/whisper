@@ -1,6 +1,6 @@
-Avancée : deux dernières corrections de fixture autorisées et confiées à rust_implementer.
-Blocage : Q03 non démontré ; dernière tentative en préparation.
-Décision : une seule tentative avant 14:55:42 ; à l'échéance, seul l'appel engagé termine.
+Avancée : les deux corrections de fixture sont appliquées ; Q03 passe une fois sous garde.
+Blocage : T1 complet reste non démontré ; second passage, références et autres corpus manquent.
+Décision : dernière tentative terminée à 14:48:30 sans dépassement ; preuves archivées, aucun appel suivant.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -53,6 +53,16 @@ Correction concrète à autoriser dans le seul nouveau fichier de test : utilise
 Proposition : ces deux corrections de fixture puis **une dernière tentative de compilation/exécution**, dans le temps restant jusqu'à **14:55:42**, sans remise à zéro du délai, aucun nouveau fichier/outillage/feature. Une nouvelle erreur impose STOP ; un résultat positif ouvre les vérifications d'équivalence prévues dans le budget restant. La compilation n'est pas une preuve de test passé, et aucune assertion n'est affaiblie.
 
 Archive complétée : **52 membres**, **977 322 octets**, SHA-256 **37510f65fde2acc35b12cc4cba3dd6f345679590eb7c4e6b899a76230d61a366**. Les 46 anciennes entrées sont conservées byte-à-byte (SHA avant/après), les six nouvelles entrées comparées à leurs sources ; candidat n°2 sous `q03-second-attempt/candidate/`. Aucun nettoyage exécuté, aucun commit Rust.
+
+### Dernière tentative Q03 — succès du 9 novembre à 14:48:30
+
+`rust_implementer` a remplacé le décodage superflu du SHA source par le tableau binaire retourné par `sha256_file`, et centralisé le JobId de la requête et du faux message GPU dans `Q03_JOB_ID`. Uniquement les deux fichiers de tests T1 déjà ouverts sont modifiés ; aucun code produit, assertion existante, dépendance ou mécanisme de garde modifié. Les fichiers Rust restent non commités tant que les validations du commit T1 ne sont pas acquises.
+
+Appel admis à **14:47:04 Europe/Paris**, terminé à **14:48:30**, garde **code 0**, run `20261109T144717094-7b7d738fc8ed470fa47128621521c6af`. Même commande exacte que précédemment, via `pwsh`, `-WithoutCargoTargetDir`, modèle personnel autorisé et feature `personal-qualification`. Le journal confirme **1 passed, 0 failed, 0 ignored, 553 filtered out**, durée effective **12,33 s**, pour `worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_gpu_failure_falls_back_to_qualified_cpu_fixture`. Les autres harnais ont zéro test sélectionné. Scénario observé par les assertions : GPU Failed préaudio, repli CPU, Ready CPU, un Transcribe et clé CPU persistée ; aucune NativeCallStarted. **Dépassement de 14:55:42 : 0 seconde.** Aucun autre appel Cargo lancé après cette dernière tentative.
+
+Limite : cette réussite unique démontre la faisabilité de Q03, pas la stabilité de deux passages, le corpus complet, les références gelées ou l'équivalence après refactor. T1 reste incomplet ; N2, S2, les extractions et la revue finale ne sont pas exécutés. Les références N1/Clippy de préparation demeurent celles de la source initiale, sans être attribuées à ce candidat. La tranche n'est ni clôturée ni annoncée fusionnable. Aucun merge, push ou nettoyage exécuté.
+
+Preuves : ZIP prévu complété à **58 membres**, **992 700 octets**, SHA-256 **3bede6661b38aacd5ba7993d3967f31c07c9be688d98d75802b1565a7d198644** ; les 52 entrées antérieures vérifiées inchangées byte-à-byte par SHA, six nouvelles entrées comparées aux sources (quatre journaux et deux instantanés sous `q03-third-attempt/candidate/`). `git diff --check` réussi. Relevé à **14:49:27** : WHEA **1**, dernier RecordId **527992** inchangé ; libre **465 328 377 856 octets**. Ce checkpoint conserve les racines précédemment inventoriées et ne revendique aucun espace récupéré.
 
 Source : demande de session du 9 novembre 2026 ; méthode `docs/cadrage/plan-refacto-poll-unified.md`, §7, et bilans `docs/architecture/REFACTO-POLL-UNIFIED-{BILAN,PHASE1-BILAN}.md`. Plan seulement : ces documents historiques ne donnent pas d'autorisation nouvelle. Confidence : **medium**, car le découpage est local et mesurable mais les nouveaux corpus restent à prouver sur les sources inchangées. La demande actuelle autorise la préparation, le worktree, les mesures et la revue ; l'accord sur ce plan autorisera le périmètre concret suivant.
 
