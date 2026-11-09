@@ -1,10 +1,12 @@
-Avancée : Ready synthétique validé, whisper-adapters 650/0/126 et 34 traces polling identiques.
-Blocage : aucun échec actif. Les derniers cas Auto et la validation N1 enrichie restent à exécuter.
+Avancée : Ready synthétique gelé et N1 enrichi 944/0/129, avec exactement 66 nouveaux tests réussis.
+Blocage : aucun échec actif. Les derniers cas Auto et la qualité finale T1 restent à vérifier.
 Décision : geler les deux traces Ready et terminer T1 avant S2.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Gel Ready et N1 enrichi vers 22:12.** Deux références `gpu-ready-traces.json`, 7 376 octets, SHA-256 `8a30822eb3ccb6736698fbad45506c5bdcaef911c7268ae1e718d6cdccb8b85d`, valeurs gelées depuis PID 88760 après comparaison 32660, assertions inconditionnelles. N1 `20261109T221021921-4e733e200e784aa29e8cf46848f18fdc`, code 0, `CARGO_TARGET_DIR_child=False`, **944/0/129**. Comparaison des identités : 1 007 initiales conservées avec leurs statuts, 66 nouvelles toutes réussies (44 cleanup, 22 polling), 1 073 au total. Le passage rejoue les comparaisons Ready ordinaires, C02 et P11. Aucun produit changé. Archives sous `n1-enriched-ready-frozen/` (journaux, traces PID 32264, nouvelle référence), 155 ajouts vérifiés, **5 788 entrées**, **11 705 087 octets**, SHA-256 `03c5d90f19260954578c74fd0d691ec4a6c38217565c994027fabac9e1c8a6ac`. Il reste les deux cas Auto sous feature personnelle et le contrôle de qualité avant commit T1.
 
 **Ready ordinaire validé vers 22:09.** Après la correction autorisée, full adapters `20261109T220734988-0ca443d32b7e4afb813afef4b3e8eb84` code 0, **650/0/126**, 22 tests polling et 44 nettoyage. Les comparaisons C02/P11 sont actives. Replay `20261109T220837904-915750b6c700473294df043066ff400b` code 0, **22/22**. Le parent compare **34 traces polling stables**, PID 88760/32660, byte-identiques. Le positif P07 atteste le PID de la poignée et capture la commande Transcribe entière. Le négatif P08 manuel refuse la clé sans repli. Tous deux passent par une clé synthétique de secours et un faux worker, sans qualification GPU native. Gel des deux nouvelles traces confié à l'implémenteur, puis préparation Auto/P09. ZIP `gpu-ready-ordinary-replays/` : 226 ajouts vérifiés et 5 407 entrées précédentes intactes, **5 633 entrées**, **11 270 141 octets**, SHA-256 `ad9c443804d2ebc77290931d76f48cbc8d8cbabf39d1fee18786face38d7f582`.
 
