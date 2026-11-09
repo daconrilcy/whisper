@@ -1,10 +1,12 @@
 Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
 Blocage : deux fixtures polling incohérentes (WAV réutilisé et worker_ready initialement vrai).
-Décision : STOP ; corrections des deux fixtures à soumettre, assertions inchangées.
+Décision : corrections des deux fixtures et dernière tentative du groupe autorisées à 19:44:16.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Accord du 9 novembre à 19:44:16 Europe/Paris.** L'utilisateur autorise les deux corrections ciblées de P11/P08 et la reprise : seconde fixture P11 sous un sous-dossier distinct de la même racine ; `worker_ready=false` initialisé localement dans P08 avant polling, helper P10 et assertions inchangés. Dernière tentative du groupe : full adapters, puis filtre polling constituant le second replay si vert, comparaison des traces stables, puis Q03 exact et reprise T1–T6 si tous les contrôles passent. STOP au premier échec/divergence, aucun retry automatique ; budget initial et arrêt après nettoyage inchangés. Aucun changement produit, merge ni push.
 
 **Arrêt après correction de l'emprunt, 9 novembre vers 19:42.** Run `20261109T194136832-5b568c5d0d524c11890291f80fb3924d`, Cargo **101** : bibliothèque **557/2/49**, autres harnais non exécutés. Les faux workers compilent. P11 `poll_parakeet_result_rejects_missing_request_and_bad_correlation` utilise deux fois `request_runtime(&root.0, ...)` ; le second `PcmPartWriter::create` refuse le `source.wav` déjà présent (erreur Windows 80), avant la seconde assertion. P08 `poll_parakeet_vad_ready_reaches_single_pass_process_profile_mismatch` atteint le diagnostic `ProfileMismatch` attendu, mais `one_window_vad_run` a initialisé `worker_ready=true` ; l'assertion de conservation à false échoue. P10 dispatcher injecté et P12 Progress conservé passent ; ce n'est pas encore un gel stable. Aucun filtre, deuxième replay ni Q03 lancé.
 
