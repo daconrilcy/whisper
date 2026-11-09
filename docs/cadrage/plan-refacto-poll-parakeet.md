@@ -1,6 +1,6 @@
-Avancée : N2 baseline 4/4 ; candidat cleanup antérieur 6/6 et deux traces D06 identiques.
-Blocage : dernier candidat de fixture non compilable ; nouvelles traces non validées.
-Décision : correction limitée du helper de fixture autorisée, puis reprise T1–T6 si les tests passent.
+Avancée : N2 baseline 4/4 ; deux séries cleanup 6/6, cinq paires de traces identiques.
+Blocage : D04 conserve une racine temporaire dans un message ; gel suspendu.
+Décision : normalisation de ce seul champ autorisée, puis deux nouveaux replays avant gel.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Checkpoint du 9 novembre à 15:46.** Les corrections du helper ont passé ; replays `20261109T154330512-a7d0455248b4476a9c066f9eac6b1712` et `20261109T154422230-b464b9d3454a4486a025669b6224dfb2`, chacun **6/6**. Cinq paires de traces sont identiques : D01 **22 145 octets**, D02 **32 010**, D03 **31 784**, D05 **33 981**, D06 **63 536**. D04 diverge dans `first_resume.result` : le message `StorageUnavailable: ouvrir l'objet exact ... owned.txt ... (os error 32)` contient encore le nom absolu de sa racine temporaire. Les deux traces D04 font **38 048 octets**. La session principale a vérifié en lecture seule que substituer uniquement cette racine par `<ROOT>` rend les deux textes strictement identiques ; aucune autre différence n'est masquée, aucun fichier de référence Git n'était gelé.
+
+Le gel a été suspendu conformément au plan. L'utilisateur répond **« Autoriser cette correction de trace et la reprise (recommandé) »** à la demande explicite de normaliser uniquement ce champ dans `cleanup_equivalence.rs`, puis refaire deux replays et poursuivre T1–T6. Aucun code produit, changement de message métier, nouvelle normalisation ou extension temporelle autorisé. Preuves avant correction conservées : ZIP **256 membres**, **1 219 591 octets**, SHA-256 **cd1c6ee5dc29cf29aad95c317ee5fc5ad98b737641ae7d7bdce4209344441d64** ; 229 anciennes entrées vérifiées inchangées, 27 ajouts vérifiés, dont les 17 traces présentes à ce checkpoint, préfixe `cleanup-checkpoint-1544/`.
 
 **Checkpoint du 9 novembre à 15:42.** Les corrections autorisées précédentes ont passé au run `20261109T152124870-2a70564e679a4a81a2fcc3709115d3b8` : D06 exact 1/0, 0,06 s. Le corpus a été étendu à six tests verts (vide, nominal, déjà absent, verrouillé, ajout non sélectionné, interruption/reprise), run `20261109T152732089-bc8e9d6be0d649c5bc9df7f4fca3e505`, **6/0**, 553 filtrés, 0,08 s. Deux replays D06 `20261109T153615811-2c0e431caeb542ac909855a23fb218be` et `20261109T153653802-52dedfb283c84cb68eed4f40d6f03862` ont produit des traces identiques **63 536 octets**, SHA-256 **ee75441c1f428cab19ffdf3bc338add0033d4ef606ca663d4ad8497b3e9ba6d3** ; pas encore de référence Git gelée. Le formatage gardé antérieur était PASS au run `20261109T151807231-b4bee3eb24ce42b3ab3b94daeaa219ca` ; il ne valide pas les edits suivants.
 
