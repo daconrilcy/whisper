@@ -1,6 +1,6 @@
-Avancée : N2 baseline 4/4 ; deux séries cleanup 6/6, cinq paires de traces identiques.
-Blocage : D04 conserve une racine temporaire dans un message ; gel suspendu.
-Décision : normalisation de ce seul champ autorisée, puis deux nouveaux replays avant gel.
+Avancée : six traces D stables avec sentinelles ; quatre variantes C supplémentaires passent.
+Blocage : C08/C10 rejetés trop tôt par des fixtures incohérentes ; campagne arrêtée.
+Décision : synchronisation limitée des deux fixtures autorisée, puis reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,12 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Checkpoint du 9 novembre à 15:59.** D04 corrigé : deux séries 6/6 aux runs `20261109T154800850-9e7ae9f0b94546cb9978b5a43a3e6e74` et `20261109T154845499-d7fcd1777367464ab38ec9ab6dc6ddc7`, toutes les paires identiques (D04 **37 944 octets**, D06 inchangé). Ajout ensuite d'assertions des octets exacts source/successeur/exports et de la taille brute des JSON avant normalisation ; deux séries du nouveau candidat `20261109T155216940-17236baaa8094801b0ba70182760687d` et `20261109T155409135-05cf0266ff4a4d20bc3b9f7956120c86` passent **6/6**, traces identiques. Aucune référence Git encore gelée.
+
+Les six variantes C ajoutées ont ensuite donné **4 réussites / 2 échecs**, code **101**, run `20261109T155705085-a727da86b31849bea7ebdd6856770182`. C02 preuve incomplète, C03 chemin de preuve inattendu, C04 segments tronqués et C05 intention divergente passent. Les fixtures C08 autre destination et C10 empreinte d'objet modifiée ne synchronisaient pas leurs cibles avec `PublicationIntent.cleanup_targets` : elles sont rejetées par C05 avant le contrôle visé. Les assertions attendues n'ont pas été modifiées. STOP appliqué, sans correction/retry automatique.
+
+L'utilisateur répond **« Autoriser cette correction et la reprise (recommandé) »** à la synchronisation des cibles modifiées avec l'intention dans ces deux fixtures de `cleanup_equivalence.rs`, puis relance des six variantes C et poursuite T1–T6 si PASS. Aucun changement produit ni extension du budget. L'intention est contrôlée avant les cibles (`execution.rs:157–162`) et ne figure pas parmi les six successor_files ; la correction reste dans la construction des deux fixtures. Archive avant correction **319 membres**, **1 366 093 octets**, SHA-256 **c6de299c1af82a02cc0d3efe11d6ae7eaf8266aa1eae7c8550a132df3441d1de** ; 256 anciennes entrées inchangées, 63 ajouts vérifiés, dont les 41 traces présentes à ce checkpoint, sous `cleanup-checkpoint-1557/`.
 
 **Checkpoint du 9 novembre à 15:46.** Les corrections du helper ont passé ; replays `20261109T154330512-a7d0455248b4476a9c066f9eac6b1712` et `20261109T154422230-b464b9d3454a4486a025669b6224dfb2`, chacun **6/6**. Cinq paires de traces sont identiques : D01 **22 145 octets**, D02 **32 010**, D03 **31 784**, D05 **33 981**, D06 **63 536**. D04 diverge dans `first_resume.result` : le message `StorageUnavailable: ouvrir l'objet exact ... owned.txt ... (os error 32)` contient encore le nom absolu de sa racine temporaire. Les deux traces D04 font **38 048 octets**. La session principale a vérifié en lecture seule que substituer uniquement cette racine par `<ROOT>` rend les deux textes strictement identiques ; aucune autre différence n'est masquée, aucun fichier de référence Git n'était gelé.
 
