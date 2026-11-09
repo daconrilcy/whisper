@@ -1,6 +1,6 @@
-Avancée : six traces D stables avec sentinelles ; quatre variantes C supplémentaires passent.
-Blocage : C08/C10 rejetés trop tôt par des fixtures incohérentes ; campagne arrêtée.
-Décision : synchronisation limitée des deux fixtures autorisée, puis reprise T1–T6 si PASS.
+Avancée : C08/C10 corrigés et validés ; huit des neuf variantes C passent.
+Blocage : la fixture C09 emprunte C07 et reçoit Ok ; campagne arrêtée.
+Décision : mutation de la seule preuve SHA du conteneur autorisée, puis reprise si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Checkpoint du 9 novembre à 16:05.** C08/C10 corrigés et six variantes C validées au run `20261109T160042094-d9966eb918e149099fbd2310b95b4551`, **6/6**, code 0. Trois variantes supplémentaires ont ensuite donné **8 réussites / 1 échec**, code **101**, run `20261109T160255430-195bf5c4382845da85c388dbe2bf0f81`. Dans `cleanup_characterization_rejects_invalid_container_proof_before_removal`, remplacer le chemin du conteneur par `transcriptions/not-the-container` provoquait d'abord l'adoption du chemin absent par C07 (`container.removed=true`, plan persisté), puis le saut du préflight C09 réservé aux conteneurs non retirés. L'appel retournait donc `Ok`, contrairement à l'attente de cette fixture. Ce comportement existant est conservé ; aucune conclusion de défaut produit ni correction n'en est déduite.
+
+L'utilisateur autorise **conserver le vrai chemin du conteneur et rendre uniquement son champ sha256 invalide**, puis relancer les neuf variantes C et poursuivre T1–T6 si elles passent ; assertion C09 inchangée, intention synchronisée, budget initial inchangé. Le candidat défaillant est archivé avant correction : **329 membres**, **1 383 944 octets**, SHA-256 **3cc1ae64765a9eddb1ca1bf4a72e253705d7088b10be1a0f1a47fbccec5917d4** ; 319 anciennes entrées vérifiées inchangées, dix ajouts vérifiés sous `cleanup-checkpoint-1602/`. Aucun commit Rust, S2 ou extraction commencé.
 
 **Checkpoint du 9 novembre à 15:59.** D04 corrigé : deux séries 6/6 aux runs `20261109T154800850-9e7ae9f0b94546cb9978b5a43a3e6e74` et `20261109T154845499-d7fcd1777367464ab38ec9ab6dc6ddc7`, toutes les paires identiques (D04 **37 944 octets**, D06 inchangé). Ajout ensuite d'assertions des octets exacts source/successeur/exports et de la taille brute des JSON avant normalisation ; deux séries du nouveau candidat `20261109T155216940-17236baaa8094801b0ba70182760687d` et `20261109T155409135-05cf0266ff4a4d20bc3b9f7956120c86` passent **6/6**, traces identiques. Aucune référence Git encore gelée.
 
