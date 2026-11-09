@@ -1,10 +1,12 @@
 Avancée : deux passages complets verts, 73 traces identiques et six nouvelles références C02/P11 gelées.
-Blocage : aucun échec actif. Derniers scénarios Ready et contrôle N1 enrichi requis avant T2.
-Décision : poursuivre T1 sur code produit inchangé.
+Blocage : compilation des nouvelles fixtures Ready arrêtée sur un emprunt mutable inutile.
+Décision : demander une correction locale et un nouveau passage sous garde.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt Ready vers 21:46.** Full adapters `20261109T214611668-ce17d55e5b6f4c148de9cdaea6348d2e`, Cargo 101, aucun test exécuté. E0631 dans `parakeet_equivalence.rs:2916` : `.get_mut("emitted_frame").and_then(Value::as_str)` donne `&mut Value` à une fonction qui prend `&Value`. Proposition : remplacer ce seul `get_mut` de lecture par `get`, puis ignorer le binding `request` inutilisé du test manuel. Conserver la mutation finale après construction de la chaîne stable. Aucun scénario ni assertion changé. Candidats et quatre journaux archivés sous `gpu-ready-compile-stop/`. Le même dossier ZIP contient par erreur 26 traces de passages antérieurs (filtre PID 0 ayant aussi capturé un compteur final 0) : elles sont conservées mais ne constituent aucune preuve de cet appel. ZIP **5 407 entrées**, **10 768 431 octets**, SHA-256 `d399ca430dc4fb0a3a675e337eb3c95f9bbf08aaa16b3c627e815e4589e839d5`. Les 5 375 entrées antérieures sont vérifiées intactes. Aucun replay ni S2 lancé.
 
 **Gel C02/P11 vers 21:31.** Références séparées et comparaisons inconditionnelles, sans mise à jour des précédentes. Les valeurs décodées correspondent octet pour octet aux six traces du PID 39416. `cleanup_equivalence/c02-traces.json` : deux cas, 96 132 octets, SHA-256 `1bb80eefed7eae544de571619ea370fef0b7f33c2fa36c3389e8f8431fe6905f`. `poll_parakeet_equivalence/pending-result-traces.json` : quatre cas, 15 066 octets, SHA-256 `258a04c0086eefca3614db3e18dbfeb11afa787ad10693b190335450dbff9dc0`. Totaux : 41 références nettoyage et 33 polling (dont Q03 séparé). Les deux fichiers sont ajoutés au ZIP sous `c02-p11-frozen/`, **5 375 entrées** vérifiées, **10 696 280 octets**, SHA-256 `011bc8e37d1e1ce3e8ec7d7499ae43724ef409f40211766bbaa3d623f53233a4`. Rejouer après branchement des comparaisons. WHEA à 21:30 : 1 événement historique, RecordId 527992. Espace libre 449 673 641 984 octets.
 
