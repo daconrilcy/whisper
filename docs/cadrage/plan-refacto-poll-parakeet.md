@@ -1,10 +1,16 @@
-Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
-Blocage : deux fixtures polling incohérentes (WAV réutilisé et worker_ready initialement vrai).
-Décision : corrections des deux fixtures et dernière tentative du groupe autorisées à 19:44:16.
+Avancée : whisper-adapters 639/0/126 ; 13 traces polling ordinaires byte-identiques sur deux replays.
+Blocage : Q03 non exécuté : attribut #[test] omis lors du déplacement des sources du faux worker.
+Décision : STOP ; restauration du seul attribut puis appel exact Q03 à soumettre.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Résultat ordinaire et arrêt de filtre Q03 du 9 novembre vers 19:48.** Run complet `20261109T194451155-ceafabecab2c4defafb878b7c5d0086a`, code 0 : **639/0/126** sur 33 harnais, lib **559/0/49**, **13 identités exactes du module polling** et 42 cleanup réussies. Replay `20261109T194559040-cfbf41dbcbdd4b7dbaf25008d5765f6c`, code 0 : **13/13**. Parent confirme à 19:47:01 les **13/13 stables PID 27508/28000 strictement byte-identiques**. Sept nouvelles traces encore non gelées : `P03-no-active`, `P06-no-request`, `P08-ready-identity`, `P08-vad-process-profile`, `P10-vad-result`, `P11-result-guards`, `P12-invalid-words`. P10 prouve le dispatcher par état privé injecté ; aucune qualification Ready VAD naturelle revendiquée.
+
+Appel Q03 exact `20261109T194653611-930a16cd980044128893f407ece627de` : code garde **0**, mais **0 test exécuté, 608 filtrés** dans la bibliothèque. Statut **NON EXÉCUTÉ**, pas PASS. La fonction Q03 conserve son `cfg(personal-qualification)` mais l'attribut `#[test]` a été omis lors du déplacement des littéraux en constantes ; source actuelle et deux snapshots antérieurs concordent. L'attribution initiale de l'auteur « attribut attaché à la constante » est inexacte et corrigée : il est absent aux deux endroits. Proposition minimale : restaurer seulement `#[test]` sur `poll_parakeet_gpu_failure_falls_back_to_qualified_cpu_fixture`, puis un appel exact sous garde en exigeant **1/1** et comparaison de la référence Q03 déjà gelée ; si vert, gel séparé des sept nouvelles traces et reprise T1–T6. Aucune assertion ni source de faux worker changée par cette correction proposée. Six avertissements de code Q03 inutilisé accompagnent cette absence d'enregistrement ; leur disparition sera contrôlée, pas supposée.
+
+Les douze journaux, candidat, 78 traces cleanup et 52 traces polling des deux replays sont conservés sous `polling-subset-stable-and-q03-filter/` : ZIP **4 136 membres**, **7 109 055 octets**, SHA-256 **29a78a0619dd773296ae688931ba9343cadd3335f6798ad480a20447298ff38e** ; 3 993 anciens membres inchangés et 143 ajouts vérifiés. Aucun nouvel appel ni correctif après le filtre vide. Les 39 références cleanup et sept références polling antérieures restent immuables ; aucun code produit extrait, S2 non commencé.
 
 **Accord du 9 novembre à 19:44:16 Europe/Paris.** L'utilisateur autorise les deux corrections ciblées de P11/P08 et la reprise : seconde fixture P11 sous un sous-dossier distinct de la même racine ; `worker_ready=false` initialisé localement dans P08 avant polling, helper P10 et assertions inchangés. Dernière tentative du groupe : full adapters, puis filtre polling constituant le second replay si vert, comparaison des traces stables, puis Q03 exact et reprise T1–T6 si tous les contrôles passent. STOP au premier échec/divergence, aucun retry automatique ; budget initial et arrêt après nettoyage inchangés. Aucun changement produit, merge ni push.
 
