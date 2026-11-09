@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21 et références intactes ; P03 et P06 passent après correction des chemins.
-Blocage : P04 reçoit WorkerExited: exit code: 0 par le chemin de déconnexion IPC.
-Décision : fixture P04 déterministe autorisée, borne 17:05:32 ; reprise T1–T6 si PASS.
+Avancée : cleanup 21/21, références intactes ; P04 déterministe passe, P03/P06 déjà verts.
+Blocage : aucun nouvel échec ; corpus polling et couverture T1 encore incomplets.
+Décision : reprise T1–T6 autorisée, arrêt après nettoyage ; aucun merge ni push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Résultat P04 déterministe, 9 novembre vers 16:56.** Run `20261109T165549667-735dd9f5182b420083abf3d1ad2e2331`, code **0** : identité exacte `worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_eof_status_preserves_the_existing_end_asymmetry`, **1 réussite / 0 échec**, 576 filtrés, 0,43 s. Appel admis à 16:55:49, achevé avant 16:56:42, donc aucun dépassement de la borne 17:05:32. Les binaires suivants indiquent zéro test car filtrés ; ils ne remplacent pas le test exécuté au début du journal. Assertions conservées, preuve du chemin sortie 0/9 désormais acquise ; la fixture tient le canal ouvert, attend le statut puis libère son descendant, qui possède aussi une échéance autonome. La reprise T1–T6 autorisée est engagée, sans nouveau produit ni extension de budget.
+
+Journaux et capture du fichier de test conservés sous `polling-p04-pass/` : **1 294 membres**, **2 333 349 octets**, SHA-256 **38ad38ac995227542e67918897e315e86b1c14f48ae45062cf5e6ec188573507** ; 1 289 entrées antérieures inchangées et cinq ajouts vérifiés. Il ne s'agit pas du gel du corpus polling, encore à compléter.
 
 **Accord P04 déterministe, 9 novembre à 16:50:32.** Réponse utilisateur : « Autoriser la fixture déterministe (recommandé) ». Intervention limitée à **15 minutes**, borne **17:05:32 Europe/Paris**, dans le budget initial inchangé. Propriété confiée au même rust_implementer ; un essai P04 sous garde, puis reprise T1–T6 si vert, arrêt après nettoyage. À la borne, fermer l'admission et laisser finir uniquement l'appel engagé, dépassement consigné. Aucun changement produit, merge ou push. Les règles STOP après échec restent applicables.
 
