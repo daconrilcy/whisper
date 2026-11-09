@@ -1,10 +1,14 @@
 Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
-Blocage : couverture directe polling T1 encore incomplète ; aucun échec actif.
-Décision : compléter les branches P injectables, P09 succès Ready VAD restant statique par accord.
+Blocage : six nouveaux tests polling échouent à compiler leur faux worker (tableau non emprunté).
+Décision : STOP ; ajout du seul emprunt manquant dans la source du faux worker à soumettre.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt polling du 9 novembre vers 19:25.** Sous-candidat de sept tests : P03 succès sans active, P06 sans requête, P08 identité divergente et ProfileMismatch VAD, P10 dispatch VAD injecté, P11 sans requête/corrélation invalide, P12 mots invalides/Progress conservé. Run `20261109T192422395-4c43d953b4bb4c4a9f9c05c65c86a95e`, garde échouée (Cargo **101**) : bibliothèque **553/6/49**, autres harnais non exécutés. Six nouveaux tests échouent avant leurs assertions, lors de la compilation de la même source de faux worker : `const INITIAL: &[&str] = __INITIAL__;` devient un tableau `[...]` sans emprunt, E0308. P03 ajouté passe ; aucun deuxième replay, gel nouveau ou Q03 feature n'a été lancé. Proposition minimale : `const INITIAL: &[&str] = &__INITIAL__;` dans le seul littéral du helper de `parakeet_equivalence.rs`, puis les contrôles autorisés ; assertions et références inchangées.
+
+Les 39 oracles cleanup sont branchés et passent dans ce harnais partiellement échoué. Le déplacement des sources Q03 en constantes est vérifié avant l'appel : les **sept anciens littéraux raw** sont présents strictement identiques dans le nouveau fichier (huit au total) ; le rejeu Q03 demeure nécessaire. Sources produit toujours identiques à `4c04818c`. Candidats, quatre journaux, 78 traces cleanup et 14 traces polling conservés sous `polling-initial-array-error/` : ZIP **3 888 membres**, **6 317 950 octets**, SHA-256 **66468040ebed2cd31128019d50c9425662fb36de2f7b66f6b212d9ec7624faff** ; 3 790 anciens membres intacts et 98 ajouts vérifiés. Aucun correctif ou nouvel appel après l'échec.
 
 **Relevé intermédiaire du 9 novembre à 19:20:37 Europe/Paris.** WHEA : **1**, dernier RecordId **527992** du 5 novembre, inchangé par rapport au relevé initial et au N2 baseline. Libre : **452 018 475 008 octets**. Ce relevé n'est pas le contrôle final après extraction/N2.
 
