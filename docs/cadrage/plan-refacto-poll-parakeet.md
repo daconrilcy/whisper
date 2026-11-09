@@ -1,6 +1,6 @@
 Avancée : cleanup 21/21 et références intactes ; P03 et P06 passent après correction des chemins.
-Blocage : P04 échoue sur la sortie réussie sans résultat, valeur réellement reçue non affichée.
-Décision : STOP ; diagnostic ciblé à autoriser avant toute correction ou relance.
+Blocage : P04 reçoit WorkerExited: exit code: 0 par le chemin de déconnexion IPC.
+Décision : diagnostic unique terminé ; STOP avant adaptation de la couverture ou correction.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord et résultat du diagnostic P04, 9 novembre.** L'utilisateur répond « Autoriser ce diagnostic ciblé (recommandé) » : l'implémenteur peut modifier uniquement le diagnostic de l'assertion de sortie réussie dans `parakeet_equivalence.rs` pour afficher le résultat reçu, puis lancer une seule fois P04 sous garde. Message attendu, assertions et délai inchangés ; aucun produit, correction ultérieure ou extension de budget autorisé par cette décision.
+
+Appel unique admis à **16:46:55**, terminé vers **16:47:20**, run `20261109T164655030-345f108cf27448a7a767a3f8945f6a91`, code **101**, **0 réussite / 1 échec**, 576 filtrés. Valeur réelle : `Some(Err(Failed("WorkerExited: exit code: 0")))`. Cela établit pour cet essai le chemin de déconnexion IPC décrit ci-dessous ; ce n'est pas une expiration du délai. Aucun second appel ni correction. ZIP après conservation du candidat et des quatre journaux sous `polling-diagnostic-1646/` : **1 289 membres**, **2 320 879 octets**, SHA-256 **497ec8eb61932cb1cca07909b4c65c51e5ee82461db2400c9bb8fc5c02552a5a** ; 1 284 entrées antérieures inchangées, cinq ajouts vérifiés. Produit toujours identique à `4c04818c` dans les deux fonctions ; SHA de la référence cleanup toujours `87fa450c829604defd3fd0a698cefa269b5f7a77fc396df856d3bdbeb0d3f968`. Adaptation éventuelle de la couverture à soumettre avant reprise.
 
 **Arrêt suivant, 9 novembre vers 16:40.** Après la correction des chemins autorisée, run `20261109T163936011-7fefe3bd86ab434ab0e778403175a8ad`, code **101** : P03 et P06 passent, P04 `poll_parakeet_eof_status_preserves_the_existing_end_asymmetry` échoue sur le message attendu dans le cas de sortie réussie. Résultat : **2 réussites / 1 échec**, 574 filtrés. L'assertion n'affiche pas la valeur reçue ; un timeout n'est donc pas démontré. Lecture statique : `ParakeetProcess::poll` retourne directement `Err(WorkerExited: status)` si le canal est déjà déconnecté et le processus terminé ; un canal encore vide retourne `Ok(None)`, permettant au polling appelant d'atteindre son propre contrôle de sortie et le message attendu. La fixture ne synchronise pas ces deux observations. Cette concurrence est une hypothèse étayée, pas une attribution dynamique du résultat échoué. Aucun changement produit, aucune attente allongée ni assertion affaiblie.
 
