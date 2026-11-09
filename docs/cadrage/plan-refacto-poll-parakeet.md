@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21, références intactes ; groupe polling 5 réussites sur 6, import CPU nominal validé.
-Blocage : Q06 échoue sur le message de fermeture après Result avant ACK ; valeur effective non affichée.
-Décision : adaptation Q06 autorisée jusqu'à 17:31:03 ; un appel des six tests, puis reprise si PASS.
+Avancée : cleanup 21/21, références intactes ; groupe polling 6/6 après synchronisation Q06.
+Blocage : corpus et couverture T1 encore incomplets, pas de référence polling gelée.
+Décision : reprise T1–T6, auteurs répartis et compilations coordonnées ; arrêt après nettoyage.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Résultat du 9 novembre à 17:17:34.** Run `20261109T171734239-636ff66af973446180ac0d12bdefe0e1`, code **0**, **6 réussites / 0 échec / 0 ignoré**, 574 filtrés, 0,75 s. Q01/Q06/Q07 et P03/P04/P06 passent. Fin confirmée avant 17:18:34, donc aucun dépassement de la borne 17:31:03. Q06 conserve son message et ses assertions ; la synchronisation tient le canal ouvert jusqu'au statut avant le dernier poll. Reprise T1–T6 engagée, avec compléments de traces/couverture dans les deux fichiers appartenant à des auteurs distincts, compilations séquentielles après stabilisation commune. Aucune référence polling encore gelée.
+
+Journaux et candidat conservés sous `polling-six-pass/` : **1 318 membres**, **2 395 032 octets**, SHA-256 **75506248059b8c1f4778ed7a28d39ad7ffc8f8ce7d6d508608a120e5b4a984f6** ; 1 313 entrées antérieures inchangées et cinq ajouts vérifiés. Inventaire du journal N1 initial revérifié : **1 007 identités distinctes**, 878 réussies et 129 ignorées, aucun doublon de nom ; cette liste permet la comparaison précise des ajouts au N1 final. Les traces polling devront persister sous le TEMP du lot malgré Drop de TestRoot ; stdout seul des tests réussis ne suffit pas et `--nocapture` est explicitement refusé par la garde.
 
 **Accord Q06 du 9 novembre à 17:16:03.** L'utilisateur choisit « Autoriser cette intervention bornée (recommandé) » : **15 minutes dans le budget initial**, borne **17:31:03 Europe/Paris**, pour adapter uniquement Q06 et son faux worker dans `parakeet_equivalence.rs` avec la synchronisation P04 déjà validée. Canal conservé ouvert jusqu'à observation du statut, libération bornée, assertions inchangées et résultat reçu affiché en cas d'échec. Un appel des six tests, reprise T1–T6 si tous passent ; sinon STOP. À la borne, fermer l'admission, laisser finir seulement l'appel engagé et consigner le dépassement. Aucun produit ni merge/push ; pas de polling supplémentaire présenté comme preuve de fin du lecteur après libération du processus.
 
