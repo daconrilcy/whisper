@@ -1,6 +1,6 @@
 Avancée : cleanup 21/21, références intactes ; groupe polling 5 réussites sur 6, import CPU nominal validé.
 Blocage : Q06 échoue sur le message de fermeture après Result avant ACK ; valeur effective non affichée.
-Décision : STOP après trois essais du groupe ; adaptation bornée de la fixture à soumettre.
+Décision : adaptation Q06 autorisée jusqu'à 17:31:03 ; un appel des six tests, puis reprise si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord Q06 du 9 novembre à 17:16:03.** L'utilisateur choisit « Autoriser cette intervention bornée (recommandé) » : **15 minutes dans le budget initial**, borne **17:31:03 Europe/Paris**, pour adapter uniquement Q06 et son faux worker dans `parakeet_equivalence.rs` avec la synchronisation P04 déjà validée. Canal conservé ouvert jusqu'à observation du statut, libération bornée, assertions inchangées et résultat reçu affiché en cas d'échec. Un appel des six tests, reprise T1–T6 si tous passent ; sinon STOP. À la borne, fermer l'admission, laisser finir seulement l'appel engagé et consigner le dépassement. Aucun produit ni merge/push ; pas de polling supplémentaire présenté comme preuve de fin du lecteur après libération du processus.
 
 **Arrêt du 9 novembre à 17:13:20.** Impression Stopped corrigée selon accord. Run `20261109T171320506-a185eec5167248ae821e8ed5f5ff7566`, code **101**, **5 réussites / 1 échec**, 574 filtrés : Q01 import CPU nominal, Q07 et P03/P04/P06 passent. Q06 (`poll_parakeet_eof_after_result_preserves_unacknowledged_end_behavior`) atteint READY, Progress et Segment, puis échoue sur le message de fermeture attendu. Sa valeur effective n'est pas affichée, donc la cause dynamique exacte n'est pas affirmée. Lecture statique : le faux worker quitte après Shutdown sans ACK, sans maîtriser l'ordre de déconnexion IPC et d'observation du statut ; la branche attendue présente la même condition de concurrence déjà traitée dans P04. Proposition minimale à préciser : réutiliser la synchronisation validée de P04 pour atteindre cette branche après Result, sans accepter plusieurs messages ni modifier les assertions.
 
