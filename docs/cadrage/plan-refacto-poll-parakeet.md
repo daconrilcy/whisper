@@ -1,10 +1,14 @@
-Avancée : Q03 gelé après deux replays identiques ; 31 références cleanup et sept polling gelées.
-Blocage : correction de fixture et replays en cours ; couverture T1 encore incomplète.
-Décision : correction et preuve statique limitée P09 approuvées le 9 novembre à 19:09:41.
+Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
+Blocage : couverture directe polling T1 encore incomplète ; aucun échec actif.
+Décision : compléter les branches P injectables, P09 succès Ready VAD restant statique par accord.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Résultat des replays du 9 novembre, confirmation parent à 19:13:40.** Run complet `20261109T191022175-962cbd3431dc4b589b78a8545248f317`, code 0 : **632/0/126** sur 33 harnais, dont **42 cleanup** et **six polling ordinaires**. Replay filtré `20261109T191122642-2d3c84360d5447f5b31ade4517c40cb7`, code 0 : **42/42**. Comparaison parent PID 77444/47916 : **39/39 traces strictement byte-identiques**, aucun doublon ni scénario manquant. Les huit nouvelles références sont gelées dans `cleanup_equivalence/final-traces.json`, **351 153 octets**, SHA-256 **01bb0e9b975c6559b88b8d98b7246dfb9dada926f50f2a8fd8669d5c879b23f7** ; comparaison obligatoire branchée, à rejouer après ce branchement. Les 31 anciennes restent intactes. La mutation d'empreinte cible atteint bien la garde d'intention ; aucun changement produit. N1 complet enrichi, Clippy et P additionnels restent à exécuter avant commit T1.
+
+Les journaux des deux runs, les 78 couples de traces brutes/stables (39 par replay), tous les fichiers des 16 racines des nouveaux scénarios et la référence gelée sont conservés sous `cleanup-rejections-frozen/` : ZIP **3 790 membres**, **5 937 167 octets**, SHA-256 **0657bf4f5e73e7c7132c03cb5098b4eb5b3f4359843fb8c2e090a1b4fcc34bb0** ; 3 385 anciens membres inchangés et 405 ajouts vérifiés. Les sources produit `execution.rs` et `poll/parakeet.rs` restent identiques à `4c04818c`. Reprise T1 polling en édition, Cargo suspendu jusqu'à stabilisation commune des candidats.
 
 **Deux accords du 9 novembre à 19:09:41 Europe/Paris.** L'utilisateur choisit « Autoriser cette correction de fixture (recommandé) » et « Accepter cette preuve statique limitée (recommandé) ». `rust_implementer` remplace uniquement la mutation du champ diagnostic par une empreinte source de cible distincte, effectivement comparée à l'intention, puis effectue deux replays sans changer l'assertion de refus. Le succès **Ready VAD P09** reçoit exceptionnellement une preuve statique limitée : aucune couverture dynamique de ce succès revendiquée, aucun runtime L2b ni racine supplémentaire créé. **P10 reste dynamique par injection d'état privé** après Ready single-pass ; les autres branches injectables restent requises. Reprise T1–T6 si contrôles verts ; budget initial, STOP au premier échec et arrêt après nettoyage inchangés. Aucun changement produit, merge ni push. Les auteurs se coordonnent pour garder les sources figées pendant chaque appel Cargo.
 
