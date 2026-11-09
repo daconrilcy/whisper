@@ -1,6 +1,6 @@
 Avancée : cleanup 21/21, références intactes ; P04 déterministe passe ; trois scénarios polling supplémentaires écrits.
 Blocage : le groupe de six tests ne compile pas, helper de fixture réservé à une feature.
-Décision : STOP global avant correction ; aucun changement produit, merge ou push.
+Décision : correction ciblée du helper autorisée, puis six tests et reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord après E0425, 9 novembre vers 17:10.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » : enlever les trois gardes de configuration sur le helper `personal_import_request`, ses imports et sa constante nécessaires aux tests ordinaires, retirer le `mut` inutile, puis relancer les six tests et reprendre T1–T6 s'ils passent. Q03 garde son test et lanceur sous `personal-qualification` ; aucune assertion modifiée. Les dépendances du helper existent déjà sans cette feature, confirmé statiquement. Budget initial et arrêt après nettoyage inchangés ; le second auteur cleanup reste figé pendant l'appel.
 
 **Arrêt T1 du 9 novembre à 17:06:50.** Trois scénarios directs supplémentaires sont écrits : import CPU nominal Q01, EOF après Result avant ACK Q06, Failed d'une ancienne tentative Q07. Ils ne sont pas encore qualifiés et Q06/Q07 n'ont pas encore leur trace gelée. Le run `20261109T170650933-1b80e97a325b4eaa9759939e01f42c38` termine code **101** à la compilation, avant tout test : trois E0425 aux appels de `personal_import_request`, helper défini sous `cfg(feature = "personal-qualification")` alors que ces trois tests sont ordinaires. Avertissement nouveau `unused_mut` sur `source` dans la fixture P04 ; les deux autres avertissements (`temp_root.rs`, `parakeet_pipeline.rs`) étaient préexistants. Correction proposée uniquement dans `parakeet_equivalence.rs` : rendre disponibles en configuration ordinaire ce helper et ses imports/constante nécessaires, garder Q03 et son lanceur sous leur feature, retirer le `mut` inutile. Assertions attendues inchangées ; pas de relance avant accord.
 
