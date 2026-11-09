@@ -1,10 +1,12 @@
 Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
 Blocage : six nouveaux tests polling échouent à compiler leur faux worker (tableau non emprunté).
-Décision : STOP ; ajout du seul emprunt manquant dans la source du faux worker à soumettre.
+Décision : ajout du seul emprunt et reprise des contrôles autorisés le 9 novembre à 19:41:07.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Accord après E0308 du faux worker, 9 novembre à 19:41:07 Europe/Paris.** À la proposition précise d'ajouter uniquement `&` dans `const INITIAL: &[&str] = &__INITIAL__;`, puis de relancer la crate, les deux replays du sous-corpus et Q03 avant reprise T1–T6 si verts, l'utilisateur répond « Je t'accorde ». Correction confiée à `rust_implementer`, sources cleanup figées. Full adapters puis filtre polling constituent les deux replays ; comparaison byte-à-byte des traces stables, brutes conservées. Q03 est ensuite rejoué avec sa feature et sa référence gelée. Assertions, messages IPC, références et code produit inchangés ; STOP au premier échec/divergence, budget initial et arrêt après nettoyage maintenus, aucun merge ni push.
 
 **Arrêt polling du 9 novembre vers 19:25.** Sous-candidat de sept tests : P03 succès sans active, P06 sans requête, P08 identité divergente et ProfileMismatch VAD, P10 dispatch VAD injecté, P11 sans requête/corrélation invalide, P12 mots invalides/Progress conservé. Run `20261109T192422395-4c43d953b4bb4c4a9f9c05c65c86a95e`, garde échouée (Cargo **101**) : bibliothèque **553/6/49**, autres harnais non exécutés. Six nouveaux tests échouent avant leurs assertions, lors de la compilation de la même source de faux worker : `const INITIAL: &[&str] = __INITIAL__;` devient un tableau `[...]` sans emprunt, E0308. P03 ajouté passe ; aucun deuxième replay, gel nouveau ou Q03 feature n'a été lancé. Proposition minimale : `const INITIAL: &[&str] = &__INITIAL__;` dans le seul littéral du helper de `parakeet_equivalence.rs`, puis les contrôles autorisés ; assertions et références inchangées.
 
