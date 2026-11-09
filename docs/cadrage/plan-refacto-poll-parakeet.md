@@ -1,10 +1,12 @@
-Avancée : deux passages complets verts et 73 traces identiques. Gel des six nouvelles références C02/P11 en cours.
+Avancée : deux passages complets verts, 73 traces identiques et six nouvelles références C02/P11 gelées.
 Blocage : aucun échec actif. Derniers scénarios Ready et contrôle N1 enrichi requis avant T2.
 Décision : poursuivre T1 sur code produit inchangé.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Gel C02/P11 vers 21:31.** Références séparées et comparaisons inconditionnelles, sans mise à jour des précédentes. Les valeurs décodées correspondent octet pour octet aux six traces du PID 39416. `cleanup_equivalence/c02-traces.json` : deux cas, 96 132 octets, SHA-256 `1bb80eefed7eae544de571619ea370fef0b7f33c2fa36c3389e8f8431fe6905f`. `poll_parakeet_equivalence/pending-result-traces.json` : quatre cas, 15 066 octets, SHA-256 `258a04c0086eefca3614db3e18dbfeb11afa787ad10693b190335450dbff9dc0`. Totaux : 41 références nettoyage et 33 polling (dont Q03 séparé). Les deux fichiers sont ajoutés au ZIP sous `c02-p11-frozen/`, **5 375 entrées** vérifiées, **10 696 280 octets**, SHA-256 `011bc8e37d1e1ce3e8ec7d7499ae43724ef409f40211766bbaa3d623f53233a4`. Rejouer après branchement des comparaisons. WHEA à 21:30 : 1 événement historique, RecordId 527992. Espace libre 449 673 641 984 octets.
 
 **Reprise C02 et P11 validée le 9 novembre vers 21:26.** Deux full adapters `20261109T212357893-b17cdbf8a7734ad1bc70f74e41797dc6` et `20261109T212456202-b13f0bea448142c08de332e6cf2cf6e2`, code 0 sans variable de cible, **648/0/126** sur 33 harnais au premier passage. Les 44 tests cleanup et 20 polling passent dans les deux. Le parent compare **41 traces cleanup et 32 polling**, octet par octet, PID 39416/4168. Les deux C02 et quatre P11 nouveaux sont prêts à geler séparément. 300 pièces (journaux et traces des deux passages) ajoutées sous `c02-p11-verified-replays/` au ZIP vérifié : **5 373 entrées**, **10 690 393 octets**, SHA-256 **5dc5c05955b6229eb76a36db86f5a33aed4fa91d70c3a3808e94b2ec674c0e38**. Les 5 073 entrées antérieures sont intactes. Le dernier paquet Ready et les contrôles avant commit T1 restent à faire. Aucun produit changé et S2 non commencé.
 
