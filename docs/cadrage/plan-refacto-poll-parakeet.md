@@ -1,6 +1,6 @@
-Avancée : cleanup 19/19 ; dix-huit traces stables gelées et preuves brutes archivées.
-Blocage : quelques variantes cleanup et le corpus polling restent à terminer avant T1.
-Décision : conserver les références gelées intactes ; poursuivre les seuls travaux T1–T6 approuvés.
+Avancée : cleanup 21/21 ; dix-huit références gelées intactes ; corpus polling en construction.
+Blocage : erreur de parsing du littéral du nouveau faux worker P06, détectée avant Cargo.
+Décision : correction limitée des délimiteurs et de l'impression JSON autorisée, puis reprise T1–T6.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -33,6 +33,12 @@ Si l'essai réussit, Q03 est un test explicitement conditionné à cette feature
 Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et au N2 baseline, poursuivre S2/T3–T6, puis reporter explicitement le corpus polling à la tranche suivante. Cette alternative change le prérequis d'équivalence approuvé et n'est pas appliquée sans décision utilisateur. La session ne choisit pas silencieusement entre ces options. Le CLEAN documentaire précédent conservait expressément Q03 comme prérequis à établir ; il ne prouve pas sa faisabilité en exécution.
 
 ## 1. Mandat, fraîcheur et responsabilité
+
+### T1 polling — parsing P06, 9 novembre vers 16:31
+
+Le nettoyage passe **21/21**, code 0, au run `20261109T162811446-a6341760282b459caaef5f2dac8618dc` ; les 18 références gelées sont inchangées (SHA **87fa450c829604defd3fd0a698cefa269b5f7a77fc396df856d3bdbeb0d3f968**, revérifié 16:33). Dans le nouveau test `poll_parakeet_ready_without_active_import_is_stale`, rustfmt détecte un littéral externe `r#` contenant lui-même un littéral `r#` ; STOP avant tout nouvel appel Cargo. Le programme embarqué imprimait également le JSON directement comme chaîne de format, exposant ses accolades au parseur de `println!`.
+
+L'utilisateur répond **« Autoriser ces corrections et la reprise (recommandé) »** à la correction précise dans `parakeet_equivalence.rs` : délimiteur externe **r###** et `println!("{}", ...)` pour imprimer le JSON littéralement, puis validation polling et reprise T1–T6. Message attendu/assertions inchangés ; aucun changement produit ni extension de budget. Candidat défaillant et dernier journal cleanup archivés : **1 272 membres**, **2 277 483 octets**, SHA-256 **70befdc4f266c04981d5d024ffa4fdc7f02361edb95654c8181c661c435c4a01**, 1 265 entrées antérieures inchangées et sept ajouts vérifiés sous `polling-checkpoint-1631/`. Aucun S2, extraction, merge ou push lancé.
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
 
