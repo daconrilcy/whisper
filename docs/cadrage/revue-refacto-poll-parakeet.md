@@ -1,6 +1,6 @@
-Avancée : première revue indépendante du plan effectuée ; sept constats intégrés dans la révision documentaire.
-Blocage : seconde lecture indépendante et accord utilisateur en attente ; borne d'exécution des appels à arbitrer.
-Décision : aucun Rust modifié ; demander au même reviewer de juger la fermeture des constats.
+Avancée : seconde revue indépendante CLEAN documentaire sur 65ee3264 ; sept constats fermés par le même reviewer.
+Blocage : accord utilisateur en attente ; borne d'exécution des appels à arbitrer.
+Décision : aucun Rust modifié ; remettre le plan relu, deux cycles documentaires consommés.
 
 # REFACTO-POLL-PARAKEET — revue documentaire
 
@@ -8,7 +8,7 @@ Mandat de session : revue du plan puis du diff final via `rust_review_coordinato
 
 ## Première passe
 
-Base `4c04818c17ff0c779c441e2b99f1e87779eb7cb9`, candidat plan `ee32d9c0245aef970cbd9d2983de4819b004277b`, blob `6fa6addd64c7691db83926ac487011aa2377a4a6`. Verdict indépendant **FINDINGS**. Sources et journaux de préparation lus ; aucun Cargo ni mutation par les agents de revue.
+Base `4c04818c17ff0c779c441e2b99f1e87779eb7cb9`, candidat plan `ee32d9c0245aef970cbd9d2983de4819b004277b`, blob `6fa6addd64c7691db83926ac487011aa2377a4a5` (OID revérifié par Git à la remise). Verdict indépendant **FINDINGS**. Sources et journaux de préparation lus ; aucun Cargo ni mutation par les agents de revue.
 
 | ID | Sévérité | Constat et preuve | Réponse documentaire de l'auteur, soumise à relecture |
 |---|---|---|---|
@@ -22,8 +22,14 @@ Base `4c04818c17ff0c779c441e2b99f1e87779eb7cb9`, candidat plan `ee32d9c0245aef97
 
 Correction factuelle supplémentaire signalée par l'auteur : le deuxième appelant verrouillé est `ArchiveStore::commit_publish` (publication.rs:135), pas `publish_import` ; nom corrigé. Cette correction ne change pas le périmètre.
 
-État des IDs : **correction revendiquée par l'auteur, fermeture réservée au reviewer**. Le plan n'est pas approuvé par l'utilisateur et aucune implémentation n'est lancée.
+## Seconde passe — verdict final documentaire
+
+Même reviewer indépendant, candidat **65ee326442d0a9ce3d177041bd51a93a04a12d47**, blob plan **8b98fa2ec94c0cbdb98723df468235ee72978dc1** : **CLEAN documentaire**. RPP-P01, RPP-P02, RPP-P03, RPP-P04, RPP-P05, RPP-P06, RPP-P07 **fermés par le reviewer**, aucun REQUIRED ouvert. Aucun Cargo ni mutation pendant la revue ; diff check et identité des documents contrôlés. Deux cycles utilisés, pas de troisième revue.
+
+Deux errata consultatifs du second passage appliqués par l'auteur à la remise : OID exact du premier plan ci-dessus ; cellule C12 corrigée pour associer D06 au dossier non vide et déplacer D04 fichier verrouillé vers C10. Aucun changement de solution ni extension.
+
+Limites explicitement conservées par le reviewer : **CLEAN du plan ne signifie ni Q03/N2 exécutés, ni interruption bornée démontrée, ni accord d'implémentation**. La décision de budget §1 demeure requise pour les appels exposés. Le plan n'est pas approuvé par l'utilisateur et aucune implémentation n'est lancée.
 
 ## Preuves de préparation lues
 
-Clippy métrique 30/32 au seuil 0, rc0 ; N1 878/0/129 sans CARGO_TARGET_DIR, rc0 ; SelfTest N1 64 positifs/99 négatifs ; WHEA 1→1, dernier RecordId 527992. Clippy qualité ultérieur rc0, 340 warnings dont 328 Clippy. Archive de préparation et inventaire de racines dans le dossier prévu par le plan. Ces résultats valident la base seulement ; aucun corpus nouveau, S2 préventif, N2 ni recette exécuté à ce stade.
+Clippy métrique 30/32 au seuil 0, rc0 ; N1 878/0/129 sans CARGO_TARGET_DIR, rc0 ; SelfTest N1 64 positifs/99 négatifs ; WHEA 1→1, dernier RecordId 527992. Clippy qualité ultérieur rc0, 340 warnings dont 328 Clippy. [Archive de préparation](../architecture/raw/REFACTO-POLL-PARAKEET-PREUVES.zip) : **40 membres**, **949 172 octets**, SHA-256 **7e303e7729bf19a0c7438401367301a3c68dd5f99e31118fc1821524f981267e** ; nombre et chaque contenu revérifiés après réouverture contre les sources, inventaire de racines inclus. Ces résultats valident la base seulement ; aucun corpus nouveau, S2 préventif, N2 ni recette exécuté à ce stade. Aucun bilan de clôture figé prématurément ; aucun merge/push/nettoyage.
