@@ -1,10 +1,14 @@
 Avancée : whisper-adapters 632/0/126 ; 39 références cleanup et sept polling gelées.
-Blocage : six nouveaux tests polling échouent à compiler leur faux worker (tableau non emprunté).
-Décision : ajout du seul emprunt et reprise des contrôles autorisés le 9 novembre à 19:41:07.
+Blocage : deux fixtures polling incohérentes (WAV réutilisé et worker_ready initialement vrai).
+Décision : STOP ; corrections des deux fixtures à soumettre, assertions inchangées.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt après correction de l'emprunt, 9 novembre vers 19:42.** Run `20261109T194136832-5b568c5d0d524c11890291f80fb3924d`, Cargo **101** : bibliothèque **557/2/49**, autres harnais non exécutés. Les faux workers compilent. P11 `poll_parakeet_result_rejects_missing_request_and_bad_correlation` utilise deux fois `request_runtime(&root.0, ...)` ; le second `PcmPartWriter::create` refuse le `source.wav` déjà présent (erreur Windows 80), avant la seconde assertion. P08 `poll_parakeet_vad_ready_reaches_single_pass_process_profile_mismatch` atteint le diagnostic `ProfileMismatch` attendu, mais `one_window_vad_run` a initialisé `worker_ready=true` ; l'assertion de conservation à false échoue. P10 dispatcher injecté et P12 Progress conservé passent ; ce n'est pas encore un gel stable. Aucun filtre, deuxième replay ni Q03 lancé.
+
+Corrections minimales proposées dans le seul `parakeet_equivalence.rs` : placer la seconde fixture P11 dans un sous-répertoire distinct sous sa racine de test (création du sous-répertoire puis chemins request/worker cohérents), et initialiser localement `worker_ready=false` pour P08 avant le poll, sans changer le helper utilisé par P10 ni les assertions. Aucun fichier produit ou référence gelée modifié. Candidat, quatre journaux, 78 traces cleanup et 22 traces polling du PID 95224 archivés sous `polling-fixture-state-errors/` : ZIP **3 993 membres**, **6 690 455 octets**, SHA-256 **dd543c0880a8023485805174fb97f4bb8f6726ca9c1d993f8516ae5c38c640e2** ; 3 888 anciens membres inchangés et 105 ajouts vérifiés. Dernier contrôle crate entièrement vert reste 632/0/126 ; pas de réussite globale déduite de ce run échoué.
 
 **Accord après E0308 du faux worker, 9 novembre à 19:41:07 Europe/Paris.** À la proposition précise d'ajouter uniquement `&` dans `const INITIAL: &[&str] = &__INITIAL__;`, puis de relancer la crate, les deux replays du sous-corpus et Q03 avant reprise T1–T6 si verts, l'utilisateur répond « Je t'accorde ». Correction confiée à `rust_implementer`, sources cleanup figées. Full adapters puis filtre polling constituent les deux replays ; comparaison byte-à-byte des traces stables, brutes conservées. Q03 est ensuite rejoué avec sa feature et sa référence gelée. Assertions, messages IPC, références et code produit inchangés ; STOP au premier échec/divergence, budget initial et arrêt après nettoyage maintenus, aucun merge ni push.
 
