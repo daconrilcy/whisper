@@ -978,8 +978,9 @@ fn paused_catalog(
             };
             if first_observation[index] {
                 first_observation[index] = false;
-                entered.send(()).unwrap();
-                resume.recv_timeout(WAIT).unwrap();
+                if entered.send(()).is_ok() {
+                    resume.recv_timeout(WAIT).unwrap();
+                }
             }
             let mut snapshot = ready_snapshot(catalog.root(), generation, outcome);
             snapshot.entries.retain(|entry| entry.id == id);
