@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21 ; dix-huit références gelées intactes ; corpus polling en construction.
-Blocage : erreur de parsing du littéral du nouveau faux worker P06, détectée avant Cargo.
-Décision : correction limitée des délimiteurs et de l'impression JSON autorisée, puis reprise T1–T6.
+Avancée : cleanup 21/21 et références intactes ; P06 compile en configuration ordinaire.
+Blocage : P03/P04/P06 échouent au spawn, faux workers hors du runtime déclaré.
+Décision : arrêt ; correction des seuls chemins de fixture soumise à l'utilisateur.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt suivant, 9 novembre vers 16:35.** Le délimiteur et l'impression littérale de P06 sont corrigés, formatage réussi. Run ordinaire `20261109T163444665-b9949f9406474ae0b49d9292e787d346`, code **101** : les trois nouveaux tests P03/P04/P06 échouent au spawn avec `PathOutsideRuntime: worker is outside the active Parakeet runtime`, avant tout appel de polling. Le helper compilait les EXE directement sous TestRoot alors que les chemins déclaraient `TestRoot/synthetic-runtime` comme runtime. La validation existante exige l'EXE sous ce runtime (`parakeet_import.rs:32–64`). Aucun contournement produit proposé.
+
+Correction précise soumise à l'utilisateur : placer les faux workers de ces trois tests sous leur propre `synthetic-runtime/worker`, puis relancer ces tests et poursuivre T1–T6 si PASS ; Q03 et assertions inchangés, aucun chemin hors du lot ni extension de budget. Candidat et journaux conservés avant toute correction : **1 278 membres**, **2 293 773 octets**, SHA-256 **6e28a63ca0861645936fc6b8bade351b896d70ec2f38708f622dfe4117b37798** ; 1 272 entrées antérieures inchangées, six ajouts vérifiés sous `polling-checkpoint-1634/`. Aucun correctif/retry automatique.
 
 Le nettoyage passe **21/21**, code 0, au run `20261109T162811446-a6341760282b459caaef5f2dac8618dc` ; les 18 références gelées sont inchangées (SHA **87fa450c829604defd3fd0a698cefa269b5f7a77fc396df856d3bdbeb0d3f968**, revérifié 16:33). Dans le nouveau test `poll_parakeet_ready_without_active_import_is_stale`, rustfmt détecte un littéral externe `r#` contenant lui-même un littéral `r#` ; STOP avant tout nouvel appel Cargo. Le programme embarqué imprimait également le JSON directement comme chaîne de format, exposant ses accolades au parseur de `println!`.
 
