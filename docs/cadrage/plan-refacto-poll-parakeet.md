@@ -1,6 +1,6 @@
-Avancée : C09 corrigé et validé ; dernier ensemble cleanup 18/19, appel privé sous verrou inclus.
-Blocage : le helper de trace tente de parser le manifeste volontairement invalide.
-Décision : conservation brute de ce JSON invalide autorisée, puis reprise T1–T6 si PASS.
+Avancée : cleanup 19/19 ; dix-huit traces stables gelées et preuves brutes archivées.
+Blocage : quelques variantes cleanup et le corpus polling restent à terminer avant T1.
+Décision : conserver les références gelées intactes ; poursuivre les seuls travaux T1–T6 approuvés.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,12 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Gel partiel du 9 novembre à 16:28.** Le helper JSON invalide corrigé passe **19/19** au run `20261109T161436734-51c4bae30f0842faa893c729b0d3b722`. La conformité du filet est ensuite complétée : liste explicite de chemins et contrôle distinct des entrées supplémentaires, plans normalisés à l'échelle de la trace entière pour conserver les relations d'identité, sidecars bruts (plans et octets/taille/SHA des JSON), sentinelles comparées en octets. Replays **19/19** `20261109T161905242-be8d71416c60461691c6a33abc990a5e` et `20261109T161954196-85781ff83f7d4e01aef098bd415f2b5c`, puis comparaison aux références **19/19**, code 0, run `20261109T162413495-fc74fcc4e444460a82c16f593b15c7f5`.
+
+Référence désormais **gelée, non régénérable** : `crates/whisper-adapters/tests/fixtures/cleanup_equivalence/stable-traces.json`, **18 traces**, **665 574 octets**, SHA-256 **87fa450c829604defd3fd0a698cefa269b5f7a77fc396df856d3bdbeb0d3f968**. Les tests comparent les octets de chaque trace. Le fichier source de référence et les tests restent non commités jusqu'aux validations T1 ; une copie immuable est déjà archivée. Des variantes supplémentaires prévues doivent utiliser des références supplémentaires distinctes, sans remplacer les 18 acquises. `git diff --exit-code` contre `4c04818c` confirme les deux fonctions produit inchangées. T1 n'est pas terminé : restent notamment l'objet marqué removed mais présent, des variantes C03/index, les scénarios polling et N1 enrichi.
+
+ZIP de gel : **1 265 membres**, **2 252 729 octets**, SHA-256 **5a5a6f17b91a416331625cfa8ec793078216c0966ed27e1759719cd4b1356fed** ; 343 entrées antérieures vérifiées inchangées et 922 ajouts vérifiés sous `cleanup-reference-frozen/`. Les ajouts comprennent références, candidat de tests, quatre journaux de campagnes et tous les fichiers des **54 racines de scénarios** ayant un sidecar brut : preuves brutes/normalisées et fichiers sentinelles conservés, sans modèle ni cache. Aucun nettoyage effectué.
 
 **Checkpoint du 9 novembre à 16:13.** Correction C09 validée au run `20261109T160554611-b448314888b44f42a743a8eb6d6bef7e`, **9/9**, code 0. Le nouvel appel direct `cleanup_characterization_private_executor_is_called_with_publication_lock_held` passe également au run `20261109T160846545-e03e27d4000741579a61c611252cd613`, **1/1** : verrou acquis explicitement, erreur partielle, états mémoire/persisté et sentinelles vérifiés ; PL reste la preuve d'exclusion concurrente. Ajout aussi de la caractérisation C07 du chemin de conteneur absent, sans changer le comportement observé.
 
