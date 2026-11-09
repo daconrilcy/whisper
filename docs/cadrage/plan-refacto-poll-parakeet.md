@@ -1,6 +1,6 @@
 Avancée : cleanup 21/21, références intactes ; groupe polling 4 réussites sur 6 après correction du helper.
 Blocage : Q01/Q06 échouent à compiler leur faux worker, JSON Stopped utilisé comme chaîne de format.
-Décision : STOP avant correction de cette trame ; aucun changement produit, merge ou push.
+Décision : correction de la seule impression Stopped autorisée ; six tests puis reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord du 9 novembre vers 17:12.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » pour la seule impression JSON Stopped dans `compile_nominal_import_worker` : `println!("{}", ...)`, puis relance des six tests et reprise T1–T6 si tous passent. Message et assertions inchangés ; aucun produit ni extension du budget. Le même rust_implementer reçoit la correction ; cleanup reste figé pendant l'appel.
 
 **Arrêt après relance du 9 novembre à 17:09:30.** Run `20261109T170930529-fc77778cd3794db98639fe5145ec5ecd`, code **101** : **4 réussites / 2 échecs**, 574 filtrés. P03, P04, P06 et le nouveau Q07 (`poll_parakeet_failed_message_from_older_attempt_is_terminal`) passent. Q01 et Q06 échouent dans `compile_nominal_import_worker` pendant la compilation du faux worker : sa trame Stopped emploie `println!(r#"{...}"#)`, dont les accolades sont interprétées comme format. Correction minimale proposée : `println!("{}", r#"{...}"#)` pour cette seule trame, contenu et assertions inchangés ; les trames READY et RESULT utilisent déjà des constantes correctement imprimées. C'est la même classe d'erreur de fixture que P06, réintroduite dans un nouveau helper ; aucune preuve produit Q01/Q06 n'est acquise par cet appel.
 
