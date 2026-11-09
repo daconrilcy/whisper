@@ -1,6 +1,6 @@
-Avancée : fixture Q03 ajoutée dans les deux fichiers de tests prévus ; aucune modification produit.
-Blocage : premier Cargo Q03 en échec de compilation, aucun test exécuté ; campagne arrêtée.
-Décision : préserver le candidat et les journaux, soumettre la correction précise de la fixture avant toute reprise ; aucun merge/push.
+Avancée : correction précise de la fixture Q03 et reprise autorisées le 9 novembre vers 14 h 38 Europe/Paris.
+Blocage : Q03 encore non validé ; échéance initiale inchangée à 14:55:42.
+Décision : rust_implementer corrige puis reprend dans le temps restant ; aucun changement produit, merge ou push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -31,6 +31,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### Exécution de l'essai Q03 — arrêt du 9 novembre vers 14 h 33
+
+**Autorisation de reprise du 9 novembre vers 14 h 38 Europe/Paris :** « Oui, corrige la fixture avec rust_implementer et reprends dans le temps restant jusqu’à 14 h 55 min 42 s. Aucun changement produit, aucun merge ni push. » Cette décision autorise les corrections de fixture précises décrites ci-dessous et la reprise après cet échec Cargo, sans remise à zéro du chrono ni levée des autres conditions d'arrêt. HEAD avant consignation `6f4c07e2`, les deux fichiers de test restent non commités. Le worker reprend leur responsabilité exclusive ; le parent écrit uniquement les documents/preuves.
 
 Début de préparation spécifique **14:25:42 Europe/Paris**, échéance **14:55:42**, sans extension implicite. Premier appel erroné par `powershell.exe` 5.1 : refus avant Cargo, `[IO.Path]::IsPathFullyQualified` indisponible. Correction de l'interpréteur vers `pwsh` 7, qui est la commande déjà prescrite ; incident conservé, temps inclus dans l'essai. Premier véritable appel Cargo sous la garde avec `personal-qualification`, test exact `worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_gpu_failure_falls_back_to_qualified_cpu_fixture` : **code 101, compilation échouée, test NON EXÉCUTÉ**. Run `20261109T143220883-1508b2c9c5424872b916585d0560b086`, erreur `unexpected closing delimiter: }` à `parakeet_equivalence.rs:196`. Aucun N2, S2, corpus gelé ou refactor lancé.
 
