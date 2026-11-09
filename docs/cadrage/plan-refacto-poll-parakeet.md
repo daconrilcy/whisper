@@ -1,10 +1,16 @@
 Avancée : whisper-adapters 639/0/126 ; Q03 1/1 conforme ; 39 références cleanup et 14 polling gelées.
-Blocage : quatre avertissements Clippy nouveaux dans les fixtures à corriger ; couverture P à terminer.
-Décision : découpage mécanique des helpers de test, replays avant les derniers scénarios P.
+Blocage : Q03 diverge après extraction du helper à cause d'une composition de chemin modifiée.
+Décision : STOP ; restaurer les deux join historiques à soumettre avant reprise Q03/Clippy.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt après extractions de fixtures, 9 novembre vers 20:13.** Corrections des quatre avertissements candidates : `cleanup_path_snapshot(root, path)`, emprunt retiré, littéral nominal déplacé sans modification, séquence Q06 extraite, Q03 réparti en helpers. Les huit littéraux raw antérieurs sont présents strictement identiques et l'attribut Q03 est vérifié présent. Full adapters `20261109T201015230-d7b93ea523c248ff824901d63ce73082` passe (lib **559/0/49**, 42 cleanup et 13 polling ordinaires avec leurs oracles obligatoires). Q03 exact `20261109T201124841-885b2c98130d48d5929670a92a7326de` échoue (un test ciblé parent, son enfant interne échoue aussi) ; Clippy suivant non lancé.
+
+Cause précise : `prepare_q03_workers` utilise désormais `root.join("isolated-localappdata/Whisper")`, alors que la fixture gelée composait `root.join("isolated-localappdata")`, puis `.join("Whisper")`. Sur Windows, la chaîne de chemin de modèle conserve un `/` au lieu du `\\` encodé dans la référence. Vérification parent des tableaux d'octets gauche/droite de la panic : **6 468 / 6 469 octets**, une seule occurrence concernée ; leur remplacement **en mémoire pour diagnostic seulement** rend tous les octets identiques. Aucun fichier de référence modifié. Les autres compositions `native/cpu`, `native/gpu` et `models/...` étaient déjà ainsi dans la source archivée : elles doivent rester inchangées. Proposition minimale : restaurer les deux `join` historiques dans ce seul helper, puis Q03 exact, Clippy qualité et reprise T1–T6 si verts. Ce n'est pas une nouvelle normalisation admise.
+
+Les huit journaux, deux candidats, 78 traces cleanup et 26 traces polling du run ordinaire sont conservés sous `fixture-extraction-q03-path/` : ZIP **4 261 membres**, **7 587 454 octets**, SHA-256 **44c61f4f9b137e314439bb9caf853eb366abe8dfffaa8e0f3a53f6c868b58101** ; 4 147 anciens membres inchangés et 114 ajouts vérifiés. La trace stable Q03 divergente est conservée dans le journal de panic ; aucun nouveau gel. Aucun code produit modifié ni S2 commencé, les derniers scénarios P restent à écrire.
 
 **Q03 rétabli et gel complémentaire, 9 novembre vers 20:00.** Run `20261109T195723732-27123c0ac940443184e6d23fad937304`, code 0 : **1/1 Q03 exact**, 608 autres tests filtrés. Parent vérifie les octets contre l'oracle : **6 469 octets**, SHA **4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**, worker **24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff**, inchangés. Les sept nouveaux oracles sont gelés dans `poll_parakeet_equivalence/added-direct-traces.json` : **16 513 octets**, SHA **4964ab4987aa6447f85918043d4d074baf4953e76a8fb8bc926745098aca4bb6**, comparaison inconditionnelle branchée, à rejouer après branchement. Les références précédentes restent intactes.
 
