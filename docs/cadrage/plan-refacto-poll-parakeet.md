@@ -1,10 +1,14 @@
-Avancée : deux passages complets verts, 73 traces identiques et six nouvelles références C02/P11 gelées.
-Blocage : compilation des nouvelles fixtures Ready arrêtée sur un emprunt mutable inutile.
-Décision : demander une correction locale et un nouveau passage sous garde.
+Avancée : Ready synthétique validé, whisper-adapters 650/0/126 et 34 traces polling identiques.
+Blocage : aucun échec actif. Les derniers cas Auto et la validation N1 enrichie restent à exécuter.
+Décision : geler les deux traces Ready et terminer T1 avant S2.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Ready ordinaire validé vers 22:09.** Après la correction autorisée, full adapters `20261109T220734988-0ca443d32b7e4afb813afef4b3e8eb84` code 0, **650/0/126**, 22 tests polling et 44 nettoyage. Les comparaisons C02/P11 sont actives. Replay `20261109T220837904-915750b6c700473294df043066ff400b` code 0, **22/22**. Le parent compare **34 traces polling stables**, PID 88760/32660, byte-identiques. Le positif P07 atteste le PID de la poignée et capture la commande Transcribe entière. Le négatif P08 manuel refuse la clé sans repli. Tous deux passent par une clé synthétique de secours et un faux worker, sans qualification GPU native. Gel des deux nouvelles traces confié à l'implémenteur, puis préparation Auto/P09. ZIP `gpu-ready-ordinary-replays/` : 226 ajouts vérifiés et 5 407 entrées précédentes intactes, **5 633 entrées**, **11 270 141 octets**, SHA-256 `ad9c443804d2ebc77290931d76f48cbc8d8cbabf39d1fee18786face38d7f582`.
+
+**Accord Ready vers 22:07.** L'utilisateur répond « Accordé » à la correction de la seule lecture mutable inutile de la trame et au retrait du binding inutilisé du cas manuel. Relance des corpus sous garde, puis reprise T1–T6 si vert, avec budget initial inchangé.
 
 **Arrêt Ready vers 21:46.** Full adapters `20261109T214611668-ce17d55e5b6f4c148de9cdaea6348d2e`, Cargo 101, aucun test exécuté. E0631 dans `parakeet_equivalence.rs:2916` : `.get_mut("emitted_frame").and_then(Value::as_str)` donne `&mut Value` à une fonction qui prend `&Value`. Proposition : remplacer ce seul `get_mut` de lecture par `get`, puis ignorer le binding `request` inutilisé du test manuel. Conserver la mutation finale après construction de la chaîne stable. Aucun scénario ni assertion changé. Candidats et quatre journaux archivés sous `gpu-ready-compile-stop/`. Le même dossier ZIP contient par erreur 26 traces de passages antérieurs (filtre PID 0 ayant aussi capturé un compteur final 0) : elles sont conservées mais ne constituent aucune preuve de cet appel. ZIP **5 407 entrées**, **10 768 431 octets**, SHA-256 `d399ca430dc4fb0a3a675e337eb3c95f9bbf08aaa16b3c627e815e4589e839d5`. Les 5 375 entrées antérieures sont vérifiées intactes. Aucun replay ni S2 lancé.
 
