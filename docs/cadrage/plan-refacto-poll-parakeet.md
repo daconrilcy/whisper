@@ -1,10 +1,14 @@
-Avancée : whisper-adapters 641/0/126 ; Q03 conforme ; 39 références cleanup et 17 polling gelées.
+Avancée : whisper-adapters 645/0/126 ; Q03 conforme ; 39 références cleanup et 29 polling gelées.
 Blocage : derniers scénarios P et N1 enrichi à terminer ; aucun échec actif.
 Décision : Q03 conforme, quatre alertes Clippy fermées ; reprise du dernier paquet P de T1.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**P13/P14 vérifiés et gelés, 9 novembre vers 20:55.** Full adapters `20261109T204315133-5cfbaa20acac4ee88d048d5771377734`, code 0 : **645/0/126** sur 33 harnais, lib **565/0/49**, **19 tests polling** exacts et 42 cleanup. Replay module `20261109T204433803-9e19a95831294411b5e498bcce9e34ed`, code 0 : **19/19**. Parent confirme les **28/28 traces stables PID 30540/94156 byte-identiques**, sans doublon. Douze nouveaux scénarios Failed : identités périmées job/génération/worker, absence d'import actif, quatre codes d'erreur, champs optionnels CPU, GPU manuel, Auto après début natif et Auto avec request_id incorrect. Référence séparée `poll_parakeet_equivalence/failed-path-traces.json`, **32 759 octets**, SHA-256 **8450ac35c60db23a6f51c5ae0dabc5047179a910a9e17f2752845359e00d8bd5** ; comparaison obligatoire branchée, prochain replay requis après branchement. Les 17 références polling antérieures restent intactes.
+
+Huit journaux, nouvelle référence, 78 traces cleanup et 112 traces polling conservés sous `polling-failed-paths-frozen/` : ZIP **4 621 membres**, **8 532 821 octets**, SHA-256 **38342b79076622321bd7a3995236b7202d8b996d07b5fea510d62a4c9beb662c** ; 4 422 anciens membres inchangés et 199 ajouts vérifiés. Prochain sous-paquet P11/P12 confié au même auteur : quatre gardes Result et erreur d'écriture Shutdown déterministe avec maintien stdout déjà autorisé. Préparation GPU/Ready et replis distincts encore à préciser, N1 enrichi et qualité courante requis avant validation T1. Aucun changement produit, S2 ou extraction commencé.
 
 **P15/P16 vérifiés et gelés, 9 novembre vers 20:31.** Full adapters `20261109T202810003-033f2b13ccf3466caf33692bbcbafa3e`, code 0 : **641/0/126** sur 33 harnais, lib **561/0/49**, **15 tests polling** exacts. Replay module `20261109T202935777-b19a68e6a5f0438a9f87b4c71374d4be`, code 0 : **15/15**. Parent confirme à 20:30:29 les **16/16 traces stables PID 61660/93116 byte-identiques**, sans doublon. Trois nouvelles références dans `poll_parakeet_equivalence/native-call-stopped-traces.json` : **6 354 octets**, SHA-256 **f5e43395eadfdc9b52c1c91fd2fea0353391fed5c349c6fd74c19a6817446bbd** ; comparaison inconditionnelle branchée, à rejouer après ce branchement. Scénarios : `P15-valid` (**1 847 octets**, SHA **7c6b1a969ce5d954e13823afc21795178e8627fda28e3520592cc882946d7c3a**), `P15-invalid-pid` (**1 934**, **1bb8665294392b6a9d4bf1b4e25882369617042793f07b619b18409a8d71b732**), `P16-stopped-ipc` (**1 813**, **d6d7e720757c92c2b1d247dff6fbaf615da9e6f067b51eb150196727913dcb40**).
 
