@@ -1,6 +1,6 @@
-Avancée : sept variantes cleanup et traces polling supplémentaires écrites ; derniers contrôles acquis cleanup 21/21 et polling 6/6.
-Blocage : le contrôle commun ne compile pas, SourceRange importé par un chemin privé dans une nouvelle fixture.
-Décision : correction du réexport SourceRange autorisée, puis whisper-adapters et reprise T1–T6 si PASS.
+Avancée : cleanup 28/28 et polling 6/6 dans le contrôle commun ; références supplémentaires non gelées.
+Blocage : douze tests Unified existants échouent, paramètre du modèle omis dans l'appel complet.
+Décision : STOP ; reprise avec le chemin du modèle déjà autorisé à soumettre, sans correction produit.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt du contrôle commun du 9 novembre à 17:31:59.** Après la correction SourceRange, run `20261109T173159296-628597621e0e4fcc8a8685db906ab81d`, code **101**. Harnais bibliothèque : **526 réussites / 12 échecs / 49 ignorés** ; tous les **28 tests cleanup** et **six tests polling ordinaires** passent. Les douze tests Unified existants signalent chacun `installed model: pass -PersonalParakeetModelPath to guard-level1` (douze occurrences vérifiées). Le paramètre a été omis dans la commande commune donnée par le coordinateur ; ce n'est pas un défaut produit démontré. Les autres harnais n'ont pas tous été exécutés, la suite crate n'est pas PASS. Reprise proposée avec `-PersonalParakeetModelPath C:/Users/cyril/AppData/Local/Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf`, modèle déjà autorisé/vérifié et utilisé par Q03 ; aucune source à modifier pour résoudre ces douze échecs. Nouveau warning test `poll_direct_until_result` inutilisé, à éliminer dans T1 après reprise ; autres warnings hors fichiers touchés à comparer à la baseline finale.
+
+Preuves du premier replay partiel conservées sous `common-replay-1731/` : deux candidats, journaux, douze fichiers raw/stable polling et tous les fichiers des **25 racines cleanup** possédant une trace brute. ZIP : **1 762 membres**, **2 876 449 octets**, SHA-256 **45dcf21644015fe00b4c372f53e3d1c6c48fd0114e2ec79942f68f8213b2eb7b** ; 1 324 entrées antérieures inchangées, 438 ajouts vérifiés. Aucune référence nouvelle gelée. Contrôle statique des traces en construction : Q01 conserve encore une racine temporaire dans une commande IPC encodée en chaîne JSON, échappement non traité par le normaliseur ; à compléter dans T1 avant comparaison/gel, sans toucher aux empreintes ni aux événements. Q03 n'a pas encore rejoué sa nouvelle fixture.
 
 **Accord après E0603, 9 novembre vers 17:32.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » : remplacer uniquement `whisper_core::ports::SourceRange` par `whisper_core::SourceRange` dans `cleanup_equivalence.rs`, puis relancer `whisper-adapters` et reprendre T1–T6 si vert. Aucune assertion ni visibilité produit changée ; budget initial et arrêt après nettoyage inchangés. L'auteur cleanup effectue cette correction et l'appel gardé, l'auteur polling reste figé.
 
