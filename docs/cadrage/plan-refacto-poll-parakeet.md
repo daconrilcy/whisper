@@ -1,6 +1,6 @@
 Avancée : cleanup 28/28 et polling 6/6 dans le contrôle commun ; références supplémentaires non gelées.
 Blocage : douze tests Unified existants échouent, paramètre du modèle omis dans l'appel complet.
-Décision : STOP ; reprise avec le chemin du modèle déjà autorisé à soumettre, sans correction produit.
+Décision : relance avec le chemin du modèle autorisée, sources figées ; reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord de relance avec modèle, 9 novembre vers 17:38.** L'utilisateur choisit « Autoriser la relance et la reprise (recommandé) » : relancer `whisper-adapters` avec le paramètre manquant `-PersonalParakeetModelPath` et le modèle déjà autorisé `C:/Users/cyril/AppData/Local/Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf`, puis reprendre T1–T6 si vert. Sources des deux auteurs figées pour cet appel, aucune correction produit ; budget initial inchangé. La commande complète et les prochains contrôles couvrant les tests Unified conservent ce prérequis existant.
 
 **Arrêt du contrôle commun du 9 novembre à 17:31:59.** Après la correction SourceRange, run `20261109T173159296-628597621e0e4fcc8a8685db906ab81d`, code **101**. Harnais bibliothèque : **526 réussites / 12 échecs / 49 ignorés** ; tous les **28 tests cleanup** et **six tests polling ordinaires** passent. Les douze tests Unified existants signalent chacun `installed model: pass -PersonalParakeetModelPath to guard-level1` (douze occurrences vérifiées). Le paramètre a été omis dans la commande commune donnée par le coordinateur ; ce n'est pas un défaut produit démontré. Les autres harnais n'ont pas tous été exécutés, la suite crate n'est pas PASS. Reprise proposée avec `-PersonalParakeetModelPath C:/Users/cyril/AppData/Local/Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf`, modèle déjà autorisé/vérifié et utilisé par Q03 ; aucune source à modifier pour résoudre ces douze échecs. Nouveau warning test `poll_direct_until_result` inutilisé, à éliminer dans T1 après reprise ; autres warnings hors fichiers touchés à comparer à la baseline finale.
 
