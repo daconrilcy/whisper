@@ -1,6 +1,6 @@
-Avancée : T1–T6 autorisés et confiés à rust_implementer ; vérification ciblée Q03 effectuée, aucun Rust modifié.
-Blocage : admission de la clé du faux worker CPU de Q03 impossible dans les commandes sans feature approuvées.
-Décision : STOP T1 ; soumettre un essai borné avec personal-qualification existante, sans modification de garde ; aucun merge/push.
+Avancée : essai Q03 avec personal-qualification approuvé le 9 novembre 2026 vers 14 h 24 Europe/Paris.
+Blocage : faisabilité Q03 encore à démontrer dans l'essai borné ; aucune modification produit à ce stade.
+Décision : reprendre avec rust_implementer ; succès Q03 permet de poursuivre T1–T6, sinon STOP ; aucun merge/push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -13,6 +13,8 @@ Cet accord lève les attentes d'approbation et l'arbitrage temporel décrits dan
 Responsabilité d'implémentation : rust_implementer, mode IMPLEMENT, tests/caractérisation T1, annexe T2 et extractions T3–T5 ; contribution T6 et vérifications de la tranche. La session principale demeure seule auteur des documents et de leur versionnement. Revue indépendante du candidat de la tranche via rust_review_coordinator conformément aux règles du dépôt ; aucune extension vers les tâches non approuvées.
 
 ## Arrêt T1 — Q03, 9 novembre 2026 vers 14 h 22 Europe/Paris
+
+**Décision ultérieure, 9 novembre vers 14 h 24 Europe/Paris :** à la proposition précise « Autorisez-vous un essai Q03 borné à 30 minutes avec cette feature, uniquement dans les fichiers de tests T1 prévus, avec la garde et la cible existantes ? Le N1 de référence restera sans feature. Si l’essai réussit, reprise de T1–T6 ; sinon arrêt documenté. Aucun outil, hook produit ou dépendance ajouté. », l'utilisateur répond **« oui »**. L'option d'essai décrite ci-dessous est donc autorisée ; l'alternative de réduction du périmètre ne l'est pas. Début/échéance précis à relever par l'implémenteur dès la préparation spécifique. Les règles de fin du seul appel engagé, d'arrêt sur échec et le budget global restent applicables. HEAD précédent `2b76bc60`, worktree propre ; libre **467 441 172 480 octets**.
 
 `rust_implementer` a vérifié les routes existantes et retourné BLOCKED sans mutation ni Cargo/N2. T2/S2 n'a pas commencé, son compteur reste à zéro ; aucune extraction ni référence nouvelle créée. La base source reste `4c04818c`, HEAD documentaire avant cet arrêt `715a18a8`. Libre relevé : **465 874 354 176 octets**. Les preuves N1/Clippy/WHEA de préparation restent celles de la base, sans nouvelle exécution revendiquée.
 
