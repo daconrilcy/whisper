@@ -1,10 +1,14 @@
-Avancée : 39 références cleanup et 29 polling gelées. Les cas P11 et C02 identité passent.
-Blocage : Windows refuse la lecture du fichier de verrou pendant le relevé C02 sous verrou.
-Décision : arrêt. Préparer le fichier de verrou via la garde existante, puis lire les snapshots hors verrou.
+Avancée : deux passages complets verts et 73 traces identiques. Gel des six nouvelles références C02/P11 en cours.
+Blocage : aucun échec actif. Derniers scénarios Ready et contrôle N1 enrichi requis avant T2.
+Décision : poursuivre T1 sur code produit inchangé.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Reprise C02 et P11 validée le 9 novembre vers 21:26.** Deux full adapters `20261109T212357893-b17cdbf8a7734ad1bc70f74e41797dc6` et `20261109T212456202-b13f0bea448142c08de332e6cf2cf6e2`, code 0 sans variable de cible, **648/0/126** sur 33 harnais au premier passage. Les 44 tests cleanup et 20 polling passent dans les deux. Le parent compare **41 traces cleanup et 32 polling**, octet par octet, PID 39416/4168. Les deux C02 et quatre P11 nouveaux sont prêts à geler séparément. 300 pièces (journaux et traces des deux passages) ajoutées sous `c02-p11-verified-replays/` au ZIP vérifié : **5 373 entrées**, **10 690 393 octets**, SHA-256 **5dc5c05955b6229eb76a36db86f5a33aed4fa91d70c3a3808e94b2ec674c0e38**. Les 5 073 entrées antérieures sont intactes. Le dernier paquet Ready et les contrôles avant commit T1 restent à faire. Aucun produit changé et S2 non commencé.
+
+**Accord C02 du 9 novembre vers 21:24.** L'utilisateur autorise le troisième essai après initialisation du fichier de verrou par une prise et un relâchement avant le premier relevé. Le test reprend le verrou uniquement pour l'appel privé, puis effectue le second relevé hors verrou. Replays et reprise T1–T6 si vert, dans le budget initial. Assertions et références gelées intactes.
 
 **Deuxième arrêt C02 vers 21:18.** Full adapters `20261109T211655267-9f4461d055e54ba58c778fa2e21ac73f`, Cargo 101, bibliothèque **567/1/49**. Seul C02 déplacement échoue au premier relevé : Windows 33, lecture de `.whisper-publications.lock` sous verrou, `cleanup_equivalence.rs:192`. Proposition pour le troisième essai : prendre et relâcher le verrou via le helper existant avant tout relevé, puis prendre le verrou uniquement autour de l'appel privé comme dans le premier candidat. Les deux relevés lisent alors le fichier de verrou préexistant et libre. Assertions inchangées. Candidat, journaux et traces conservés sous `c02-locked-read-stop/` : ZIP **5 073 entrées** et **9 852 971 octets**, SHA-256 **ccb664cd70dc86e06827c4ed6177dffb9853da09cbb65aef0129e053317c4c0d**, 4 923 entrées antérieures vérifiées. Aucun replay ni gel nouveau.
 
