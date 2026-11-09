@@ -1,6 +1,6 @@
-Avancée : N2 baseline PersonalUnified réussi 4/4 ; huit TXT/SRT bruts archivés.
-Blocage : corpus de caractérisation et références T1 restent à terminer.
-Décision : poursuivre corpus, S2 et nettoyage dans le budget initial ; arrêt obligatoire T6.
+Avancée : N2 baseline réussi ; premier test D06 écrit, corrections de fixture autorisées.
+Blocage : D06 non exécuté après erreur de compilation ; corpus T1 encore incomplet.
+Décision : corriger uniquement la fixture puis reprendre T1–T6 si le test ciblé passe.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -33,6 +33,14 @@ Si l'essai réussit, Q03 est un test explicitement conditionné à cette feature
 Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et au N2 baseline, poursuivre S2/T3–T6, puis reporter explicitement le corpus polling à la tranche suivante. Cette alternative change le prérequis d'équivalence approuvé et n'est pas appliquée sans décision utilisateur. La session ne choisit pas silencieusement entre ces options. Le CLEAN documentaire précédent conservait expressément Q03 comme prérequis à établir ; il ne prouve pas sa faisabilité en exécution.
 
 ## 1. Mandat, fraîcheur et responsabilité
+
+### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+Test exact `cleanup_characterization_nonempty_generation_persists_partial_removal_and_resumes`, appel gardé lancé **15:18:30**, run `20261109T151830296-c0d98e4aef4448b9af42fb1eefde16d0`, code **101** avant exécution du test. Erreurs uniquement dans le nouveau `src/archive/tests/cleanup_equivalence.rs` : trois appels à `safe_cleanup_path` inaccessible dans ce module (E0425), puis déplacement de `successor.destination` avant `successor.clone()` (E0382). Avertissement nouveau : `mut plan` inutile. STOP appliqué sans correction ni relance automatique ; aucune extraction. N2 baseline demeure PASS, sans être présenté comme une validation de ce test nouveau.
+
+À la proposition précise « corriger uniquement cleanup_equivalence.rs : construire les trois chemins de fixture avec root.join, cloner successor.destination avant sa réutilisation et retirer le mut inutile, puis relancer ce test sous garde et poursuivre T1–T6 s’il passe », l'utilisateur répond **« Autoriser ces corrections et la reprise (recommandé) »**. La reprise est confiée au même `rust_implementer`, sans élargir la visibilité du helper produit, sans modifier les assertions ni les fonctions produit, dans le budget initial et avec arrêt après nettoyage. Les autres conditions d'arrêt persistent.
+
+État défaillant conservé avant correction : deux fichiers de tests et quatre journaux sous `d06-first-attempt/` dans le ZIP prévu. Archive **188 membres**, **1 082 947 octets**, SHA-256 **ec4a3248e7fd906d6b68d5d50532e439298061dad03082f6417f5b017caf12ce** ; 182 entrées précédentes vérifiées inchangées, six ajouts comparés aux sources. Fichiers Rust et deux totaux N2 restent non commités, en attente de leurs validations requises. Aucun merge, push ni nettoyage.
 
 ### Exécution de l'essai Q03 — arrêt du 9 novembre vers 14 h 33
 
