@@ -1,8 +1,10 @@
 Avancée : étape A réalisée ; trois tests identifiés, plan relu CLEAN avant toute exécution Cargo.
-Blocage : étapes B–D et validation en attente de l'accord utilisateur après revue indépendante.
-Décision : approuver le périmètre et les commandes ci-dessous, ou limiter le lot à la reproduction.
+Blocage : aucun accord manquant ; prérequis d'exécution à vérifier avant B.
+Décision : plan approuvé dans la session le 9 novembre 2026 ; B–D et validations déléguées à rust_implementer.
 
-# TESTS-STABLES-2 — plan soumis à accord
+# TESTS-STABLES-2 — plan approuvé
+
+Autorisation de session : « J’approuve le plan. Lance B avec rust_implementer, puis les corrections limitées aux tests et les validations prévues. Respecte les budgets et les arrêts prévus, avec revue finale indépendante. Commits locaux, sans merge ni push. » Reprise à 12 h 00 Europe/Paris, espace libre 472 081 215 488 octets. L'accord ne lève aucune condition d'arrêt ni n'étend le budget initial.
 
 ## Mandat et limites
 
