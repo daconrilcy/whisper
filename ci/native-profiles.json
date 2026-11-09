@@ -1020,7 +1020,7 @@
         {"key": "campaignRun", "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN", "kind": "directory", "path": "writes/l04"}
       ],
       "staging": [
-        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196008875},
+        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196035499},
         {"inputKey": "shortFrench", "destination": "writes/l04/fixtures/fr-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237},
         {"inputKey": "shortEnglish", "destination": "writes/l04/fixtures/en-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237}
       ],
@@ -1050,7 +1050,7 @@
         {"key": "campaignRun", "environmentVariable": "WHISPER_L04_CAMPAIGN_RUN", "kind": "directory", "path": "writes/l04"}
       ],
       "staging": [
-        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196008875},
+        {"inputKey": "personalRuntime", "destination": "Whisper", "destinationBase": "localappdata", "requiredFileCount": 21, "requiredBytes": 3196035499},
         {"inputKey": "shortFrench", "destination": "writes/l04/fixtures/fr-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237},
         {"inputKey": "shortEnglish", "destination": "writes/l04/fixtures/en-short.mp3", "destinationBase": "run", "requiredFileCount": 1, "requiredBytes": 24237}
       ],

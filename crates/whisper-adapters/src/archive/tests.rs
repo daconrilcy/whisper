@@ -6,3 +6,5 @@ include!("tests/publication_characterization.rs");
 include!("tests/export_ownership_characterization.rs");
 include!("tests/recovery_characterization.rs");
 include!("tests/cleanup_characterization.rs");
+#[cfg(windows)]
+mod cleanup_equivalence;

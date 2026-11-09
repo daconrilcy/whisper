@@ -21,6 +21,7 @@ mod deferred_window_poll;
 mod direct_live_poll;
 mod manual_gpu_choice;
 mod native_direct_cpu;
+mod parakeet_equivalence;
 mod parakeet_poll;
 mod readiness_admission;
 mod resume_and_segments;

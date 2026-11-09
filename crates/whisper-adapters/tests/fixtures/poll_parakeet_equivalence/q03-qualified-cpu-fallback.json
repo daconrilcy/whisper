@@ -1,0 +1,173 @@
+[
+  {
+    "phase": "gpu_started",
+    "state": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cuda",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 7,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": null,
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    }
+  },
+  {
+    "observation": "fixed_helper_boundary",
+    "phase": "gpu_fallback_wait_started"
+  },
+  {
+    "before": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cuda",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 7,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": null,
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    },
+    "fallback_reason": "GPU worker failed before native inference: BackendUnavailable: synthetic pre-audio GPU failure",
+    "phase": "gpu_failed_cpu_fallback_started",
+    "state": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cpu",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 1,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": "GPU worker failed before native inference: BackendUnavailable: synthetic pre-audio GPU failure",
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    }
+  },
+  {
+    "observation": "fixed_helper_boundary",
+    "phase": "cpu_ready_wait_started"
+  },
+  {
+    "after": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cpu",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 1,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": "GPU worker failed before native inference: BackendUnavailable: synthetic pre-audio GPU failure",
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    },
+    "before": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cpu",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 1,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": "GPU worker failed before native inference: BackendUnavailable: synthetic pre-audio GPU failure",
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    },
+    "phase": "cpu_ready",
+    "result": "Ok(Ready { job_id: JobId(73221), generation: Generation(1), instance_id: 1, backend: Cpu })"
+  },
+  {
+    "cpu_state": {
+      "active": {
+        "attempt": 1,
+        "backend": "Cpu",
+        "generation": 1,
+        "gpu_attested": false,
+        "instance_id": 1,
+        "job_id": "00000000000000000000000000011e05"
+      },
+      "end": null,
+      "fallback_reason": "GPU worker failed before native inference: BackendUnavailable: synthetic pre-audio GPU failure",
+      "native_call_started": false,
+      "process": true,
+      "queued_events": [],
+      "stopped_ack": false,
+      "vad": false
+    },
+    "cpu_worker_build_sha256": "24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff",
+    "pending": {
+      "generation": 1,
+      "job_id": 73221,
+      "model_path": "<ROOT>\\isolated-localappdata\\Whisper\\models/parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+      "model_size": 713975456,
+      "qualification": {
+        "artifact": "parakeet-tdt-0.6b-v3.q8_0.gguf",
+        "artifact_revision": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+        "backend": "CPU",
+        "gpu_pci_bus_id": null,
+        "gpu_pnp_instance_id": null,
+        "gpu_uuid": null,
+        "inference_profile": "import-single-pass",
+        "model": "parakeet-tdt-0.6b-v3",
+        "runtime": "nemo-speech-asr 0.2.0",
+        "runtime_build": "d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff",
+        "worker": "parakeet-worker",
+        "worker_build": "24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff",
+        "worker_protocol": 2
+      },
+      "source_path": "<ROOT>\\source.wav",
+      "source_samples": 16000,
+      "source_sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc",
+      "strategy": "legacy_v1",
+      "version": 2
+    },
+    "phase": "cpu_transcribe_and_persisted_qualification",
+    "transcribe_commands": [
+      "{\"version\":1,\"message\":{\"type\":\"transcribe\",\"request_id\":1,\"job_id\":\"00000000000000000000000000011e05\",\"generation\":1,\"attempt\":1,\"identity\":{\"model_sha256\":\"e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e\",\"runtime_sha256\":\"d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff\",\"build_sha256\":\"24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff\",\"profile\":\"import-single-pass\"},\"source_path\":\"<ROOT>\\\\source.wav\",\"source_sha256\":\"643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc\",\"expected_gpu\":null}}"
+    ]
+  },
+  {
+    "lines": [
+      "{\"version\":1,\"message\":{\"type\":\"failed\",\"request_id\":1,\"job_id\":\"00000000000000000000000000011e05\",\"generation\":1,\"attempt\":1,\"identity\":null,\"code\":\"BackendUnavailable\",\"message\":\"synthetic pre-audio GPU failure\"}}"
+    ],
+    "phase": "gpu_events"
+  },
+  {
+    "lines": [],
+    "phase": "gpu_commands"
+  },
+  {
+    "lines": [
+      "{\"version\":1,\"message\":{\"type\":\"transcribe\",\"request_id\":1,\"job_id\":\"00000000000000000000000000011e05\",\"generation\":1,\"attempt\":1,\"identity\":{\"model_sha256\":\"e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e\",\"runtime_sha256\":\"d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff\",\"build_sha256\":\"24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff\",\"profile\":\"import-single-pass\"},\"source_path\":\"<ROOT>\\\\source.wav\",\"source_sha256\":\"643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc\",\"expected_gpu\":null}}"
+    ],
+    "phase": "cpu_commands"
+  }
+]
