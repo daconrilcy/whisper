@@ -1,6 +1,6 @@
 Avancée : B achevé, 190 appels sans échec ; trois tests non reproduits, modifications provisoires retirées après revue.
-Blocage : aucun accord manquant ; validations finales à exécuter sous garde.
-Décision : reprise autorisée avec -ExistingTarget n1 ; aucun correctif livré ni cause historique démontrée.
+Blocage : aucun pour la clôture ; causes historiques non établies et précision du temps B limitée.
+Décision : livré avec réserves de causalité, validations finales réussies ; aucun correctif Rust revendiqué.
 
 # TESTS-STABLES-2 — plan approuvé
 
@@ -161,3 +161,38 @@ Ce document consigne l'arrêt intermédiaire. Le bilan figé d'une page sera éc
 ## Autorisation de validation finale — 9 novembre 2026
 
 À la demande précise « Autorisez-vous la reprise de fmt, check, Clippy, N1 ×3 et des contrôles workers avec -ExistingTarget n1 systématique ? », l'utilisateur répond « oui j'autorise ». Reprise vers 12 h 57 Europe/Paris, HEAD `ebbd8995`, arbre propre, libre 469 640 589 312 octets. Autorisation limitée aux validations déjà prévues, cible existante n1 sélectionnée à chaque appel, sources inchangées ; les autres conditions d'arrêt et le budget global restent applicables. La validation est déléguée au même `rust_implementer`, mode VERIFY ; aucune nouvelle correction Rust n'est demandée.
+
+## Clôture — validations et rétention
+
+Le 9 novembre 2026 vers 13 h 19 Europe/Paris, toutes les validations autorisées sont exécutées sur les sources inchangées de `08062bd8`. `fmt --check`, `check -p whisper-adapters`, Clippy all-targets JSON avec les quatre lints : **rc 0** ; 340 diagnostics Clippy préexistants, aucun nouveau delta source. N1 `test --no-fail-fast` sous garde et sans `CARGO_TARGET_DIR` : **878/0/129 ×3**, durées murales **103,407 / 35,957 / 36,157 s**. Les **1 007 identités binaire+test+statut** sont identiques à la référence fix-catalog et entre les trois runs. Workers CPU **12/0/9**, Parakeet CPU **26/0/11**, common **11/0/1** ; leurs 21/37/12 identités sont également identiques aux références. Chacun a passé préparation, PE avant inventaire et corps, inventaire `-- --list`, puis tests. **10/10 harnais PE PASS**, SelfTest **4 positifs/15 négatifs**, témoin réel NON EXÉCUTÉ.
+
+L'exception autorisée `whisper-rs-sys` a été utilisée uniquement par la préparation Cargo du worker CPU sur la cible neuve ; WHEA avant/après : **1→1**, dernier RecordId **527992** inchangé. Aucun autre build natif autonome, corps GPU ni test ignoré activé. Deux erreurs de syntaxe shell (saisie check et lecture d'archive) ont été corrigées avant toute invocation concernée ; ce ne sont pas des échecs Cargo ni des rejeux de tests. Les commandes exécutées et les incidents sont distingués dans les preuves.
+
+La seconde revue avait fermé TS2-R01–R05 par retrait du diff provisoire, avec validations alors manquantes. Les validations ci-dessus comblent ces manques sans aucun nouveau changement Rust ; aucun troisième cycle de revue/correction n'a été ajouté. La livraison est celle de **trois tests non reproduits avec preuves**, pas d'une correction des causes ni d'un CLEAN d'implémentation. Chaque test a effectivement été exécuté 50 fois isolément, dans 20 passages de sa suite et dans les 3 N1 finaux, sans retrouver son symptôme. Le [bilan figé d'une page](../architecture/TESTS-STABLES-2-BILAN.md) conserve les réserves.
+
+Archive finale [TESTS-STABLES-2-PREUVES.zip](../architecture/raw/TESTS-STABLES-2-PREUVES.zip) : **865 membres**, **1 386 051 octets**, SHA-256 `edf283407b5cb1d3476b421f2e6b0355c5b7a5929b290a8f8c639c23ac0830ff`. Après réouverture, nombre et SHA-256 de chacun des 865 membres comparés à leur source : PASS. Journaux Cargo/metadata, ledger B, ledger final, identités/références/comparaisons, contrôles PE, WHEA, incidents, revue et rétention inclus. Aucun cache/binaire/modèle archivé. Libre final après archive : **465 881 767 936 octets**, contre **472 641 638 400** au début. Lot clôturé en moins de 2 h, avant la limite de la journée ; B borné à moins de 41 min 05 selon la preuve conservatrice décrite plus haut.
+
+### Racines présentes et commandes proposées à l'humain
+
+Toutes les racines ci-dessous sont sous **`C:/wt/tests-stables-2/`**. Les tailles sont les fichiers réguliers, sans suivre les jonctions ; elles ne représentent pas de l'espace déjà récupéré.
+
+| Racine | Octets | Rétention |
+|---|---:|---|
+| `target/tests-stables-2/targets/n1` | 4 194 884 389 | Cible propre au lot, suppression humaine proposée |
+| `target/tests-stables-2/temp` | 678 140 595 | Temporaires de tests, suppression humaine proposée |
+| `target/tests-stables-2/evidence` | 668 200 | Copie des preuves désormais archivées, suppression humaine proposée |
+| `target/tests-stables-2/scratch` | 9 797 101 | Conservé : deux jonctions internes de fixtures SelfTest |
+| `target/cargo-home-shared` | 651 825 324 | Cache persistant déclaré, conservé |
+| Worktree et branche | Checkout initial environ 277 Mo | Conservés avec documents et archive Git |
+
+Le contrôle parent final a établi : les trois chemins proposés se résolvent à l'intérieur du worktree, leurs ancêtres et descendants n'ont aucun reparse point, aucun cargo/rustc/clippy-driver ni processus du lot actif n'est observé. La déclaration trop large « sans reparse » du handoff est corrigée pour scratch : les deux jonctions de `scratch/20261109T121001567-dd9a7b57cc054c75b771162ea5f4448b/` ciblent sa propre fixture `junction-target` ; aucune suppression globale de scratch n'est proposée. Aucune suppression exécutée par l'agent.
+
+**À exécuter par l'humain uniquement après clôture**, en revérifiant qu'aucun lot n'a repris sur ces chemins et qu'ils sont toujours sans jonction. L'archive finale ci-dessus a déjà été vérifiée ; ne pas supprimer son fichier ni un dossier parent des trois racines :
+
+```powershell
+Remove-Item -LiteralPath 'C:\wt\tests-stables-2\target\tests-stables-2\targets\n1' -Recurse -Force
+Remove-Item -LiteralPath 'C:\wt\tests-stables-2\target\tests-stables-2\temp' -Recurse -Force
+Remove-Item -LiteralPath 'C:\wt\tests-stables-2\target\tests-stables-2\evidence' -Recurse -Force
+```
+
+Environ **4,87 Go** de fichiers sont concernés. Préserver le cache persistant, scratch, le worktree, la branche, les modèles/audios et ressources installés, les archives et tous les autres lots. Toute suppression ultérieure et sa vérification feront l'objet d'un nouveau document ; le bilan de ce lot est figé. Aucun merge ni push.
