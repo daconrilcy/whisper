@@ -1,10 +1,12 @@
 Avancée : 39 références cleanup et 29 polling gelées. Les cas P11 et C02 identité passent.
-Blocage : le snapshot C02 déplacement inclut la création du fichier de verrou entre les deux relevés.
-Décision : arrêt avant replay. Correction proposée de la frontière d'observation de la fixture.
+Blocage : Windows refuse la lecture du fichier de verrou pendant le relevé C02 sous verrou.
+Décision : arrêt. Préparer le fichier de verrou via la garde existante, puis lire les snapshots hors verrou.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Deuxième arrêt C02 vers 21:18.** Full adapters `20261109T211655267-9f4461d055e54ba58c778fa2e21ac73f`, Cargo 101, bibliothèque **567/1/49**. Seul C02 déplacement échoue au premier relevé : Windows 33, lecture de `.whisper-publications.lock` sous verrou, `cleanup_equivalence.rs:192`. Proposition pour le troisième essai : prendre et relâcher le verrou via le helper existant avant tout relevé, puis prendre le verrou uniquement autour de l'appel privé comme dans le premier candidat. Les deux relevés lisent alors le fichier de verrou préexistant et libre. Assertions inchangées. Candidat, journaux et traces conservés sous `c02-locked-read-stop/` : ZIP **5 073 entrées** et **9 852 971 octets**, SHA-256 **ccb664cd70dc86e06827c4ed6177dffb9853da09cbb65aef0129e053317c4c0d**, 4 923 entrées antérieures vérifiées. Aucun replay ni gel nouveau.
 
 **Accord C02 du 9 novembre vers 21:16.** L'utilisateur autorise la prise du verrou avant le premier relevé et sa conservation jusqu'au second dans le seul test du dossier successeur déplacé. Après replays conformes, reprise T1–T6 dans le budget initial. Assertions, références gelées et code produit inchangés.
 
