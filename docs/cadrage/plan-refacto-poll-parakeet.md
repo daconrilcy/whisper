@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21, références intactes ; groupe polling 6/6 après synchronisation Q06.
-Blocage : corpus et couverture T1 encore incomplets, pas de référence polling gelée.
-Décision : reprise T1–T6, auteurs répartis et compilations coordonnées ; arrêt après nettoyage.
+Avancée : sept variantes cleanup et traces polling supplémentaires écrites ; derniers contrôles acquis cleanup 21/21 et polling 6/6.
+Blocage : le contrôle commun ne compile pas, SourceRange importé par un chemin privé dans une nouvelle fixture.
+Décision : STOP avant correction du chemin de type ; aucun changement produit, merge ou push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt commun du 9 novembre à 17:29:38.** Candidat : sept tests cleanup supplémentaires C03/C04/C05, traces raw/stable polling persistées sous TEMP, préparation Q03 sans chemins temporaires embarqués dans la source CPU. Tous ces ajouts restent à valider ; aucun nouveau gel. `cargo test -p whisper-adapters` sous garde, run `20261109T172938182-fb81d15ca9cf446198cefb7bd2f78e9b`, termine code **101** à la compilation, aucun test exécuté : E0603 dans `cleanup_equivalence.rs:1246`, `whisper_core::ports::SourceRange` est privé. Le réexport `whisper_core::SourceRange` est public (`whisper-core/src/lib.rs:29–32`) ; correction minimale proposée sur cette seule référence de type, sans nouvelle visibilité ni assertion modifiée. Seuls les deux avertissements déjà connus dans `temp_root.rs` et `parakeet_pipeline.rs` sont rapportés. Les deux auteurs sont arrêtés, sans correctif/retry automatique.
+
+Candidats des deux fichiers et journaux conservés sous `common-checkpoint-1729/` : **1 324 membres**, **2 418 486 octets**, SHA-256 **d701325cc1c15e68509a2aa2946bdc61817b0cf2e55cdf7504f19a5b1a8ca1dd** ; 1 318 entrées antérieures inchangées, six ajouts vérifiés. Les 18 références cleanup initiales sont inchangées ; les références supplémentaires restent à produire par deux replays avant gel et comparaison inconditionnelle.
 
 **Résultat du 9 novembre à 17:17:34.** Run `20261109T171734239-636ff66af973446180ac0d12bdefe0e1`, code **0**, **6 réussites / 0 échec / 0 ignoré**, 574 filtrés, 0,75 s. Q01/Q06/Q07 et P03/P04/P06 passent. Fin confirmée avant 17:18:34, donc aucun dépassement de la borne 17:31:03. Q06 conserve son message et ses assertions ; la synchronisation tient le canal ouvert jusqu'au statut avant le dernier poll. Reprise T1–T6 engagée, avec compléments de traces/couverture dans les deux fichiers appartenant à des auteurs distincts, compilations séquentielles après stabilisation commune. Aucune référence polling encore gelée.
 
