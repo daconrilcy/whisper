@@ -1,10 +1,12 @@
 Avancée : Q03 gelé après deux replays identiques ; 31 références cleanup et sept polling gelées.
-Blocage : fixture de divergence d'intention incorrecte ; Ready VAD positif hors racines admises.
-Décision : STOP ; correction de fixture et exception de preuve statique P09 à soumettre.
+Blocage : correction de fixture et replays en cours ; couverture T1 encore incomplète.
+Décision : correction et preuve statique limitée P09 approuvées le 9 novembre à 19:09:41.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Deux accords du 9 novembre à 19:09:41 Europe/Paris.** L'utilisateur choisit « Autoriser cette correction de fixture (recommandé) » et « Accepter cette preuve statique limitée (recommandé) ». `rust_implementer` remplace uniquement la mutation du champ diagnostic par une empreinte source de cible distincte, effectivement comparée à l'intention, puis effectue deux replays sans changer l'assertion de refus. Le succès **Ready VAD P09** reçoit exceptionnellement une preuve statique limitée : aucune couverture dynamique de ce succès revendiquée, aucun runtime L2b ni racine supplémentaire créé. **P10 reste dynamique par injection d'état privé** après Ready single-pass ; les autres branches injectables restent requises. Reprise T1–T6 si contrôles verts ; budget initial, STOP au premier échec et arrêt après nettoyage inchangés. Aucun changement produit, merge ni push. Les auteurs se coordonnent pour garder les sources figées pendant chaque appel Cargo.
 
 **Arrêt après ajout du helper, 9 novembre vers 18:38.** Run `20261109T183743043-71e3625cbe0e4d508f9c3daea5b3a086`, code **101** : bibliothèque **551 réussites / 1 échec / 49 ignorés**, autres harnais non exécutés. Le seul échec est `cleanup_characterization_rejects_target_intent_divergence_without_syncing_it` : `unwrap_err()` reçoit `Ok(())`. Le helper ajouté compile ; les sept autres nouveaux cas passent, mais aucun second replay ni gel nouveau. La fixture ne modifie que `objects[0].error`, champ volontairement absent de `cleanup_targets_match_intent` (`cleanup.rs:139–178`) ; elle ne crée donc pas la divergence visée. Correction proposée, assertions inchangées : modifier seulement `plan.targets[0].source_sha256` en une empreinte distincte stable, conserver l'intention initiale et vérifier le refus attendu. Ce champ est explicitement comparé à `cleanup.rs:146`, avant toute suppression ; aucun changement produit proposé. L'acceptation du champ diagnostic n'est pas déclarée défaut produit.
 
