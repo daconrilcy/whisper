@@ -1,6 +1,6 @@
-Avancée : N2 baseline réussi ; premier test D06 écrit, corrections de fixture autorisées.
-Blocage : D06 non exécuté après erreur de compilation ; corpus T1 encore incomplet.
-Décision : corriger uniquement la fixture puis reprendre T1–T6 si le test ciblé passe.
+Avancée : N2 baseline 4/4 ; candidat cleanup antérieur 6/6 et deux traces D06 identiques.
+Blocage : dernier candidat de fixture non compilable ; nouvelles traces non validées.
+Décision : correction limitée du helper de fixture autorisée, puis reprise T1–T6 si les tests passent.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,14 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Checkpoint du 9 novembre à 15:42.** Les corrections autorisées précédentes ont passé au run `20261109T152124870-2a70564e679a4a81a2fcc3709115d3b8` : D06 exact 1/0, 0,06 s. Le corpus a été étendu à six tests verts (vide, nominal, déjà absent, verrouillé, ajout non sélectionné, interruption/reprise), run `20261109T152732089-bc8e9d6be0d649c5bc9df7f4fca3e505`, **6/0**, 553 filtrés, 0,08 s. Deux replays D06 `20261109T153615811-2c0e431caeb542ac909855a23fb218be` et `20261109T153653802-52dedfb283c84cb68eed4f40d6f03862` ont produit des traces identiques **63 536 octets**, SHA-256 **ee75441c1f428cab19ffdf3bc338add0033d4ef606ca663d4ad8497b3e9ba6d3** ; pas encore de référence Git gelée. Le formatage gardé antérieur était PASS au run `20261109T151807231-b4bee3eb24ce42b3ab3b94daeaa219ca` ; il ne valide pas les edits suivants.
+
+Après extension des traces et découpage des helpers de fixture, le run `20261109T154040791-9aabde9e573a4c9388386ce2f93bc951` lancé **15:40:40** a échoué **101 avant tests** : `cleanup_old_target_fixture` déclare `let target = CleanupTarget { ... }` sans terminer la déclaration ni retourner la valeur ; deux avertissements nouveaux pour `source_path` et un premier `cleanup_id` inutilisés. Le formatage avait également signalé l'erreur de syntaxe ; ces dernières modifications ne sont pas couvertes par les résultats précédents. Aucune source produit touchée, aucun N1 complet, S2 ou extraction lancé.
+
+L'utilisateur autorise alors précisément **renvoyer directement CleanupTarget, retirer le paramètre source_path inutilisé et le doublon cleanup_id, puis relancer les six tests et leurs traces avant de poursuivre T1–T6** : réponse « Autoriser la correction et la reprise (recommandé) ». Même implémenteur, même fichier de test, budget initial et arrêt après nettoyage inchangés. Un nouvel échec impose l'arrêt ; un échec de syntaxe/formatage connu n'autorise pas à lancer Cargo ensuite.
+
+Conservation avant correction : **229 membres**, **1 153 426 octets**, SHA-256 **3b546460646339df86005180c3048067e8024f157806fb02eef7a4cc35dea8da** ; 188 entrées antérieures vérifiées inchangées, 41 ajouts vérifiés (journaux des étapes, cinq traces existantes et candidat défaillant), préfixe `cleanup-checkpoint-1540/`. Aucun nettoyage ni commit Rust.
 
 Test exact `cleanup_characterization_nonempty_generation_persists_partial_removal_and_resumes`, appel gardé lancé **15:18:30**, run `20261109T151830296-c0d98e4aef4448b9af42fb1eefde16d0`, code **101** avant exécution du test. Erreurs uniquement dans le nouveau `src/archive/tests/cleanup_equivalence.rs` : trois appels à `safe_cleanup_path` inaccessible dans ce module (E0425), puis déplacement de `successor.destination` avant `successor.clone()` (E0382). Avertissement nouveau : `mut plan` inutile. STOP appliqué sans correction ni relance automatique ; aucune extraction. N2 baseline demeure PASS, sans être présenté comme une validation de ce test nouveau.
 
