@@ -1,6 +1,6 @@
-Avancée : essai Q03 avec personal-qualification approuvé le 9 novembre 2026 vers 14 h 24 Europe/Paris.
-Blocage : faisabilité Q03 encore à démontrer dans l'essai borné ; aucune modification produit à ce stade.
-Décision : reprendre avec rust_implementer ; succès Q03 permet de poursuivre T1–T6, sinon STOP ; aucun merge/push.
+Avancée : fixture Q03 ajoutée dans les deux fichiers de tests prévus ; aucune modification produit.
+Blocage : premier Cargo Q03 en échec de compilation, aucun test exécuté ; campagne arrêtée.
+Décision : préserver le candidat et les journaux, soumettre la correction précise de la fixture avant toute reprise ; aucun merge/push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -29,6 +29,16 @@ Si l'essai réussit, Q03 est un test explicitement conditionné à cette feature
 Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et au N2 baseline, poursuivre S2/T3–T6, puis reporter explicitement le corpus polling à la tranche suivante. Cette alternative change le prérequis d'équivalence approuvé et n'est pas appliquée sans décision utilisateur. La session ne choisit pas silencieusement entre ces options. Le CLEAN documentaire précédent conservait expressément Q03 comme prérequis à établir ; il ne prouve pas sa faisabilité en exécution.
 
 ## 1. Mandat, fraîcheur et responsabilité
+
+### Exécution de l'essai Q03 — arrêt du 9 novembre vers 14 h 33
+
+Début de préparation spécifique **14:25:42 Europe/Paris**, échéance **14:55:42**, sans extension implicite. Premier appel erroné par `powershell.exe` 5.1 : refus avant Cargo, `[IO.Path]::IsPathFullyQualified` indisponible. Correction de l'interpréteur vers `pwsh` 7, qui est la commande déjà prescrite ; incident conservé, temps inclus dans l'essai. Premier véritable appel Cargo sous la garde avec `personal-qualification`, test exact `worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_gpu_failure_falls_back_to_qualified_cpu_fixture` : **code 101, compilation échouée, test NON EXÉCUTÉ**. Run `20261109T143220883-1508b2c9c5424872b916585d0560b086`, erreur `unexpected closing delimiter: }` à `parakeet_equivalence.rs:196`. Aucun N2, S2, corpus gelé ou refactor lancé.
+
+Le candidat non commité touche uniquement `crates/whisper-adapters/src/worker_ipc/runtime/poll/tests.rs` (déclaration conditionnelle) et son nouveau fichier `tests/parakeet_equivalence.rs`. Le produit est inchangé ; les validations de préparation ne sont pas présentées comme une validation de ce nouveau candidat. `git diff --check` passe, ce qui ne prouve pas sa compilation. Aucune correction ni relance après l'échec.
+
+**Correction bornée proposée, non autorisée à ce stade :** dans le seul nouveau fichier de test, (1) remplacer les délimiteurs externes de la source GPU `r#" ... "#` aux lignes 190/197 par `r###" ... "###`, le texte embarqué contenant lui-même une chaîne `r#" ... "#` ; (2) retirer les cinq `std::env::set_var` aux lignes 176–180, qui exigeraient unsafe en édition 2024, et passer ces variables via `Command::env` au lancement de l'enfant existant. Les chemins sont déterministes depuis `root/isolated-localappdata/Whisper` ; le parent prépare ces valeurs, l'enfant peut continuer à créer les fichiers puis calculer sa clé. Aucun nouveau unsafe ni mutation globale d'environnement, aucune modification du produit ou de la garde. Les signatures des API utilisées ont été relues par l'implémenteur, sans compilation supplémentaire. Demander correction puis reprise dans le **temps restant jusqu'à 14:55:42**, mêmes conditions d'arrêt et aucune remise à zéro implicite du budget. Si le témoin devient valide, la poursuite T1–T6 déjà autorisée reste applicable.
+
+Preuves préservées dans le ZIP prévu : **46 membres**, **963 092 octets**, SHA-256 **972cd1d15579cb3346d8747a50df1ee8c25e193694ba2aef630207e6d51950d0**. Les 40 membres de préparation sont préservés ; six entrées ajoutées (quatre journaux metadata/Cargo et les deux fichiers du candidat sous `q03-first-attempt/candidate/`) ont été relues et comparées aux SHA-256 des sources. Aucune suppression et aucun commit du test non validé. Cet arrêt est celui d'un essai de fixture, pas une régression produit observée.
 
 Source : demande de session du 9 novembre 2026 ; méthode `docs/cadrage/plan-refacto-poll-unified.md`, §7, et bilans `docs/architecture/REFACTO-POLL-UNIFIED-{BILAN,PHASE1-BILAN}.md`. Plan seulement : ces documents historiques ne donnent pas d'autorisation nouvelle. Confidence : **medium**, car le découpage est local et mesurable mais les nouveaux corpus restent à prouver sur les sources inchangées. La demande actuelle autorise la préparation, le worktree, les mesures et la revue ; l'accord sur ce plan autorisera le périmètre concret suivant.
 
