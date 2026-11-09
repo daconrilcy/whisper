@@ -28,3 +28,5 @@ N1 : **103,407/35,957/36,157 s** sous garde ; **1 007 identités inchangées** e
 **Preuves :** [ZIP](raw/TESTS-STABLES-2-PREUVES.zip), **865 membres**, 1 386 051 octets ; nombre et chaque SHA-256 vérifiés. SHA-256 : `edf283407b5cb1d3476b421f2e6b0355c5b7a5929b290a8f8c639c23ac0830ff`. Libre début/fin : **472 641 638 400 / 465 881 767 936 octets**. [Rétention et commandes humaines](../cadrage/plan-tests-stables-2.md#racines-présentes-et-commandes-proposées-à-lhumain) : 4,87 Go proposés ; cache persistant et scratch conservés. **Aucune suppression exécutée.**
 
 **Dettes :** causes des trois intermittences, sens de « v1 initial » avant correction S1, durée B exacte. Non reproduit ne signifie pas absence de course. Seuls plan, bilan et archive sont modifiés.
+
+[Complément : vérification du nettoyage humain](../cadrage/bilan-nettoyage-tests-stables-2.md).
