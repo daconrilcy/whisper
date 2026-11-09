@@ -1,10 +1,16 @@
-Avancée : whisper-adapters 645/0/126 ; Q03 conforme ; 39 références cleanup et 29 polling gelées.
-Blocage : derniers scénarios P et N1 enrichi à terminer ; aucun échec actif.
-Décision : Q03 conforme, quatre alertes Clippy fermées ; reprise du dernier paquet P de T1.
+Avancée : 39 références cleanup et 29 polling gelées ; nouveau groupe P11/P12 exécuté une fois.
+Blocage : P12 n'obtient pas l'erreur Shutdown attendue ; valeur reçue absente du diagnostic.
+Décision : arrêt ; proposer un diagnostic ciblé avant toute correction ou reprise.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt P12 du 9 novembre vers 20:58.** Full adapters `20261109T205636995-16b05a65b7534ea28f6fbb730608dea3`, Cargo **101** : bibliothèque **566/1/49**, 21 tests polling dont **20 réussis et un échec**, 42 cleanup réussis ; autres harnais non exécutés. Le seul échec est `poll_parakeet_result_preserves_shutdown_write_error_and_queued_progress` : l'assertion exigeant `IpcWrite:` échoue, sans imprimer `shutdown_error`. Le programme a passé les assertions Ready, réception Transcribe intégrale, présence du marqueur Result et sortie réussie du parent. Ces faits ne suffisent pas à identifier le retour observé ; ne pas l'inférer. Les quatre variantes P11 passent, sans gel après un seul passage. Aucun replay, correction, S2 ou changement produit lancé après l'échec.
+
+Prélecture avant ce premier appel : conservation séparée des frames brutes et de leurs littéraux Rust ; commande Transcribe réellement reçue persistée, lecture de son enveloppe `message`, extraction du helper d'assertions. Ces ajustements précèdent le run et ne changent aucune référence. Proposition minimale après arrêt : ajouter uniquement le résultat reçu au message de l'assertion P12, puis **un seul essai exact** sous garde ; attente et assertion restent inchangées. Reprise générale à décider selon ce résultat, sans diagnostic spéculatif ni relaxation d'oracle.
+
+Candidat, quatre journaux, 78 traces cleanup et 64 traces polling du PID 50212 conservés sous `polling-shutdown-error-stop/` : ZIP **4 768 membres**, **8 953 817 octets**, SHA-256 **0cc6b978fb846981da218b15b7c57c83d841638b0fe3bb23d9b91c5c908598d1** ; 4 621 anciens membres inchangés et 147 ajouts vérifiés. WHEA à 20:57:05 : **1**, dernier RecordId **527992** du 5 novembre, inchangé ; libre **450 111 610 880 octets**. Budget global inchangé, échéance 10 novembre 13:40 Europe/Paris.
 
 **P13/P14 vérifiés et gelés, 9 novembre vers 20:55.** Full adapters `20261109T204315133-5cfbaa20acac4ee88d048d5771377734`, code 0 : **645/0/126** sur 33 harnais, lib **565/0/49**, **19 tests polling** exacts et 42 cleanup. Replay module `20261109T204433803-9e19a95831294411b5e498bcce9e34ed`, code 0 : **19/19**. Parent confirme les **28/28 traces stables PID 30540/94156 byte-identiques**, sans doublon. Douze nouveaux scénarios Failed : identités périmées job/génération/worker, absence d'import actif, quatre codes d'erreur, champs optionnels CPU, GPU manuel, Auto après début natif et Auto avec request_id incorrect. Référence séparée `poll_parakeet_equivalence/failed-path-traces.json`, **32 759 octets**, SHA-256 **8450ac35c60db23a6f51c5ae0dabc5047179a910a9e17f2752845359e00d8bd5** ; comparaison obligatoire branchée, prochain replay requis après branchement. Les 17 références polling antérieures restent intactes.
 
