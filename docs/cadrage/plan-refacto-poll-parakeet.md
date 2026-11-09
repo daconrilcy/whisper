@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21 et références intactes ; P06 compile en configuration ordinaire.
-Blocage : P03/P04/P06 échouent au spawn, faux workers hors du runtime déclaré.
-Décision : correction des seuls chemins de fixture autorisée, puis reprise si PASS.
+Avancée : cleanup 21/21 et références intactes ; P03 et P06 passent après correction des chemins.
+Blocage : P04 échoue sur la sortie réussie sans résultat, valeur réellement reçue non affichée.
+Décision : STOP ; diagnostic ciblé à autoriser avant toute correction ou relance.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt suivant, 9 novembre vers 16:40.** Après la correction des chemins autorisée, run `20261109T163936011-7fefe3bd86ab434ab0e778403175a8ad`, code **101** : P03 et P06 passent, P04 `poll_parakeet_eof_status_preserves_the_existing_end_asymmetry` échoue sur le message attendu dans le cas de sortie réussie. Résultat : **2 réussites / 1 échec**, 574 filtrés. L'assertion n'affiche pas la valeur reçue ; un timeout n'est donc pas démontré. Lecture statique : `ParakeetProcess::poll` retourne directement `Err(WorkerExited: status)` si le canal est déjà déconnecté et le processus terminé ; un canal encore vide retourne `Ok(None)`, permettant au polling appelant d'atteindre son propre contrôle de sortie et le message attendu. La fixture ne synchronise pas ces deux observations. Cette concurrence est une hypothèse étayée, pas une attribution dynamique du résultat échoué. Aucun changement produit, aucune attente allongée ni assertion affaiblie.
+
+Candidat et journaux préservés avant correction sous `polling-checkpoint-1639/` : **1 284 membres**, **2 310 064 octets**, SHA-256 **fb562362a7aee28369239924265b116fe61651f7d41fd7957b15bc257948623a** ; 1 278 entrées antérieures inchangées et six ajouts vérifiés après réouverture. Prochaine proposition minimale : conserver le résultat dans une variable et l'afficher dans le diagnostic de l'assertion inchangée, puis un seul essai P04 sous garde. Toute correction de fixture dépendra du résultat ; aucun nouvel appel lancé à ce stade. Budget initial et arrêt après nettoyage inchangés.
 
 **Arrêt suivant, 9 novembre vers 16:35.** Le délimiteur et l'impression littérale de P06 sont corrigés, formatage réussi. Run ordinaire `20261109T163444665-b9949f9406474ae0b49d9292e787d346`, code **101** : les trois nouveaux tests P03/P04/P06 échouent au spawn avec `PathOutsideRuntime: worker is outside the active Parakeet runtime`, avant tout appel de polling. Le helper compilait les EXE directement sous TestRoot alors que les chemins déclaraient `TestRoot/synthetic-runtime` comme runtime. La validation existante exige l'EXE sous ce runtime (`parakeet_import.rs:32–64`). Aucun contournement produit proposé.
 
