@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21, références intactes ; groupe polling 4 réussites sur 6 après correction du helper.
-Blocage : Q01/Q06 échouent à compiler leur faux worker, JSON Stopped utilisé comme chaîne de format.
-Décision : correction de la seule impression Stopped autorisée ; six tests puis reprise T1–T6 si PASS.
+Avancée : cleanup 21/21, références intactes ; groupe polling 5 réussites sur 6, import CPU nominal validé.
+Blocage : Q06 échoue sur le message de fermeture après Result avant ACK ; valeur effective non affichée.
+Décision : STOP après trois essais du groupe ; adaptation bornée de la fixture à soumettre.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt du 9 novembre à 17:13:20.** Impression Stopped corrigée selon accord. Run `20261109T171320506-a185eec5167248ae821e8ed5f5ff7566`, code **101**, **5 réussites / 1 échec**, 574 filtrés : Q01 import CPU nominal, Q07 et P03/P04/P06 passent. Q06 (`poll_parakeet_eof_after_result_preserves_unacknowledged_end_behavior`) atteint READY, Progress et Segment, puis échoue sur le message de fermeture attendu. Sa valeur effective n'est pas affichée, donc la cause dynamique exacte n'est pas affirmée. Lecture statique : le faux worker quitte après Shutdown sans ACK, sans maîtriser l'ordre de déconnexion IPC et d'observation du statut ; la branche attendue présente la même condition de concurrence déjà traitée dans P04. Proposition minimale à préciser : réutiliser la synchronisation validée de P04 pour atteindre cette branche après Result, sans accepter plusieurs messages ni modifier les assertions.
+
+Trois essais du groupe depuis 17:06 ont été consommés (helper cfg, impression Stopped, puis cette assertion) ; aucun quatrième appel sans arbitrage précis. Candidat et journaux archivés sous `polling-checkpoint-1713/` : **1 313 membres**, **2 380 146 octets**, SHA-256 **13c118d506c95849772b6ac59722298442bc9287cb8e9656e8e2b33a11fdad0a** ; 1 308 entrées antérieures inchangées, cinq ajouts vérifiés. Aucune référence polling gelée ; aucune modification produit ou cleanup par le second auteur.
 
 **Accord du 9 novembre vers 17:12.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » pour la seule impression JSON Stopped dans `compile_nominal_import_worker` : `println!("{}", ...)`, puis relance des six tests et reprise T1–T6 si tous passent. Message et assertions inchangés ; aucun produit ni extension du budget. Le même rust_implementer reçoit la correction ; cleanup reste figé pendant l'appel.
 
