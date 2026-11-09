@@ -1,10 +1,12 @@
 Avancée : whisper-adapters 624/0/126 ; 31 références cleanup et six références polling gelées.
-Blocage : Q03 passe deux fois mais son hash de faux worker varie, donc ses traces divergent.
-Décision : correction Q03 autorisée jusqu'au 9 novembre 18:42:30 ; deux replays avant reprise.
+Blocage : aucun échec actif ; couverture T1 encore à compléter avant extraction.
+Décision : Q03 stable confirmé à 18:30:44 ; gel puis reprise T1–T6, arrêt après nettoyage.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Résultat Q03 du 9 novembre à 18:30:44 Europe/Paris.** Runs `20261109T182829547-4a2408c5618f4187b41226f690f63bca` et `20261109T182956273-e35acd4642414ccf97c7c7cdc5c6b2d3` : chacun **1/1**, code 0. Le parent confirme les deux traces stables **octet par octet identiques**, **6 469 octets**, SHA-256 **4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**. Empreinte réelle du faux CPU identique : **24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff**. Aucun masquage de hash ni changement produit ; succès avant 18:42:30, aucun dépassement. Gel Q03 confié à l'auteur, puis reprise des trous injectables T1 ; Cargo séquentiel après gel des deux candidats. Les huit journaux et quatre traces sont archivés sous `q03-reproducible/` : ZIP **2 660 membres**, **4 445 694 octets**, SHA-256 **4f4381f7931348bac853a5ad517fb8d4400c3da38f0869f0f4c8b8549e3bd599** ; 2 648 anciens membres intacts et douze ajouts vérifiés. Libre relevé pendant la reprise : **452 115 791 872 octets**.
 
 **Accord Q03 du 9 novembre à 18:27:30 Europe/Paris.** L'utilisateur choisit « Autoriser cette correction bornée et la reprise (recommandé) » : réutiliser uniquement pour les faux workers Q03 de `parakeet_equivalence.rs` les options existantes `-Cdebuginfo=0 -C link-arg=/Brepro`, puis deux replays stricts et reprise T1–T6 si leurs traces sont identiques. Intervention confiée à `rust_implementer`, limitée à **15 minutes dans le budget initial**, admission fermée à **18:42:30** ; seul l'appel engagé termine, dépassement consigné. Empreintes réelles, assertions et références antérieures restent inchangées. Aucun changement produit, build natif, merge ni push. La divergence précédente reste conservée dans `00d2b754` ; elle n'autorise aucun masquage des hashes.
 
