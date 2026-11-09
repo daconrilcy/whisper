@@ -1,10 +1,12 @@
 Avancée : whisper-adapters 639/0/126 ; Q03 1/1 conforme ; 39 références cleanup et 14 polling gelées.
 Blocage : Q03 diverge après extraction du helper à cause d'une composition de chemin modifiée.
-Décision : STOP ; restaurer les deux join historiques à soumettre avant reprise Q03/Clippy.
+Décision : restauration des deux join historiques et reprise Q03/Clippy autorisées à 20:14:53.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Accord du 9 novembre à 20:14:53 Europe/Paris.** L'utilisateur autorise la restauration de la seule composition historique `root.join("isolated-localappdata").join("Whisper")` dans `prepare_q03_workers`, puis Q03 exact, Clippy qualité et reprise T1–T6 si verts. Aucun oracle ni normalisation changé ; les autres compositions de chemin restent celles de la source gelée. `rust_implementer` effectue cette seule correction, sources cleanup figées. Budget initial, arrêt au premier échec et point d'arrêt après nettoyage inchangés ; aucun changement produit, merge ni push.
 
 **Arrêt après extractions de fixtures, 9 novembre vers 20:13.** Corrections des quatre avertissements candidates : `cleanup_path_snapshot(root, path)`, emprunt retiré, littéral nominal déplacé sans modification, séquence Q06 extraite, Q03 réparti en helpers. Les huit littéraux raw antérieurs sont présents strictement identiques et l'attribut Q03 est vérifié présent. Full adapters `20261109T201015230-d7b93ea523c248ff824901d63ce73082` passe (lib **559/0/49**, 42 cleanup et 13 polling ordinaires avec leurs oracles obligatoires). Q03 exact `20261109T201124841-885b2c98130d48d5929670a92a7326de` échoue (un test ciblé parent, son enfant interne échoue aussi) ; Clippy suivant non lancé.
 
