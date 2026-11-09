@@ -1,6 +1,6 @@
-Avancée : whisper-adapters 618/0/126 ; 25 références cleanup validées ; six tests polling rejoués avec succès.
-Blocage : cinq traces polling sur six divergent sur leurs seuls compteurs de sondages sans mutation.
-Décision : adaptation de représentation autorisée jusqu'à 18:12:35 ; deux replays requis avant reprise.
+Avancée : 25 références cleanup validées ; six traces polling identiques après adaptation autorisée.
+Blocage : T1 reste incomplet : Q03, variantes polling et dernier groupe cleanup à terminer.
+Décision : reprise T1–T6, gel des six références polling confié à l'auteur ; arrêt après nettoyage.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Adaptation terminée, 9 novembre à 18:04:09.** Run `20261109T180153436-9ecfa05bd8f04dd9a02e24d030f48027`, puis `20261109T180258737-4b4b6d8f3d4f4609bb3ef20dbecd21d6` : chacun code **0**, **6/6**, 581 filtrés. Comparaison exhaustive des PID 75724 et 54896 confirmée par auteur et parent : **six traces byte-identiques**, avant la borne 18:12:35, aucun dépassement. Les preuves brutes contiennent `trace` et `helper_diagnostics` avec les compteurs exacts ; l'oracle ne porte que la trace ordonnée, jalons fixes d'entrée en attente inclus, sans affirmer un retour None non observé. Retours None explicitement observés et transitions sans événement restent présents. Aucun fichier de référence polling encore créé à cet instant ; gel des six confié à l'auteur, sans modification future de ces valeurs.
+
+Tailles/SHA des traces : P03 **4 446 / 080aa1307a744b5b05dc9ca39bbcfa0331817b0050962972ced9369ab729ab73** ; P04 **2 471 / d157f9380e06b8444e82d87082a7afe9eecbf9bb2cbdc27c4a803d3a940735fc** ; P06 **693 / 3c4fc240ad91ea41c3b591bd4b858d2ba9cc48f25025a6709bac8e4f2af2408b** ; Q01 **7 584 / 9511d9dd1e8bd787edf738d42454f13d55196e7da2e34e759a912bd0f871c16b** ; Q06 **6 494 / 070e8e428a626bb718dfa78319b2c2743a80ff5da3a46618d58d55c3990ee49d** ; Q07 **1 642 / d5e50911b28db7fec43426d64979245919b5413c72c6c3ebf5379783100ed6f8**. Journaux et 24 raw/stable conservés sous `polling-stable-replays-1802/` : ZIP **2 323 membres**, **3 715 774 octets**, SHA-256 **53201cc5daf5638420662f2f453dfeef38aef3429dfc3a447de6a3421c548d7b** ; 2 291 membres antérieurs inchangés, 32 ajouts vérifiés. Reprise T1 engagée : gel/qualification Q03 d'un côté, six derniers cas C01/C07/C13/C15 de l'autre, sans Cargo concurrent.
 
 **Accord de représentation, 9 novembre à 17:57:35.** L'utilisateur choisit « Autoriser cette adaptation bornée (recommandé) » : **15 minutes dans le budget initial**, borne **18:12:35 Europe/Paris**, pour conserver les compteurs exacts de sondages sans mutation dans les preuves brutes et utiliser dans l'oracle un jalon fixe d'entrée en attente, sans prétendre qu'un retour None a été observé. Tous événements, erreurs, commandes, observations explicites None et transitions d'état restent ordonnés et conservés. Cette adaptation précise de représentation est autorisée ; aucun autre masquage de champ ni changement produit. Deux replays des six tests et comparaison exhaustive, reprise T1–T6 si identiques ; STOP au premier échec ou divergence. À la borne, fermer l'admission, laisser finir seulement l'appel engagé et consigner un dépassement éventuel. Les références cleanup sont inchangées, aucune référence polling n'était gelée.
 
