@@ -1,10 +1,12 @@
-Avancée : 39 références cleanup et 29 polling gelées ; nouveau groupe P11/P12 exécuté une fois.
-Blocage : P12 reçoit Progress ; l'envoi Shutdown réussit malgré la sortie du worker principal.
-Décision : proposer une preuve statique limitée à l'erreur Shutdown et retirer le seul prototype non concluant, conservé dans les preuves.
+Avancée : 39 références cleanup et 29 polling gelées. Les cas P11 et C02 identité passent.
+Blocage : le snapshot C02 déplacement inclut la création du fichier de verrou entre les deux relevés.
+Décision : arrêt avant replay. Correction proposée de la frontière d'observation de la fixture.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt C02 du 9 novembre vers 21:09.** Full adapters `20261109T210744921-26634c7cdaf24b25ab16bb5afc5ce0df`, Cargo 101, bibliothèque **567/1/49**. Les 20 tests polling passent, prototype P12 retiré comme approuvé. C02 identité passe. C02 déplacement reçoit l'erreur exacte et vérifie la présence de la cible. Le diff des deux snapshots compare 34 entrées dans le même ordre. Seul `.whisper-publications.lock` diffère (absent avant, fichier vide après). Proposition soumise : acquérir le verrou avant le premier relevé et le conserver pour l'appel et le second relevé. Les assertions et la fonction produit ne changent pas. Candidats, journaux et traces sous `c02-lock-snapshot-stop/` dans le ZIP vérifié : **4 923 entrées**, **9 418 368 octets**, SHA-256 **f2bfe5cbcb1bae974612ee4b96e0336d8a98f69a4228394f14386bd6341f6508**. Les 4 773 entrées antérieures sont intactes. Aucun second replay effectué.
 
 **Accord P12 du 9 novembre vers 21:05.** L'utilisateur accepte la preuve statique limitée à l'erreur d'envoi Shutdown et autorise le retrait du seul prototype et de ses deux helpers exclusifs, conservés dans les preuves. La cible traite d'abord Progress et les segments, renseigne end, appelle `shutdown()` puis retourne l'erreur avant le retrait du premier événement. Ce retour ne vide ni la file ni end. La comparaison instruction par instruction de cette branche reste requise lors de son extraction future. Les cas nominal et mots invalides restent dynamiques, ainsi que les nouvelles gardes P11. Reprise T1–T6 avec S2, échéance initiale et arrêt après nettoyage.
 
