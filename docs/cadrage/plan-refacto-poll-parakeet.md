@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21, références intactes ; P04 déterministe passe, P03/P06 déjà verts.
-Blocage : aucun nouvel échec ; corpus polling et couverture T1 encore incomplets.
-Décision : reprise T1–T6 autorisée, arrêt après nettoyage ; aucun merge ni push.
+Avancée : cleanup 21/21, références intactes ; P04 déterministe passe ; trois scénarios polling supplémentaires écrits.
+Blocage : le groupe de six tests ne compile pas, helper de fixture réservé à une feature.
+Décision : STOP global avant correction ; aucun changement produit, merge ou push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt T1 du 9 novembre à 17:06:50.** Trois scénarios directs supplémentaires sont écrits : import CPU nominal Q01, EOF après Result avant ACK Q06, Failed d'une ancienne tentative Q07. Ils ne sont pas encore qualifiés et Q06/Q07 n'ont pas encore leur trace gelée. Le run `20261109T170650933-1b80e97a325b4eaa9759939e01f42c38` termine code **101** à la compilation, avant tout test : trois E0425 aux appels de `personal_import_request`, helper défini sous `cfg(feature = "personal-qualification")` alors que ces trois tests sont ordinaires. Avertissement nouveau `unused_mut` sur `source` dans la fixture P04 ; les deux autres avertissements (`temp_root.rs`, `parakeet_pipeline.rs`) étaient préexistants. Correction proposée uniquement dans `parakeet_equivalence.rs` : rendre disponibles en configuration ordinaire ce helper et ses imports/constante nécessaires, garder Q03 et son lanceur sous leur feature, retirer le `mut` inutile. Assertions attendues inchangées ; pas de relance avant accord.
+
+Preuves et candidat préservés sous `polling-checkpoint-1706/` : **1 299 membres**, **2 346 266 octets**, SHA-256 **0f5bc55ed7930a35463e1f8f63443b41a7a5a1c7def8a5f88ba1f83a257bcafa** ; 1 294 entrées antérieures inchangées, cinq ajouts vérifiés. Répartition T1 pour avancer : un rust_implementer conserve exclusivement polling ; un second prend cleanup après libération explicite du premier. Le second a seulement remis l'inventaire en lecture seule, sans édition ni Cargo. Les compilations restent séquentielles, avec fichiers des deux auteurs stabilisés ; STOP global appliqué à ce nouvel échec. Les scénarios Unified du lot précédent sont des protections voisines et ne sont pas comptés comme couverture directe de la fonction cible sans trajet établi.
 
 **Résultat P04 déterministe, 9 novembre vers 16:56.** Run `20261109T165549667-735dd9f5182b420083abf3d1ad2e2331`, code **0** : identité exacte `worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_eof_status_preserves_the_existing_end_asymmetry`, **1 réussite / 0 échec**, 576 filtrés, 0,43 s. Appel admis à 16:55:49, achevé avant 16:56:42, donc aucun dépassement de la borne 17:05:32. Les binaires suivants indiquent zéro test car filtrés ; ils ne remplacent pas le test exécuté au début du journal. Assertions conservées, preuve du chemin sortie 0/9 désormais acquise ; la fixture tient le canal ouvert, attend le statut puis libère son descendant, qui possède aussi une échéance autonome. La reprise T1–T6 autorisée est engagée, sans nouveau produit ni extension de budget.
 
