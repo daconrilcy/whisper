@@ -1,6 +1,6 @@
 Avancée : B achevé, 190 appels sans échec ; trois tests non reproduits, modifications provisoires retirées après revue.
-Blocage : validation finale suspendue après refus du préflight format, cible ExistingTarget omise.
-Décision : reprise des validations à autoriser avec -ExistingTarget n1 ; aucun correctif livré ni cause historique démontrée.
+Blocage : aucun accord manquant ; validations finales à exécuter sous garde.
+Décision : reprise autorisée avec -ExistingTarget n1 ; aucun correctif livré ni cause historique démontrée.
 
 # TESTS-STABLES-2 — plan approuvé
 
@@ -157,3 +157,7 @@ Après l'assouplissement précis consigné en tête de document, `rust_implement
 **Preuves mises à l'abri :** [archive provisoire de B et de la revue](../architecture/raw/TESTS-STABLES-2-PREUVES.zip), **781 membres**, **1 065 417 octets**, SHA-256 `ecb8c6d6b824ae76fb0d648d7837c945432322fc1eda61681c918e322c071eeb` ; chaque membre vérifié par SHA-256 contre sa source après réouverture. Arborescence `scratch/` + `evidence/`, ledger 190 appels, handoff et coordination inclus. Pas d'archive de binaires/cache/modèles. Racines observées (octets, snapshot avant archive) : scratch 8 059 218 ; temp 584 132 820 ; cible n1 648 900 884 ; cache persistant 651 788 460 ; evidence environ 96 Ko. Libre relevé : **469 666 025 472 octets**. Rien supprimé ; ces racines sont encore nécessaires à la reprise, donc aucune commande de suppression à exécuter maintenant.
 
 Ce document consigne l'arrêt intermédiaire. Le bilan figé d'une page sera écrit à la clôture ; l'archive sera complétée avec les validations réellement exécutées. Aucun merge/push, aucun code produit ou test modifié dans l'état remis.
+
+## Autorisation de validation finale — 9 novembre 2026
+
+À la demande précise « Autorisez-vous la reprise de fmt, check, Clippy, N1 ×3 et des contrôles workers avec -ExistingTarget n1 systématique ? », l'utilisateur répond « oui j'autorise ». Reprise vers 12 h 57 Europe/Paris, HEAD `ebbd8995`, arbre propre, libre 469 640 589 312 octets. Autorisation limitée aux validations déjà prévues, cible existante n1 sélectionnée à chaque appel, sources inchangées ; les autres conditions d'arrêt et le budget global restent applicables. La validation est déléguée au même `rust_implementer`, mode VERIFY ; aucune nouvelle correction Rust n'est demandée.
