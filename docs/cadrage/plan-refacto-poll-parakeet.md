@@ -1,10 +1,14 @@
 Avancée : 39 références cleanup et 29 polling gelées ; nouveau groupe P11/P12 exécuté une fois.
-Blocage : P12 n'obtient pas l'erreur Shutdown attendue ; valeur reçue absente du diagnostic.
-Décision : arrêt ; proposer un diagnostic ciblé avant toute correction ou reprise.
+Blocage : P12 reçoit Progress ; l'envoi Shutdown réussit malgré la sortie du worker principal.
+Décision : arrêt ; examiner une option standard avant tout nouvel essai ou arbitrage de couverture.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Diagnostic P12 du 9 novembre à 21:00.** Appel exact `20261109T205940378-b2610884b8e14b2d88ba83f9ec2212a1`, Cargo **101**, **un test exécuté, 0/1/0, 615 filtrés**. Résultat imprimé : `Ok(Progress { job_id: JobId(73280), generation: Generation(1), instance_id: 7, completed_samples: 16000, total_samples: 16000 })`. La cible a traité Result et son appel `shutdown()` n'a pas renvoyé d'erreur à cet instant. L'hypothèse d'un lecteur stdin encore détenu par le descendant reste **non démontrée** ; aucune causalité OS inférée du seul résultat. Deux essais consommés pour ce diagnostic (full puis exact) ; aucun troisième admis automatiquement. Candidat et quatre journaux ajoutés sous `polling-shutdown-diagnostic/` : ZIP **4 773 membres**, **8 978 717 octets**, SHA-256 **6304fa5f62f79c8fe56bd504195384ed5c075912482f5bb2ebc64315a5f0c6b0** ; 4 768 anciens membres et cinq ajouts vérifiés. Les références gelées et assertions attendues restent inchangées.
+
+Carte cleanup relue : deux gardes C02 distinctes restent injectables et non couvertes directement (dossier successeur déplacé ; identité de ce dossier erronée). Leur fermeture appartient à T1, dans le même fichier et avec références supplémentaires séparées. Les permutations des termes d'une même garde OR ne sont pas revendiquées comme MC/DC. Aucun ajout de fixture cleanup commencé pendant cet arrêt ; 39 références actuelles intactes et validées après l'extraction mécanique du helper de snapshot.
 
 **Accord ciblé du 9 novembre vers 21:00.** L'utilisateur autorise uniquement l'ajout du résultat reçu au diagnostic de l'assertion P12, puis un essai exact sous garde. Condition de l'assertion, délais et références inchangés ; aucune autre correction ni reprise automatique. Intervention confiée au même `rust_implementer`, sources cleanup figées. Budget global et arrêt après nettoyage inchangés, aucun changement produit, merge ou push.
 
