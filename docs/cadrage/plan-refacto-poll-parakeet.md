@@ -1,10 +1,12 @@
-Avancée : les deux corrections de fixture sont appliquées ; Q03 passe une fois sous garde.
-Blocage : T1 complet reste non démontré ; second passage, références et autres corpus manquent.
-Décision : dernière tentative terminée à 14:48:30 sans dépassement ; preuves archivées, aucun appel suivant.
+Avancée : reprise T1–T6 autorisée après le succès du témoin Q03.
+Blocage : aucun blocage technique établi ; corpus et références T1 restent à terminer.
+Décision : poursuivre corpus, S2 et nettoyage dans le budget initial ; arrêt obligatoire T6.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Reprise du 9 novembre vers 14:54 Europe/Paris :** « Reprends T1–T6 avec rust_implementer : termine les corpus et gèle les références, puis S2 et le nettoyage. Garde le budget initial et l’arrêt après nettoyage, sans merge ni push. » Le diagnostic Q03 est terminé avec succès ; sa borne propre de 14:55:42 ne devient pas celle de T1–T6. La reprise porte sur les tâches initiales, sans remise à zéro du budget global (10 novembre 13:40 Europe/Paris) ni du futur compteur S2 (30 minutes dès sa première préparation spécifique). Les règles d'admission, de fin du seul appel engagé à l'échéance et d'arrêt sur échec restent applicables. HEAD de reprise `f6c88c5f` ; deux fichiers de tests T1 modifiés et conservés ; libre **465 084 411 904 octets**. Aucun nouveau périmètre produit ni modification de polling autorisé.
 
 L'utilisateur décide : « J’approuve T1–T6, S2 inclus, avec arrêt après le nettoyage. Pour S2 et la journée, ferme l’admission à l’échéance et laisse finir uniquement l’appel engagé, en consignant le dépassement. Lance avec rust_implementer, sans merge ni push. »
 
