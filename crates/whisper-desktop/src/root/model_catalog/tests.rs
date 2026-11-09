@@ -941,6 +941,20 @@ struct PausedObservations {
     resume_b: mpsc::SyncSender<()>,
 }
 
+struct ObservationCleanup {
+    requests: CatalogInspectionSender,
+    resume_a: mpsc::SyncSender<()>,
+    resume_b: mpsc::SyncSender<()>,
+}
+
+impl Drop for ObservationCleanup {
+    fn drop(&mut self) {
+        let _ = self.resume_a.try_send(());
+        let _ = self.resume_b.try_send(());
+        self.requests.close();
+    }
+}
+
 fn paused_catalog(
     root: PathBuf,
     outcome: ModelAvailability,
@@ -954,15 +968,19 @@ fn paused_catalog(
     let (resume_a, resume_a_rx) = mpsc::sync_channel(1);
     let (entered_b_tx, entered_b) = mpsc::sync_channel(1);
     let (resume_b, resume_b_rx) = mpsc::sync_channel(1);
+    let mut first_observation = [true; 2];
     let (requests, catalog, admission) =
         start_catalog_service_with(root, move |catalog, id, generation| {
-            let (entered, resume) = if id == ModelId::WhisperLargeV3Turbo {
-                (&entered_a_tx, &resume_a_rx)
+            let (index, entered, resume) = if id == ModelId::WhisperLargeV3Turbo {
+                (0, &entered_a_tx, &resume_a_rx)
             } else {
-                (&entered_b_tx, &resume_b_rx)
+                (1, &entered_b_tx, &resume_b_rx)
             };
-            entered.send(()).unwrap();
-            resume.recv_timeout(WAIT).unwrap();
+            if first_observation[index] {
+                first_observation[index] = false;
+                entered.send(()).unwrap();
+                resume.recv_timeout(WAIT).unwrap();
+            }
             let mut snapshot = ready_snapshot(catalog.root(), generation, outcome);
             snapshot.entries.retain(|entry| entry.id == id);
             snapshot
@@ -1000,12 +1018,38 @@ fn application_for(
     (app, effects, events)
 }
 
+fn refresh_until_admitted(
+    app: &mut DesktopAdmissionApplication<RecordingIo>,
+    expected_generation: u64,
+) -> AppView {
+    let deadline = std::time::Instant::now() + WAIT;
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if app.admission_generation >= expected_generation {
+            return view;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "admission snapshot timed out: expected generation {expected_generation}, received {}, channel failed: {}, last message: {:?}",
+            app.admission_generation,
+            app.admission_catalog_failed,
+            view.message
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 fn check_intermediate_publication(resume: bool, outcome: ModelAvailability, invalidate: bool) {
     let root = Root::new();
     let (requests, catalog, admission, paused) = paused_catalog(root.0.clone(), outcome);
     catalog.recv_timeout(WAIT).unwrap();
     let (mut app, effects, events) = application_for(&root.0, &requests, admission);
     let request = request_for(&root.0, 0xe801);
+    let _cleanup = ObservationCleanup {
+        requests: requests.clone(),
+        resume_a: paused.resume_a.clone(),
+        resume_b: paused.resume_b.clone(),
+    };
     events
         .lock()
         .unwrap()
@@ -1036,8 +1080,8 @@ fn check_intermediate_publication(resume: bool, outcome: ModelAvailability, inva
         .unwrap();
     }
     paused.resume_b.send(()).unwrap();
-    catalog.recv_timeout(WAIT).unwrap();
-    let final_view = app.dispatch(AppCommand::Refresh).unwrap();
+    let final_publication = catalog.recv_timeout(WAIT).unwrap();
+    let final_view = refresh_until_admitted(&mut app, final_publication.generation);
     let notice = final_view.message.as_deref().unwrap();
     if outcome == ModelAvailability::Ready && !invalidate {
         assert!(notice.contains("Modèle vérifié"), "{notice}");
@@ -1056,6 +1100,61 @@ fn check_intermediate_publication(resume: bool, outcome: ModelAvailability, inva
     assert_eq!(final_view.active_generation, before.active_generation);
     assert!(effects.lock().unwrap().is_empty());
     requests.close();
+}
+
+#[test]
+fn final_catalog_publication_waits_until_application_admission_receives_it() {
+    let mut harness = Harness::new();
+    let request = harness.request();
+    harness
+        .events
+        .lock()
+        .unwrap()
+        .push_back(ImportEvent::Queue(vec![queue_entry(&request, false)]));
+    let before = harness.app.dispatch(AppCommand::Refresh).unwrap();
+    harness
+        .app
+        .dispatch(queued_command(&request, false))
+        .unwrap();
+    let need = harness.receiver.next(Duration::ZERO).unwrap().unwrap();
+    let expected_generation = 2;
+    assert!(
+        harness
+            .receiver
+            .publish(Some(need), expected_generation, [1, need.version])
+            .unwrap()
+    );
+    let final_snapshot = ready_snapshot(
+        &harness.root.0,
+        expected_generation,
+        ModelAvailability::Ready,
+    );
+    let (published_tx, published_rx) = mpsc::channel();
+    published_tx.send(final_snapshot.clone()).unwrap();
+    let published = published_rx.recv_timeout(WAIT).unwrap();
+    assert_eq!(published.generation, expected_generation);
+
+    let waiting = harness.app.dispatch(AppCommand::Refresh).unwrap();
+    assert!(
+        waiting
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("Vérification du modèle en cours")
+    );
+    assert_eq!(waiting.queue, before.queue);
+    assert_eq!(waiting.active_generation, before.active_generation);
+    assert!(harness.effects.lock().unwrap().is_empty());
+
+    harness.catalog.send(published).unwrap();
+    let admitted = refresh_until_admitted(&mut harness.app, expected_generation);
+    let notice = admitted.message.as_deref().unwrap();
+    assert!(notice.contains("Modèle vérifié"), "{notice}");
+    assert!(notice.contains("Traiter"), "{notice}");
+    assert_eq!(admitted.queue, before.queue);
+    assert_eq!(admitted.active_generation, before.active_generation);
+    assert!(harness.effects.lock().unwrap().is_empty());
+    harness.requester.close();
 }
 
 #[test]
