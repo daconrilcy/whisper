@@ -1,6 +1,6 @@
-Avancée : correction précise de la fixture Q03 et reprise autorisées le 9 novembre vers 14 h 38 Europe/Paris.
-Blocage : Q03 encore non validé ; échéance initiale inchangée à 14:55:42.
-Décision : rust_implementer corrige puis reprend dans le temps restant ; aucun changement produit, merge ou push.
+Avancée : délimiteurs et environnement de la fixture corrigés ; deuxième compilation Q03 effectuée.
+Blocage : erreur de type E0308 dans la fixture ; aucun test Q03 exécuté, campagne arrêtée.
+Décision : conserver les deux candidats et leurs journaux ; nouvelle reprise soumise à arbitrage, échéance inchangée 14:55:42.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -41,6 +41,16 @@ Le candidat non commité touche uniquement `crates/whisper-adapters/src/worker_i
 **Correction bornée proposée, non autorisée à ce stade :** dans le seul nouveau fichier de test, (1) remplacer les délimiteurs externes de la source GPU `r#" ... "#` aux lignes 190/197 par `r###" ... "###`, le texte embarqué contenant lui-même une chaîne `r#" ... "#` ; (2) retirer les cinq `std::env::set_var` aux lignes 176–180, qui exigeraient unsafe en édition 2024, et passer ces variables via `Command::env` au lancement de l'enfant existant. Les chemins sont déterministes depuis `root/isolated-localappdata/Whisper` ; le parent prépare ces valeurs, l'enfant peut continuer à créer les fichiers puis calculer sa clé. Aucun nouveau unsafe ni mutation globale d'environnement, aucune modification du produit ou de la garde. Les signatures des API utilisées ont été relues par l'implémenteur, sans compilation supplémentaire. Demander correction puis reprise dans le **temps restant jusqu'à 14:55:42**, mêmes conditions d'arrêt et aucune remise à zéro implicite du budget. Si le témoin devient valide, la poursuite T1–T6 déjà autorisée reste applicable.
 
 Preuves préservées dans le ZIP prévu : **46 membres**, **963 092 octets**, SHA-256 **972cd1d15579cb3346d8747a50df1ee8c25e193694ba2aef630207e6d51950d0**. Les 40 membres de préparation sont préservés ; six entrées ajoutées (quatre journaux metadata/Cargo et les deux fichiers du candidat sous `q03-first-attempt/candidate/`) ont été relues et comparées aux SHA-256 des sources. Aucune suppression et aucun commit du test non validé. Cet arrêt est celui d'un essai de fixture, pas une régression produit observée.
+
+### Deuxième appel Q03 — arrêt du 9 novembre à 14:39:32
+
+Après l'accord de 14 h 38, rust_implementer a corrigé les délimiteurs et remplacé les cinq set_var par Command::env dans le parent du test enfant. Appel sous garde engagé à **14:39:14**, terminé vers **14:39:32**, Cargo **101** : `E0308` à `parakeet_equivalence.rs:52`, un `&[u8]` est transmis à `u8::from_str_radix`, qui attend un `&str`. Run `20261109T143914462-4093ec39bbd540ca99f1bcc34c68ad59`. STOP sans correction/relance supplémentaire ; test **NON EXÉCUTÉ**. Les deux fichiers de test restent non commités ; aucun produit changé, aucun N2/S2/refactor lancé.
+
+Correction concrète à autoriser dans le seul nouveau fichier de test : utiliser directement le `[u8; 32]` retourné par `crate::archive::sha256_file` (`archive/source.rs:114`), au lieu de le redécoder comme de l'hexadécimal aux lignes 49–57. La relecture ciblée révèle aussi une incohérence des données de cette même fixture : ImportRequest utilise `JobId(73_221)` (hexadécimal `11e05`), tandis que le message GPU Failed contient `11d75`. Générer ce champ à partir du même JobId, sans changer l'assertion de corrélation ni le code produit, avant une nouvelle tentative ; autrement la branche StaleResponse empêcherait Q03 de tester le repli visé.
+
+Proposition : ces deux corrections de fixture puis **une dernière tentative de compilation/exécution**, dans le temps restant jusqu'à **14:55:42**, sans remise à zéro du délai, aucun nouveau fichier/outillage/feature. Une nouvelle erreur impose STOP ; un résultat positif ouvre les vérifications d'équivalence prévues dans le budget restant. La compilation n'est pas une preuve de test passé, et aucune assertion n'est affaiblie.
+
+Archive complétée : **52 membres**, **977 322 octets**, SHA-256 **37510f65fde2acc35b12cc4cba3dd6f345679590eb7c4e6b899a76230d61a366**. Les 46 anciennes entrées sont conservées byte-à-byte (SHA avant/après), les six nouvelles entrées comparées à leurs sources ; candidat n°2 sous `q03-second-attempt/candidate/`. Aucun nettoyage exécuté, aucun commit Rust.
 
 Source : demande de session du 9 novembre 2026 ; méthode `docs/cadrage/plan-refacto-poll-unified.md`, §7, et bilans `docs/architecture/REFACTO-POLL-UNIFIED-{BILAN,PHASE1-BILAN}.md`. Plan seulement : ces documents historiques ne donnent pas d'autorisation nouvelle. Confidence : **medium**, car le découpage est local et mesurable mais les nouveaux corpus restent à prouver sur les sources inchangées. La demande actuelle autorise la préparation, le worktree, les mesures et la revue ; l'accord sur ce plan autorisera le périmètre concret suivant.
 
