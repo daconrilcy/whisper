@@ -1,10 +1,16 @@
-Avancée : whisper-adapters 639/0/126 ; Q03 1/1 conforme ; 39 références cleanup et 14 polling gelées.
+Avancée : whisper-adapters 641/0/126 ; Q03 conforme ; 39 références cleanup et 17 polling gelées.
 Blocage : derniers scénarios P et N1 enrichi à terminer ; aucun échec actif.
 Décision : Q03 conforme, quatre alertes Clippy fermées ; reprise du dernier paquet P de T1.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**P15/P16 vérifiés et gelés, 9 novembre vers 20:31.** Full adapters `20261109T202810003-033f2b13ccf3466caf33692bbcbafa3e`, code 0 : **641/0/126** sur 33 harnais, lib **561/0/49**, **15 tests polling** exacts. Replay module `20261109T202935777-b19a68e6a5f0438a9f87b4c71374d4be`, code 0 : **15/15**. Parent confirme à 20:30:29 les **16/16 traces stables PID 61660/93116 byte-identiques**, sans doublon. Trois nouvelles références dans `poll_parakeet_equivalence/native-call-stopped-traces.json` : **6 354 octets**, SHA-256 **f5e43395eadfdc9b52c1c91fd2fea0353391fed5c349c6fd74c19a6817446bbd** ; comparaison inconditionnelle branchée, à rejouer après ce branchement. Scénarios : `P15-valid` (**1 847 octets**, SHA **7c6b1a969ce5d954e13823afc21795178e8627fda28e3520592cc882946d7c3a**), `P15-invalid-pid` (**1 934**, **1bb8665294392b6a9d4bf1b4e25882369617042793f07b619b18409a8d71b732**), `P16-stopped-ipc` (**1 813**, **d6d7e720757c92c2b1d247dff6fbaf615da9e6f067b51eb150196727913dcb40**).
+
+P15 conserve dans raw le même frame imprimé par le faux worker, lu depuis son marqueur, et les PID exacts. La trace stable conserve son enveloppe complète et remappe bijectivement **uniquement** les trois positions PID de l'objet de preuve `native_call_started_event` ; égalité et différence sont préservées, aucun identifiant métier, hash ou événement masqué. Les traces sont des fichiers voisins de la racine TestRoot, donc survivent à sa suppression. P16 utilise le maintien stdout déjà accepté, attend la sortie du parent puis observe `Stopped` → appel récursif → `End` et libérations attendues ; descendant relâché de façon bornée. Aucun test natif réel ni nouvelle primitive. Prochain sous-paquet T1 : P13/P14 Failed, anciennes références immuables.
+
+Huit journaux, nouvelle référence, 78 traces cleanup et 64 traces polling conservés sous `polling-native-stopped-frozen/` : ZIP **4 422 membres**, **8 074 478 octets**, SHA-256 **57e93ec2e00cc0817acfb2e7551d2808b3c908375fc5838b657e5d506680340a** ; 4 271 anciens membres inchangés et 151 ajouts vérifiés. Clippy courant des nouveaux P15/P16 reste à rejouer ; le dernier contrôle qualité vert était antérieur à cet ajout. Aucun produit ou S2 engagé.
 
 **Fermeture du 9 novembre à 20:16:58 Europe/Paris.** Après restauration du seul chemin, Q03 exact `20261109T201521484-43591a1c1db24d94bfa1ebfb4b2b20a4` passe **1/1**, 608 filtrés, trace gelée **6 469 octets / 4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**. Clippy qualité `20261109T201613853-800afd2b771341f7a369fd20ce69a9ab` passe, **340 warnings** ; extraction parent du JSON : **aucun diagnostic dans cleanup_equivalence.rs ou parakeet_equivalence.rs**, les quatre nouveaux constats ont disparu. Les avertissements préexistants ne sont pas effacés ni assimilés à une absence globale de warning. Le full adapters immédiatement précédent reste vert avec les 39+13 oracles ; la seule restauration suivante est sous cfg Q03, effectivement rejoué.
 
