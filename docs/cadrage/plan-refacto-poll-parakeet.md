@@ -1,10 +1,14 @@
 Avancée : whisper-adapters 639/0/126 ; Q03 1/1 conforme ; 39 références cleanup et 14 polling gelées.
-Blocage : Q03 diverge après extraction du helper à cause d'une composition de chemin modifiée.
-Décision : restauration des deux join historiques et reprise Q03/Clippy autorisées à 20:14:53.
+Blocage : derniers scénarios P et N1 enrichi à terminer ; aucun échec actif.
+Décision : Q03 conforme, quatre alertes Clippy fermées ; reprise du dernier paquet P de T1.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Fermeture du 9 novembre à 20:16:58 Europe/Paris.** Après restauration du seul chemin, Q03 exact `20261109T201521484-43591a1c1db24d94bfa1ebfb4b2b20a4` passe **1/1**, 608 filtrés, trace gelée **6 469 octets / 4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**. Clippy qualité `20261109T201613853-800afd2b771341f7a369fd20ce69a9ab` passe, **340 warnings** ; extraction parent du JSON : **aucun diagnostic dans cleanup_equivalence.rs ou parakeet_equivalence.rs**, les quatre nouveaux constats ont disparu. Les avertissements préexistants ne sont pas effacés ni assimilés à une absence globale de warning. Le full adapters immédiatement précédent reste vert avec les 39+13 oracles ; la seule restauration suivante est sous cfg Q03, effectivement rejoué.
+
+Journaux des deux appels et deux traces Q03 conservés sous `fixture-quality-closed/` : ZIP **4 271 membres**, **7 662 931 octets**, SHA-256 **c4c9be605ac44cb08d0d22069732e2e408d9880e1a30c80f424f9fe7c06be424** ; 4 261 anciens membres inchangés et dix ajouts vérifiés. Dernier paquet P confié à l'auteur polling, cleanup figé ; nouvelles traces distinctes à produire deux fois avant gel. Aucun produit, S2 ou extraction de nettoyage engagé.
 
 **Accord du 9 novembre à 20:14:53 Europe/Paris.** L'utilisateur autorise la restauration de la seule composition historique `root.join("isolated-localappdata").join("Whisper")` dans `prepare_q03_workers`, puis Q03 exact, Clippy qualité et reprise T1–T6 si verts. Aucun oracle ni normalisation changé ; les autres compositions de chemin restent celles de la source gelée. `rust_implementer` effectue cette seule correction, sources cleanup figées. Budget initial, arrêt au premier échec et point d'arrêt après nettoyage inchangés ; aucun changement produit, merge ni push.
 
