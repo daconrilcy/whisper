@@ -1,10 +1,12 @@
 Avancée : Ready synthétique gelé et N1 enrichi 944/0/129, avec exactement 66 nouveaux tests réussis.
-Blocage : aucun échec actif. Les derniers cas Auto et la qualité finale T1 restent à vérifier.
-Décision : geler les deux traces Ready et terminer T1 avant S2.
+Blocage : l'éditeur de liens refuse un fichier objet du faux worker CPU dans la nouvelle fixture Auto.
+Décision : arrêt. Proposition de raccourcir uniquement la racine temporaire du nouveau test.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt Auto vers 22:21.** Test exact `poll_parakeet_personal_gpu_ready_auto_fallback_and_oversized_transcribe` sous feature personnelle, run `20261109T222047085-1dc308c1160a4368a9313ad43c477582`, Cargo 101. Le harnais exécute une identité et échoue dans la préparation du faux CPU. Rustc lance `link.exe` qui retourne LNK1181 sur son objet `whisper-worker-parakeet-cpu.…rcgu.o`. Aucun scénario Auto exécuté. Chemin absolu reconstitué depuis les arguments et le cwd : **266 caractères**. Même forme avec la racine Q03 déjà validée : 259. Remplacer uniquement le nom `parakeet-personal-gpu-ready-child` par `pk-auto` donnerait 240, sans changement de répertoire autorisé, du linker, des assertions ni de la référence Q03. Hypothèse longueur à vérifier par un seul essai exact après accord. WHEA dernier RecordId 527992 inchangé. Candidat et quatre journaux conservés sous `gpu-ready-auto-link-stop/` : ZIP **5 793 entrées**, **11 733 379 octets**, SHA-256 `0afdc78af0767f738b644d1e501c137ca19cb507b45b3e13021e311da1f07d27`. Les 5 788 entrées précédentes sont intactes.
 
 **Gel Ready et N1 enrichi vers 22:12.** Deux références `gpu-ready-traces.json`, 7 376 octets, SHA-256 `8a30822eb3ccb6736698fbad45506c5bdcaef911c7268ae1e718d6cdccb8b85d`, valeurs gelées depuis PID 88760 après comparaison 32660, assertions inconditionnelles. N1 `20261109T221021921-4e733e200e784aa29e8cf46848f18fdc`, code 0, `CARGO_TARGET_DIR_child=False`, **944/0/129**. Comparaison des identités : 1 007 initiales conservées avec leurs statuts, 66 nouvelles toutes réussies (44 cleanup, 22 polling), 1 073 au total. Le passage rejoue les comparaisons Ready ordinaires, C02 et P11. Aucun produit changé. Archives sous `n1-enriched-ready-frozen/` (journaux, traces PID 32264, nouvelle référence), 155 ajouts vérifiés, **5 788 entrées**, **11 705 087 octets**, SHA-256 `03c5d90f19260954578c74fd0d691ec4a6c38217565c994027fabac9e1c8a6ac`. Il reste les deux cas Auto sous feature personnelle et le contrôle de qualité avant commit T1.
 
