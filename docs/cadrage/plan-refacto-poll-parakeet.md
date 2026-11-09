@@ -1,10 +1,12 @@
 Avancée : Q03 gelé après deux replays identiques ; 31 références cleanup et sept polling gelées.
 Blocage : huit nouveaux tests cleanup ne compilent pas, helper de trace manquant.
-Décision : STOP ; ajout du helper manquant à soumettre avant toute relance.
+Décision : ajout du helper et deux replays autorisés le 9 novembre à 18:37:08.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Accord après E0425, 9 novembre à 18:37:08 Europe/Paris.** L'utilisateur choisit « Autoriser l'ajout du helper et la reprise (recommandé) » : `rust_implementer` ajoute uniquement le helper omis dans `cleanup_equivalence.rs`, en réutilisant l'écriture brute et les normalisations déjà acceptées, puis deux replays. Gel séparé des huit nouvelles références seulement si byte-identiques, puis comparaison inconditionnelle et reprise T1–T6. Assertions et références existantes inchangées ; aucun changement produit ni extension du budget. Polling reste figé pendant les appels sérialisés ; STOP au premier nouvel échec ou écart.
 
 **Arrêt cleanup du 9 novembre à 18:34.** Les huit nouveaux tests C04/C05/C09 appellent `write_unfrozen_final_cleanup_trace`, dont la définition a été omise. Appel complet `20261109T183446764-333e7106a5b94fd6a97bef9a9f712e24` : garde en échec, Cargo **101**, huit E0425, aucun test exécuté ; aucun second replay ni correction automatique. Les deux warnings affichés sont ceux déjà connus hors fichiers touchés. Le gel Q03 est branché dans son test avec comparaison inconditionnelle sous `personal-qualification` ; son fichier distinct `q03-qualified-cpu-fallback.json` conserve les 6 469 octets vérifiés. Tous les anciens fichiers de référence ont été revérifiés inchangés par le parent.
 
