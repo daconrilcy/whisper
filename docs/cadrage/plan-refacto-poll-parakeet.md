@@ -1,6 +1,6 @@
-Avancée : C08/C10 corrigés et validés ; huit des neuf variantes C passent.
-Blocage : la fixture C09 emprunte C07 et reçoit Ok ; campagne arrêtée.
-Décision : mutation de la seule preuve SHA du conteneur autorisée, puis reprise si PASS.
+Avancée : C09 corrigé et validé ; dernier ensemble cleanup 18/19, appel privé sous verrou inclus.
+Blocage : le helper de trace tente de parser le manifeste volontairement invalide.
+Décision : conservation brute de ce JSON invalide autorisée, puis reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,12 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 nettoyage — premier appel et reprise autorisée, 9 novembre vers 15:20
+
+**Checkpoint du 9 novembre à 16:13.** Correction C09 validée au run `20261109T160554611-b448314888b44f42a743a8eb6d6bef7e`, **9/9**, code 0. Le nouvel appel direct `cleanup_characterization_private_executor_is_called_with_publication_lock_held` passe également au run `20261109T160846545-e03e27d4000741579a61c611252cd613`, **1/1** : verrou acquis explicitement, erreur partielle, états mémoire/persisté et sentinelles vérifiés ; PL reste la preuve d'exclusion concurrente. Ajout aussi de la caractérisation C07 du chemin de conteneur absent, sans changer le comportement observé.
+
+Le run complet cleanup `20261109T161031576-7e8e3b5ce7694912955f73d385716450` donne ensuite **18 réussites / 1 échec**, code **101** : `cleanup_characterization_rejects_malformed_successor_manifest_before_removal` échoue dans `cleanup_tree_snapshot`, avant de démontrer le rejet produit, car son manifeste intentionnellement invalide (`{truncated`) est passé à `serde_json::from_slice(...).unwrap()`. STOP sans correction/relance automatique. L'utilisateur autorise précisément le helper de trace de `cleanup_equivalence.rs` à **conserver les octets bruts, la taille et l'empreinte d'un JSON volontairement invalide sans le normaliser**, puis relancer les 19 tests et poursuivre T1–T6 si vert ; JSON valides et assertions de rejet inchangés, aucun produit ni extension de budget.
+
+État avant correction conservé : ZIP **343 membres**, **1 408 364 octets**, SHA-256 **45f8dd3596d1295af0d44b670a89bbc5285f29eeaac42ba8b93aab530e1db160** ; 329 anciennes entrées inchangées, 14 ajouts vérifiés sous `cleanup-checkpoint-1610/`. Corpus polling, gel Git, N1 enrichi, S2 et extractions restent à réaliser. Aucun commit Rust, merge, push ou nettoyage.
 
 **Checkpoint du 9 novembre à 16:05.** C08/C10 corrigés et six variantes C validées au run `20261109T160042094-d9966eb918e149099fbd2310b95b4551`, **6/6**, code 0. Trois variantes supplémentaires ont ensuite donné **8 réussites / 1 échec**, code **101**, run `20261109T160255430-195bf5c4382845da85c388dbe2bf0f81`. Dans `cleanup_characterization_rejects_invalid_container_proof_before_removal`, remplacer le chemin du conteneur par `transcriptions/not-the-container` provoquait d'abord l'adoption du chemin absent par C07 (`container.removed=true`, plan persisté), puis le saut du préflight C09 réservé aux conteneurs non retirés. L'appel retournait donc `Ok`, contrairement à l'attente de cette fixture. Ce comportement existant est conservé ; aucune conclusion de défaut produit ni correction n'en est déduite.
 
