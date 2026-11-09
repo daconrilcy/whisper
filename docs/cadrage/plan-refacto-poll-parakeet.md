@@ -1,6 +1,6 @@
 Avancée : whisper-adapters 618/0/126 ; 25 références cleanup validées ; six tests polling rejoués avec succès.
 Blocage : cinq traces polling sur six divergent sur leurs seuls compteurs de sondages sans mutation.
-Décision : STOP avant adaptation de la représentation ; aucune référence polling gelée.
+Décision : adaptation de représentation autorisée jusqu'à 18:12:35 ; deux replays requis avant reprise.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord de représentation, 9 novembre à 17:57:35.** L'utilisateur choisit « Autoriser cette adaptation bornée (recommandé) » : **15 minutes dans le budget initial**, borne **18:12:35 Europe/Paris**, pour conserver les compteurs exacts de sondages sans mutation dans les preuves brutes et utiliser dans l'oracle un jalon fixe d'entrée en attente, sans prétendre qu'un retour None a été observé. Tous événements, erreurs, commandes, observations explicites None et transitions d'état restent ordonnés et conservés. Cette adaptation précise de représentation est autorisée ; aucun autre masquage de champ ni changement produit. Deux replays des six tests et comparaison exhaustive, reprise T1–T6 si identiques ; STOP au premier échec ou divergence. À la borne, fermer l'admission, laisser finir seulement l'appel engagé et consigner un dépassement éventuel. Les références cleanup sont inchangées, aucune référence polling n'était gelée.
 
 **Contrôle réussi puis arrêt d'équivalence, 9 novembre vers 17:52.** Run complet `20261109T174852231-629baf3a694342228326730435f7f3ed`, code **0**, **618/0/126** sur 33 harnais ; bibliothèque **538/0/49**, 28 cleanup et six polling réussis. Les 25 références cleanup sont comparées inconditionnellement. Aucun avertissement du compilateur dans les fichiers touchés ; Clippy final reste à faire. Second replay polling `20261109T175157303-74c0297beec54aeca17a0728d42e0ee5`, code **0**, **6/6**. Comparaison exhaustive parent des traces PID 89044/21044 : **seule P04 est byte-identique** ; P03/P06/Q01/Q06/Q07 divergent. En substituant uniquement les nombres `polls_without_state_change` dans des copies mémoire de diagnostic, les six chaînes deviennent strictement identiques, sans modifier de fichier. Compteurs : P03 237/251/142 contre 411/439/369 ; P06 638 contre 979 ; Q01 361/40/70 contre 347/35/114 ; Q06 1420/29 contre 1166/22 ; Q07 397 contre 358. L'indication initiale de l'auteur « quatre identiques » était inexacte et a été corrigée par cette comparaison exhaustive.
 
