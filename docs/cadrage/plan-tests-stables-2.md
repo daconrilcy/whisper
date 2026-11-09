@@ -1,10 +1,12 @@
 Avancée : étape A réalisée ; trois tests identifiés, plan relu CLEAN avant toute exécution Cargo.
-Blocage : préflight arrêté avant B ; arrêt borné de Cargo et descendants non garanti par la garde N1.
+Blocage : aucun arbitrage manquant ; plafond B assoupli précisément par l'utilisateur ci-dessous.
 Décision : plan approuvé dans la session le 9 novembre 2026 ; B–D et validations déléguées à rust_implementer.
 
 # TESTS-STABLES-2 — plan approuvé
 
 Autorisation de session : « J’approuve le plan. Lance B avec rust_implementer, puis les corrections limitées aux tests et les validations prévues. Respecte les budgets et les arrêts prévus, avec revue finale indépendante. Commits locaux, sans merge ni push. » Reprise à 12 h 00 Europe/Paris, espace libre 472 081 215 488 octets. L'accord ne lève aucune condition d'arrêt ni n'étend le budget initial.
+
+**Décision de reprise du 9 novembre 2026, vers 12 h 04 Europe/Paris, prévalant uniquement sur les clauses B incompatibles ci-dessous :** « J’autorise cet assouplissement du seul plafond B : aucun nouvel appel après 45 minutes, mais laisse finir celui en cours et consigne le dépassement. Reprends avec rust_implementer, sans nouvel outillage. Les autres contraintes restent inchangées. » L'absence de terminaison forcée garantie à 45 minutes n'est donc plus bloquante pour B. Conserver le compteur cumulé des appels de répétition et l'admission avec marge ; à 45 minutes, ne plus lancer d'appel, attendre la fin de celui déjà engagé et consigner sa durée ainsi que le dépassement. Ne pas interrompre cet appel pour la seule borne B. Aucun outil/mécanisme nouveau ; budget global, arrêts sur échec/WHEA et autres contraintes inchangés. B consommé à cette reprise : 0 minute. Libre : 472 089 272 320 octets.
 
 ## Mandat et limites
 
