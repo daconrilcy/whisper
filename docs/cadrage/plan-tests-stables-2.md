@@ -1,5 +1,5 @@
 Avancée : étape A réalisée ; trois tests identifiés, plan relu CLEAN avant toute exécution Cargo.
-Blocage : aucun accord manquant ; prérequis d'exécution à vérifier avant B.
+Blocage : préflight arrêté avant B ; arrêt borné de Cargo et descendants non garanti par la garde N1.
 Décision : plan approuvé dans la session le 9 novembre 2026 ; B–D et validations déléguées à rust_implementer.
 
 # TESTS-STABLES-2 — plan approuvé
@@ -121,3 +121,13 @@ Premier routage via `rust_review_coordinator` : `rust_reviewer` refuse la revue 
 Seconde lecture, même reviewer, sur `06f724f326abdcd067eb4d359e15ad938a75c1cf` : **CLEAN**, TS2-P01/P02/P03/P04 fermés, TS2-A01 intégré, aucun constat ouvert. Deux cycles de fond consommés ; pas de troisième revue du plan. La capacité d'interrompre Cargo et ses enfants dans le budget reste un prérequis à établir avant B : Ctrl+C seul ne la prouve pas, le STOP conditionnel du protocole s'applique. Ce verdict documentaire n'est ni l'accord utilisateur ni une validation d'exécution.
 
 État de remise du plan : seul ce document modifié et commité, `git diff --check` réussi, aucun target créé. Racine effectivement créée : `C:/wt/tests-stables-2`, environ 277 Mo de fichiers du checkout (mesure 276 930 877 octets avant les dernières précisions). Libre observé pendant la préparation : 472 111 251 456 octets. Aucune suppression proposée à ce stade, le worktree est nécessaire au lot ; tailles et libre seront remesurés à la clôture. Bilan final et archive de campagne NON PRODUITS tant que le lot n'est pas exécuté ou arrêté.
+
+## Arrêt du préflight après accord — 9 novembre 2026
+
+Avancée : `rust_implementer`, mode IMPLEMENT, a vérifié le préflight en lecture seule sur `a2a9a193`.
+Blocage : `ci/guard-level1.ps1:373–412` lance Cargo sans fenêtre, attend `WaitForExit()` sans timeout puis appelle `Dispose()` ; aucune terminaison des enfants n'est garantie.
+Décision : arbitrage requis avant les répétitions, conformément au STOP conditionnel du plan approuvé.
+
+Recherche bornée dans `ci/`, `scripts/`, `crates/` : pas d'autre voie d'annulation N1 réutilisable. `Stop-CargoProcessTree` dans `ci/guard-native.ps1:1712–1716` utilise `taskkill /T /F`, mais appartient à la garde native ; aucune invocation, copie ni adaptation effectuée. Aucun Cargo/SelfTest/répétition lancé, aucun code modifié : **B = 0/50 par test, NON EXÉCUTÉ, 0 minute de répétitions** ; C–D et validation finale NON EXÉCUTÉS. Libre : 472 077 066 240 octets. Aucun dossier de campagne créé par l'implémenteur ; aucun candidat Rust à soumettre à une revue finale. Ce point est un arrêt pour arbitrage, pas une clôture du lot ni une preuve de non-reproduction.
+
+Option minimale proposée, non appliquée : garder l'admission avec marge et arrêter les nouveaux appels à la borne, mais laisser terminer l'appel déjà engagé sans garantie de terminaison à 45 minutes ; consigner tout dépassement. Cette option change le plafond strict B et exige donc une décision utilisateur explicite. Aucun mécanisme nouveau n'est conçu ou autorisé par ce compte rendu ; le budget global reste inchangé tant qu'une décision ne le modifie pas.
