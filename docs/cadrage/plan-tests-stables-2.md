@@ -1,4 +1,4 @@
-Avancée : étape A réalisée ; trois tests identifiés, plan préparé avant toute exécution Cargo.
+Avancée : étape A réalisée ; trois tests identifiés, plan relu CLEAN avant toute exécution Cargo.
 Blocage : étapes B–D et validation en attente de l'accord utilisateur après revue indépendante.
 Décision : approuver le périmètre et les commandes ci-dessous, ou limiter le lot à la reproduction.
 
@@ -115,3 +115,7 @@ Rétention : avant clôture, recenser les racines effectivement créées et leur
 ## Revue indépendante
 
 Premier routage via `rust_review_coordinator` : `rust_reviewer` refuse la revue d'un plan (profil réservé à un candidat implémenté), sans constat de fond. Le coordinateur a ensuite mandaté `rust_design_reviewer` pour la revue documentaire explicite de l'utilisateur. Cycle de fond 1 sur `a650b3a7` : quatre constats IMPORTANT TS2-P01–P04 (contrat/couverture S1, budgets applicables, exception native, identités/PE), et conseil TS2-A01 (Available/diagnostic probe). Corrections documentaires ci-dessus ; fermeture réservée à la seconde lecture indépendante. Aucun Cargo, aucune modification Rust, aucune répétition B.
+
+Seconde lecture, même reviewer, sur `06f724f326abdcd067eb4d359e15ad938a75c1cf` : **CLEAN**, TS2-P01/P02/P03/P04 fermés, TS2-A01 intégré, aucun constat ouvert. Deux cycles de fond consommés ; pas de troisième revue du plan. La capacité d'interrompre Cargo et ses enfants dans le budget reste un prérequis à établir avant B : Ctrl+C seul ne la prouve pas, le STOP conditionnel du protocole s'applique. Ce verdict documentaire n'est ni l'accord utilisateur ni une validation d'exécution.
+
+État de remise du plan : seul ce document modifié et commité, `git diff --check` réussi, aucun target créé. Racine effectivement créée : `C:/wt/tests-stables-2`, environ 277 Mo de fichiers du checkout (mesure 276 930 877 octets avant les dernières précisions). Libre observé pendant la préparation : 472 111 251 456 octets. Aucune suppression proposée à ce stade, le worktree est nécessaire au lot ; tailles et libre seront remesurés à la clôture. Bilan final et archive de campagne NON PRODUITS tant que le lot n'est pas exécuté ou arrêté.
