@@ -1,6 +1,6 @@
-Avancée : cleanup 28/28 et polling 6/6 dans le contrôle commun ; références supplémentaires non gelées.
-Blocage : douze tests Unified existants échouent, paramètre du modèle omis dans l'appel complet.
-Décision : relance avec le chemin du modèle autorisée, sources figées ; reprise T1–T6 si PASS.
+Avancée : whisper-adapters 618/0/126 ; cleanup 28/28, polling 6/6 ; 25 références cleanup gelées.
+Blocage : T1 encore incomplet ; références polling et variantes cleanup restantes à établir.
+Décision : reprise T1–T6, contrôles coordonnés ; aucun produit modifié, arrêt après nettoyage.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Contrôle commun réussi et gel additif, 9 novembre après 17:38.** Run `20261109T173747708-d1b04dd02f984342b6087beae18088fb`, code **0**, avec paramètre modèle autorisé. Bibliothèque **538/0/49**, dont **28 cleanup** et **six polling** réussis ; agrégat des 33 harnais unitaires/intégration/doc **618 réussites / 0 échec / 126 ignorés**, aucun filtré. N1 complet et Clippy ne sont pas déduits de ce contrôle. Comparaison directe des octets des traces des PID 71180 et 45440 : **25/25 identiques**, incluant les 18 références initiales et sept variantes nouvelles. Les deux fichiers produit restent identiques à `4c04818c`.
+
+Les sept variantes nouvelles sont gelées, sans régénération permise, dans `crates/whisper-adapters/tests/fixtures/cleanup_equivalence/preflight-traces.json` : **306 724 octets**, SHA-256 **3ff07f951242247b42d186c75265061029490d781a4afb84e18a1b7916da2374**. Identités : C03 identité d'un autre fichier réel / SHA transcript périmé ; C04 identité manifeste / identité pending / séquence segments ; C05 version index / successeur inactif. L'auteur a ajouté leur comparaison inconditionnelle, encore à rejouer après ce branchement ; les 18 anciennes restent inchangées. Traces brutes/normalisées et tous les fichiers des 25 racines du second replay, journaux et références conservés sous `cleanup-preflight-frozen/` : ZIP **2 201 membres**, **3 369 406 octets**, SHA-256 **2eaf1b36ca16cab638a6867fee69f5cda74fdada8d51a3c69faf32e22f768e81**, 1 762 anciens membres inchangés et 439 ajouts vérifiés. Polling : normalisation des chemins JSON échappés complétée et helper inutilisé retiré, à valider avant ses replays ; raw conservé, aucune empreinte ni événement supprimé par cette correction.
 
 **Accord de relance avec modèle, 9 novembre vers 17:38.** L'utilisateur choisit « Autoriser la relance et la reprise (recommandé) » : relancer `whisper-adapters` avec le paramètre manquant `-PersonalParakeetModelPath` et le modèle déjà autorisé `C:/Users/cyril/AppData/Local/Whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf`, puis reprendre T1–T6 si vert. Sources des deux auteurs figées pour cet appel, aucune correction produit ; budget initial inchangé. La commande complète et les prochains contrôles couvrant les tests Unified conservent ce prérequis existant.
 
