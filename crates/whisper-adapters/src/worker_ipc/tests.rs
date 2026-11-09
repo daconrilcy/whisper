@@ -19,3 +19,4 @@ include!("tests/unified_poll/auto_fallback.rs");
 include!("tests/unified_poll/equivalence.rs");
 include!("tests/unified_poll/preview_fallback.rs");
 include!("tests/unified_poll/portable_reference.rs");
+include!("tests/unified_poll/temp_root.rs");

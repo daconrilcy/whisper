@@ -121,8 +121,11 @@ fn unified_poll_auto_preview_falls_back_before_ready_with_manual_peer() {
         run_unified_poll_preview_fallback_child(true, false);
         return;
     }
-    let local = test_artifact_root("unified-poll-preview-fallback").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-preview-fallback"))
+        .expect("create isolated preview fallback root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -132,8 +135,14 @@ fn unified_poll_auto_preview_falls_back_before_ready_with_manual_peer() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start preview fallback child: {error}"),
+    };
     assert!(
         output.status.success(),
         "preview fallback child failed: {}\n{}",
@@ -152,8 +161,11 @@ fn unified_poll_auto_preview_cpu_ready_failure_does_not_retry() {
         run_unified_poll_preview_fallback_child(true, true);
         return;
     }
-    let local = test_artifact_root("unified-poll-preview-cpu-failure").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-preview-cpu-failure"))
+        .expect("create isolated preview CPU failure root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -163,8 +175,14 @@ fn unified_poll_auto_preview_cpu_ready_failure_does_not_retry() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start preview CPU failure child: {error}"),
+    };
     assert!(
         output.status.success(),
         "CPU failure child failed: {}\n{}",
@@ -182,8 +200,11 @@ fn unified_poll_auto_final_cpu_ready_failure_does_not_retry() {
         run_unified_poll_preview_fallback_child(false, true);
         return;
     }
-    let local = test_artifact_root("unified-poll-final-cpu-failure").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-final-cpu-failure"))
+        .expect("create isolated final CPU failure root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -193,8 +214,14 @@ fn unified_poll_auto_final_cpu_ready_failure_does_not_retry() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start final CPU failure child: {error}"),
+    };
     assert!(
         output.status.success(),
         "CPU failure child failed: {}\n{}",

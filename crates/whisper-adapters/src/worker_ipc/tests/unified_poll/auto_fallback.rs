@@ -184,16 +184,24 @@ fn unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model() {
         run_unified_poll_auto_fallback_child();
         return;
     }
-    let root = test_artifact_root("unified-poll-auto-fallback");
-    let local = root.join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-auto-fallback"))
+        .expect("create isolated fallback root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let result = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "worker_ipc::tests::unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model", "--nocapture"])
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .expect("start isolated fallback scenario");
+        .output();
+    let result = match result {
+        Ok(result) => {
+            root.child_finished();
+            result
+        }
+        Err(error) => panic!("start isolated fallback scenario: {error}"),
+    };
     assert!(
         result.status.success(),
         "isolated fallback scenario failed: {}\n{}",

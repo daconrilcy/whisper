@@ -872,8 +872,11 @@ fn unified_poll_real_ipc_eof_records_effects() {
         run_unified_poll_real_ipc_eof_child(false);
         return;
     }
-    let local = test_artifact_root("unified-poll-real-eof").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-real-eof"))
+        .expect("create isolated EOF root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -883,8 +886,14 @@ fn unified_poll_real_ipc_eof_records_effects() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start EOF child: {error}"),
+    };
     assert!(
         output.status.success(),
         "EOF child failed: {}\n{}",
@@ -1824,8 +1833,11 @@ fn unified_poll_real_eof_restarts_and_completes_peer() {
         run_unified_poll_real_eof_peer_child();
         return;
     }
-    let local = test_artifact_root("unified-poll-real-eof-peer").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-real-eof-peer"))
+        .expect("create isolated EOF peer root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -1835,8 +1847,14 @@ fn unified_poll_real_eof_restarts_and_completes_peer() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start EOF recovery child: {error}"),
+    };
     assert!(
         output.status.success(),
         "recovery child failed: {}\n{}",
@@ -2395,8 +2413,11 @@ fn unified_poll_native_candidate_starts_validated_cpu_route() {
         run_unified_poll_real_ipc_eof_child(true);
         return;
     }
-    let local = test_artifact_root("unified-poll-native-candidate").join("localappdata");
+    let mut root = TemporaryTestRoot::create(test_artifact_root("unified-poll-native-candidate"))
+        .expect("create isolated native candidate root");
+    let local = root.path().join("localappdata");
     std::fs::create_dir_all(&local).unwrap();
+    root.child_starting();
     let output = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
@@ -2406,8 +2427,14 @@ fn unified_poll_native_candidate_starts_validated_cpu_route() {
         .env(CHILD, "1")
         .env("LOCALAPPDATA", &local)
         .creation_flags(0x0800_0000)
-        .output()
-        .unwrap();
+        .output();
+    let output = match output {
+        Ok(output) => {
+            root.child_finished();
+            output
+        }
+        Err(error) => panic!("start native candidate child: {error}"),
+    };
     assert!(
         output.status.success(),
         "native-candidate fixture failed: {}\n{}",
