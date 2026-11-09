@@ -1,8 +1,16 @@
-Avancée : plan relu CLEAN sur 65ee3264 ; mesure initiale 30/32 et N1 878/0/129 confirmés, aucune modification Rust.
-Blocage : accord utilisateur requis avant les tests nouveaux, S2 et toute extraction ; règle de fin des appels à arbitrer.
-Décision : soumettre les dix tâches ci-dessous, avec arrêt obligatoire après le nettoyage ; aucun merge/push.
+Avancée : plan relu CLEAN ; T1–T6 et S2 approuvés le 9 novembre 2026 vers 14 h 10 Europe/Paris.
+Blocage : aucun pour démarrer la tranche approuvée ; prérequis et conditions d'arrêt du plan restent applicables.
+Décision : exécuter avec rust_implementer, arrêter après le nettoyage ; aucun merge/push.
 
-# REFACTO-POLL-PARAKEET — plan soumis à accord
+# REFACTO-POLL-PARAKEET — plan, première tranche approuvée
+
+## Autorisation précise de la session — 9 novembre 2026
+
+L'utilisateur décide : « J’approuve T1–T6, S2 inclus, avec arrêt après le nettoyage. Pour S2 et la journée, ferme l’admission à l’échéance et laisse finir uniquement l’appel engagé, en consignant le dépassement. Lance avec rust_implementer, sans merge ni push. »
+
+Cet accord lève les attentes d'approbation et l'arbitrage temporel décrits dans la version relue ci-dessous, uniquement pour **T1–T6**. À l'échéance S2 de 30 minutes depuis sa première préparation, ou à l'échéance globale du 10 novembre 13 h 40 Europe/Paris, aucun nouvel appel n'est lancé ; seul l'appel déjà engagé termine et son dépassement réel est consigné. Aucun outil d'arrêt, timeout nouveau ni autre campagne ajouté. Les arrêts sur échec, WHEA, divergence, comportement modifié ou périmètre insuffisant restent applicables. Les commits locaux de la tranche et ses documents/preuves sont autorisés ; T7–T10 ne sont pas autorisés par cette décision, et le point T6 interdit de commencer la refactorisation de poll_parakeet_worker. Libre à la reprise : **465 868 173 312 octets** ; worktree propre, HEAD de remise **7821dcbe**.
+
+Responsabilité d'implémentation : rust_implementer, mode IMPLEMENT, tests/caractérisation T1, annexe T2 et extractions T3–T5 ; contribution T6 et vérifications de la tranche. La session principale demeure seule auteur des documents et de leur versionnement. Revue indépendante du candidat de la tranche via rust_review_coordinator conformément aux règles du dépôt ; aucune extension vers les tâches non approuvées.
 
 ## 1. Mandat, fraîcheur et responsabilité
 
