@@ -1,6 +1,6 @@
 Avancée : dernier whisper-adapters vert 618/0/126 ; 25 références cleanup gelées et inchangées.
 Blocage : E0277 dans le normaliseur de traces polling, double référence passée à replace.
-Décision : STOP avant correction d'une ligne ; aucun produit modifié, merge ou push.
+Décision : correction d'une ligne autorisée, contrôle complet avec modèle puis reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord après E0277, 9 novembre vers 17:48.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » : remplacer uniquement `&root_text` par `root_text.as_str()` dans le normaliseur polling, puis relancer `whisper-adapters` avec le paramètre modèle correct et reprendre T1–T6 si vert. Assertions et références gelées inchangées ; aucune modification produit ni extension du budget. Cleanup reste figé pendant cet appel.
 
 **Arrêt commun du 9 novembre à 17:45:56.** Après branchement des sept références additionnelles et normalisation des chemins échappés, run `20261109T174556690-9adbcdf1c53c44ed8bb05975e250cc2c`, code **101**, aucun test exécuté : E0277 dans `parakeet_equivalence.rs:477`, `root_text` est déjà `&String` et `replace(&root_text, ...)` reçoit `&&String`, qui n'implémente pas Pattern. Correction minimale proposée : `text.replace(root_text.as_str(), "<ROOT>")`, sans changement de représentation ou d'assertion. Seuls deux avertissements préexistants sont rapportés ; le helper inutilisé a été retiré, aucune absence globale de warning n'est déduite d'une compilation échouée. Les deux auteurs restent figés après ce nouvel échec.
 
