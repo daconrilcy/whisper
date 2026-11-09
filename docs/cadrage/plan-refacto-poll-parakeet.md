@@ -1,10 +1,12 @@
 Avancée : whisper-adapters 639/0/126 ; 13 traces polling ordinaires byte-identiques sur deux replays.
 Blocage : Q03 non exécuté : attribut #[test] omis lors du déplacement des sources du faux worker.
-Décision : STOP ; restauration du seul attribut puis appel exact Q03 à soumettre.
+Décision : restauration du seul attribut et appel exact Q03 autorisés à 19:56:57.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Accord du 9 novembre à 19:56:57 Europe/Paris.** L'utilisateur répond « Accord » à la restauration du seul `#[test]` sur la fonction Q03, suivie d'un appel exact sous garde exigeant **1/1** et la trace conforme à sa référence gelée. Si vert, gel séparé des sept nouvelles traces ordinaires déjà byte-identiques puis reprise T1–T6. `rust_implementer` conserve cfg, assertions, sources workers et références anciennes ; aucun autre correctif implicite. Budget initial, STOP au premier échec et arrêt après nettoyage inchangés ; aucun changement produit, merge ni push.
 
 **Résultat ordinaire et arrêt de filtre Q03 du 9 novembre vers 19:48.** Run complet `20261109T194451155-ceafabecab2c4defafb878b7c5d0086a`, code 0 : **639/0/126** sur 33 harnais, lib **559/0/49**, **13 identités exactes du module polling** et 42 cleanup réussies. Replay `20261109T194559040-cfbf41dbcbdd4b7dbaf25008d5765f6c`, code 0 : **13/13**. Parent confirme à 19:47:01 les **13/13 stables PID 27508/28000 strictement byte-identiques**. Sept nouvelles traces encore non gelées : `P03-no-active`, `P06-no-request`, `P08-ready-identity`, `P08-vad-process-profile`, `P10-vad-result`, `P11-result-guards`, `P12-invalid-words`. P10 prouve le dispatcher par état privé injecté ; aucune qualification Ready VAD naturelle revendiquée.
 
