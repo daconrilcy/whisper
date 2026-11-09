@@ -1,10 +1,14 @@
-Avancée : whisper-adapters 624/0/126 ; 31 références cleanup et six références polling gelées.
-Blocage : aucun échec actif ; couverture T1 encore à compléter avant extraction.
-Décision : Q03 stable confirmé à 18:30:44 ; gel puis reprise T1–T6, arrêt après nettoyage.
+Avancée : Q03 gelé après deux replays identiques ; 31 références cleanup et sept polling gelées.
+Blocage : huit nouveaux tests cleanup ne compilent pas, helper de trace manquant.
+Décision : STOP ; ajout du helper manquant à soumettre avant toute relance.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt cleanup du 9 novembre à 18:34.** Les huit nouveaux tests C04/C05/C09 appellent `write_unfrozen_final_cleanup_trace`, dont la définition a été omise. Appel complet `20261109T183446764-333e7106a5b94fd6a97bef9a9f712e24` : garde en échec, Cargo **101**, huit E0425, aucun test exécuté ; aucun second replay ni correction automatique. Les deux warnings affichés sont ceux déjà connus hors fichiers touchés. Le gel Q03 est branché dans son test avec comparaison inconditionnelle sous `personal-qualification` ; son fichier distinct `q03-qualified-cpu-fallback.json` conserve les 6 469 octets vérifiés. Tous les anciens fichiers de référence ont été revérifiés inchangés par le parent.
+
+Correction minimale à soumettre : ajouter uniquement le helper de trace omis dans `cleanup_equivalence.rs`, reprenant l'écriture brute, les normalisations déjà autorisées et l'écriture stable existantes, pour les huit scénarios encore sans référence. Ne pas substituer directement `write_additional_cleanup_trace` suggéré par rustc : ce writer impose les sept références préflight déjà gelées, qui ne contiennent pas ces nouveaux cas. Après deux replays identiques, geler ces huit nouvelles références séparément et ajouter leur comparaison inconditionnelle avant validation T1. Aucune attente existante supprimée, aucun changement produit. Candidats, référence Q03 et quatre journaux conservés sous `cleanup-missing-trace-helper/` : ZIP **2 667 membres**, **4 473 274 octets**, SHA-256 **e720f8ae2eef583c84d14846b3f1c38cb0d550bd6bb8e7013fdac6d49636d637** ; 2 660 anciens membres intacts et sept ajouts vérifiés.
 
 **Résultat Q03 du 9 novembre à 18:30:44 Europe/Paris.** Runs `20261109T182829547-4a2408c5618f4187b41226f690f63bca` et `20261109T182956273-e35acd4642414ccf97c7c7cdc5c6b2d3` : chacun **1/1**, code 0. Le parent confirme les deux traces stables **octet par octet identiques**, **6 469 octets**, SHA-256 **4f8c41395af04fb17b2952fd2dc7d7aa87f094ebb1f54d78b5db82c42622f215**. Empreinte réelle du faux CPU identique : **24984559acde581c58420c5b42779692752250b624a6e192634ebde0e7dc22ff**. Aucun masquage de hash ni changement produit ; succès avant 18:42:30, aucun dépassement. Gel Q03 confié à l'auteur, puis reprise des trous injectables T1 ; Cargo séquentiel après gel des deux candidats. Les huit journaux et quatre traces sont archivés sous `q03-reproducible/` : ZIP **2 660 membres**, **4 445 694 octets**, SHA-256 **4f4381f7931348bac853a5ad517fb8d4400c3da38f0869f0f4c8b8549e3bd599** ; 2 648 anciens membres intacts et douze ajouts vérifiés. Libre relevé pendant la reprise : **452 115 791 872 octets**.
 
