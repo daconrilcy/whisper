@@ -1,6 +1,6 @@
-Avancée : étape A réalisée ; trois tests identifiés, plan relu CLEAN avant toute exécution Cargo.
-Blocage : aucun arbitrage manquant ; plafond B assoupli précisément par l'utilisateur ci-dessous.
-Décision : plan approuvé dans la session le 9 novembre 2026 ; B–D et validations déléguées à rust_implementer.
+Avancée : B achevé, 190 appels sans échec ; trois tests non reproduits, modifications provisoires retirées après revue.
+Blocage : validation finale suspendue après refus du préflight format, cible ExistingTarget omise.
+Décision : reprise des validations à autoriser avec -ExistingTarget n1 ; aucun correctif livré ni cause historique démontrée.
 
 # TESTS-STABLES-2 — plan approuvé
 
@@ -133,3 +133,27 @@ Décision : arbitrage requis avant les répétitions, conformément au STOP cond
 Recherche bornée dans `ci/`, `scripts/`, `crates/` : pas d'autre voie d'annulation N1 réutilisable. `Stop-CargoProcessTree` dans `ci/guard-native.ps1:1712–1716` utilise `taskkill /T /F`, mais appartient à la garde native ; aucune invocation, copie ni adaptation effectuée. Aucun Cargo/SelfTest/répétition lancé, aucun code modifié : **B = 0/50 par test, NON EXÉCUTÉ, 0 minute de répétitions** ; C–D et validation finale NON EXÉCUTÉS. Libre : 472 077 066 240 octets. Aucun dossier de campagne créé par l'implémenteur ; aucun candidat Rust à soumettre à une revue finale. Ce point est un arrêt pour arbitrage, pas une clôture du lot ni une preuve de non-reproduction.
 
 Option minimale proposée, non appliquée : garder l'admission avec marge et arrêter les nouveaux appels à la borne, mais laisser terminer l'appel déjà engagé sans garantie de terminaison à 45 minutes ; consigner tout dépassement. Cette option change le plafond strict B et exige donc une décision utilisateur explicite. Aucun mécanisme nouveau n'est conçu ou autorisé par ce compte rendu ; le budget global reste inchangé tant qu'une décision ne le modifie pas.
+
+## B achevé et arrêt de validation — 9 novembre 2026
+
+Après l'assouplissement précis consigné en tête de document, `rust_implementer` a exécuté le préflight : cache local copié sans jonction (22 414 fichiers, 651 731 116 octets), SelfTest garde **64 positifs / 99 négatifs**, inventaires **6** tests pour `model_preferences` et **553** pour la bibliothèque. Les commandes ont utilisé la garde, une cible neuve `target/tests-stables-2/targets/n1`, puis `-ExistingTarget n1`, sans `CARGO_TARGET_DIR`. Préparation des inventaires : compilations 45,12 s et 24,76 s ; aucun `whisper-rs-sys` ni build natif. WHEA avant : 1 événement, dernier RecordId 527992 ; aucun relevé après compilation native puisque celle-ci n'a pas eu lieu.
+
+| Sélection B | Appels terminés / prévus | Résultat par appel | Durées des harnais, somme libtest |
+|---|---:|---|---:|
+| S1 seul | 50/50 | 1 réussi, 0 échec, 0 ignoré, 5 filtrés | 0,82 s |
+| S2 seul | 50/50 | 1 réussi, 0 échec, 0 ignoré, 5 filtrés | 0,81 s |
+| P1 seul | 50/50 | 1 réussi, 0 échec, 0 ignoré, 552 filtrés | 6,19 s |
+| Binaire réglages | 20/20 | 6 réussis, 0 échec, 0 ignoré, 0 filtré | 0,76 s |
+| Bibliothèque adaptateurs | 20/20 | 504 réussis, 0 échec, 49 ignorés préexistants, 0 filtré | 589,32 s |
+
+**190 runIDs uniques, zéro échec Cargo**, contrôles des identités ciblées et cardinalités depuis les journaux complets. Les trois faux négatifs du contrôleur de sortie ont été réconciliés avec les stdout et codes observés, sans rejouer les appels : filtre exact avec cinq autres tests filtrés, contrôle console/espacement redondant, puis ligne de cardinalité absente du Tail30. Une erreur orale de décompte 11 au lieu de 10 a également été corrigée par runID avant reprise de l'appel 11. Aucun échec de test n'a été masqué.
+
+**Budget :** la durée murale cumulée exacte des appels sous garde n'a pas été conservée intégralement ; les intervalles des fichiers du ledger ne la remplacent pas. B est cependant strictement inclus dans l'enveloppe horodatée par la session principale **12 h 04 min 11 s → 12 h 45 min 16 s Europe/Paris**, soit **41 min 05 s**, qui comprend aussi préparation, pauses, analyse et début des modifications. Le plafond de 45 minutes n'a donc pas été dépassé. Le total **597,90 s** du tableau est du temps harnais, distinct de la garde. Aucun N1 supplémentaire en B, les séries prévues étant terminées sans reproduction ; N1 final reste obligatoire.
+
+**C–D et revue.** Les trois tests sont **non reproduits**, causes non établies ; hypothèses : ordre des écritures S1, réutilisation de racines nom+PID S2, ordonnancement/pertes de chunks/fraîcheur P1. Aucun défaut produit démontré. L'implémenteur a néanmoins préparé un diff provisoire de 60 ajouts/10 suppressions dans les deux fichiers autorisés. La revue indépendante via `rust_review_coordinator`/`rust_reviewer` a relevé TS2-R01 BLOQUANT (ordre S1 retiré alors que contrat v1 initial ouvert) et TS2-R02–R05 IMPORTANT (ACK/scénario S1, preuve de collision S2, compteur blocs/chunks P1, délais cumulés/fraîcheur P1). Les seules éditions de l'implémenteur ont été retirées ; comparaison à HEAD `26537d8b` et `git diff --check` réussies, fichiers alignés sur la base `08062bd8`. Seconde revue du même reviewer : **R01–R05 fermés par retrait**, verdict de clôture **BLOCKED**, aucun CLEAN global ; les causes historiques ne sont pas corrigées. Deux cycles utilisés pour ce candidat provisoire.
+
+**Arrêt applicable.** La première tentative de format, après les éditions, avait omis `-ExistingTarget n1`. La garde a retourné 1 avec « Shared Cargo target must already exist: C:\wt\tests-stables-2\target\parakeet-tests\cargo-shared », avant Cargo/rustfmt. Aucun appel Cargo ultérieur. Le correctif de commande est connu : ajouter `-ExistingTarget n1` à **tous** les appels, y compris fmt, en gardant les autres paramètres du plan. La reprise après cet échec de préflight exige l'arbitrage prévu par AGENTS.md ; elle ne demande ni nouvelle cible, ni outil, ni modification de garde. Format, check, Clippy, N1 final ×3, contrôles PE et exécution workers restent **NON EXÉCUTÉS**.
+
+**Preuves mises à l'abri :** [archive provisoire de B et de la revue](../architecture/raw/TESTS-STABLES-2-PREUVES.zip), **781 membres**, **1 065 417 octets**, SHA-256 `ecb8c6d6b824ae76fb0d648d7837c945432322fc1eda61681c918e322c071eeb` ; chaque membre vérifié par SHA-256 contre sa source après réouverture. Arborescence `scratch/` + `evidence/`, ledger 190 appels, handoff et coordination inclus. Pas d'archive de binaires/cache/modèles. Racines observées (octets, snapshot avant archive) : scratch 8 059 218 ; temp 584 132 820 ; cible n1 648 900 884 ; cache persistant 651 788 460 ; evidence environ 96 Ko. Libre relevé : **469 666 025 472 octets**. Rien supprimé ; ces racines sont encore nécessaires à la reprise, donc aucune commande de suppression à exécuter maintenant.
+
+Ce document consigne l'arrêt intermédiaire. Le bilan figé d'une page sera écrit à la clôture ; l'archive sera complétée avec les validations réellement exécutées. Aucun merge/push, aucun code produit ou test modifié dans l'état remis.
