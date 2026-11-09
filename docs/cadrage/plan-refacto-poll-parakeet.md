@@ -1,6 +1,6 @@
-Avancée : délimiteurs et environnement de la fixture corrigés ; deuxième compilation Q03 effectuée.
-Blocage : erreur de type E0308 dans la fixture ; aucun test Q03 exécuté, campagne arrêtée.
-Décision : conserver les deux candidats et leurs journaux ; nouvelle reprise soumise à arbitrage, échéance inchangée 14:55:42.
+Avancée : deux dernières corrections de fixture autorisées et confiées à rust_implementer.
+Blocage : Q03 non démontré ; dernière tentative en préparation.
+Décision : une seule tentative avant 14:55:42 ; à l'échéance, seul l'appel engagé termine.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -43,6 +43,8 @@ Le candidat non commité touche uniquement `crates/whisper-adapters/src/worker_i
 Preuves préservées dans le ZIP prévu : **46 membres**, **963 092 octets**, SHA-256 **972cd1d15579cb3346d8747a50df1ee8c25e193694ba2aef630207e6d51950d0**. Les 40 membres de préparation sont préservés ; six entrées ajoutées (quatre journaux metadata/Cargo et les deux fichiers du candidat sous `q03-first-attempt/candidate/`) ont été relues et comparées aux SHA-256 des sources. Aucune suppression et aucun commit du test non validé. Cet arrêt est celui d'un essai de fixture, pas une régression produit observée.
 
 ### Deuxième appel Q03 — arrêt du 9 novembre à 14:39:32
+
+**Autorisation du 9 novembre vers 14:45 Europe/Paris :** « Oui, corrige ces deux points avec rust_implementer et lance une dernière tentative avant 14 h 55 min 42 s. À l’échéance, laisse finir uniquement l’appel engagé. Aucun changement produit, merge ni push. » Les deux corrections concernent exclusivement l'empreinte déjà binaire et la corrélation JobId décrites ci-dessous. Un seul nouvel appel de compilation/exécution est autorisé, sans remise à zéro du chrono ; aucune relance après cette tentative. Les fichiers de test restent sous la responsabilité exclusive de l'implémenteur, les documents sous celle du parent. HEAD avant consignation : `38ae695c`.
 
 Après l'accord de 14 h 38, rust_implementer a corrigé les délimiteurs et remplacé les cinq set_var par Command::env dans le parent du test enfant. Appel sous garde engagé à **14:39:14**, terminé vers **14:39:32**, Cargo **101** : `E0308` à `parakeet_equivalence.rs:52`, un `&[u8]` est transmis à `u8::from_str_radix`, qui attend un `&str`. Run `20261109T143914462-4093ec39bbd540ca99f1bcc34c68ad59`. STOP sans correction/relance supplémentaire ; test **NON EXÉCUTÉ**. Les deux fichiers de test restent non commités ; aucun produit changé, aucun N2/S2/refactor lancé.
 
