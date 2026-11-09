@@ -1,6 +1,6 @@
-Avancée : cleanup 21/21, références intactes ; P04 déterministe passe ; trois scénarios polling supplémentaires écrits.
-Blocage : le groupe de six tests ne compile pas, helper de fixture réservé à une feature.
-Décision : correction ciblée du helper autorisée, puis six tests et reprise T1–T6 si PASS.
+Avancée : cleanup 21/21, références intactes ; groupe polling 4 réussites sur 6 après correction du helper.
+Blocage : Q01/Q06 échouent à compiler leur faux worker, JSON Stopped utilisé comme chaîne de format.
+Décision : STOP avant correction de cette trame ; aucun changement produit, merge ou push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt après relance du 9 novembre à 17:09:30.** Run `20261109T170930529-fc77778cd3794db98639fe5145ec5ecd`, code **101** : **4 réussites / 2 échecs**, 574 filtrés. P03, P04, P06 et le nouveau Q07 (`poll_parakeet_failed_message_from_older_attempt_is_terminal`) passent. Q01 et Q06 échouent dans `compile_nominal_import_worker` pendant la compilation du faux worker : sa trame Stopped emploie `println!(r#"{...}"#)`, dont les accolades sont interprétées comme format. Correction minimale proposée : `println!("{}", r#"{...}"#)` pour cette seule trame, contenu et assertions inchangés ; les trames READY et RESULT utilisent déjà des constantes correctement imprimées. C'est la même classe d'erreur de fixture que P06, réintroduite dans un nouveau helper ; aucune preuve produit Q01/Q06 n'est acquise par cet appel.
+
+Conservation sous `polling-checkpoint-1709/` du candidat et de ce run, ainsi que du run de filtre `20261109T165927774-9b43f2f3ca534ad8b183ff35390e3e38` (code 0, **zéro test exécuté, aucune preuve de scénario**) : **1 308 membres**, **2 366 346 octets**, SHA-256 **c5f7418c9b23f8509256e49e5810b4d0d7aae402172b2eefc692919474742eb7** ; 1 299 entrées antérieures inchangées, neuf ajouts vérifiés. Aucun second appel ni correction après cet échec ; le second auteur cleanup n'a toujours modifié aucun fichier.
 
 **Accord après E0425, 9 novembre vers 17:10.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » : enlever les trois gardes de configuration sur le helper `personal_import_request`, ses imports et sa constante nécessaires aux tests ordinaires, retirer le `mut` inutile, puis relancer les six tests et reprendre T1–T6 s'ils passent. Q03 garde son test et lanceur sous `personal-qualification` ; aucune assertion modifiée. Les dépendances du helper existent déjà sans cette feature, confirmé statiquement. Budget initial et arrêt après nettoyage inchangés ; le second auteur cleanup reste figé pendant l'appel.
 
