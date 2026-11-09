@@ -1,6 +1,6 @@
 Avancée : sept variantes cleanup et traces polling supplémentaires écrites ; derniers contrôles acquis cleanup 21/21 et polling 6/6.
 Blocage : le contrôle commun ne compile pas, SourceRange importé par un chemin privé dans une nouvelle fixture.
-Décision : STOP avant correction du chemin de type ; aucun changement produit, merge ou push.
+Décision : correction du réexport SourceRange autorisée, puis whisper-adapters et reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord après E0603, 9 novembre vers 17:32.** L'utilisateur choisit « Autoriser la correction et la reprise (recommandé) » : remplacer uniquement `whisper_core::ports::SourceRange` par `whisper_core::SourceRange` dans `cleanup_equivalence.rs`, puis relancer `whisper-adapters` et reprendre T1–T6 si vert. Aucune assertion ni visibilité produit changée ; budget initial et arrêt après nettoyage inchangés. L'auteur cleanup effectue cette correction et l'appel gardé, l'auteur polling reste figé.
 
 **Arrêt commun du 9 novembre à 17:29:38.** Candidat : sept tests cleanup supplémentaires C03/C04/C05, traces raw/stable polling persistées sous TEMP, préparation Q03 sans chemins temporaires embarqués dans la source CPU. Tous ces ajouts restent à valider ; aucun nouveau gel. `cargo test -p whisper-adapters` sous garde, run `20261109T172938182-fb81d15ca9cf446198cefb7bd2f78e9b`, termine code **101** à la compilation, aucun test exécuté : E0603 dans `cleanup_equivalence.rs:1246`, `whisper_core::ports::SourceRange` est privé. Le réexport `whisper_core::SourceRange` est public (`whisper-core/src/lib.rs:29–32`) ; correction minimale proposée sur cette seule référence de type, sans nouvelle visibilité ni assertion modifiée. Seuls les deux avertissements déjà connus dans `temp_root.rs` et `parakeet_pipeline.rs` sont rapportés. Les deux auteurs sont arrêtés, sans correctif/retry automatique.
 
