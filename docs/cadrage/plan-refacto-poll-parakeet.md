@@ -1,6 +1,6 @@
-Avancée : whisper-adapters 618/0/126 ; cleanup 28/28, polling 6/6 ; 25 références cleanup gelées.
-Blocage : T1 encore incomplet ; références polling et variantes cleanup restantes à établir.
-Décision : reprise T1–T6, contrôles coordonnés ; aucun produit modifié, arrêt après nettoyage.
+Avancée : dernier whisper-adapters vert 618/0/126 ; 25 références cleanup gelées et inchangées.
+Blocage : E0277 dans le normaliseur de traces polling, double référence passée à replace.
+Décision : STOP avant correction d'une ligne ; aucun produit modifié, merge ou push.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,10 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Arrêt commun du 9 novembre à 17:45:56.** Après branchement des sept références additionnelles et normalisation des chemins échappés, run `20261109T174556690-9adbcdf1c53c44ed8bb05975e250cc2c`, code **101**, aucun test exécuté : E0277 dans `parakeet_equivalence.rs:477`, `root_text` est déjà `&String` et `replace(&root_text, ...)` reçoit `&&String`, qui n'implémente pas Pattern. Correction minimale proposée : `text.replace(root_text.as_str(), "<ROOT>")`, sans changement de représentation ou d'assertion. Seuls deux avertissements préexistants sont rapportés ; le helper inutilisé a été retiré, aucune absence globale de warning n'est déduite d'une compilation échouée. Les deux auteurs restent figés après ce nouvel échec.
+
+Candidats et journaux conservés sous `common-checkpoint-1745/` : **2 207 membres**, **3 393 253 octets**, SHA-256 **e7ed67b65cc4f9b1a8e6ad5f73cbec09e2410adb116779bc153736f37f8d1bcb** ; 2 201 entrées antérieures inchangées et six ajouts vérifiés. Les 25 références cleanup restent inchangées ; comparaison inconditionnelle du nouveau fichier et replays polling corrigés restent à exécuter.
 
 **Contrôle commun réussi et gel additif, 9 novembre après 17:38.** Run `20261109T173747708-d1b04dd02f984342b6087beae18088fb`, code **0**, avec paramètre modèle autorisé. Bibliothèque **538/0/49**, dont **28 cleanup** et **six polling** réussis ; agrégat des 33 harnais unitaires/intégration/doc **618 réussites / 0 échec / 126 ignorés**, aucun filtré. N1 complet et Clippy ne sont pas déduits de ce contrôle. Comparaison directe des octets des traces des PID 71180 et 45440 : **25/25 identiques**, incluant les 18 références initiales et sept variantes nouvelles. Les deux fichiers produit restent identiques à `4c04818c`.
 
