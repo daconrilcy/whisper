@@ -1,10 +1,23 @@
 Avancée : Q03 gelé après deux replays identiques ; 31 références cleanup et sept polling gelées.
-Blocage : huit nouveaux tests cleanup ne compilent pas, helper de trace manquant.
-Décision : ajout du helper et deux replays autorisés le 9 novembre à 18:37:08.
+Blocage : fixture de divergence d'intention incorrecte ; Ready VAD positif hors racines admises.
+Décision : STOP ; correction de fixture et exception de preuve statique P09 à soumettre.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Arrêt après ajout du helper, 9 novembre vers 18:38.** Run `20261109T183743043-71e3625cbe0e4d508f9c3daea5b3a086`, code **101** : bibliothèque **551 réussites / 1 échec / 49 ignorés**, autres harnais non exécutés. Le seul échec est `cleanup_characterization_rejects_target_intent_divergence_without_syncing_it` : `unwrap_err()` reçoit `Ok(())`. Le helper ajouté compile ; les sept autres nouveaux cas passent, mais aucun second replay ni gel nouveau. La fixture ne modifie que `objects[0].error`, champ volontairement absent de `cleanup_targets_match_intent` (`cleanup.rs:139–178`) ; elle ne crée donc pas la divergence visée. Correction proposée, assertions inchangées : modifier seulement `plan.targets[0].source_sha256` en une empreinte distincte stable, conserver l'intention initiale et vérifier le refus attendu. Ce champ est explicitement comparé à `cleanup.rs:146`, avant toute suppression ; aucun changement produit proposé. L'acceptation du champ diagnostic n'est pas déclarée défaut produit.
+
+**Limite P09 vérifiée en lecture seule, rapport proportionné.**
+- Le succès Ready VAD doit atteindre `parakeet.rs:720–723` : `worker_ready=true`, puis retour `None`.
+- `spawn_live` fixe le profil single-pass (`parakeet_import.rs:371–382`) ; `accept_ready` refuse un autre profil (`:610–614`).
+- Le fallback de clé de test dans le polling ne change pas ce profil attendu ; il ne suffit pas à atteindre la réussite VAD.
+- Le constructeur VAD `spawn_for_qualification` (`:385–393`) exige L2b canonique (`historical_runtime.rs:68–82`), absent ici et hors des racines de campagne autorisées.
+- Option minimale proposée : accepter **pour ce seul succès Ready VAD P09** une preuve statique explicitement limitée, sans prétendre à une couverture dynamique ; aucune racine ou voie d'admission ajoutée.
+- P10 reste à couvrir dynamiquement par état VAD privé installé après Ready single-pass, avant réception Result ; cette injection ne prouvera pas le démarrage VAD naturel. Les autres branches P injectables restent requises.
+- Cette exception dépasse les seules branches défensives déjà admises ; accord utilisateur précis requis avant reprise. Aucun code ou Cargo supplémentaire engagé.
+
+Candidat cleanup, quatre journaux, fichiers des racines cleanup PID 81064 et douze traces polling du contrôle échoué archivés sous `cleanup-intent-fixture/` : ZIP **3 385 membres**, **5 131 969 octets**, SHA-256 **53e06856da7bf190a2b9e8024a39baf2bf4badb04d402f01aff8cceb33b9caee** ; 2 667 anciens membres inchangés et 718 ajouts vérifiés. Les références gelées restent intactes ; Q03 était absent de cet appel sans feature. Dernier contrôle crate entièrement vert reste **624/0/126**, antérieur aux huit derniers tests.
 
 **Accord après E0425, 9 novembre à 18:37:08 Europe/Paris.** L'utilisateur choisit « Autoriser l'ajout du helper et la reprise (recommandé) » : `rust_implementer` ajoute uniquement le helper omis dans `cleanup_equivalence.rs`, en réutilisant l'écriture brute et les normalisations déjà acceptées, puis deux replays. Gel séparé des huit nouvelles références seulement si byte-identiques, puis comparaison inconditionnelle et reprise T1–T6. Assertions et références existantes inchangées ; aucun changement produit ni extension du budget. Polling reste figé pendant les appels sérialisés ; STOP au premier nouvel échec ou écart.
 
