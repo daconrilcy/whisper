@@ -1,6 +1,6 @@
 Avancée : cleanup 21/21 et références intactes ; P03 et P06 passent après correction des chemins.
 Blocage : P04 reçoit WorkerExited: exit code: 0 par le chemin de déconnexion IPC.
-Décision : diagnostic unique terminé ; STOP avant adaptation de la couverture ou correction.
+Décision : fixture P04 déterministe autorisée, borne 17:05:32 ; reprise T1–T6 si PASS.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
@@ -35,6 +35,8 @@ Alternative de périmètre : limiter T1 de cette tranche au corpus nettoyage et 
 ## 1. Mandat, fraîcheur et responsabilité
 
 ### T1 polling — parsing P06, 9 novembre vers 16:31
+
+**Accord P04 déterministe, 9 novembre à 16:50:32.** Réponse utilisateur : « Autoriser la fixture déterministe (recommandé) ». Intervention limitée à **15 minutes**, borne **17:05:32 Europe/Paris**, dans le budget initial inchangé. Propriété confiée au même rust_implementer ; un essai P04 sous garde, puis reprise T1–T6 si vert, arrêt après nettoyage. À la borne, fermer l'admission et laisser finir uniquement l'appel engagé, dépassement consigné. Aucun changement produit, merge ou push. Les règles STOP après échec restent applicables.
 
 **Proposition P04 après diagnostic, à autoriser.** Dans le seul `parakeet_equivalence.rs`, faire lancer par le faux worker un mode enfant du même EXE qui conserve stdout hérité ouvert. Synchronisation par marqueurs sous TestRoot et `try_wait()` existant : le parent est terminé, le lecteur ne peut pas recevoir EOF, le polling atteint la branche attendue. Appliquer aux sorties 0 et 9, sans changer les assertions ni accepter plusieurs résultats. Prévoir libération et fin bornée du descendant y compris en échec du test ; aucune ressource hors lot. Bibliothèque standard uniquement, aucun hook produit ni primitive système. Budget proposé : **15 minutes dans le budget initial**, un essai P04 sous garde après correction ; si PASS, reprise T1–T6. Tout nouvel échec donne STOP. Alternative : arbitrer une preuve statique explicite de ces branches concurrencées et adapter le périmètre de couverture ; ce choix n'est pas fait implicitement. Aucun code de cette proposition produit à ce stade.
 
