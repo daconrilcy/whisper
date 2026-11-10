@@ -129,51 +129,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
         &removed_container_paths,
         &mut held_ancestors_by_path,
     )?;
-    for target in &mut plan.targets {
-        for object in &mut target.objects {
-            if object.removed {
-                continue;
-            }
-            let path = safe_cleanup_path(root, &object.relative_path)?;
-            if fs::symlink_metadata(&path)
-                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
-            {
-                object.removed = true;
-                object.error = None;
-                continue;
-            }
-            let path = safe_cleanup_path(root, &object.relative_path)?;
-            let actual =
-                crate::windows_file_identity::inspect(&path, object.identity.is_directory)?;
-            if identity_snapshot(actual)? != object.identity {
-                return Err(format!("CleanupIdentityChanged: {}", object.relative_path));
-            }
-            if let Some(expected_sha) = &object.sha256
-                && hex(&sha256_file(&path)?) != *expected_sha
-            {
-                return Err(format!(
-                    "CleanupIdentityChanged: empreinte modifiée {}",
-                    object.relative_path
-                ));
-            }
-        }
-        if let Some(container) = &target.container
-            && !container.removed
-        {
-            let Some((identity, _)) = held_ancestors_by_path.get(&container.relative_path) else {
-                return Err(format!(
-                    "CleanupIdentityChanged: ancêtre du conteneur absent {}",
-                    container.relative_path
-                ));
-            };
-            if identity != &container.identity {
-                return Err(format!(
-                    "CleanupIdentityChanged: identité du conteneur divergente {}",
-                    container.relative_path
-                ));
-            }
-        }
-    }
+    verify_cleanup_target_objects(root, plan, &held_ancestors_by_path)?;
     let mut held_target_directories = std::collections::HashMap::new();
     for target in &mut plan.targets {
         let directory = generation_path(root, target.treatment.job_id, target.treatment.generation);
@@ -589,6 +545,66 @@ fn hold_cleanup_target_ancestors(
                 ancestor.relative_path.clone(),
                 (ancestor.identity.clone(), handle),
             );
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_cleanup_target_objects(
+    root: &Path,
+    plan: &mut CleanupPlan,
+    held_ancestors_by_path: &std::collections::HashMap<
+        String,
+        (
+            CleanupObjectIdentity,
+            crate::windows_file_identity::VerifiedFile,
+        ),
+    >,
+) -> Result<(), String> {
+    for target in &mut plan.targets {
+        for object in &mut target.objects {
+            if object.removed {
+                continue;
+            }
+            let path = safe_cleanup_path(root, &object.relative_path)?;
+            if fs::symlink_metadata(&path)
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
+                object.removed = true;
+                object.error = None;
+                continue;
+            }
+            let path = safe_cleanup_path(root, &object.relative_path)?;
+            let actual =
+                crate::windows_file_identity::inspect(&path, object.identity.is_directory)?;
+            if identity_snapshot(actual)? != object.identity {
+                return Err(format!("CleanupIdentityChanged: {}", object.relative_path));
+            }
+            if let Some(expected_sha) = &object.sha256
+                && hex(&sha256_file(&path)?) != *expected_sha
+            {
+                return Err(format!(
+                    "CleanupIdentityChanged: empreinte modifiée {}",
+                    object.relative_path
+                ));
+            }
+        }
+        if let Some(container) = &target.container
+            && !container.removed
+        {
+            let Some((identity, _)) = held_ancestors_by_path.get(&container.relative_path) else {
+                return Err(format!(
+                    "CleanupIdentityChanged: ancêtre du conteneur absent {}",
+                    container.relative_path
+                ));
+            };
+            if identity != &container.identity {
+                return Err(format!(
+                    "CleanupIdentityChanged: identité du conteneur divergente {}",
+                    container.relative_path
+                ));
+            }
         }
     }
     Ok(())

@@ -6,6 +6,8 @@ Décision : engager les extractions de nettoyage, arrêt obligatoire après T6.
 
 ## Autorisation précise de la session — 9 novembre 2026
 
+**Extraction nettoyage 06 validée vers 07:52.** `verify_cleanup_target_objects`, trois arguments, emprunt immuable de la map ancêtres. Complexité **5**, orchestrateur **14** (279 lignes). Corpus, Auto, Q03, N1 et mesure verts, runs `074906217` à `075142989`, journaux sous `cleanup-extraction-06/`. Le seuil de complexité du runner est atteint, les responsabilités de capture/retrait prévues restent à extraire. Aucun handle ni write déplacé.
+
 **Extraction nettoyage 05 validée vers 07:48.** `hold_cleanup_target_ancestors`, quatre arguments, map conservée dans l'appelant. Complexité **6**, orchestrateur **18** (323 lignes). Corpus, Auto, Q03, N1 et métrique verts, du run `074455484` à `074733907`. Journaux conservés sous `cleanup-extraction-05/`. Aucun ordre de validation ni verrou déplacé.
 
 **Extraction nettoyage 04 validée vers 07:43.** `adopt_missing_cleanup_containers`, deux arguments, retourne les chemins déjà supprimés, conserve le write conditionnel. Complexité **6**, orchestrateur **23** (384 lignes). Adapters, Auto, Q03, N1 et mesure passent (du run `074021705` à `074301532`). ZIP `cleanup-extraction-04/` vérifié, **6 456 entrées**, **16 638 710 octets**, SHA-256 `95fbd5eda6121a3b92001afd528baf66d525ccbf5624c13cfc805511674aa0ee`. La map des handles ancêtres reste créée avant cet appel et détenue par l'orchestrateur.
