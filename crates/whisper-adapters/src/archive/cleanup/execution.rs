@@ -128,32 +128,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     let manifest = successor_manifest.expect("six successor proofs include manifest");
     let pending = successor_pending.expect("six successor proofs include pending");
     let segment_bytes = successor_segments.expect("six successor proofs include segments");
-    if manifest.source_sha256 != plan.source_sha256
-        || pending.job_id != plan.successor.job_id
-        || pending.generation != plan.successor.generation
-        || pending.source_sha256 != plan.source_sha256
-    {
-        return Err("CleanupIdentityChanged: identité du successeur divergente".into());
-    }
-    if !segment_bytes.is_empty() && !segment_bytes.ends_with(b"\n") {
-        return Err("CleanupIdentityChanged: journal segments tronqué".into());
-    }
-    let segments = segment_bytes
-        .split(|byte| *byte == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(|line| {
-            serde_json::from_slice::<SegmentRecord>(line)
-                .map_err(|error| format!("CleanupIdentityChanged: journal segments: {error}"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if segments.len() as u64 != manifest.segments
-        || segments
-            .iter()
-            .enumerate()
-            .any(|(index, segment)| segment.sequence != index as u64 + 1)
-    {
-        return Err("CleanupIdentityChanged: journal segments incohérent".into());
-    }
+    validate_cleanup_successor_records(plan, &manifest, &pending, &segment_bytes)?;
     let intent = load_publication_intent(&successor_path)?;
     if intent.cleanup_id.as_deref() != Some(plan.cleanup_id.as_str())
         || intent.source_sha256 != plan.source_sha256
@@ -537,6 +512,42 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     let _keep_ancestors = (held_ancestors_by_path, held_target_directories);
     plan.last_error = None;
     write_cleanup_plan(root, plan)
+}
+
+#[cfg(windows)]
+fn validate_cleanup_successor_records(
+    plan: &CleanupPlan,
+    manifest: &CompleteRecord,
+    pending: &PendingRecord,
+    segment_bytes: &[u8],
+) -> Result<(), String> {
+    if manifest.source_sha256 != plan.source_sha256
+        || pending.job_id != plan.successor.job_id
+        || pending.generation != plan.successor.generation
+        || pending.source_sha256 != plan.source_sha256
+    {
+        return Err("CleanupIdentityChanged: identité du successeur divergente".into());
+    }
+    if !segment_bytes.is_empty() && !segment_bytes.ends_with(b"\n") {
+        return Err("CleanupIdentityChanged: journal segments tronqué".into());
+    }
+    let segments = segment_bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_slice::<SegmentRecord>(line)
+                .map_err(|error| format!("CleanupIdentityChanged: journal segments: {error}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if segments.len() as u64 != manifest.segments
+        || segments
+            .iter()
+            .enumerate()
+            .any(|(index, segment)| segment.sequence != index as u64 + 1)
+    {
+        return Err("CleanupIdentityChanged: journal segments incohérent".into());
+    }
+    Ok(())
 }
 
 #[cfg(not(windows))]
