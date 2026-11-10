@@ -571,6 +571,28 @@ impl ImportRuntime {
         ))
     }
 
+    #[cfg(feature = "recette-hooks")]
+    fn apply_ready_acceptance_fault(&mut self, destination: &Path) -> Option<Result<(), String>> {
+        match take_acceptance_worker_fault(destination, true) {
+            Ok(Some(message)) if message.starts_with("IpcDecode:") => Some(
+                self.parakeet
+                    .as_ref()?
+                    .inject_incomplete_result_for_acceptance(),
+            ),
+            Ok(Some(message)) => {
+                let process = self.parakeet.as_mut()?;
+                Some(
+                    process
+                        .terminate()
+                        .map(|_| ())
+                        .map_err(|error| format!("{message}; termination failed: {error}")),
+                )
+            }
+            Ok(None) => Some(Ok(())),
+            Err(error) => Some(Err(error)),
+        }
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -780,26 +802,10 @@ impl ImportRuntime {
                     return Some(Err(PortError::Failed(error)));
                 }
                 #[cfg(feature = "recette-hooks")]
-                match take_acceptance_worker_fault(Path::new(&request.destination), true) {
-                    Ok(Some(message)) if message.starts_with("IpcDecode:") => {
-                        if let Err(error) = self
-                            .parakeet
-                            .as_ref()?
-                            .inject_incomplete_result_for_acceptance()
-                        {
-                            return Some(Err(PortError::Failed(error)));
-                        }
-                    }
-                    Ok(Some(message)) => {
-                        let process = self.parakeet.as_mut()?;
-                        if let Err(error) = process.terminate() {
-                            return Some(Err(PortError::Failed(format!(
-                                "{message}; termination failed: {error}"
-                            ))));
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(error) => return Some(Err(PortError::Failed(error))),
+                if let Err(error) =
+                    self.apply_ready_acceptance_fault(Path::new(&request.destination))?
+                {
+                    return Some(Err(PortError::Failed(error)));
                 }
                 Some(Ok(WorkerEvent::Ready {
                     job_id: active_job_id,
