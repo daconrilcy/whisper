@@ -1,10 +1,12 @@
 Avancée : T1 et S2 validés, 50 répétitions S2 réussies. N1 944/0/129.
-Blocage : aucun échec actif.
-Décision : terminer les extractions de retrait puis la revue indépendante et le point T6.
+Blocage : préparation workers refusée avant Cargo, argument JSON réservé à Clippy.
+Décision : demander la reprise avec les commandes --no-run prévues au plan.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Refus garde workers vers 08:13.** Trois N1 finaux, format et Clippy qualité viennent de terminer code 0 sur le candidat 443e6a8a. La préparation des workers demandée avec `test -p whisper-worker-cpu --no-run --message-format=json` est refusée avant Cargo : l'argument JSON est admis uniquement avec Clippy. Aucun worker compilé ou exécuté par cet appel. Erreur de commande du coordinateur, correction proposée : utiliser les trois commandes `--no-run` exactes déjà au §7, lire leurs harnais explicites dans stderr puis PE, inventaire et tests. Revue indépendante continue en lecture seule. Aucun essai worker supplémentaire sans arbitrage.
 
 **Extraction nettoyage 10 validée vers 08:10.** `remove_cleanup_containers`, trois arguments, complexité **5**, orchestrateur **3** (102 lignes contre 500 initiales). Corpus, Auto, Q03, N1 et mesure verts, runs `080656794` à `080932774`, journaux sous `cleanup-extraction-10/`. Tous les helpers extraits mesurent au plus 6 sur les signatures de fonction, closures recensées séparément en revue. L'alerte lignes du runner diminue à 102/100 et reste préexistante. Candidat prêt pour revue indépendante, arrêt des extractions au point T6.
 
