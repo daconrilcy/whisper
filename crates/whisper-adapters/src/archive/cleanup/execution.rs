@@ -133,6 +133,24 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     write_cleanup_plan(root, plan)?;
 
     remove_cleanup_target_objects(root, plan, &mut held_target_directories)?;
+    remove_cleanup_containers(root, plan, &mut held_ancestors_by_path)?;
+    let _keep_ancestors = (held_ancestors_by_path, held_target_directories);
+    plan.last_error = None;
+    write_cleanup_plan(root, plan)
+}
+
+#[cfg(windows)]
+fn remove_cleanup_containers(
+    root: &Path,
+    plan: &mut CleanupPlan,
+    held_ancestors_by_path: &mut std::collections::HashMap<
+        String,
+        (
+            CleanupObjectIdentity,
+            crate::windows_file_identity::VerifiedFile,
+        ),
+    >,
+) -> Result<(), String> {
     for target_index in 0..plan.targets.len() {
         let Some(container_snapshot) = plan.targets[target_index].container.clone() else {
             continue;
@@ -197,9 +215,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
         container.error = None;
         write_cleanup_plan(root, plan)?;
     }
-    let _keep_ancestors = (held_ancestors_by_path, held_target_directories);
-    plan.last_error = None;
-    write_cleanup_plan(root, plan)
+    Ok(())
 }
 
 #[cfg(windows)]
