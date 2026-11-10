@@ -1,10 +1,12 @@
-Avancée : T1 validé, 41 références de nettoyage et 37 de polling gelées. N1 944/0/129.
+Avancée : T1 et S2 validés, 50 répétitions S2 réussies. N1 944/0/129.
 Blocage : aucun échec actif.
-Décision : engager S2 dans sa fenêtre de 30 minutes, puis les extractions de nettoyage.
+Décision : engager les extractions de nettoyage, arrêt obligatoire après T6.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**S2 validé, vérification de reprise le 10 novembre à 07:20.** Fenêtre ouverte le 9 novembre à **22:52:43.749**, admission fermée à **23:22:43.749**. Les 54 appels engagés (inventaire, 50 répétitions exactes, module, adapters, N1) ont terminé au plus tard à **22:57:37**, dépassement **0 seconde**. Inventaire six tests, filtre exact vérifié à chaque appel : un réussi et cinq filtrés, **50/50**. Module 6/0/0, adapters 650/0/126, N1 944/0/129. La session de processus a expiré pendant l'interruption du chat, les journaux complets permettent de vérifier les résultats, sans relance hors fenêtre. Les sept noms de racine et les assertions restent intacts. Correctif préventif, cause historique non démontrée. ZIP `s2-validation/` : 217 ajouts vérifiés, **6 376 entrées**, **13 052 749 octets**, SHA-256 `76ddda3965c38b4185e8729aec40366cfac2777cd0425d3cf0722d3d57cda1f8`. Reprise T3 dans le budget global finissant le 10 novembre à 13:40.
 
 **Clôture T1 vers 22:52.** Production comparée à la base `4c04818c17ff0c779c441e2b99f1e87779eb7cb9`, deux cibles intactes (32 et 30). Référence personnelle `personal-gpu-ready-traces.json` : deux cas, 1 061 954 octets, SHA-256 `6cc13a43d36e28ccbb15a614a46e377cf46929fb12dc5db79ea617102c8ebe16`. Gel depuis PID 12272, comparateur obligatoire. Les deux writers exclusivement personnels sont gardés par la même feature que leurs tests. Auto et Q03 repassent chacun **1/1** après cette correction, full adapters **650/0/126**, N1 final T1 `20261109T225027607-ce9599705c7b44a484ded1d41ad96e5d` **944/0/129**, sans variable de cible. Comparaison du journal : mêmes 1 007 identités/statuts de départ, 66 ajouts réussis. Clippy `20261109T224836207-bff2e5371c114827a46ca41c6b9573b8` : 340 warnings avant et après, aucun diagnostic nouveau dans les fichiers touchés. `fmt --check` vert. Références Git et preuves ZIP synchronisées : **6 159 entrées**, **12 800 990 octets**, SHA-256 `82e6b08b5e731cb484f035edd5df8dc48ea382571028d9dbec91e7b84a824f52`. Les 66 identités sont listées dans `t1-final/added-test-identities.txt`. Les exceptions statiques approuvées P09 VAD et P12 erreur Shutdown restent explicites, distinctes des tests dynamiques. S2 commence après le commit T1.
 

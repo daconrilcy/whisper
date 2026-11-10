@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use whisper_adapters::path_settings::{WindowsModelPreferencePort, WindowsPathPort};
 use whisper_core::{
@@ -9,12 +11,22 @@ use whisper_core::{
 const KNOWN_TURBO: &str =
     r"C:\Users\Cyril\AppData\Local\Programs\WhisperBuildDeps\models\ggml-large-v3-turbo.bin";
 
+static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
+
 fn test_dir(name: &str) -> PathBuf {
     let root = PathBuf::from(
         std::env::var_os("WHISPER_L1B_RUNTIME_ROOT")
             .unwrap_or_else(|| std::env::temp_dir().into_os_string()),
     );
-    let path = root.join(format!("{name}-{}", std::process::id()));
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock after epoch")
+        .as_nanos();
+    let counter = NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed);
+    let path = root.join(format!(
+        "{name}-{}-{timestamp}-{counter}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&path).unwrap();
     path
 }
