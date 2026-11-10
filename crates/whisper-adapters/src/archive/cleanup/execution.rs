@@ -131,63 +131,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     )?;
     verify_cleanup_target_objects(root, plan, &held_ancestors_by_path)?;
     let mut held_target_directories = std::collections::HashMap::new();
-    for target in &mut plan.targets {
-        let directory = generation_path(root, target.treatment.job_id, target.treatment.generation);
-        let directory_relative = relative_to_root(root, &directory)?;
-        let directory_proof = target
-            .objects
-            .iter()
-            .find(|object| {
-                object.relative_path == directory_relative && object.identity.is_directory
-            })
-            .ok_or_else(|| "CleanupIdentityChanged: preuve du dossier cible absente".to_owned())?;
-        if directory_proof.removed {
-            continue;
-        }
-        let directory_handle = VerifiedFile::open(&directory, true)?;
-        directory_handle
-            .verify(&runtime_identity(&directory_proof.identity))
-            .map_err(|error| format!("{error}: génération {directory_relative}"))?;
-        for entry in fs::read_dir(&directory).map_err(|error| {
-            format!("CleanupIdentityChanged: inventorier le dossier cible: {error}")
-        })? {
-            let entry =
-                entry.map_err(|error| format!("CleanupIdentityChanged: entrée cible: {error}"))?;
-            let relative = relative_to_root(root, &entry.path())?;
-            if target
-                .objects
-                .iter()
-                .any(|object| object.relative_path == relative)
-            {
-                continue;
-            }
-            let file_type = entry.file_type().map_err(|error| error.to_string())?;
-            if file_type.is_symlink() {
-                return Err(format!(
-                    "CleanupUnsafePath: nouvel élément reparse conservé: {relative}"
-                ));
-            }
-            let identity = identity_snapshot(crate::windows_file_identity::inspect(
-                &entry.path(),
-                file_type.is_dir(),
-            )?)?;
-            let sha = file_type
-                .is_file()
-                .then(|| sha256_file(&entry.path()).map(|value| hex(&value)))
-                .transpose()?;
-            target.objects.push(CleanupObject {
-                relative_path: relative.clone(),
-                identity,
-                sha256: sha,
-                owned: false,
-                removed: false,
-                error: Some(format!(
-                    "élément ajouté après confirmation, conservé: {relative}"
-                )),
-            });
-        }
-        held_target_directories.insert(directory_relative, directory_handle);
-    }
+    capture_unselected_cleanup_entries(root, plan, &mut held_target_directories)?;
     write_cleanup_plan(root, plan)?;
 
     for target_index in 0..plan.targets.len() {
@@ -606,6 +550,77 @@ fn verify_cleanup_target_objects(
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn capture_unselected_cleanup_entries(
+    root: &Path,
+    plan: &mut CleanupPlan,
+    held_target_directories: &mut std::collections::HashMap<
+        String,
+        crate::windows_file_identity::VerifiedFile,
+    >,
+) -> Result<(), String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    for target in &mut plan.targets {
+        let directory = generation_path(root, target.treatment.job_id, target.treatment.generation);
+        let directory_relative = relative_to_root(root, &directory)?;
+        let directory_proof = target
+            .objects
+            .iter()
+            .find(|object| {
+                object.relative_path == directory_relative && object.identity.is_directory
+            })
+            .ok_or_else(|| "CleanupIdentityChanged: preuve du dossier cible absente".to_owned())?;
+        if directory_proof.removed {
+            continue;
+        }
+        let directory_handle = VerifiedFile::open(&directory, true)?;
+        directory_handle
+            .verify(&runtime_identity(&directory_proof.identity))
+            .map_err(|error| format!("{error}: génération {directory_relative}"))?;
+        for entry in fs::read_dir(&directory).map_err(|error| {
+            format!("CleanupIdentityChanged: inventorier le dossier cible: {error}")
+        })? {
+            let entry =
+                entry.map_err(|error| format!("CleanupIdentityChanged: entrée cible: {error}"))?;
+            let relative = relative_to_root(root, &entry.path())?;
+            if target
+                .objects
+                .iter()
+                .any(|object| object.relative_path == relative)
+            {
+                continue;
+            }
+            let file_type = entry.file_type().map_err(|error| error.to_string())?;
+            if file_type.is_symlink() {
+                return Err(format!(
+                    "CleanupUnsafePath: nouvel élément reparse conservé: {relative}"
+                ));
+            }
+            let identity = identity_snapshot(crate::windows_file_identity::inspect(
+                &entry.path(),
+                file_type.is_dir(),
+            )?)?;
+            let sha = file_type
+                .is_file()
+                .then(|| sha256_file(&entry.path()).map(|value| hex(&value)))
+                .transpose()?;
+            target.objects.push(CleanupObject {
+                relative_path: relative.clone(),
+                identity,
+                sha256: sha,
+                owned: false,
+                removed: false,
+                error: Some(format!(
+                    "élément ajouté après confirmation, conservé: {relative}"
+                )),
+            });
+        }
+        held_target_directories.insert(directory_relative, directory_handle);
     }
     Ok(())
 }
