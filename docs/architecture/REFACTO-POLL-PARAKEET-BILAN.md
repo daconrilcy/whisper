@@ -32,3 +32,5 @@ N2 PersonalUnified : premier appel arrêté par la garde pendant compilation (é
 **Rétention.** Aucun fichier supprimé par l’agent. Les commandes proposées après inventaire vérifié sont limitées aux racines temporaires et à la cible Cargo propre au lot ; préserver `target/cargo-home-shared`, la ZIP, worktree, installation stable et remise. Voir le relevé de clôture T6.
 
 Suivi post-T6 : [inventaire et phase T7](REFACTO-POLL-PARAKEET-SUIVI-POST-T6.md).
+
+Suivi des validations T10 : [REFACTO-POLL-PARAKEET-SUIVI-T10.md](REFACTO-POLL-PARAKEET-SUIVI-T10.md).

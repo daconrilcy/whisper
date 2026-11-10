@@ -17,3 +17,5 @@ Base T9 `6537d2f8`, candidat `cc273e9d`, branche `refacto-poll-parakeet`. Seul `
 Revue indépendante **CLEAN**, base `6537d2f8`, candidat `cc273e9d`, aucun finding. Les avertissements `too_many_lines` résiduels mesurés dans le fichier sont `handle_single_pass_parakeet_result` à 102/100 et `poll_parakeet_worker` à 117/100 ; aucun nouvel avertissement T9 dans ses helpers.
 
 T10, validation finale, nouvelle N2 et recette Windows ne sont pas exécutés dans cette phase. Aucun merge ni push.
+
+Clôture des validations ultérieures : [REFACTO-POLL-PARAKEET-SUIVI-T10.md](REFACTO-POLL-PARAKEET-SUIVI-T10.md).
