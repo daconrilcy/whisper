@@ -1541,7 +1541,13 @@ fn poll_parakeet_ready_without_active_import_is_stale() {
     let ready_worker = compile_worker(
         &worker_root,
         "parakeet-ready-stale-worker",
-        r###"fn main() { println!("{}", r#"{"version":1,"message":{"type":"ready","identity":{"model_sha256":"fixture","runtime_sha256":"fixture","build_sha256":"fixture","profile":"import-single-pass"},"backend":"CPU","native_version":"fixture"}}"#); }"###,
+        r###"use std::io::{self, BufRead};
+fn main() {
+    println!("{}", r#"{"version":1,"message":{"type":"ready","identity":{"model_sha256":"fixture","runtime_sha256":"fixture","build_sha256":"fixture","profile":"import-single-pass"},"backend":"CPU","native_version":"fixture"}}"#);
+    for line in io::stdin().lock().lines().flatten() {
+        if line.contains("\"type\":\"shutdown\"") { return; }
+    }
+}"###,
     );
     let paths = synthetic_parakeet_paths(ready_worker);
     let mut runtime = runtime_with_active_attempt(JobId(73_242));

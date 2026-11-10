@@ -695,11 +695,9 @@ impl ImportRuntime {
             vad.worker_ready = true;
             return None;
         }
-        if let Err(error) = self.prepare_single_pass_parakeet_transcription(
-            &request,
-            attempt_number,
-            expected_gpu,
-        )? {
+        if let Err(error) =
+            self.prepare_single_pass_parakeet_transcription(&request, attempt_number, expected_gpu)?
+        {
             if expected_backend == BackendKind::Cuda
                 && request.config.compute == whisper_core::ComputeChoice::Auto
             {
@@ -731,7 +729,13 @@ impl ImportRuntime {
         gpu_evidence: Option<whisper_core::parakeet_ipc::GpuEvidence>,
     ) -> Option<Result<WorkerEvent, PortError>> {
         let ParakeetVadResult {
-            request_id, job_id, generation, attempt, identity, source_sha256, duration_samples,
+            request_id,
+            job_id,
+            generation,
+            attempt,
+            identity,
+            source_sha256,
+            duration_samples,
             words,
         } = result;
         let Some(active) = self.active.as_ref() else {
@@ -781,11 +785,10 @@ impl ImportRuntime {
             total_samples: duration_samples,
         });
 
-        let validated_words =
-            match validate_single_pass_parakeet_words(&words, duration_samples) {
-                Ok(words) => words,
-                Err(error) => return Some(Err(PortError::Failed(error))),
-            };
+        let validated_words = match validate_single_pass_parakeet_words(&words, duration_samples) {
+            Ok(words) => words,
+            Err(error) => return Some(Err(PortError::Failed(error))),
+        };
 
         let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
         for (start, end, token) in validated_words {
