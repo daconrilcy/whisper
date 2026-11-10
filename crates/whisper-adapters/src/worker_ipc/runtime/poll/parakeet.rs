@@ -647,13 +647,15 @@ impl ImportRuntime {
             whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
         };
         let expected_gpu = self.parakeet_expected_gpu.clone();
-        if !self.parakeet_ready_backend_matches(
+        let identity_matches =
+            self.parakeet_ready_identity_matches(&identity, expected_backend, profile);
+        let backend_matches = self.parakeet_ready_backend_matches(
             &backend,
             gpu_evidence.as_ref(),
             expected_backend,
             expected_gpu.as_ref(),
-        ) || !self.parakeet_ready_identity_matches(&identity, expected_backend, profile)
-        {
+        );
+        if !backend_matches || !identity_matches {
             if expected_backend == BackendKind::Cuda
                 && request.config.compute == whisper_core::ComputeChoice::Auto
             {
