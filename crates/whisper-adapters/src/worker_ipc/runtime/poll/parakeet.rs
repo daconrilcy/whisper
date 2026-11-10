@@ -833,6 +833,83 @@ impl ImportRuntime {
         self.handle_single_pass_parakeet_result(result, gpu_evidence)
     }
 
+    fn handle_parakeet_failure(
+        &mut self,
+        event: whisper_core::parakeet_ipc::Event,
+    ) -> Option<Result<WorkerEvent, PortError>> {
+        let whisper_core::parakeet_ipc::Event::Failed {
+            request_id,
+            job_id: reported_job_id,
+            generation: reported_generation,
+            attempt,
+            identity,
+            code,
+            message,
+            ..
+        } = event
+        else {
+            return None;
+        };
+        let Some(active) = self.active.as_ref() else {
+            return Some(Err(PortError::Failed(
+                "StaleResponse: Parakeet failure without active import".into(),
+            )));
+        };
+        if reported_job_id
+            .as_deref()
+            .is_some_and(|reported| reported != format!("{:032x}", active.job_id.0))
+            || reported_generation.is_some_and(|reported| reported != active.generation.get())
+            || identity.as_ref().is_some_and(|reported| {
+                self.parakeet
+                    .as_ref()
+                    .and_then(|process| process.identity())
+                    .is_some_and(|expected| expected != reported)
+            })
+        {
+            return Some(Err(PortError::Failed(
+                "StaleResponse: Parakeet failure identity differs from active import".into(),
+            )));
+        }
+        let cpu_retry = self.active.as_ref().and_then(|active| {
+            let request = active.import_request.as_ref()?;
+            (active.backend == BackendKind::Cuda
+                && request.config.compute == whisper_core::ComputeChoice::Auto
+                && !self.parakeet_native_call_started
+                && request_id.is_none_or(|request_id| request_id == 1)
+                && attempt.is_none_or(|attempt| attempt == active.attempt_number))
+            .then(|| request.clone())
+        });
+        if let Some(request) = cpu_retry {
+            return match self.fallback_parakeet_to_cpu(
+                request,
+                format!("GPU worker failed before native inference: {code}: {message}"),
+            ) {
+                Ok(()) => None,
+                Err(error) => Some(Err(PortError::Failed(error))),
+            };
+        }
+        let (job_id, generation, instance_id) =
+            (active.job_id, active.generation, active.instance_id);
+        if let Some(process) = self.parakeet.as_mut() {
+            let _ = process.terminate();
+        }
+        self.parakeet = None;
+        self.parakeet_stopped_ack = false;
+        Some(Ok(WorkerEvent::Failed {
+            job_id: Some(job_id),
+            generation: Some(generation),
+            instance_id: Some(instance_id),
+            code: match code.as_str() {
+                "ModelHashMismatch" => whisper_core::ipc::WorkerErrorCode::ModelHashMismatch,
+                "ProtocolVersionMismatch" | "InvalidMessage" => {
+                    whisper_core::ipc::WorkerErrorCode::ProtocolMismatch
+                }
+                _ => whisper_core::ipc::WorkerErrorCode::Internal,
+            },
+            message: format!("{code}: {message}"),
+        }))
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -966,78 +1043,8 @@ impl ImportRuntime {
                 },
                 gpu_evidence,
             ),
-            whisper_core::parakeet_ipc::Event::Failed {
-                request_id,
-                job_id: reported_job_id,
-                generation: reported_generation,
-                attempt,
-                identity,
-                code,
-                message,
-                ..
-            } => {
-                let Some(active) = self.active.as_ref() else {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet failure without active import".into(),
-                    )));
-                };
-                if reported_job_id
-                    .as_deref()
-                    .is_some_and(|reported| reported != format!("{:032x}", active.job_id.0))
-                    || reported_generation
-                        .is_some_and(|reported| reported != active.generation.get())
-                    || identity.as_ref().is_some_and(|reported| {
-                        self.parakeet
-                            .as_ref()
-                            .and_then(|process| process.identity())
-                            .is_some_and(|expected| expected != reported)
-                    })
-                {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet failure identity differs from active import"
-                            .into(),
-                    )));
-                }
-                let cpu_retry = self.active.as_ref().and_then(|active| {
-                    let request = active.import_request.as_ref()?;
-                    (active.backend == BackendKind::Cuda
-                        && request.config.compute == whisper_core::ComputeChoice::Auto
-                        && !self.parakeet_native_call_started
-                        && request_id.is_none_or(|request_id| request_id == 1)
-                        && attempt.is_none_or(|attempt| attempt == active.attempt_number))
-                    .then(|| request.clone())
-                });
-                if let Some(request) = cpu_retry {
-                    return match self.fallback_parakeet_to_cpu(
-                        request,
-                        format!("GPU worker failed before native inference: {code}: {message}"),
-                    ) {
-                        Ok(()) => None,
-                        Err(error) => Some(Err(PortError::Failed(error))),
-                    };
-                }
-                let (job_id, generation, instance_id) =
-                    (active.job_id, active.generation, active.instance_id);
-                if let Some(process) = self.parakeet.as_mut() {
-                    let _ = process.terminate();
-                }
-                self.parakeet = None;
-                self.parakeet_stopped_ack = false;
-                Some(Ok(WorkerEvent::Failed {
-                    job_id: Some(job_id),
-                    generation: Some(generation),
-                    instance_id: Some(instance_id),
-                    code: match code.as_str() {
-                        "ModelHashMismatch" => {
-                            whisper_core::ipc::WorkerErrorCode::ModelHashMismatch
-                        }
-                        "ProtocolVersionMismatch" | "InvalidMessage" => {
-                            whisper_core::ipc::WorkerErrorCode::ProtocolMismatch
-                        }
-                        _ => whisper_core::ipc::WorkerErrorCode::Internal,
-                    },
-                    message: format!("{code}: {message}"),
-                }))
+            event @ whisper_core::parakeet_ipc::Event::Failed { .. } => {
+                self.handle_parakeet_failure(event)
             }
             whisper_core::parakeet_ipc::Event::NativeCallStarted {
                 request_id,
