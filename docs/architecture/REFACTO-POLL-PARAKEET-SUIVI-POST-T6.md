@@ -15,3 +15,5 @@ Branche refacto-poll-parakeet, delta de T6 443e6a8a à 6dd93f08. Commits d’ext
 handle_parakeet_ready : 99 lignes, 3 arguments, complexité cognitive 12. poll_parakeet_worker : complexité 24 ; le reste du polling reste pour T8/T9. Les tests P07/P08 ciblés passent 2/2 ; cargo test -p whisper-adapters passe avec Q/D ; Clippy JSON avec recette-hooks passe ; N1 passe 944/0/129. Références gelées et assertions existantes inchangées. Revue indépendante finale CLEAN pour 6dd93f08 ; T7-R1 fermé. La revue constate que les tests ne ciblent pas explicitement les lectures de qualification sur backend invalide ; l’ordre inconditionnel est démontré par le diff.
 
 Aucun merge ni push. La recette dans la fenêtre Windows reste non exécutée. Ce suivi complète les faits postérieurs au bilan figé sans modifier son récit de clôture.
+
+Suivi T8 : [résultats et revue](REFACTO-POLL-PARAKEET-SUIVI-T8.md).
