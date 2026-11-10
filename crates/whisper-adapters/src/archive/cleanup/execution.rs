@@ -154,43 +154,13 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
             if object.removed || !object.owned {
                 continue;
             }
-            let path = safe_cleanup_path(root, &object.relative_path)?;
-            let result = (|| {
-                if fs::symlink_metadata(&path)
-                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
-                {
-                    return Ok(());
-                }
-                if object.identity.is_directory {
-                    // Only the generation directory is included; parent folders are
-                    // deliberately retained, so no broad recursive removal occurs.
-                    let handle = held_target_directories
-                        .remove(&object.relative_path)
-                        .ok_or_else(|| {
-                            "CleanupIdentityChanged: handle du dossier cible absent".to_owned()
-                        })?;
-                    handle.mark_delete(&runtime_identity(&object.identity), None)
-                } else {
-                    delete_if_identity_matches(
-                        &path,
-                        &runtime_identity(&object.identity),
-                        object.sha256.as_deref(),
-                    )
-                }
-            })();
-            match result {
-                Ok(()) => {
-                    object.removed = true;
-                    object.error = None;
-                }
-                Err(error) => {
-                    object.error = Some(error.clone());
-                    plan.last_error = Some(error.clone());
-                    write_cleanup_plan(root, plan)?;
-                    return Err(error);
-                }
-            }
-            write_cleanup_plan(root, plan)?;
+            remove_cleanup_target_object(
+                root,
+                plan,
+                target_index,
+                object_index,
+                &mut held_target_directories,
+            )?;
         }
     }
     for target_index in 0..plan.targets.len() {
@@ -623,6 +593,55 @@ fn capture_unselected_cleanup_entries(
         held_target_directories.insert(directory_relative, directory_handle);
     }
     Ok(())
+}
+
+#[cfg(windows)]
+fn remove_cleanup_target_object(
+    root: &Path,
+    plan: &mut CleanupPlan,
+    target_index: usize,
+    object_index: usize,
+    held_target_directories: &mut std::collections::HashMap<
+        String,
+        crate::windows_file_identity::VerifiedFile,
+    >,
+) -> Result<(), String> {
+    let object = &mut plan.targets[target_index].objects[object_index];
+    let path = safe_cleanup_path(root, &object.relative_path)?;
+    let result = (|| {
+        if fs::symlink_metadata(&path).is_err_and(|error| error.kind() == io::ErrorKind::NotFound) {
+            return Ok(());
+        }
+        if object.identity.is_directory {
+            // Only the generation directory is included; parent folders are
+            // deliberately retained, so no broad recursive removal occurs.
+            let handle = held_target_directories
+                .remove(&object.relative_path)
+                .ok_or_else(|| {
+                    "CleanupIdentityChanged: handle du dossier cible absent".to_owned()
+                })?;
+            handle.mark_delete(&runtime_identity(&object.identity), None)
+        } else {
+            delete_if_identity_matches(
+                &path,
+                &runtime_identity(&object.identity),
+                object.sha256.as_deref(),
+            )
+        }
+    })();
+    match result {
+        Ok(()) => {
+            object.removed = true;
+            object.error = None;
+        }
+        Err(error) => {
+            object.error = Some(error.clone());
+            plan.last_error = Some(error.clone());
+            write_cleanup_plan(root, plan)?;
+            return Err(error);
+        }
+    }
+    write_cleanup_plan(root, plan)
 }
 
 #[cfg(not(windows))]
