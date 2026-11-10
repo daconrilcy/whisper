@@ -123,73 +123,12 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
         (CleanupObjectIdentity, VerifiedFile),
     > = std::collections::HashMap::new();
     let removed_container_paths = adopt_missing_cleanup_containers(root, plan)?;
-    for target in &plan.targets {
-        if target.treatment.destination != plan.destination
-            || target.source_sha256 != plan.source_sha256
-            || (target.treatment.job_id == plan.successor.job_id
-                && target.treatment.generation == plan.successor.generation)
-        {
-            return Err(
-                "CleanupUnsafePath: cible chevauche le successeur ou autre destination".into(),
-            );
-        }
-        if let Some(container) = &target.container
-            && !container.removed
-        {
-            let expected_path = root
-                .join("transcriptions")
-                .join(format!("{:032x}", target.treatment.job_id.0));
-            if !container.identity.is_directory
-                || container.sha256.is_some()
-                || container.relative_path != relative_to_root(root, &expected_path)?
-                || !target.ancestors.iter().any(|ancestor| {
-                    ancestor.relative_path == container.relative_path
-                        && ancestor.identity == container.identity
-                })
-            {
-                return Err("CleanupIdentityChanged: preuve du conteneur invalide".into());
-            }
-            let path = safe_cleanup_path(root, &container.relative_path)?;
-            let canonical = path.canonicalize().map_err(|error| {
-                format!(
-                    "CleanupIdentityChanged: conteneur inaccessible {}: {error}",
-                    container.relative_path
-                )
-            })?;
-            let canonical_root = Path::new(&plan.destination)
-                .canonicalize()
-                .map_err(|error| format!("CleanupIdentityChanged: destination: {error}"))?;
-            if canonical != canonical_root.join(&container.relative_path) {
-                return Err(format!(
-                    "CleanupUnsafePath: conteneur redirigé {}",
-                    container.relative_path
-                ));
-            }
-        }
-        for ancestor in &target.ancestors {
-            if removed_container_paths.contains(&ancestor.relative_path) {
-                continue;
-            }
-            if let Some(previous) = held_ancestors_by_path.get(&ancestor.relative_path) {
-                if previous.0 != ancestor.identity {
-                    return Err(format!(
-                        "CleanupIdentityChanged: identités d'ancêtre divergentes {}",
-                        ancestor.relative_path
-                    ));
-                }
-                continue;
-            }
-            let path = safe_cleanup_path(root, &ancestor.relative_path)?;
-            let handle = VerifiedFile::open(&path, true)?;
-            handle
-                .verify(&runtime_identity(&ancestor.identity))
-                .map_err(|error| format!("{error}: ancêtre {}", ancestor.relative_path))?;
-            held_ancestors_by_path.insert(
-                ancestor.relative_path.clone(),
-                (ancestor.identity.clone(), handle),
-            );
-        }
-    }
+    hold_cleanup_target_ancestors(
+        root,
+        plan,
+        &removed_container_paths,
+        &mut held_ancestors_by_path,
+    )?;
     for target in &mut plan.targets {
         for object in &mut target.objects {
             if object.removed {
@@ -568,6 +507,91 @@ fn adopt_missing_cleanup_containers(
         write_cleanup_plan(root, plan)?;
     }
     Ok(removed_container_paths)
+}
+
+#[cfg(windows)]
+fn hold_cleanup_target_ancestors(
+    root: &Path,
+    plan: &CleanupPlan,
+    removed_container_paths: &std::collections::HashSet<String>,
+    held_ancestors_by_path: &mut std::collections::HashMap<
+        String,
+        (
+            CleanupObjectIdentity,
+            crate::windows_file_identity::VerifiedFile,
+        ),
+    >,
+) -> Result<(), String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    for target in &plan.targets {
+        if target.treatment.destination != plan.destination
+            || target.source_sha256 != plan.source_sha256
+            || (target.treatment.job_id == plan.successor.job_id
+                && target.treatment.generation == plan.successor.generation)
+        {
+            return Err(
+                "CleanupUnsafePath: cible chevauche le successeur ou autre destination".into(),
+            );
+        }
+        if let Some(container) = &target.container
+            && !container.removed
+        {
+            let expected_path = root
+                .join("transcriptions")
+                .join(format!("{:032x}", target.treatment.job_id.0));
+            if !container.identity.is_directory
+                || container.sha256.is_some()
+                || container.relative_path != relative_to_root(root, &expected_path)?
+                || !target.ancestors.iter().any(|ancestor| {
+                    ancestor.relative_path == container.relative_path
+                        && ancestor.identity == container.identity
+                })
+            {
+                return Err("CleanupIdentityChanged: preuve du conteneur invalide".into());
+            }
+            let path = safe_cleanup_path(root, &container.relative_path)?;
+            let canonical = path.canonicalize().map_err(|error| {
+                format!(
+                    "CleanupIdentityChanged: conteneur inaccessible {}: {error}",
+                    container.relative_path
+                )
+            })?;
+            let canonical_root = Path::new(&plan.destination)
+                .canonicalize()
+                .map_err(|error| format!("CleanupIdentityChanged: destination: {error}"))?;
+            if canonical != canonical_root.join(&container.relative_path) {
+                return Err(format!(
+                    "CleanupUnsafePath: conteneur redirigé {}",
+                    container.relative_path
+                ));
+            }
+        }
+        for ancestor in &target.ancestors {
+            if removed_container_paths.contains(&ancestor.relative_path) {
+                continue;
+            }
+            if let Some(previous) = held_ancestors_by_path.get(&ancestor.relative_path) {
+                if previous.0 != ancestor.identity {
+                    return Err(format!(
+                        "CleanupIdentityChanged: identités d'ancêtre divergentes {}",
+                        ancestor.relative_path
+                    ));
+                }
+                continue;
+            }
+            let path = safe_cleanup_path(root, &ancestor.relative_path)?;
+            let handle = VerifiedFile::open(&path, true)?;
+            handle
+                .verify(&runtime_identity(&ancestor.identity))
+                .map_err(|error| format!("{error}: ancêtre {}", ancestor.relative_path))?;
+            held_ancestors_by_path.insert(
+                ancestor.relative_path.clone(),
+                (ancestor.identity.clone(), handle),
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(windows))]

@@ -6,6 +6,8 @@ Décision : engager les extractions de nettoyage, arrêt obligatoire après T6.
 
 ## Autorisation précise de la session — 9 novembre 2026
 
+**Extraction nettoyage 05 validée vers 07:48.** `hold_cleanup_target_ancestors`, quatre arguments, map conservée dans l'appelant. Complexité **6**, orchestrateur **18** (323 lignes). Corpus, Auto, Q03, N1 et métrique verts, du run `074455484` à `074733907`. Journaux conservés sous `cleanup-extraction-05/`. Aucun ordre de validation ni verrou déplacé.
+
 **Extraction nettoyage 04 validée vers 07:43.** `adopt_missing_cleanup_containers`, deux arguments, retourne les chemins déjà supprimés, conserve le write conditionnel. Complexité **6**, orchestrateur **23** (384 lignes). Adapters, Auto, Q03, N1 et mesure passent (du run `074021705` à `074301532`). ZIP `cleanup-extraction-04/` vérifié, **6 456 entrées**, **16 638 710 octets**, SHA-256 `95fbd5eda6121a3b92001afd528baf66d525ccbf5624c13cfc805511674aa0ee`. La map des handles ancêtres reste créée avant cet appel et détenue par l'orchestrateur.
 
 **Extraction nettoyage 03 validée vers 07:40.** `validate_cleanup_successor_files`, quatre arguments, résultat privé nommé avec handles et trois valeurs optionnelles. Les trois `expect` et le handle dossier restent dans l'orchestrateur. Complexité fichiers **5**, records/index **1**, orchestrateur **28** (400 lignes). Adapters, Auto, Q03, N1 et mesure passent, du run `073630508` à `073905844`. Journaux archivés sous `cleanup-extraction-03/`, références comparées pendant chaque corpus. Ordre manifest/transcript/SRT/pending/segments/CURRENT conservé.
