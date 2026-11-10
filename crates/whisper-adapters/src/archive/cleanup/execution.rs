@@ -137,27 +137,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
         return Err("CleanupIdentityChanged: intention de publication divergente".into());
     }
     let index_proof = plan.successor_index.as_ref().unwrap();
-    if index_proof.relative_path != relative_to_root(root, &publication_index_path(root))? {
-        return Err("CleanupIdentityChanged: chemin de l'index successeur inattendu".into());
-    }
-    let index_path = safe_cleanup_path(root, &index_proof.relative_path)?;
-    let mut index_handle = VerifiedFile::open(&index_path, false)?;
-    index_handle.verify(&runtime_identity(&index_proof.identity))?;
-    if Some(index_handle.sha256()?).as_deref() != index_proof.sha256.as_deref() {
-        return Err("CleanupIdentityChanged: index de publication modifié".into());
-    }
-    let index: PublicationIndex = serde_json::from_slice(&index_handle.read_all()?)
-        .map_err(|error| format!("CleanupIdentityChanged: index de publication: {error}"))?;
-    if index.version != 1
-        || !index.records.iter().any(|record| {
-            record.job_id == plan.successor.job_id
-                && record.generation == plan.successor.generation
-                && record.source_sha256 == plan.source_sha256
-                && record.active
-        })
-    {
-        return Err("CleanupIdentityChanged: successeur absent de l'index actif".into());
-    }
+    let index_handle = open_verified_cleanup_index(root, plan, index_proof)?;
     let successor_identity_set: std::collections::HashSet<_> = std::iter::once((
         plan.successor_directory.volume_serial,
         plan.successor_directory.file_id,
@@ -556,6 +536,38 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     _plan: &mut CleanupPlan,
 ) -> Result<(), String> {
     Err("Unsupported: le nettoyage RTC-02 nécessite les handles Windows".into())
+}
+
+#[cfg(windows)]
+fn open_verified_cleanup_index(
+    root: &Path,
+    plan: &CleanupPlan,
+    proof: &CleanupObject,
+) -> Result<crate::windows_file_identity::VerifiedFile, String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    if proof.relative_path != relative_to_root(root, &publication_index_path(root))? {
+        return Err("CleanupIdentityChanged: chemin de l'index successeur inattendu".into());
+    }
+    let index_path = safe_cleanup_path(root, &proof.relative_path)?;
+    let mut index_handle = VerifiedFile::open(&index_path, false)?;
+    index_handle.verify(&runtime_identity(&proof.identity))?;
+    if Some(index_handle.sha256()?).as_deref() != proof.sha256.as_deref() {
+        return Err("CleanupIdentityChanged: index de publication modifié".into());
+    }
+    let index: PublicationIndex = serde_json::from_slice(&index_handle.read_all()?)
+        .map_err(|error| format!("CleanupIdentityChanged: index de publication: {error}"))?;
+    if index.version != 1
+        || !index.records.iter().any(|record| {
+            record.job_id == plan.successor.job_id
+                && record.generation == plan.successor.generation
+                && record.source_sha256 == plan.source_sha256
+                && record.active
+        })
+    {
+        return Err("CleanupIdentityChanged: successeur absent de l'index actif".into());
+    }
+    Ok(index_handle)
 }
 
 pub(super) fn safe_cleanup_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
