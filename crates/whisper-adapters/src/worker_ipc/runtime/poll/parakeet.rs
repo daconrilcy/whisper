@@ -80,6 +80,15 @@ pub(in crate::worker_ipc) fn append_single_pass_parakeet_word_group(
     }
     Ok(())
 }
+struct ParakeetReadyContext {
+    request: ImportRequest,
+    expected_backend: BackendKind,
+    attempt_number: u64,
+    active_job_id: JobId,
+    active_generation: Generation,
+    active_instance_id: u64,
+}
+
 struct ParakeetVadResult {
     request_id: u64,
     job_id: String,
@@ -503,6 +512,27 @@ impl ImportRuntime {
             .map_err(|(_, _, error)| error)
     }
 
+    fn active_parakeet_ready_context(&self) -> Result<ParakeetReadyContext, PortError> {
+        let Some(active) = self.active.as_ref() else {
+            return Err(PortError::Failed(
+                "StaleResponse: Parakeet Ready without an active import".into(),
+            ));
+        };
+        let Some(request) = active.import_request.clone() else {
+            return Err(PortError::Failed(
+                "StaleResponse: Parakeet request is unavailable".into(),
+            ));
+        };
+        Ok(ParakeetReadyContext {
+            request,
+            expected_backend: active.backend,
+            attempt_number: active.attempt_number,
+            active_job_id: active.job_id,
+            active_generation: active.generation,
+            active_instance_id: active.instance_id,
+        })
+    }
+
     fn parakeet_ready_identity_matches(
         &self,
         identity: &whisper_core::parakeet_ipc::WorkerIdentity,
@@ -702,33 +732,18 @@ impl ImportRuntime {
                 gpu_evidence,
                 ..
             } => {
-                let (
+                let context = match self.active_parakeet_ready_context() {
+                    Ok(context) => context,
+                    Err(error) => return Some(Err(error)),
+                };
+                let ParakeetReadyContext {
                     request,
                     expected_backend,
                     attempt_number,
                     active_job_id,
                     active_generation,
                     active_instance_id,
-                ) = {
-                    let Some(active) = self.active.as_ref() else {
-                        return Some(Err(PortError::Failed(
-                            "StaleResponse: Parakeet Ready without an active import".into(),
-                        )));
-                    };
-                    let Some(request) = active.import_request.clone() else {
-                        return Some(Err(PortError::Failed(
-                            "StaleResponse: Parakeet request is unavailable".into(),
-                        )));
-                    };
-                    (
-                        request,
-                        active.backend,
-                        active.attempt_number,
-                        active.job_id,
-                        active.generation,
-                        active.instance_id,
-                    )
-                };
+                } = context;
                 let profile = if self.parakeet_vad.is_some() {
                     whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
                 } else {
