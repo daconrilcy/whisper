@@ -122,23 +122,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
         String,
         (CleanupObjectIdentity, VerifiedFile),
     > = std::collections::HashMap::new();
-    let mut removed_container_paths = std::collections::HashSet::new();
-    for target in &mut plan.targets {
-        if let Some(container) = &mut target.container {
-            if container.removed {
-                removed_container_paths.insert(container.relative_path.clone());
-            } else if fs::symlink_metadata(safe_cleanup_path(root, &container.relative_path)?)
-                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
-            {
-                container.removed = true;
-                container.error = None;
-                removed_container_paths.insert(container.relative_path.clone());
-            }
-        }
-    }
-    if !removed_container_paths.is_empty() {
-        write_cleanup_plan(root, plan)?;
-    }
+    let removed_container_paths = adopt_missing_cleanup_containers(root, plan)?;
     for target in &plan.targets {
         if target.treatment.destination != plan.destination
             || target.source_sha256 != plan.source_sha256
@@ -559,6 +543,31 @@ fn validate_cleanup_successor_records(
         return Err("CleanupIdentityChanged: journal segments incohérent".into());
     }
     Ok(())
+}
+
+#[cfg(windows)]
+fn adopt_missing_cleanup_containers(
+    root: &Path,
+    plan: &mut CleanupPlan,
+) -> Result<std::collections::HashSet<String>, String> {
+    let mut removed_container_paths = std::collections::HashSet::new();
+    for target in &mut plan.targets {
+        if let Some(container) = &mut target.container {
+            if container.removed {
+                removed_container_paths.insert(container.relative_path.clone());
+            } else if fs::symlink_metadata(safe_cleanup_path(root, &container.relative_path)?)
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            {
+                container.removed = true;
+                container.error = None;
+                removed_container_paths.insert(container.relative_path.clone());
+            }
+        }
+    }
+    if !removed_container_paths.is_empty() {
+        write_cleanup_plan(root, plan)?;
+    }
+    Ok(removed_container_paths)
 }
 
 #[cfg(not(windows))]
