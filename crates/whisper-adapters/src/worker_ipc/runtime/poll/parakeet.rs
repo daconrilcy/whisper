@@ -725,6 +725,103 @@ impl ImportRuntime {
         }))
     }
 
+    fn handle_single_pass_parakeet_result(
+        &mut self,
+        result: ParakeetVadResult,
+        gpu_evidence: Option<whisper_core::parakeet_ipc::GpuEvidence>,
+    ) -> Option<Result<WorkerEvent, PortError>> {
+        let ParakeetVadResult {
+            request_id, job_id, generation, attempt, identity, source_sha256, duration_samples,
+            words,
+        } = result;
+        let Some(active) = self.active.as_ref() else {
+            return Some(Err(PortError::Failed(
+                "StaleResponse: Parakeet result without active import".into(),
+            )));
+        };
+        let Some(request) = active.import_request.as_ref() else {
+            return Some(Err(PortError::Failed(
+                "StaleResponse: Parakeet request is unavailable".into(),
+            )));
+        };
+        let current_identity = self.parakeet.as_ref().and_then(|p| p.identity());
+        let expected_gpu = self.parakeet_expected_gpu.as_ref();
+        let gpu_result_matches = if active.backend == BackendKind::Cuda {
+            self.parakeet.as_ref().is_some_and(|process| {
+                gpu_evidence_matches(gpu_evidence.as_ref(), expected_gpu, process.pid())
+            }) && self.parakeet_native_call_started
+        } else {
+            gpu_evidence.is_none()
+        };
+        if !gpu_result_matches
+            || request_id != 1
+            || job_id != format!("{:032x}", active.job_id.0)
+            || generation != active.generation.get()
+            || attempt != active.attempt_number
+            || request
+                .source_sha256
+                .map(|sha| format_sha256(&sha))
+                .as_deref()
+                != Some(source_sha256.as_str())
+            || request.source_samples != Some(duration_samples)
+            || current_identity != Some(&identity)
+            || words.is_empty()
+        {
+            return Some(Err(PortError::Failed(
+                "ProtocolMismatch: Parakeet result identity, duration, or words differ".into(),
+            )));
+        }
+        let (job_id, generation, instance_id) =
+            (active.job_id, active.generation, active.instance_id);
+        self.parakeet_events.push_back(WorkerEvent::Progress {
+            job_id,
+            generation,
+            instance_id,
+            completed_samples: duration_samples,
+            total_samples: duration_samples,
+        });
+
+        let validated_words =
+            match validate_single_pass_parakeet_words(&words, duration_samples) {
+                Ok(words) => words,
+                Err(error) => return Some(Err(PortError::Failed(error))),
+            };
+
+        let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
+        for (start, end, token) in validated_words {
+            if let Err(error) =
+                append_single_pass_parakeet_word_group(&mut groups, start, end, &token)
+            {
+                return Some(Err(PortError::Failed(error)));
+            }
+        }
+        let last_sequence = groups.len() as u64;
+        for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
+            let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
+                return Some(Err(PortError::Failed(
+                    "InvalidTimestamp: Parakeet sentence range is invalid".into(),
+                )));
+            };
+            self.parakeet_events.push_back(WorkerEvent::Segment(
+                whisper_core::ipc::WorkerSegmentDto {
+                    job_id,
+                    generation,
+                    instance_id,
+                    segment_id: whisper_core::SegmentId(sequence as u64 + 1),
+                    range,
+                    text: tokens.join(" "),
+                },
+            ));
+        }
+        self.parakeet_end = Some((job_id, generation, last_sequence, duration_samples));
+        if let Some(process) = self.parakeet.as_mut()
+            && let Err(error) = process.shutdown()
+        {
+            return Some(Err(PortError::Failed(error)));
+        }
+        self.parakeet_events.pop_front().map(Ok)
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -858,93 +955,19 @@ impl ImportRuntime {
                         words,
                     });
                 }
-                let Some(active) = self.active.as_ref() else {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet result without active import".into(),
-                    )));
-                };
-                let Some(request) = active.import_request.as_ref() else {
-                    return Some(Err(PortError::Failed(
-                        "StaleResponse: Parakeet request is unavailable".into(),
-                    )));
-                };
-                let current_identity = self.parakeet.as_ref().and_then(|p| p.identity());
-                let expected_gpu = self.parakeet_expected_gpu.as_ref();
-                let gpu_result_matches = if active.backend == BackendKind::Cuda {
-                    self.parakeet.as_ref().is_some_and(|process| {
-                        gpu_evidence_matches(gpu_evidence.as_ref(), expected_gpu, process.pid())
-                    }) && self.parakeet_native_call_started
-                } else {
-                    gpu_evidence.is_none()
-                };
-                if !gpu_result_matches
-                    || request_id != 1
-                    || job_id != format!("{:032x}", active.job_id.0)
-                    || generation != active.generation.get()
-                    || attempt != active.attempt_number
-                    || request
-                        .source_sha256
-                        .map(|sha| format_sha256(&sha))
-                        .as_deref()
-                        != Some(source_sha256.as_str())
-                    || request.source_samples != Some(duration_samples)
-                    || current_identity != Some(&identity)
-                    || words.is_empty()
-                {
-                    return Some(Err(PortError::Failed(
-                        "ProtocolMismatch: Parakeet result identity, duration, or words differ"
-                            .into(),
-                    )));
-                }
-                let (job_id, generation, instance_id) =
-                    (active.job_id, active.generation, active.instance_id);
-                self.parakeet_events.push_back(WorkerEvent::Progress {
-                    job_id,
-                    generation,
-                    instance_id,
-                    completed_samples: duration_samples,
-                    total_samples: duration_samples,
-                });
-
-                let validated_words =
-                    match validate_single_pass_parakeet_words(&words, duration_samples) {
-                        Ok(words) => words,
-                        Err(error) => return Some(Err(PortError::Failed(error))),
-                    };
-
-                let mut groups: Vec<(u64, u64, Vec<String>)> = Vec::new();
-                for (start, end, token) in validated_words {
-                    if let Err(error) =
-                        append_single_pass_parakeet_word_group(&mut groups, start, end, &token)
-                    {
-                        return Some(Err(PortError::Failed(error)));
-                    }
-                }
-                let last_sequence = groups.len() as u64;
-                for (sequence, (start, end, tokens)) in groups.into_iter().enumerate() {
-                    let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
-                        return Some(Err(PortError::Failed(
-                            "InvalidTimestamp: Parakeet sentence range is invalid".into(),
-                        )));
-                    };
-                    self.parakeet_events.push_back(WorkerEvent::Segment(
-                        whisper_core::ipc::WorkerSegmentDto {
-                            job_id,
-                            generation,
-                            instance_id,
-                            segment_id: whisper_core::SegmentId(sequence as u64 + 1),
-                            range,
-                            text: tokens.join(" "),
-                        },
-                    ));
-                }
-                self.parakeet_end = Some((job_id, generation, last_sequence, duration_samples));
-                if let Some(process) = self.parakeet.as_mut()
-                    && let Err(error) = process.shutdown()
-                {
-                    return Some(Err(PortError::Failed(error)));
-                }
-                self.parakeet_events.pop_front().map(Ok)
+                self.handle_single_pass_parakeet_result(
+                    ParakeetVadResult {
+                        request_id,
+                        job_id,
+                        generation,
+                        attempt,
+                        identity,
+                        source_sha256,
+                        duration_samples,
+                        words,
+                    },
+                    gpu_evidence,
+                )
             }
             whisper_core::parakeet_ipc::Event::Failed {
                 request_id,
