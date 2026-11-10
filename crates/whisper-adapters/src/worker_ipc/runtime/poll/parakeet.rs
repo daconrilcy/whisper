@@ -910,6 +910,44 @@ impl ImportRuntime {
         }))
     }
 
+    fn poll_stopped_parakeet_exit(&mut self) -> Option<Result<WorkerEvent, PortError>> {
+        let status = self.parakeet.as_mut()?.try_wait();
+        match status {
+            Ok(None) if parakeet_stopped_exit(None) == ParakeetStoppedExit::Wait => None,
+            Ok(None) => None,
+            Ok(Some(status))
+                if parakeet_stopped_exit(Some(status.success()))
+                    == ParakeetStoppedExit::Success =>
+            {
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                if let Some((job_id, generation, last_sequence, last_offset)) =
+                    self.parakeet_end.take()
+                {
+                    let instance_id = self.active.as_ref()?.instance_id;
+                    Some(Ok(WorkerEvent::End {
+                        job_id,
+                        generation,
+                        instance_id,
+                        last_sequence,
+                        last_offset,
+                    }))
+                } else {
+                    Some(Err(PortError::Failed(
+                        "WorkerExited: Parakeet stopped without a transcription result".into(),
+                    )))
+                }
+            }
+            Ok(Some(status)) => {
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                self.parakeet_end = None;
+                Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
+            }
+            Err(error) => Some(Err(PortError::Failed(error))),
+        }
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -945,41 +983,7 @@ impl ImportRuntime {
             return Some(Ok(event));
         }
         if self.parakeet_stopped_ack {
-            let status = self.parakeet.as_mut()?.try_wait();
-            return match status {
-                Ok(None) if parakeet_stopped_exit(None) == ParakeetStoppedExit::Wait => None,
-                Ok(None) => None,
-                Ok(Some(status))
-                    if parakeet_stopped_exit(Some(status.success()))
-                        == ParakeetStoppedExit::Success =>
-                {
-                    self.parakeet = None;
-                    self.parakeet_stopped_ack = false;
-                    if let Some((job_id, generation, last_sequence, last_offset)) =
-                        self.parakeet_end.take()
-                    {
-                        let instance_id = self.active.as_ref()?.instance_id;
-                        Some(Ok(WorkerEvent::End {
-                            job_id,
-                            generation,
-                            instance_id,
-                            last_sequence,
-                            last_offset,
-                        }))
-                    } else {
-                        Some(Err(PortError::Failed(
-                            "WorkerExited: Parakeet stopped without a transcription result".into(),
-                        )))
-                    }
-                }
-                Ok(Some(status)) => {
-                    self.parakeet = None;
-                    self.parakeet_stopped_ack = false;
-                    self.parakeet_end = None;
-                    Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
-                }
-                Err(error) => Some(Err(PortError::Failed(error))),
-            };
+            return self.poll_stopped_parakeet_exit();
         }
         let received = match self.parakeet.as_mut()?.poll() {
             Ok(Some(event)) => event,
