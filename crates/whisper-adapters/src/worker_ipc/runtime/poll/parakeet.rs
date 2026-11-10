@@ -532,6 +532,24 @@ impl ImportRuntime {
             && identity.profile == profile
     }
 
+    fn parakeet_ready_backend_matches(
+        &self,
+        backend: &str,
+        gpu_evidence: Option<&whisper_core::parakeet_ipc::GpuEvidence>,
+        expected_backend: BackendKind,
+        expected_gpu: Option<&whisper_core::parakeet_ipc::ExpectedGpu>,
+    ) -> bool {
+        match expected_backend {
+            BackendKind::Cpu => backend == "CPU" && gpu_evidence.is_none(),
+            BackendKind::Cuda => {
+                backend == "CUDA0"
+                    && self.parakeet.as_ref().is_some_and(|process| {
+                        gpu_evidence_matches(gpu_evidence, expected_gpu, process.pid())
+                    })
+            }
+        }
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -674,20 +692,12 @@ impl ImportRuntime {
                     whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
                 };
                 let expected_gpu = self.parakeet_expected_gpu.clone();
-                let backend_matches = match expected_backend {
-                    BackendKind::Cpu => backend == "CPU" && gpu_evidence.is_none(),
-                    BackendKind::Cuda => {
-                        backend == "CUDA0"
-                            && self.parakeet.as_ref().is_some_and(|process| {
-                                gpu_evidence_matches(
-                                    gpu_evidence.as_ref(),
-                                    expected_gpu.as_ref(),
-                                    process.pid(),
-                                )
-                            })
-                    }
-                };
-                if !backend_matches
+                if !self.parakeet_ready_backend_matches(
+                    &backend,
+                    gpu_evidence.as_ref(),
+                    expected_backend,
+                    expected_gpu.as_ref(),
+                )
                     || !self.parakeet_ready_identity_matches(&identity, expected_backend, profile)
                 {
                     if expected_backend == BackendKind::Cuda
