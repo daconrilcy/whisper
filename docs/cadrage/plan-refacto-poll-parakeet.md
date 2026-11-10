@@ -1,10 +1,14 @@
 Avancée : T1 et S2 validés, 50 répétitions S2 réussies. N1 944/0/129.
-Blocage : extraction du retrait par objet arrêtée à la compilation, import resté dans l'ancien scope.
-Décision : demander le déplacement de cet import avant toute reprise.
+Blocage : aucun échec actif.
+Décision : terminer les extractions de retrait puis la revue indépendante et le point T6.
 
 # REFACTO-POLL-PARAKEET — plan, première tranche approuvée
 
 ## Autorisation précise de la session — 9 novembre 2026
+
+**Extraction nettoyage 08 validée vers 08:02 après correction autorisée.** `remove_cleanup_target_object`, cinq arguments, complexité **1** (sa closure de retrait est aussi mesurée séparément), orchestrateur **10** (193 lignes). Corpus, Auto, Q03, N1 et mesure verts, runs `075841289` à `080117217`. Journaux sous `cleanup-extraction-08/`. Le retrait du handle précède toujours immédiatement mark_delete, les écritures d'erreur/succès sont aux mêmes positions.
+
+**Accord extraction 08 le 10 novembre vers 07:59.** L'utilisateur autorise le déplacement du seul import `delete_if_identity_matches` du runner vers le helper puis les validations et la reprise T1–T6 si vert. Budget initial et arrêt après nettoyage maintenus.
 
 **Arrêt extraction 08 à 07:57.** Run `20261110T075718496-91713be703cf405ebcddc10d73558871`, Cargo 101, aucun test exécuté. E0425 ligne625 : `delete_if_identity_matches` appelé dans le nouveau helper mais importé uniquement dans le runner (ligne32), où il devient inutilisé. Correction proposée : déplacer ce seul import dans le helper, puis reprendre la campagne. Code d'appel et assertions intacts. Journaux conservés sous `cleanup-extraction-08-compile-stop/`, candidat conservé dans Git en attente d'accord. Aucune relance automatique.
 

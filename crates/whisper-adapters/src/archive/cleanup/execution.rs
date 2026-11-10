@@ -28,9 +28,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     root: &Path,
     plan: &mut CleanupPlan,
 ) -> Result<(), String> {
-    use crate::windows_file_identity::{
-        VerifiedFile, delete_if_identity_matches, open_and_hash_source,
-    };
+    use crate::windows_file_identity::{VerifiedFile, open_and_hash_source};
     if !plan.published
         || root.canonicalize().ok().as_deref()
             != Some(
@@ -606,6 +604,8 @@ fn remove_cleanup_target_object(
         crate::windows_file_identity::VerifiedFile,
     >,
 ) -> Result<(), String> {
+    use crate::windows_file_identity::delete_if_identity_matches;
+
     let object = &mut plan.targets[target_index].objects[object_index];
     let path = safe_cleanup_path(root, &object.relative_path)?;
     let result = (|| {
