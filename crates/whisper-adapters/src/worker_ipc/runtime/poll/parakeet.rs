@@ -503,6 +503,35 @@ impl ImportRuntime {
             .map_err(|(_, _, error)| error)
     }
 
+    fn parakeet_ready_identity_matches(
+        &self,
+        identity: &whisper_core::parakeet_ipc::WorkerIdentity,
+        expected_backend: BackendKind,
+        profile: &str,
+    ) -> bool {
+        let record = whisper_core::model_registry::model(
+            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        );
+        let expected_worker_paths = if expected_backend == BackendKind::Cuda {
+            self.gpu_parakeet_paths.as_ref()
+        } else {
+            self.parakeet_paths.as_ref()
+        };
+        let key = expected_worker_paths
+            .and_then(|paths| {
+                if expected_backend == BackendKind::Cuda {
+                    paths.gpu_qualification_key(profile).ok()
+                } else {
+                    paths.qualification_key(profile).ok()
+                }
+            })
+            .unwrap_or_else(crate::archive::ArchiveQualificationKey::parakeet_cpu_test);
+        identity.model_sha256 == record.artifact.sha256
+            && identity.runtime_sha256 == key.runtime_build
+            && identity.build_sha256 == key.worker_build
+            && identity.profile == profile
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -644,24 +673,7 @@ impl ImportRuntime {
                 } else {
                     whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
                 };
-                let record = whisper_core::model_registry::model(
-                    whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
-                );
                 let expected_gpu = self.parakeet_expected_gpu.clone();
-                let expected_worker_paths = if expected_backend == BackendKind::Cuda {
-                    self.gpu_parakeet_paths.as_ref()
-                } else {
-                    self.parakeet_paths.as_ref()
-                };
-                let key = expected_worker_paths
-                    .and_then(|paths| {
-                        if expected_backend == BackendKind::Cuda {
-                            paths.gpu_qualification_key(profile).ok()
-                        } else {
-                            paths.qualification_key(profile).ok()
-                        }
-                    })
-                    .unwrap_or_else(crate::archive::ArchiveQualificationKey::parakeet_cpu_test);
                 let backend_matches = match expected_backend {
                     BackendKind::Cpu => backend == "CPU" && gpu_evidence.is_none(),
                     BackendKind::Cuda => {
@@ -676,10 +688,7 @@ impl ImportRuntime {
                     }
                 };
                 if !backend_matches
-                    || identity.model_sha256 != record.artifact.sha256
-                    || identity.runtime_sha256 != key.runtime_build
-                    || identity.build_sha256 != key.worker_build
-                    || identity.profile != profile
+                    || !self.parakeet_ready_identity_matches(&identity, expected_backend, profile)
                 {
                     if expected_backend == BackendKind::Cuda
                         && request.config.compute == whisper_core::ComputeChoice::Auto
