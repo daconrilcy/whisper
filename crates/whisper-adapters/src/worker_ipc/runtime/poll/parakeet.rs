@@ -822,6 +822,17 @@ impl ImportRuntime {
         self.parakeet_events.pop_front().map(Ok)
     }
 
+    fn handle_parakeet_result(
+        &mut self,
+        result: ParakeetVadResult,
+        gpu_evidence: Option<whisper_core::parakeet_ipc::GpuEvidence>,
+    ) -> Option<Result<WorkerEvent, PortError>> {
+        if self.parakeet_vad.is_some() {
+            return self.handle_parakeet_vad_result(result);
+        }
+        self.handle_single_pass_parakeet_result(result, gpu_evidence)
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -942,33 +953,19 @@ impl ImportRuntime {
                 words,
                 gpu_evidence,
                 ..
-            } => {
-                if self.parakeet_vad.is_some() {
-                    return self.handle_parakeet_vad_result(ParakeetVadResult {
-                        request_id,
-                        job_id,
-                        generation,
-                        attempt,
-                        identity,
-                        source_sha256,
-                        duration_samples,
-                        words,
-                    });
-                }
-                self.handle_single_pass_parakeet_result(
-                    ParakeetVadResult {
-                        request_id,
-                        job_id,
-                        generation,
-                        attempt,
-                        identity,
-                        source_sha256,
-                        duration_samples,
-                        words,
-                    },
-                    gpu_evidence,
-                )
-            }
+            } => self.handle_parakeet_result(
+                ParakeetVadResult {
+                    request_id,
+                    job_id,
+                    generation,
+                    attempt,
+                    identity,
+                    source_sha256,
+                    duration_samples,
+                    words,
+                },
+                gpu_evidence,
+            ),
             whisper_core::parakeet_ipc::Event::Failed {
                 request_id,
                 job_id: reported_job_id,
