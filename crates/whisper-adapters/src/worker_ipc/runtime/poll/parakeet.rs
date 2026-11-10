@@ -550,6 +550,27 @@ impl ImportRuntime {
         }
     }
 
+    fn prepare_single_pass_parakeet_transcription(
+        &mut self,
+        request: &ImportRequest,
+        attempt_number: u64,
+        expected_gpu: Option<whisper_core::parakeet_ipc::ExpectedGpu>,
+    ) -> Option<Result<(), String>> {
+        let process = self.parakeet.as_mut()?;
+        let source_sha = request
+            .source_sha256
+            .map(|sha| format_sha256(&sha))
+            .unwrap_or_default();
+        Some(process.transcribe_with_gpu(
+            format!("{:032x}", request.job_id.0),
+            request.generation.get(),
+            attempt_number,
+            Path::new(&request.source_path),
+            source_sha,
+            expected_gpu,
+        ))
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -740,18 +761,11 @@ impl ImportRuntime {
                     vad.worker_ready = true;
                     return None;
                 }
-                let source_sha = request
-                    .source_sha256
-                    .map(|sha| format_sha256(&sha))
-                    .unwrap_or_default();
-                if let Err(error) = process.transcribe_with_gpu(
-                    format!("{:032x}", request.job_id.0),
-                    request.generation.get(),
+                if let Err(error) = self.prepare_single_pass_parakeet_transcription(
+                    &request,
                     attempt_number,
-                    Path::new(&request.source_path),
-                    source_sha,
                     expected_gpu,
-                ) {
+                )? {
                     if expected_backend == BackendKind::Cuda
                         && request.config.compute == whisper_core::ComputeChoice::Auto
                     {
