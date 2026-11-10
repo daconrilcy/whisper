@@ -64,67 +64,12 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     if plan.successor_files.len() != 6 || plan.successor_index.is_none() {
         return Err("CleanupIdentityChanged: preuve durable du successeur incomplète".into());
     }
-    let expected_successor_names = [
-        "manifest.json",
-        "transcript.txt",
-        "transcript.srt",
-        "pending.json",
-        "segments.jsonl",
-        "CURRENT",
-    ];
-    let mut held_successor_files = Vec::new();
-    let mut successor_manifest = None;
-    let mut successor_pending = None;
-    let mut successor_segments = None;
-    for (index, expected_name) in expected_successor_names.iter().enumerate() {
-        let proof = &plan.successor_files[index];
-        if proof.relative_path
-            != relative_to_root(successor_root, &successor_path.join(expected_name))?
-        {
-            return Err("CleanupIdentityChanged: chemin de preuve successeur inattendu".into());
-        }
-        let path = safe_cleanup_path(root, &proof.relative_path)?;
-        let mut handle = VerifiedFile::open(&path, false)?;
-        handle.verify(&runtime_identity(&proof.identity))?;
-        if Some(handle.sha256()?).as_deref() != proof.sha256.as_deref() {
-            return Err(format!(
-                "CleanupIdentityChanged: preuve successeur divergente {expected_name}"
-            ));
-        }
-        if *expected_name == "CURRENT" && handle.read_all()? != b"manifest.json\n" {
-            return Err(
-                "CleanupIdentityChanged: CURRENT ne référence pas le manifeste attendu".into(),
-            );
-        }
-        if *expected_name == "manifest.json" {
-            let manifest: CompleteRecord =
-                serde_json::from_slice(&handle.read_all()?).map_err(|error| {
-                    format!("CleanupIdentityChanged: manifeste successeur: {error}")
-                })?;
-            if manifest.job_id != plan.successor.job_id
-                || manifest.generation != plan.successor.generation
-                || manifest.source_sha256 != plan.source_sha256
-                || manifest.text.path != "transcript.txt"
-                || manifest.srt.path != "transcript.srt"
-            {
-                return Err(
-                    "CleanupIdentityChanged: manifeste successeur ne correspond pas".into(),
-                );
-            }
-            successor_manifest = Some(manifest);
-        }
-        if *expected_name == "pending.json" {
-            successor_pending = Some(
-                serde_json::from_slice::<PendingRecord>(&handle.read_all()?).map_err(|error| {
-                    format!("CleanupIdentityChanged: pending successeur: {error}")
-                })?,
-            );
-        }
-        if *expected_name == "segments.jsonl" {
-            successor_segments = Some(handle.read_all()?);
-        }
-        held_successor_files.push(handle);
-    }
+    let SuccessorFileValidation {
+        held_files: held_successor_files,
+        manifest: successor_manifest,
+        pending: successor_pending,
+        segments: successor_segments,
+    } = validate_cleanup_successor_files(root, successor_root, &successor_path, plan)?;
     let manifest = successor_manifest.expect("six successor proofs include manifest");
     let pending = successor_pending.expect("six successor proofs include pending");
     let segment_bytes = successor_segments.expect("six successor proofs include segments");
@@ -492,6 +437,92 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     let _keep_ancestors = (held_ancestors_by_path, held_target_directories);
     plan.last_error = None;
     write_cleanup_plan(root, plan)
+}
+
+#[cfg(windows)]
+struct SuccessorFileValidation {
+    held_files: Vec<crate::windows_file_identity::VerifiedFile>,
+    manifest: Option<CompleteRecord>,
+    pending: Option<PendingRecord>,
+    segments: Option<Vec<u8>>,
+}
+
+#[cfg(windows)]
+fn validate_cleanup_successor_files(
+    root: &Path,
+    successor_root: &Path,
+    successor_path: &Path,
+    plan: &CleanupPlan,
+) -> Result<SuccessorFileValidation, String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    let expected_successor_names = [
+        "manifest.json",
+        "transcript.txt",
+        "transcript.srt",
+        "pending.json",
+        "segments.jsonl",
+        "CURRENT",
+    ];
+    let mut held_files = Vec::new();
+    let mut manifest = None;
+    let mut pending = None;
+    let mut segments = None;
+    for (index, expected_name) in expected_successor_names.iter().enumerate() {
+        let proof = &plan.successor_files[index];
+        if proof.relative_path
+            != relative_to_root(successor_root, &successor_path.join(expected_name))?
+        {
+            return Err("CleanupIdentityChanged: chemin de preuve successeur inattendu".into());
+        }
+        let path = safe_cleanup_path(root, &proof.relative_path)?;
+        let mut handle = VerifiedFile::open(&path, false)?;
+        handle.verify(&runtime_identity(&proof.identity))?;
+        if Some(handle.sha256()?).as_deref() != proof.sha256.as_deref() {
+            return Err(format!(
+                "CleanupIdentityChanged: preuve successeur divergente {expected_name}"
+            ));
+        }
+        if *expected_name == "CURRENT" && handle.read_all()? != b"manifest.json\n" {
+            return Err(
+                "CleanupIdentityChanged: CURRENT ne référence pas le manifeste attendu".into(),
+            );
+        }
+        if *expected_name == "manifest.json" {
+            let parsed: CompleteRecord =
+                serde_json::from_slice(&handle.read_all()?).map_err(|error| {
+                    format!("CleanupIdentityChanged: manifeste successeur: {error}")
+                })?;
+            if parsed.job_id != plan.successor.job_id
+                || parsed.generation != plan.successor.generation
+                || parsed.source_sha256 != plan.source_sha256
+                || parsed.text.path != "transcript.txt"
+                || parsed.srt.path != "transcript.srt"
+            {
+                return Err(
+                    "CleanupIdentityChanged: manifeste successeur ne correspond pas".into(),
+                );
+            }
+            manifest = Some(parsed);
+        }
+        if *expected_name == "pending.json" {
+            pending = Some(
+                serde_json::from_slice::<PendingRecord>(&handle.read_all()?).map_err(|error| {
+                    format!("CleanupIdentityChanged: pending successeur: {error}")
+                })?,
+            );
+        }
+        if *expected_name == "segments.jsonl" {
+            segments = Some(handle.read_all()?);
+        }
+        held_files.push(handle);
+    }
+    Ok(SuccessorFileValidation {
+        held_files,
+        manifest,
+        pending,
+        segments,
+    })
 }
 
 #[cfg(windows)]
