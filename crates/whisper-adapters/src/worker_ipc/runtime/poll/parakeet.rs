@@ -623,6 +623,106 @@ impl ImportRuntime {
         }
     }
 
+    fn handle_parakeet_ready(
+        &mut self,
+        identity: whisper_core::parakeet_ipc::WorkerIdentity,
+        backend: String,
+        gpu_evidence: Option<whisper_core::parakeet_ipc::GpuEvidence>,
+    ) -> Option<Result<WorkerEvent, PortError>> {
+        let context = match self.active_parakeet_ready_context() {
+            Ok(context) => context,
+            Err(error) => return Some(Err(error)),
+        };
+        let ParakeetReadyContext {
+            request,
+            expected_backend,
+            attempt_number,
+            active_job_id,
+            active_generation,
+            active_instance_id,
+        } = context;
+        let profile = if self.parakeet_vad.is_some() {
+            whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
+        } else {
+            whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
+        };
+        let expected_gpu = self.parakeet_expected_gpu.clone();
+        if !self.parakeet_ready_backend_matches(
+            &backend,
+            gpu_evidence.as_ref(),
+            expected_backend,
+            expected_gpu.as_ref(),
+        ) || !self.parakeet_ready_identity_matches(&identity, expected_backend, profile)
+        {
+            if expected_backend == BackendKind::Cuda
+                && request.config.compute == whisper_core::ComputeChoice::Auto
+            {
+                return match self.fallback_parakeet_to_cpu(
+                    request,
+                    "GPU worker Ready proof did not match the qualified key".into(),
+                ) {
+                    Ok(()) => None,
+                    Err(error) => Some(Err(PortError::Failed(error))),
+                };
+            }
+            return Some(Err(PortError::Failed(
+                "BackendMismatch: Parakeet worker identity differs from the qualified key".into(),
+            )));
+        }
+        let process = self.parakeet.as_mut()?;
+        if let Err(error) = process.accept_ready(identity) {
+            if expected_backend == BackendKind::Cuda
+                && request.config.compute == whisper_core::ComputeChoice::Auto
+            {
+                return match self.fallback_parakeet_to_cpu(
+                    request,
+                    format!("GPU worker readiness failed: {error}"),
+                ) {
+                    Ok(()) => None,
+                    Err(error) => Some(Err(PortError::Failed(error))),
+                };
+            }
+            return Some(Err(PortError::Failed(error)));
+        }
+        if expected_backend == BackendKind::Cuda
+            && let Some(active) = self.active.as_mut()
+        {
+            active.gpu_attested = true;
+        }
+        if let Some(vad) = self.parakeet_vad.as_mut() {
+            vad.worker_ready = true;
+            return None;
+        }
+        if let Err(error) = self.prepare_single_pass_parakeet_transcription(
+            &request,
+            attempt_number,
+            expected_gpu,
+        )? {
+            if expected_backend == BackendKind::Cuda
+                && request.config.compute == whisper_core::ComputeChoice::Auto
+            {
+                return match self.fallback_parakeet_to_cpu(
+                    request,
+                    format!("GPU request preparation failed: {error}"),
+                ) {
+                    Ok(()) => None,
+                    Err(error) => Some(Err(PortError::Failed(error))),
+                };
+            }
+            return Some(Err(PortError::Failed(error)));
+        }
+        #[cfg(feature = "recette-hooks")]
+        if let Err(error) = self.apply_ready_acceptance_fault(Path::new(&request.destination))? {
+            return Some(Err(PortError::Failed(error)));
+        }
+        Some(Ok(WorkerEvent::Ready {
+            job_id: active_job_id,
+            generation: active_generation,
+            instance_id: active_instance_id,
+            backend: expected_backend,
+        }))
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -731,104 +831,7 @@ impl ImportRuntime {
                 backend,
                 gpu_evidence,
                 ..
-            } => {
-                let context = match self.active_parakeet_ready_context() {
-                    Ok(context) => context,
-                    Err(error) => return Some(Err(error)),
-                };
-                let ParakeetReadyContext {
-                    request,
-                    expected_backend,
-                    attempt_number,
-                    active_job_id,
-                    active_generation,
-                    active_instance_id,
-                } = context;
-                let profile = if self.parakeet_vad.is_some() {
-                    whisper_core::parakeet_windows::PROFILE_IMPORT_VAD
-                } else {
-                    whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS
-                };
-                let expected_gpu = self.parakeet_expected_gpu.clone();
-                if !self.parakeet_ready_backend_matches(
-                    &backend,
-                    gpu_evidence.as_ref(),
-                    expected_backend,
-                    expected_gpu.as_ref(),
-                )
-                    || !self.parakeet_ready_identity_matches(&identity, expected_backend, profile)
-                {
-                    if expected_backend == BackendKind::Cuda
-                        && request.config.compute == whisper_core::ComputeChoice::Auto
-                    {
-                        return match self.fallback_parakeet_to_cpu(
-                            request,
-                            "GPU worker Ready proof did not match the qualified key".into(),
-                        ) {
-                            Ok(()) => None,
-                            Err(error) => Some(Err(PortError::Failed(error))),
-                        };
-                    }
-                    return Some(Err(PortError::Failed(
-                        "BackendMismatch: Parakeet worker identity differs from the qualified key"
-                            .into(),
-                    )));
-                }
-                let process = self.parakeet.as_mut()?;
-                if let Err(error) = process.accept_ready(identity) {
-                    if expected_backend == BackendKind::Cuda
-                        && request.config.compute == whisper_core::ComputeChoice::Auto
-                    {
-                        return match self.fallback_parakeet_to_cpu(
-                            request,
-                            format!("GPU worker readiness failed: {error}"),
-                        ) {
-                            Ok(()) => None,
-                            Err(error) => Some(Err(PortError::Failed(error))),
-                        };
-                    }
-                    return Some(Err(PortError::Failed(error)));
-                }
-                if expected_backend == BackendKind::Cuda
-                    && let Some(active) = self.active.as_mut()
-                {
-                    active.gpu_attested = true;
-                }
-                if let Some(vad) = self.parakeet_vad.as_mut() {
-                    vad.worker_ready = true;
-                    return None;
-                }
-                if let Err(error) = self.prepare_single_pass_parakeet_transcription(
-                    &request,
-                    attempt_number,
-                    expected_gpu,
-                )? {
-                    if expected_backend == BackendKind::Cuda
-                        && request.config.compute == whisper_core::ComputeChoice::Auto
-                    {
-                        return match self.fallback_parakeet_to_cpu(
-                            request,
-                            format!("GPU request preparation failed: {error}"),
-                        ) {
-                            Ok(()) => None,
-                            Err(error) => Some(Err(PortError::Failed(error))),
-                        };
-                    }
-                    return Some(Err(PortError::Failed(error)));
-                }
-                #[cfg(feature = "recette-hooks")]
-                if let Err(error) =
-                    self.apply_ready_acceptance_fault(Path::new(&request.destination))?
-                {
-                    return Some(Err(PortError::Failed(error)));
-                }
-                Some(Ok(WorkerEvent::Ready {
-                    job_id: active_job_id,
-                    generation: active_generation,
-                    instance_id: active_instance_id,
-                    backend: expected_backend,
-                }))
-            }
+            } => self.handle_parakeet_ready(identity, backend, gpu_evidence),
             whisper_core::parakeet_ipc::Event::Result {
                 request_id,
                 job_id,
