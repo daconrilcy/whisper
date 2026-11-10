@@ -6,6 +6,8 @@ Décision : terminer les extractions de retrait puis la revue indépendante et l
 
 ## Autorisation précise de la session — 9 novembre 2026
 
+**Extraction nettoyage 09 validée vers 08:06.** `remove_cleanup_target_objects`, trois arguments, complexité **4**, orchestrateur **7** (165 lignes). Tri stable et filtres conservés. Corpus, Auto, Q03, N1 et mesure verts, runs `080245109` à `080522996`, journaux sous `cleanup-extraction-09/`. Dernière extraction prévue : boucle conteneurs, avant revue et arrêt T6.
+
 **Extraction nettoyage 08 validée vers 08:02 après correction autorisée.** `remove_cleanup_target_object`, cinq arguments, complexité **1** (sa closure de retrait est aussi mesurée séparément), orchestrateur **10** (193 lignes). Corpus, Auto, Q03, N1 et mesure verts, runs `075841289` à `080117217`. Journaux sous `cleanup-extraction-08/`. Le retrait du handle précède toujours immédiatement mark_delete, les écritures d'erreur/succès sont aux mêmes positions.
 
 **Accord extraction 08 le 10 novembre vers 07:59.** L'utilisateur autorise le déplacement du seul import `delete_if_identity_matches` du runner vers le helper puis les validations et la reprise T1–T6 si vert. Budget initial et arrêt après nettoyage maintenus.

@@ -132,35 +132,7 @@ pub(in crate::archive) fn run_cleanup_plan_locked(
     capture_unselected_cleanup_entries(root, plan, &mut held_target_directories)?;
     write_cleanup_plan(root, plan)?;
 
-    for target_index in 0..plan.targets.len() {
-        let mut indices: Vec<usize> = (0..plan.targets[target_index].objects.len()).collect();
-        indices.sort_by_key(|index| {
-            let object = &plan.targets[target_index].objects[*index];
-            (
-                object.identity.is_directory,
-                std::cmp::Reverse(
-                    object
-                        .relative_path
-                        .chars()
-                        .filter(|character| matches!(character, '\\' | '/'))
-                        .count(),
-                ),
-            )
-        });
-        for object_index in indices {
-            let object = &mut plan.targets[target_index].objects[object_index];
-            if object.removed || !object.owned {
-                continue;
-            }
-            remove_cleanup_target_object(
-                root,
-                plan,
-                target_index,
-                object_index,
-                &mut held_target_directories,
-            )?;
-        }
-    }
+    remove_cleanup_target_objects(root, plan, &mut held_target_directories)?;
     for target_index in 0..plan.targets.len() {
         let Some(container_snapshot) = plan.targets[target_index].container.clone() else {
             continue;
@@ -642,6 +614,47 @@ fn remove_cleanup_target_object(
         }
     }
     write_cleanup_plan(root, plan)
+}
+
+#[cfg(windows)]
+fn remove_cleanup_target_objects(
+    root: &Path,
+    plan: &mut CleanupPlan,
+    held_target_directories: &mut std::collections::HashMap<
+        String,
+        crate::windows_file_identity::VerifiedFile,
+    >,
+) -> Result<(), String> {
+    for target_index in 0..plan.targets.len() {
+        let mut indices: Vec<usize> = (0..plan.targets[target_index].objects.len()).collect();
+        indices.sort_by_key(|index| {
+            let object = &plan.targets[target_index].objects[*index];
+            (
+                object.identity.is_directory,
+                std::cmp::Reverse(
+                    object
+                        .relative_path
+                        .chars()
+                        .filter(|character| matches!(character, '\\' | '/'))
+                        .count(),
+                ),
+            )
+        });
+        for object_index in indices {
+            let object = &plan.targets[target_index].objects[object_index];
+            if object.removed || !object.owned {
+                continue;
+            }
+            remove_cleanup_target_object(
+                root,
+                plan,
+                target_index,
+                object_index,
+                held_target_directories,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(not(windows))]
