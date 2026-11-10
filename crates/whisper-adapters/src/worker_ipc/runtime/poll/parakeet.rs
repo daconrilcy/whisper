@@ -948,6 +948,27 @@ impl ImportRuntime {
         }
     }
 
+    fn poll_idle_parakeet_exit(&mut self) -> Option<Result<WorkerEvent, PortError>> {
+        let status = self.parakeet.as_mut()?.try_wait();
+        match status {
+            Ok(None) => None,
+            Ok(Some(status)) if status.success() => {
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                self.parakeet_end = None;
+                Some(Err(PortError::Failed(
+                    "WorkerExited: process ended before result acknowledgement".into(),
+                )))
+            }
+            Ok(Some(status)) => {
+                self.parakeet = None;
+                self.parakeet_stopped_ack = false;
+                Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
+            }
+            Err(error) => Some(Err(PortError::Failed(error))),
+        }
+    }
+
     pub(super) fn poll_parakeet_worker(&mut self) -> Option<Result<WorkerEvent, PortError>> {
         #[cfg(feature = "recette-hooks")]
         let destination = self
@@ -987,26 +1008,7 @@ impl ImportRuntime {
         }
         let received = match self.parakeet.as_mut()?.poll() {
             Ok(Some(event)) => event,
-            Ok(None) => {
-                let status = self.parakeet.as_mut()?.try_wait();
-                return match status {
-                    Ok(None) => None,
-                    Ok(Some(status)) if status.success() => {
-                        self.parakeet = None;
-                        self.parakeet_stopped_ack = false;
-                        self.parakeet_end = None;
-                        Some(Err(PortError::Failed(
-                            "WorkerExited: process ended before result acknowledgement".into(),
-                        )))
-                    }
-                    Ok(Some(status)) => {
-                        self.parakeet = None;
-                        self.parakeet_stopped_ack = false;
-                        Some(Err(PortError::Failed(format!("WorkerExited: {status}"))))
-                    }
-                    Err(error) => Some(Err(PortError::Failed(error))),
-                };
-            }
+            Ok(None) => return self.poll_idle_parakeet_exit(),
             Err(error) => {
                 if let Some(process) = self.parakeet.as_mut() {
                     let _ = process.terminate();
