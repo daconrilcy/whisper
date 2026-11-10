@@ -30,3 +30,5 @@ N2 PersonalUnified : premier appel arrêté par la garde pendant compilation (é
 **Dette / recette opérateur.** Pas de refactor polling. L’utilisateur doit ouvrir `deliverables/refacto-poll-parakeet/whisper-desktop.exe) : (1) import Parakeet CPU, confirmer moteur, TXT/SRT lisibles et source intacte ; (2) micro GPU 30 s puis Stop, confirmer blocs et TXT/SRT/WAV ; (3) courte nouvelle session, confirmer aucune sortie héritée ; (4) import long, annuler après début réel, confirmer temporaires de cet import disparus et sorties publiées précédentes intactes. Rapporter les chemins temporaires et diagnostics exacts. Le dossier remis utilise les workers Parakeet, DLL et modèles vérifiés dans l’installation stable ; il n’est pas autonome.
 
 **Rétention.** Aucun fichier supprimé par l’agent. Les commandes proposées après inventaire vérifié sont limitées aux racines temporaires et à la cible Cargo propre au lot ; préserver `target/cargo-home-shared`, la ZIP, worktree, installation stable et remise. Voir le relevé de clôture T6.
+
+Suivi post-T6 : [inventaire et phase T7](REFACTO-POLL-PARAKEET-SUIVI-POST-T6.md).
