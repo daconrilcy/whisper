@@ -19,7 +19,7 @@ Le premier lot a fait passer les alertes hors structure de 96 à 25. Les quatre 
 
 La garde d’exécution se trouve dans `ci/guard-level1.ps1`. Elle accepte Clippy et `--message-format=json`, capture les sorties et retourne un échec sur un code Cargo non nul. Son mode `Structure` ne traite que le registre de classification des tests (`ci/check-structure.rs`, `ci/tests-baseline.txt`). Le GO autorise le comparateur PowerShell dans cette garde ; aucun code Rust ni nouveau binaire n’est prévu. `AGENTS.md` sera corrigé pour refléter l’existant et formaliser N1 + Clippy.
 
-La référence Clippy est produite une fois depuis le commit de départ du lot. La clé est décidée par l’utilisateur : lint, package, chemin relatif normalisé et signature issue du premier texte du span primaire, espaces normalisés et tronquée après le premier `(`, `<` ou `{`. La comparaison est en multi-ensemble. Aucune mise à jour automatique n’est permise.
+La référence Clippy est produite depuis le commit source du lot. La clé est décidée par l’utilisateur : lint, package, chemin relatif normalisé et signature issue du premier texte du span primaire. Après normalisation des espaces, une ligne contenant `fn <ident>` devient `fn <ident>` ; sinon un `struct|enum|type|trait|impl <ident>` devient `<mot-clé> <ident>` ; sinon le préfixe `pub(...)` est retiré et la ligne est tronquée après le premier `(`, `<` ou `{`. La comparaison est en multi-ensemble. Aucune mise à jour automatique n’est permise.
 
 ## 2. Freshness Check
 
@@ -117,7 +117,7 @@ Tasks: P1-T2 à P1-T4.
 - **Scope budget:** 1 fichier PowerShell ; aucun Rust, nouveau binaire, dépendance ou fichier de fixtures.
 - **Closed invariant:** comparaison d’ensembles de sites ne dépendant pas du numéro de ligne seul.
 - **Before metrics:** aucun comparateur Clippy ; 0 cas SelfTest cliquet.
-- **Target metrics:** tous les cas du GO : inchangé, nouveau, retiré, déplacement, doublon multi-cible, deux occurrences d’une clé, lint hors périmètre, référence absente/invalide, span sans texte, Clippy en échec.
+- **Target metrics:** tous les cas du GO : inchangé, nouveau, retiré, déplacement, doublon multi-cible, deux occurrences d’une clé, deux fonctions `pub(crate)` distinctes, visibilité `pub(crate)`/`pub` équivalente pour même nom, lint hors périmètre, référence absente/invalide, span sans texte, Clippy en échec.
 - **Metric commands:** SelfTest N1 par `ci/guard-level1.ps1`; pas de compilation Rust du comparateur.
 - **Stop conditions:** comparaison nécessite d’accepter une clé ambiguë ; références malformées sont tolérées ; parser ou fixture nécessite un accès réseau ou un crate nouveau.
 - **Dependencies:** P1-T1.

@@ -453,13 +453,22 @@ function Get-StructuralClippyKey($Diagnostic, [string]$RepositoryRoot) {
     while ($path.StartsWith('./',[StringComparison]::Ordinal)) { $path = $path.Substring(2) }
     if (($path -split '/') -contains '..' -or ($path -split '/') -contains '.' -or $path.Contains("`t")) { throw "Structural Clippy path is not a normalized relative path: $path" }
     $signature = ([regex]::Replace([string]$span.text[0].text,'\s+',' ')).Trim()
-    $cut = $signature.Length
-    foreach ($marker in @('(','<','{')) {
-        $index = $signature.IndexOf($marker,[StringComparison]::Ordinal)
-        if ($index -ge 0 -and ($index + 1) -lt $cut) { $cut = $index + 1 }
+    $functionMatch = [regex]::Match($signature,'\bfn\s+([A-Za-z_][A-Za-z0-9_]*)')
+    if ($functionMatch.Success) { $signature = "fn $($functionMatch.Groups[1].Value)" }
+    else {
+        $itemMatch = [regex]::Match($signature,'\b(struct|enum|type|trait|impl)\s+([A-Za-z_][A-Za-z0-9_]*)')
+        if ($itemMatch.Success) { $signature = "$($itemMatch.Groups[1].Value) $($itemMatch.Groups[2].Value)" }
+        else {
+            $signature = [regex]::Replace($signature,'^pub\([^)]*\)\s*','')
+            $cut = $signature.Length
+            foreach ($marker in @('(','<','{')) {
+                $index = $signature.IndexOf($marker,[StringComparison]::Ordinal)
+                if ($index -ge 0 -and ($index + 1) -lt $cut) { $cut = $index + 1 }
+            }
+            $signature = $signature.Substring(0,$cut).Trim()
+        }
     }
-    $signature = $signature.Substring(0,$cut).Trim()
-    if ([string]::IsNullOrWhiteSpace($signature)) { throw "Structural Clippy diagnostic $lint has an empty normalized signature." }
+    if ([string]::IsNullOrWhiteSpace($signature) -or $signature -ceq 'pub(') { throw "Structural Clippy diagnostic $lint has an empty or invalid normalized signature." }
     return "$lint|$package|$path|$signature"
 }
 
@@ -560,10 +569,10 @@ function New-StructuralClippyFixture([string]$Lint, [string]$Path, [string]$Sign
 }
 
 function Invoke-StructuralClippySelfTests {
-    $baseSignature = 'pub fn convert(value: usize) {'
+    $baseSignature = 'pub(crate) fn convert(value: usize) {'
     $baseRecord = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10
     $movedRecord = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 99
-    $key = 'clippy::too_many_lines|fixture-package|crates/fixture/src/lib.rs|pub fn convert('
+    $key = 'clippy::too_many_lines|fixture-package|crates/fixture/src/lib.rs|fn convert'
     $baseline = "# source_commit=$('a' * 40)`n# date=2026-11-11`n# command=cargo clippy fixture`nkey`tcount`n$key`t1"
     $positive = 0
     $negative = 0
@@ -578,6 +587,17 @@ function Invoke-StructuralClippySelfTests {
         if ($result.NewSites.Count -ne $case.Expected) { throw "Structural Clippy SelfTest failed for $($case.Name)." }
         $positive++
     }
+    $existingFunction = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' 'pub(crate) fn a(value: usize) {' 30 'lib' 0
+    $newFunction = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' 'pub(crate) fn b(value: usize) {' 60 'lib' 100
+    $functionBaselineKey = 'clippy::too_many_lines|fixture-package|crates/fixture/src/lib.rs|fn a'
+    $functionBaseline = "# source_commit=$('a' * 40)`n# date=2026-11-11`n# command=cargo clippy fixture`nkey`tcount`n$functionBaselineKey`t1"
+    $functionComparison = Compare-StructuralClippy (@($existingFunction,$newFunction) -join "`n") $functionBaseline $repo
+    if ($functionComparison.NewSites.Count -ne 1 -or $functionComparison.NewSites[0] -notmatch '\|fn b \(current=1, baseline=0\)') { throw "Structural Clippy SelfTest missed a new pub(crate) function in a file with an existing function: $([string]::Join('; ',[string[]]$functionComparison.NewSites))" }
+    $positive++
+    $restrictedFunction = Get-StructuralClippyKey ((New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' 'pub(crate) fn a(value: usize) {' 30 | ConvertFrom-Json)) $repo
+    $publicFunction = Get-StructuralClippyKey ((New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' 'pub fn a(value: usize) {' 60 | ConvertFrom-Json)) $repo
+    if ($restrictedFunction -cne $publicFunction -or -not $restrictedFunction.EndsWith('|fn a',[StringComparison]::Ordinal)) { throw 'Structural Clippy SelfTest did not normalize visibility for the same function name.' }
+    $positive++
     foreach ($case in @(
         @{ Name='new alert'; Lines=@((New-StructuralClippyFixture 'clippy::cognitive_complexity' 'crates/fixture/src/lib.rs' 'fn fresh() {' 20)); Baseline=$baseline; Match='clippy::cognitive_complexity' },
         @{ Name='same-key duplicate occurrence'; Lines=@($baseRecord,(New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10 'lib' 100)); Baseline=$baseline; Match='current=2, baseline=1' },

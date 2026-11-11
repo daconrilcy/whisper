@@ -2,237 +2,250 @@
 # date=2026-11-11
 # command=cargo clippy --offline --locked --workspace --all-targets --message-format=json -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity
 key	count
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|fn provisional_revision_needs_two_later_witnesses(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|pub(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|pub(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_spoken_prefix(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_queued_unified_import(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn global_close_waits_for_both_capture_publications_and_refuses_new_admission(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unrecycled_controlled_child_rejects_third_job_with_bounded_table(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/gpu_selection_worker.rs|fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request(	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix(	1
-clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text(	1
-clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_test_owns_one_capture_then_releases_before_live_restart(	1
-clippy::cognitive_complexity|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens(	1
-clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run(	1
-clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload(	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn observe_controlled_child(	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path(	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed(	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_choice(	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_duplicate_choice(	1
-clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|pub(	1
-clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|pub(	1
-clippy::too_many_arguments|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn request_with_hash(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/proofs.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/identity.rs|pub fn published_unified_files(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/import.rs|fn prepare_inner_impl(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/live.rs|pub fn prepare(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/live.rs|pub fn publish(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication.rs|pub fn commit_publish(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication/catalog.rs|pub fn reconfirm_interrupted_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication/exports.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/recovery.rs|pub fn resume_from_with_qualification(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/recovery/live.rs|pub fn scan_live_recoveries(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn reprocessing_reservation_tracks_only_current_strategy_publications_for_resume(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn published_running_row_is_removed_durably_and_recovery_scans_are_stable(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn resumed_prefix_copy_retries_after_pending_creation_without_duplication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn scan_preserves_healthy_entries_and_reports_each_corrupt_generation(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs|fn r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/capture.rs|fn start_device_with_buffer(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live.rs|fn start_with_capture(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/d2_corpus.rs|fn d2_corpus_real_cpu_turbo_and_parakeet(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/worker.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/gpu_inventory.rs|fn start(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/microphone_probe.rs|fn push(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_document.rs|fn resume_coverage_rejects_impossible_window_geometry_and_accepts_short_terminal_eof(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_import.rs|fn spawn_profile_with_log_root(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/events.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/inference.rs|fn transcribe_window(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/inference.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs|fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/source_binding.rs|fn acquire_with_hook<	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/source_binding.rs|fn recovery_candidate(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs|fn transcribe_scheduled(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs|fn confirm_interrupted_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/effects.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|pub(	6
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs|pub(	3
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/live.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs|fn pump_live_windows(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests.rs|fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phases(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/collection_priority.rs|fn poll_ready_unified_import_precedes_ready_document_drain(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/native_direct_cpu.rs|fn assert_published_outputs(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/queue.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs|pub(	2
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|fn submit(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|pub(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_slow_automatic_final_failure_does_not_block_another_capture_wav(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_executor_backend_changes_only_after_the_prior_instance_is_reaped(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_queued_unified_import(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn event_65_backpressures_all_production_stages_then_delivers_in_order(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_non_candidate_refusal_does_not_prepare_or_start(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn stop_during_blocked_commit_returns_promptly_and_reports_finalizing(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn fmt(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn global_close_waits_for_both_capture_publications_and_refuses_new_admission(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_decodes_real_mp3_and_publishes_full_unified_coverage(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_document_finalization_failure_releases_session_and_allows_replacement(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unrecycled_controlled_child_rejects_third_job_with_bounded_table(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/gpu_selection_worker.rs|fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_byte_identical_post_reservation_collision_is_never_claimed(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_recover_after_both_exports_before_current(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_recover_after_single_export_collision(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_resume_keeps_replace_reservation(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn real_wav_runs_through_cpu_worker_and_verified_archive(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn start(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn stop_during_native_inference_is_prompt_and_never_publishes_complete(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn r11_mp3_content_identity_is_independent_of_filename_and_destination(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn archive_root(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn pending_scan_and_resume_require_the_exact_qualified_test_key(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn r5_2_a4_product_route_publishes_french_and_english_txt_srt(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive_personal_history.rs|fn personal_archives_recognize_previous_workers_without_admitting_them_for_execution(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn run_barrier_case(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_queue_journal_failure_settles_runtime_and_allows_next_import(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn assert_cpu_incompatible_native_refusal(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn gpu_app_en5_twice_release(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r6_application_single_pass_recipe(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r7_application_timing(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_gpu_application_import_with_native(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_product_transport_failure(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn build_long_fixture(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs|fn validate_fixture(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn r11_application_baseline(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn create_failed_cleanup_fixture(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_create.rs|fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication(	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/event_metadata.rs|pub(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn direct_start_failure_before_live_started_keeps_a_capture_row_without_wav(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn late_automatic_import_failure_updates_only_its_capture_row(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_gain_command_is_scoped_to_the_active_direct_capture(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_test_owns_one_capture_then_releases_before_live_restart(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn stale_audio_pages_reset_revision_and_preserve_real_errors_and_request_identity(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn unified_page_responses_and_errors_follow_latest_selection_request(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/unified.rs|pub(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/engine_capabilities.rs|pub fn project(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/src/gpu_inventory.rs|pub fn qualify(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/tests/engine_capabilities.rs|fn auto_and_manual_language_are_independent_and_projection_matches_admission(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/tests/import_contract.rs|fn persist_backpressure_retains_ninth_segment_until_queue_capacity_returns(	1
-clippy::too_many_lines|whisper-core|crates/whisper-core/tests/import_contract.rs|fn refresh_drains_at_most_four_events_and_waits_for_every_persisted_ack(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root.rs|fn parakeet_worker_key_changes_regray_and_readmit_without_restarting(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root.rs|pub fn compose(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root/model_catalog/tests.rs|fn check_removed_interest_stops_monitoring(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/model/view/unified.rs|fn request_unified_pages(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/document_presentation.rs|fn unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/document_presentation.rs|fn unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/support.rs|fn dispatch(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn turbo_completed_capture_allows_unified_parakeet_button_and_dispatch(	1
-clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn unified_audio_page_stays_visible_at_same_position_while_progress_refreshes(	1
-clippy::too_many_lines|whisper-worker-common|crates/whisper-worker-common/src/encoder/tests.rs|fn packet_sequence_matches_original_encoder(	1
-clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/native_engine.rs|pub fn transcribe(	1
-clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/import.rs|pub(	1
-clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|pub(	1
-clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/mod.rs|pub(	1
-clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/tests/worker_contract.rs|fn live_case(	1
-clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/import.rs|pub(	1
-clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|pub(	1
-clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/mod.rs|pub(	1
-clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/tests/worker_contract.rs|fn live_case(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/decoder.rs|pub fn decode_file(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/native_engine.rs|fn normalize_words(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/session.rs|pub(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures(	1
-clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn gpu_worker_fr_en_single_pass(	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|fn provisional_revision_needs_two_later_witnesses	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|fn stop	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn run_controlled_unified_import	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_spoken_prefix	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_queued_unified_import	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn global_close_waits_for_both_capture_publications_and_refuses_new_admission	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unrecycled_controlled_child_rejects_third_job_with_bounded_table	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/gpu_selection_worker.rs|fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
+clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
+clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	1
+clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_test_owns_one_capture_then_releases_before_live_restart	1
+clippy::cognitive_complexity|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens	1
+clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run	1
+clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	1
+clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn observe_controlled_child	1
+clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path	1
+clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
+clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_choice	1
+clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_duplicate_choice	1
+clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
+clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
+clippy::too_many_arguments|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn request_with_hash	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|fn run_cleanup_plan_locked	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/proofs.rs|fn capture_cleanup_target	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/proofs.rs|fn recover_published_cleanup_successor	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/identity.rs|fn published_unified_files	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/import.rs|fn prepare_inner_impl	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/live.rs|fn prepare	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/live.rs|fn publish	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication.rs|fn commit_publish	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication/catalog.rs|fn reconfirm_interrupted_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/publication/exports.rs|fn install_publication_exports_with_copy_hook	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/recovery.rs|fn resume_from_with_qualification	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/recovery/live.rs|fn scan_live_recoveries	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn reprocessing_reservation_tracks_only_current_strategy_publications_for_resume	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn published_running_row_is_removed_durably_and_recovery_scans_are_stable	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn resumed_prefix_copy_retries_after_pending_creation_without_duplication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn scan_preserves_healthy_entries_and_reports_each_corrupt_generation	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs|fn r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/capture.rs|fn start_device_with_buffer	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live.rs|fn start_with_capture	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/d2_corpus.rs|fn d2_corpus_real_cpu_turbo_and_parakeet	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/worker.rs|fn handle_worker	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/gpu_inventory.rs|fn start	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/microphone_probe.rs|fn push	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|fn ingest_observed	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_document.rs|fn resume_coverage_rejects_impossible_window_geometry_and_accepts_short_terminal_eof	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_import.rs|fn spawn_profile_with_log_root	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/events.rs|fn poll	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/inference.rs|fn inference_thread	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/inference.rs|fn transcribe_window	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|fn start_with_capture	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|fn stop	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/microphone_spectrum_tests.rs|fn parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/source_binding.rs|fn acquire_with_hook	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/source_binding.rs|fn recovery_candidate	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/parakeet_unified/executor.rs|fn start_instance	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/parakeet_unified/native.rs|fn transcribe_scheduled	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs|fn confirm_duplicate_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/duplicates.rs|fn confirm_interrupted_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/effects.rs|fn effect	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn prepare	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn publish_inner	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn run_controlled_unified_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn start_controlled_unified_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn stop	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn stop_effect	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs|fn handle_worker_failure	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs|fn start_parakeet_worker	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import/worker_start.rs|fn start_worker_with_candidate_override	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/live.rs|fn start_cpu_live_attempt	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/live.rs|fn start_live	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs|fn pump_live_windows	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs|fn advance_parakeet_vad_decode	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs|fn poll_parakeet_worker	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests.rs|fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phases	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/collection_priority.rs|fn poll_ready_unified_import_precedes_ready_document_drain	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/native_direct_cpu.rs|fn assert_published_outputs	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs|fn retry_native_gpu_startup_on_cpu	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/queue.rs|fn enqueue	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/queue.rs|fn process_queued	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs|fn resume_interrupted	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs|fn release_source_binding_inner	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/source_binding.rs|fn transfer_resume_source_binding_inner	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|fn service_loop	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|fn submit	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_slow_automatic_final_failure_does_not_block_another_capture_wav	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_executor_backend_changes_only_after_the_prior_instance_is_reaped	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_queued_unified_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn event_65_backpressures_all_production_stages_then_delivers_in_order	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_non_candidate_refusal_does_not_prepare_or_start	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn stop_during_blocked_commit_returns_promptly_and_reports_finalizing	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn fmt	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn global_close_waits_for_both_capture_publications_and_refuses_new_admission	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_decodes_real_mp3_and_publishes_full_unified_coverage	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_document_finalization_failure_releases_session_and_allows_replacement	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unrecycled_controlled_child_rejects_third_job_with_bounded_table	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/gpu_selection_worker.rs|fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_byte_identical_post_reservation_collision_is_never_claimed	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_recover_after_both_exports_before_current	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_recover_after_single_export_collision	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_resume_keeps_replace_reservation	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn real_wav_runs_through_cpu_worker_and_verified_archive	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn start	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn stop_during_native_inference_is_prompt_and_never_publishes_complete	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn r11_mp3_content_identity_is_independent_of_filename_and_destination	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn archive_root	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn pending_scan_and_resume_require_the_exact_qualified_test_key	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn r5_2_a4_product_route_publishes_french_and_english_txt_srt	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive_personal_history.rs|fn personal_archives_recognize_previous_workers_without_admitting_them_for_execution	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn run_barrier_case	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_queue_journal_failure_settles_runtime_and_allows_next_import	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn assert_cpu_incompatible_native_refusal	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn gpu_app_en5_twice_release	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r6_application_single_pass_recipe	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r7_application_timing	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_gpu_application_import_with_native	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_product_transport_failure	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn build_long_fixture	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs|fn validate_fixture	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn r11_application_baseline	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn create_failed_cleanup_fixture	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_create.rs|fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication	1
+clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/event_metadata.rs|fn identity	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn direct_start_failure_before_live_started_keeps_a_capture_row_without_wav	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn late_automatic_import_failure_updates_only_its_capture_row	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_gain_command_is_scoped_to_the_active_direct_capture	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_test_owns_one_capture_then_releases_before_live_restart	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn stale_audio_pages_reset_revision_and_preserve_real_errors_and_request_identity	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn unified_page_responses_and_errors_follow_latest_selection_request	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/unified.rs|fn start_unified_live_command	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/engine_capabilities.rs|fn project	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/src/gpu_inventory.rs|fn qualify	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/tests/engine_capabilities.rs|fn auto_and_manual_language_are_independent_and_projection_matches_admission	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/tests/import_contract.rs|fn persist_backpressure_retains_ninth_segment_until_queue_capacity_returns	1
+clippy::too_many_lines|whisper-core|crates/whisper-core/tests/import_contract.rs|fn refresh_drains_at_most_four_events_and_waits_for_every_persisted_ack	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root.rs|fn compose	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root.rs|fn parakeet_worker_key_changes_regray_and_readmit_without_restarting	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/root/model_catalog/tests.rs|fn check_removed_interest_stops_monitoring	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/model/view/unified.rs|fn request_unified_pages	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/document_presentation.rs|fn unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/document_presentation.rs|fn unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/support.rs|fn dispatch	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn turbo_completed_capture_allows_unified_parakeet_button_and_dispatch	1
+clippy::too_many_lines|whisper-desktop|crates/whisper-desktop/src/ui/tests/unified_sessions.rs|fn unified_audio_page_stays_visible_at_same_position_while_progress_refreshes	1
+clippy::too_many_lines|whisper-worker-common|crates/whisper-worker-common/src/encoder/tests.rs|fn packet_sequence_matches_original_encoder	1
+clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/native_engine.rs|fn transcribe	1
+clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/import.rs|fn run_import	1
+clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
+clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/mod.rs|fn run_session	1
+clippy::too_many_lines|whisper-worker-cpu|crates/whisper-worker-cpu/tests/worker_contract.rs|fn live_case	1
+clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/import.rs|fn run_import	1
+clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
+clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/mod.rs|fn run_session	1
+clippy::too_many_lines|whisper-worker-gpu|crates/whisper-worker-gpu/tests/worker_contract.rs|fn live_case	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/decoder.rs|fn decode_file	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/native_engine.rs|fn normalize_words	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/session.rs|fn run	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures	1
+clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn gpu_worker_fr_en_single_pass	1
 clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|) -> (	1
 clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|gates: Arc<	1
 clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|samples_rx: Receiver<	1
 clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|) -> (	2
 clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|controlled_capture_blocks: Option<	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|fn held_final_a_worker(	1
+clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|fn held_final_a_worker	1
 clippy::type_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/transcription.rs|) -> Result<	1
