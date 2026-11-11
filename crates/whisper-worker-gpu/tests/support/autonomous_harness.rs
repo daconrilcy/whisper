@@ -44,8 +44,8 @@ mod native_ffi {
     #[path = "../../../src/native_ffi/pure.rs"]
     mod pure;
     use self::pure::{
-        BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
-        validate_selected_cuda_registry_device, whisper_gpu_position,
+        BackendRegistryEntry, validate_native_gpu_log, validate_selected_cuda_registry_device,
+        whisper_gpu_position,
     };
     pub use self::pure::{CudaDevice, GgmlDevice};
 
