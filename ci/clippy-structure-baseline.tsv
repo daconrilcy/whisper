@@ -1,5 +1,6 @@
 # source_commit=1e043f08cf2bb9eb7a9b35a0fea9798654e9d5d3
 # date=2026-11-11
+# tightened=b445ac36 clippy-aliases-tests -7 type_complexity
 # command=cargo clippy --offline --locked --workspace --all-targets --message-format=json -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity
 key	count
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
@@ -242,10 +243,4 @@ clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakee
 clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	1
 clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_normalizes_fr87_fr27_and_en15_short_fixtures	1
 clippy::too_many_lines|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn gpu_worker_fr_en_single_pass	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|) -> (	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|gates: Arc<	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|samples_rx: Receiver<	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|) -> (	2
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|controlled_capture_blocks: Option<	1
-clippy::type_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_support.rs|fn held_final_a_worker	1
 clippy::type_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/src/transcription.rs|) -> Result<	1
