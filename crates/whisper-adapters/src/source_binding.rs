@@ -2123,6 +2123,9 @@ mod recovery_tests {
     use super::*;
     use whisper_core::ports::ImportRequest;
 
+    #[path = "retiring_archive_test.rs"]
+    mod retiring_archive_test;
+
     fn root() -> PathBuf {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         PathBuf::from(
