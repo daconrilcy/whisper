@@ -171,11 +171,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_a
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn pending_scan_and_resume_require_the_exact_qualified_test_key	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn r5_2_a4_product_route_publishes_french_and_english_txt_srt	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn run_barrier_case	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn stop_queue_journal_failure_settles_runtime_and_allows_next_import	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn assert_cpu_incompatible_native_refusal	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn gpu_app_en5_twice_release	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary	1
