@@ -50,7 +50,6 @@ clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reproc
 clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_duplicate_choice	1
 clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
-clippy::too_many_arguments|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn request_with_hash	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|fn run_cleanup_plan_locked	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/proofs.rs|fn capture_cleanup_target	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/proofs.rs|fn recover_published_cleanup_successor	1

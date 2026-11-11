@@ -110,15 +110,15 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
     let missing_audio = runtime.join("does-not-exist.wav");
     let mut bad_model = identity.clone();
     bad_model.model_sha256 = "00".repeat(32);
-    let bad_identity = process.request_with_hash(
-        1,
-        "job-bad-model",
-        1,
-        1,
-        &bad_model,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let bad_identity = process.request_with_hash(RequestDetails {
+        request_id: 1,
+        job_id: "job-bad-model",
+        generation: 1,
+        attempt: 1,
+        identity: &bad_model,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(matches!(
         bad_identity.message,
         Event::Failed { ref code, identity: Some(ref actual), attempt: Some(1), .. }
@@ -126,79 +126,79 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
     ));
     let mut bad_runtime = identity.clone();
     bad_runtime.runtime_sha256 = "00".repeat(32);
-    let runtime_mismatch = process.request_with_hash(
-        2,
-        "job-bad-runtime",
-        1,
-        1,
-        &bad_runtime,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let runtime_mismatch = process.request_with_hash(RequestDetails {
+        request_id: 2,
+        job_id: "job-bad-runtime",
+        generation: 1,
+        attempt: 1,
+        identity: &bad_runtime,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(runtime_mismatch.message, Event::Failed { ref code, identity: Some(ref actual), .. } if code == "RuntimeIdentityMismatch" && actual == &identity)
     );
     let mut bad_build = identity.clone();
     bad_build.build_sha256 = "00".repeat(32);
-    let build_mismatch = process.request_with_hash(
-        3,
-        "job-bad-build",
-        1,
-        1,
-        &bad_build,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let build_mismatch = process.request_with_hash(RequestDetails {
+        request_id: 3,
+        job_id: "job-bad-build",
+        generation: 1,
+        attempt: 1,
+        identity: &bad_build,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(build_mismatch.message, Event::Failed { ref code, identity: Some(ref actual), .. } if code == "BuildIdentityMismatch" && actual == &identity)
     );
     let mut bad_profile = identity.clone();
     bad_profile.profile = "import-vad".into();
-    let profile_mismatch = process.request_with_hash(
-        4,
-        "job-bad-profile",
-        1,
-        1,
-        &bad_profile,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let profile_mismatch = process.request_with_hash(RequestDetails {
+        request_id: 4,
+        job_id: "job-bad-profile",
+        generation: 1,
+        attempt: 1,
+        identity: &bad_profile,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(profile_mismatch.message, Event::Failed { ref code, identity: Some(ref actual), .. } if code == "ProfileMismatch" && actual == &identity)
     );
-    let invalid_attempt = process.request_with_hash(
-        5,
-        "job-invalid-attempt",
-        1,
-        0,
-        &identity,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let invalid_attempt = process.request_with_hash(RequestDetails {
+        request_id: 5,
+        job_id: "job-invalid-attempt",
+        generation: 1,
+        attempt: 0,
+        identity: &identity,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(invalid_attempt.message, Event::Failed { ref code, identity: Some(ref actual), .. } if code == "InvalidRequestIdentity" && actual == &identity)
     );
-    let bad_source = process.request_with_hash(
-        6,
-        "job-source-bad",
-        1,
-        1,
-        &identity,
-        &french,
-        &"00".repeat(32),
-    );
+    let bad_source = process.request_with_hash(RequestDetails {
+        request_id: 6,
+        job_id: "job-source-bad",
+        generation: 1,
+        attempt: 1,
+        identity: &identity,
+        source: &french,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(bad_source.message, Event::Failed { ref code, identity: Some(ref actual), attempt: Some(1), .. } if code == "SourceHashMismatch" && actual == &identity)
     );
-    let stale_identity = process.request_with_hash(
-        6,
-        "job-stale-request-id",
-        1,
-        1,
-        &identity,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let stale_identity = process.request_with_hash(RequestDetails {
+        request_id: 6,
+        job_id: "job-stale-request-id",
+        generation: 1,
+        attempt: 1,
+        identity: &identity,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(stale_identity.message, Event::Failed { ref code, identity: Some(ref actual), .. } if code == "StaleRequest" && actual == &identity)
     );
@@ -257,27 +257,27 @@ fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_un
         );
         results.push(serde_json::json!({"index":index,"language":language,"duration_samples":duration_samples,"text":text,"words":words}));
     }
-    let stale_generation = process.request_with_hash(
-        27,
-        "job-fr-0",
-        1,
-        2,
-        &identity,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let stale_generation = process.request_with_hash(RequestDetails {
+        request_id: 27,
+        job_id: "job-fr-0",
+        generation: 1,
+        attempt: 2,
+        identity: &identity,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(
         matches!(stale_generation.message, Event::Failed { request_id: Some(27), generation: Some(1), attempt: Some(2), ref code, identity: Some(ref actual), .. } if code == "StaleGeneration" && actual == &identity)
     );
-    let stale_attempt = process.request_with_hash(
-        28,
-        "job-fr-0",
-        2,
-        1,
-        &identity,
-        &missing_audio,
-        &"00".repeat(32),
-    );
+    let stale_attempt = process.request_with_hash(RequestDetails {
+        request_id: 28,
+        job_id: "job-fr-0",
+        generation: 2,
+        attempt: 1,
+        identity: &identity,
+        source: &missing_audio,
+        source_sha256: &"00".repeat(32),
+    });
     assert!(matches!(
         stale_attempt.message,
         Event::Failed {
@@ -672,6 +672,16 @@ fn r6_reference_en60() {
         started.elapsed().as_millis(),
         sha256(&worker)
     );
+}
+
+struct RequestDetails<'a> {
+    request_id: u64,
+    job_id: &'a str,
+    generation: u64,
+    attempt: u64,
+    identity: &'a WorkerIdentity,
+    source: &'a Path,
+    source_sha256: &'a str,
 }
 
 struct WorkerProcess {
@@ -1410,37 +1420,28 @@ impl WorkerProcess {
         identity: &WorkerIdentity,
         source: &Path,
     ) -> Envelope<Event> {
-        self.request_with_hash(
+        self.request_with_hash(RequestDetails {
             request_id,
             job_id,
             generation,
             attempt,
             identity,
             source,
-            &sha256(source),
-        )
+            source_sha256: &sha256(source),
+        })
     }
 
-    fn request_with_hash(
-        &mut self,
-        request_id: u64,
-        job_id: &str,
-        generation: u64,
-        attempt: u64,
-        identity: &WorkerIdentity,
-        source: &Path,
-        source_sha256: &str,
-    ) -> Envelope<Event> {
+    fn request_with_hash(&mut self, request: RequestDetails<'_>) -> Envelope<Event> {
         self.send_raw(json_frame(
             PARAKEET_IPC_VERSION,
             WorkerCommand::Transcribe {
-                request_id,
-                job_id: job_id.into(),
-                generation,
-                attempt,
-                identity: Box::new(identity.clone()),
-                source_path: source.to_string_lossy().into_owned(),
-                source_sha256: source_sha256.into(),
+                request_id: request.request_id,
+                job_id: request.job_id.into(),
+                generation: request.generation,
+                attempt: request.attempt,
+                identity: Box::new(request.identity.clone()),
+                source_path: request.source.to_string_lossy().into_owned(),
+                source_sha256: request.source_sha256.into(),
                 expected_gpu: None,
             },
         ))
