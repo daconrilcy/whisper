@@ -10,6 +10,13 @@ Réduire les alertes émises par Clippy dans le workspace Whisper, par catégori
 
 **Contraintes et invariants :** aucun changement volontaire de politique, sortie, protocole, identité de session, publication durable, capture ou interaction utilisateur. Une correction dont l’équivalence n’est pas évidente s’arrête au constat et devient une décision distincte. Pas de lint `allow` pour masquer un diagnostic.
 
+**Critères d’acceptation du cadrage :**
+
+- **CA-01 — Baseline :** rapporter la commande, les options, les émissions et les sites distincts par catégorie, crate et cible, avec la méthode de déduplication et ses limites.
+- **CA-02 — `normalize_pci` :** nommer le lint, les deux sites et les émissions ; préserver l’implémentation de normalisation et le contrôle PCI.
+- **CA-03 — Préservation :** chaque priorité décrit les invariants et scénarios à préserver ; une correction à risque comportemental reste une décision ouverte.
+- **CA-04 — Validation future :** chaque lot propose un critère de fermeture comparant le même périmètre de Clippy et les tests concernés, sans nouveaux diagnostics attribuables au lot.
+
 ## BASELINE FRAÎCHE
 
 - **Révision :** `2972f11ebc90a65224f32712d18d695facde0005` (`main`), worktree détaché.
@@ -33,7 +40,7 @@ Les nombres « 338 » et « 340 » de l’ancien bilan REFACTO-POLL-PARAKEET con
 | Autres lints Clippy | 87 | 69 | Petits groupes de diagnostics ; examiner le message et le diff proposé par site. |
 | **Total** | **438** | **344** | Les avertissements Rust sont séparés de Clippy, mais inclus dans la sortie mesurée. |
 
-Les crates adapters concentrent 265 des 344 sites distincts ; worker GPU en compte 20, core 18, worker Parakeet CPU 15, desktop 14, worker CPU 11 et worker-common 1. Par chemin source, 208 sites sont dans des chemins de tests et 136 dans d’autres chemins ; cette classification de chemin ne repère pas tous les tests `cfg(test)` inline. Les cibles de test ont émis 414 warnings et les cibles non-test 24 ; ces émissions peuvent inclure une même source compilée dans plusieurs contextes.
+Les crates adapters concentrent 265 des 344 sites distincts ; worker GPU en compte 20, core 18, worker Parakeet CPU 15, desktop 14, worker CPU 11 et worker-common 1. Par chemin source, 208 sites sont dans des chemins de tests et 136 dans d’autres chemins ; cette classification ne repère pas tous les tests `cfg(test)` inline. **[Déduction]** L’association des diagnostics `compiler-message` au prochain `compiler-artifact` de même package, cible et kind attribue 343 émissions à une compilation de test (`profile.test`) et 95 à une compilation non-test. C’est une attribution du flux Cargo, pas un champ présent sur le diagnostic ; les 438 émissions restent le total directement observé.
 
 ### Cas `normalize_pci`
 
@@ -41,7 +48,7 @@ Clippy frais signale `unused_imports` à deux sites du worker GPU, pour trois é
 
 ## ORDRE PROPOSÉ
 
-1. **Imports `normalize_pci` — micro-lot prioritaire.** Retirer uniquement les deux imports signalés, après vérification de leur contexte de compilation. Ne pas modifier la fonction pure ni la comparaison PCI. Critère : zéro émission `normalize_pci` avec la même commande ; aucune nouvelle alerte ; les cibles GPU concernées compilent.
+1. **Imports `normalize_pci` — micro-lot prioritaire.** Retirer uniquement les deux imports signalés, après vérification de leur contexte de compilation. Ne pas modifier la fonction pure ni la comparaison PCI. Contrôle intermédiaire : Clippy de `whisper-worker-gpu` sur toutes ses cibles, sous la garde, avec les mêmes quatre options `-W`. Fermeture du lot : reprendre la commande workspace complète ci-dessus sur le candidat ; les deux sites ne produisent plus d’émission `normalize_pci`, aucun nouveau site n’apparaît dans la comparaison workspace, et les cibles GPU compilent. **[CA-02, CA-03, CA-04]**
 2. **Autres corrections locales à équivalence directe.** Trier `unused_imports`, `unused_variables` et les lints Clippy non structurels par site. Commencer par ceux dont le changement est purement syntaxique et dont les appels/valeurs restent identiques. Pour `dead_code`, vérifier d’abord `cfg`, consommateurs indirects et durée de vie des ressources ; ne pas supprimer un élément avant cette analyse.
 3. **Structure de production.** Sélectionner les fonctions qui cumulent longueur et complexité, en donnant la priorité à des extractions privées, pures et testables. Traiter les adaptateurs par petites zones, car ils portent la majorité des alertes. Garder séparés les changements qui touchent arguments/types publics, FFI, synchronisation, ordre des effets, protocole, identité de session ou publication.
 4. **Structure des tests.** Réduire les fonctions de test trop longues/complexes sans affaiblir les assertions, les scénarios, l’ordre des opérations ni les identités observées. Distinguer les fichiers de test des modules inline `cfg(test)`.
@@ -52,10 +59,10 @@ Les rangs 2 à 4 sont des familles de travail, pas une autorisation de refactor 
 
 | Tâche | Critères | Résultat attendu |
 |---|---|---|
-| T1 — Imports `normalize_pci` | CA-02, CA-03 | Deux sites corrigés sans changement de comparaison PCI ; Clippy GPU ciblé sans ce diagnostic. |
-| T2 — Lints locaux | CA-01, CA-03 | Lots par crate et par source, corrections d’équivalence seulement ; `dead_code` traité après vérification de ses usages. |
-| T3 — Structure production | CA-01, CA-03 | Hotspots retenus par volume, risque et couverture ; extractions bornées et contrats préservés. |
-| T4 — Structure tests et bilan | CA-01, CA-04 | Scénarios/assertions préservés ; comparaison à commande et révision explicites ; liste des diagnostics résiduels. |
+| T1 — Imports `normalize_pci` | CA-02, CA-03, CA-04 | Deux sites corrigés sans changement de comparaison PCI ; vérification GPU ciblée et workspace complète sans nouvelle alerte attribuable au lot. |
+| T2 — Lints locaux | CA-01, CA-03, CA-04 | Lots par crate et par source, corrections d’équivalence seulement ; `dead_code` traité après vérification de ses usages. |
+| T3 — Structure production | CA-01, CA-03, CA-04 | Hotspots retenus par volume, risque et couverture ; extractions bornées et contrats préservés. |
+| T4 — Structure tests et bilan | CA-01, CA-03, CA-04 | Scénarios et assertions préservés ; comparaison à commande et révision explicites ; liste des diagnostics résiduels. |
 
 Chaque tâche devra avoir un GO précis, un périmètre de fichiers, une garde N1 valide et ses vérifications utiles. Une mesure avant/après n’est comparable qu’avec la même commande, les mêmes options et la même méthode de déduplication. Le présent cadrage n’accorde pas ces GO.
 
