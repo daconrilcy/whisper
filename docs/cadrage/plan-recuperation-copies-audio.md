@@ -55,3 +55,12 @@ La réparation des **deux entrées personnelles actuellement constatées** ne fa
 L’utilisateur autorise une exception étroite à R2 pour une réservation `Bound` associée à un `pending` et à une réservation de publication persistants : l’inspection peut déclarer le snapshot récupérable uniquement si, sous verrous registre/opération/publication, l’identité est absente des bindings actifs et de la file durable, que `pending` et réservation correspondent exactement au même job/génération/source hash, et que le fichier source original est présent, stable et vérifié avec identité, taille et SHA-256 égales au snapshot et au `pending`. La confirmation explicite peut alors retirer uniquement le snapshot redondant, sa fiche et son entrée de registre via les handles vérifiés ; les fichiers `pending` et réservation restent intacts. Source absente, identité/hash/taille divergents, entrée illisible/corrompue, activité, file ou verrou occupé restent protégés. L’autre réservation personnelle inspectée dont la source originale est absente demeure protégée. Aucun fichier personnel n’est modifié par l’agent.
 
 Critères d’acceptation ajoutés : source exacte présente + pending/réservation exacts et inactifs => confirmation libère le snapshot redondant seulement ; source absente ou différente, pending/réservation incohérents/corrompus, queue/activité/verrou présents => aucune libération. Les tests restent synthétiques ; validations gardées sous la racine RTC-05 déjà approuvée. Cet amendement ne change pas la règle générale R2 pour les autres états pending.
+
+## Amendement R2-bis — archive complète concordante (11 novembre 2026)
+Une archive complète, sans diagnostic, ni publication_recovery, de même job, génération
+et source SHA-256 que la réservation, équivaut à une publication normale interrompue
+avant le retrait. La récupération explicite peut alors retirer le snapshot et sa fiche
+(parcours Bound et reprise Retiring), comme le fait SourceBinding::retire, sans exiger
+la présence de la source originale. Les fichiers de l'archive ne sont jamais touchés.
+Archive incomplète, divergente, avec diagnostic ou en reprise de publication : protégé.
+La conservation de l'audio après publication est un sujet produit séparé, hors RTC-05.
