@@ -7,8 +7,6 @@ mod decoder;
 mod diagnostics;
 #[path = "../../src/encoder.rs"]
 mod encoder;
-#[path = "../../src/engine_cache.rs"]
-mod engine_cache;
 #[path = "../../src/ipc.rs"]
 mod ipc;
 #[path = "../../src/ipc_output.rs"]
@@ -18,12 +16,6 @@ mod worker;
 
 mod native_engine {
     pub(crate) struct CpuEngine;
-
-    impl CpuEngine {
-        pub(crate) fn load(_model_path: &str) -> Result<Self, String> {
-            super::native_boundary::forbid("CpuEngine::load")
-        }
-    }
 }
 
 mod session {
