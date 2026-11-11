@@ -79,6 +79,13 @@ impl TemporaryTestRoot {
 #[cfg(windows)]
 impl Drop for TemporaryTestRoot {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            report_drop_diagnostic(&format!(
+                "test root retained while unwinding after panic: {}",
+                self.path.display()
+            ));
+            return;
+        }
         if self.child == ChildState::RunningOrUnknown {
             report_diagnostic(
                 std::io::stderr(),
@@ -354,7 +361,7 @@ fn temporary_test_root_cleans_after_child_exits_unsuccessfully() {
 
 #[cfg(windows)]
 #[test]
-fn temporary_test_root_cleans_during_unwind_after_child_completion() {
+fn temporary_test_root_preserves_during_unwind_after_child_completion() {
     let path = test_artifact_root("n1-root-panic-finished-child");
     let result = std::panic::catch_unwind(|| {
         let mut root = TemporaryTestRoot::create(path.clone()).unwrap();
@@ -363,7 +370,8 @@ fn temporary_test_root_cleans_during_unwind_after_child_completion() {
         panic!("synthetic parent assertion panic after child completion");
     });
     assert!(result.is_err());
-    assert!(!path.exists());
+    assert!(path.is_dir());
+    std::fs::remove_dir_all(&path).unwrap();
 }
 
 #[cfg(windows)]
@@ -434,7 +442,7 @@ fn create_test_fixture_dir(path: &Path) -> io::Result<()> {
 
 #[cfg(windows)]
 #[test]
-fn temporary_test_root_reports_refusal_during_active_unwind() {
+fn temporary_test_root_reports_retention_during_active_unwind() {
     use std::panic::AssertUnwindSafe;
 
     let path = test_artifact_root("n1-root-refusal-during-unwind");
@@ -450,7 +458,7 @@ fn temporary_test_root_reports_refusal_during_active_unwind() {
     let panic = outcome.expect_err("the synthetic parent panic must be observed");
     assert_eq!(panic.downcast_ref::<&str>(), Some(&"synthetic parent assertion panic"));
     assert!(path.is_dir(), "refused cleanup must retain the owned root");
-    assert!(diagnostic.contains("cleanup failure"));
+    assert!(diagnostic.contains("retained while unwinding"));
     assert!(diagnostic.contains(&path.to_string_lossy().to_string()));
-    std::fs::remove_dir(path).unwrap();
+    std::fs::remove_dir_all(path).unwrap();
 }
