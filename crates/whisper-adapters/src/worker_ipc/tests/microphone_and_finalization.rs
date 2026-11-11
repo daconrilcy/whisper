@@ -626,7 +626,9 @@
             64_000
         );
         let pcm: Vec<i16> = bytes[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
             .collect();
         assert_eq!(pcm.len(), 32_000);
@@ -1481,7 +1483,9 @@
             "finalized B PCM16 payload must contain whole samples"
         );
         let actual_samples = bytes[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|sample| i16::from_le_bytes([sample[0], sample[1]]))
             .collect::<Vec<_>>();
         assert_eq!(actual_samples.len(), expected_samples_total);
@@ -1869,7 +1873,9 @@
         );
         assert_eq!(data_size % 2, 0, "PCM16 payload must contain whole samples");
         let actual_samples = wav[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
             .collect::<Vec<_>>();
         assert_eq!(

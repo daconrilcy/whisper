@@ -371,7 +371,9 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
         .and_then(|entry| entry.observed_sha256.as_ref())
         .expect("local Turbo model")
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect::<Vec<_>>()
         .try_into()
@@ -1002,7 +1004,9 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         .expect("local Turbo model");
     let model_sha: [u8; 32] = model
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect::<Vec<_>>()
         .try_into()
@@ -1337,13 +1341,11 @@ fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request
         if let Some(item) = state
             .iter()
             .find(|item| item.cleanup_id == cleanup.cleanup_id)
+            && !latest_txt.exists()
+            && !item.remaining.is_empty()
+            && item.remaining.iter().any(|path| path.ends_with("\\1"))
         {
-            if !latest_txt.exists()
-                && !item.remaining.is_empty()
-                && item.remaining.iter().any(|path| path.ends_with("\\1"))
-            {
-                break item.clone();
-            }
+            break item.clone();
         }
         assert!(
             std::time::Instant::now() < deadline,

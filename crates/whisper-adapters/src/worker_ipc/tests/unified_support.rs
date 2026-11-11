@@ -26,7 +26,7 @@
     }
 
     thread_local! {
-        static IMPORT_PORT_EVENT_TRACE: RefCell<Option<Arc<Mutex<Vec<String>>>>> = RefCell::new(None);
+        static IMPORT_PORT_EVENT_TRACE: RefCell<Option<Arc<Mutex<Vec<String>>>>> = const { RefCell::new(None) };
     }
 
     fn record_import_port_event(event: &ImportEvent) {
@@ -227,8 +227,8 @@
                 record_import_port_event(&event);
                 return Ok(Some(event));
             }
-            if let Some((job_id, progress)) = &self.capture_progress {
-                if let Some(samples) =
+            if let Some((job_id, progress)) = &self.capture_progress
+                && let Some(samples) =
                     self.runtime
                         .unified_sessions
                         .iter()
@@ -236,21 +236,19 @@
                             (session.job_id == *job_id && state.source.is_capture())
                                 .then_some(state.available_samples)
                         })
-                {
-                    progress.fetch_max(samples, Ordering::Relaxed);
-                }
+            {
+                progress.fetch_max(samples, Ordering::Relaxed);
             }
-            if let Some((job_id, revision)) = &self.document_revision {
-                if let Some(current) =
+            if let Some((job_id, revision)) = &self.document_revision
+                && let Some(current) =
                     self.runtime
                         .unified_sessions
                         .iter()
                         .find_map(|(session, state)| {
                             (session.job_id == *job_id).then_some(state.document.revision())
                         })
-                {
-                    revision.fetch_max(current, Ordering::Relaxed);
-                }
+            {
+                revision.fetch_max(current, Ordering::Relaxed);
             }
             match self.runtime.poll() {
                 Some(Ok(event)) => {

@@ -914,18 +914,18 @@
             && (document_revision.load(Ordering::Relaxed) == 0 || preview_revision < 2)
         {
             app.dispatch(AppCommand::Refresh).unwrap();
-            if let Ok(bytes) = std::fs::read(document_directory.join("document.preview.json")) {
-                if let Ok(preview) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                    preview_revision = preview["revision"].as_u64().unwrap_or(0);
-                    preview_range = Some((
-                        preview["segment"]["range"]["start_sample"]
-                            .as_u64()
-                            .unwrap_or(0),
-                        preview["segment"]["range"]["end_sample"]
-                            .as_u64()
-                            .unwrap_or(0),
-                    ));
-                }
+            if let Ok(bytes) = std::fs::read(document_directory.join("document.preview.json"))
+                && let Ok(preview) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            {
+                preview_revision = preview["revision"].as_u64().unwrap_or(0);
+                preview_range = Some((
+                    preview["segment"]["range"]["start_sample"]
+                        .as_u64()
+                        .unwrap_or(0),
+                    preview["segment"]["range"]["end_sample"]
+                        .as_u64()
+                        .unwrap_or(0),
+                ));
             }
             thread::sleep(Duration::from_millis(2));
         }
@@ -2709,7 +2709,7 @@
 
         let drain_deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < drain_deadline
-            && (runtime.unified_sessions.len() != 0 || runtime.document_drains.len() != 2)
+            && (!runtime.unified_sessions.is_empty() || runtime.document_drains.len() != 2)
         {
             if let Some(Err((job_id, generation, message))) = runtime.poll_unified_sessions() {
                 panic!("session {job_id:?}/{generation:?} failed before document drain: {message}");

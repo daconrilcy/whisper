@@ -1440,7 +1440,9 @@
         file.read_exact(&mut bytes)
             .expect("read only the bounded spoken prefix");
         bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / 32_768.0)
             .collect()
     }
@@ -3466,7 +3468,9 @@
             .read_exact(&mut first_window_pcm_bytes)
             .expect("read only the bounded first native window and margin");
         let first_window_pcm = first_window_pcm_bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
             .collect::<Vec<_>>();
         let mut first_window_cursor = whisper_core::parakeet_session::WindowCursor::default();
