@@ -13,3 +13,5 @@ Décision : arrêt sans autre correction ; recommandation d’abandonner 91de456
 - Commits : amendement `ee695b1a`, test Retiring `277e3119`, bilan à commiter séparément. Le helper R2B-03 et son test sont laissés non commités. Aucun merge/push ni accès aux données utilisateur.
 
 **RECOMMANDATION : abandon de 91de456e.**
+
+**Décision utilisateur (11/11/2026) : abandon appliqué.** Main s'arrête à 28c15f6b. 4cd1a64b, 91de456e et les amendements R2/R2-bis ne sont pas fusionnés. Archive : tag archive/snapshots-legacy-20261111 et C:\wb\archives\revue-snapshots-legacy-20261111.
