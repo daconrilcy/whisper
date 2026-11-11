@@ -409,11 +409,19 @@ fn r11_collision_reprompts_before_queue(
     assert_eq!(std::fs::read(collision_path).unwrap(), b"third-party file");
 }
 
-fn r11_resume_keeps_replace_reservation(
+struct ResumeReplaceFixture {
+    destination: PathBuf,
+    first: ImportRequest,
+    second: ImportRequest,
+    old_active: Vec<whisper_core::ports::PublishedImport>,
+    old_exports: Vec<Vec<u8>>,
+}
+
+fn prepare_r11_resume_replace_fixture(
     source: &std::path::Path,
     model: &std::path::Path,
     root: &std::path::Path,
-) {
+) -> ResumeReplaceFixture {
     let destination = root.join("resume-replacement-destination");
     let first = r11_request(
         JobId(((std::process::id() as u128) << 64) | 114),
@@ -434,10 +442,31 @@ fn r11_resume_keeps_replace_reservation(
     let old_active =
         ArchiveStore::published_imports(&destination, &hex(&sha256_file(source).unwrap())).unwrap();
     assert_eq!(old_active.len(), 2);
-    let old_exports: Vec<_> = ["source.txt", "source (2).txt"]
+    let old_exports = ["source.txt", "source (2).txt"]
         .into_iter()
         .map(|name| std::fs::read(destination.join("exports").join(name)).unwrap())
         .collect();
+    ResumeReplaceFixture {
+        destination,
+        first,
+        second,
+        old_active,
+        old_exports,
+    }
+}
+
+fn r11_resume_keeps_replace_reservation(
+    source: &std::path::Path,
+    model: &std::path::Path,
+    root: &std::path::Path,
+) {
+    let ResumeReplaceFixture {
+        destination,
+        first,
+        second,
+        old_active,
+        old_exports,
+    } = prepare_r11_resume_replace_fixture(source, model, root);
 
     let mut interrupted = r11_request(
         JobId(((std::process::id() as u128) << 64) | 116),
@@ -490,55 +519,29 @@ fn r11_resume_keeps_replace_reservation(
         .resume_from_with_qualification(&interrupted, resumed_request, None, None)
         .unwrap();
     assert_eq!(prefix.len(), 1);
-    let intent = r11_read_publication_intent(&destination, &resumed);
-    assert_eq!(intent["choice"], "Replace");
-    assert_eq!(intent["export_basename"], export_basename);
-    assert_eq!(intent["expected_active"].as_array().unwrap().len(), 2);
-    assert!(!r11_reservation_path(&destination, resumed.job_id, previous_generation).exists());
+    assert_resume_replacement_reservation(
+        &destination,
+        &resumed,
+        previous_generation,
+        &export_basename,
+    );
     assert_eq!(
         ArchiveStore::published_imports(&destination, &hex(&sha256_file(source).unwrap()),)
             .unwrap(),
         old_active,
         "resume does not activate replacement before successful publication"
     );
-    for (name, expected) in ["source.txt", "source (2).txt"]
-        .into_iter()
-        .zip(old_exports)
-    {
-        assert_eq!(
-            std::fs::read(destination.join("exports").join(name)).unwrap(),
-            expected
-        );
-    }
-    resumed_archive
-        .persist_segment(&whisper_core::ports::WorkerSegment {
-            job_id: resumed.job_id,
-            generation: resumed.generation,
-            instance_id: 1,
-            segment_id: whisper_core::SegmentId(2),
-            range: SourceRange::new(8_000, 16_000, 16_000).unwrap(),
-            text: "suffix".into(),
-        })
-        .unwrap();
-    resumed_archive
-        .publish(resumed.job_id, resumed.generation, 2)
-        .unwrap();
-    let active =
-        ArchiveStore::published_imports(&destination, &hex(&sha256_file(source).unwrap())).unwrap();
-    assert_eq!(active.len(), 1);
-    assert_eq!(
-        (active[0].job_id, active[0].generation),
-        (resumed.job_id, resumed.generation)
+    assert_export_files_preserved(
+        &destination,
+        &["source.txt".into(), "source (2).txt".into()],
+        &old_exports,
     );
-    assert!(
-        r11_generation_path(&destination, first.job_id, first.generation)
-            .join("CURRENT")
-            .exists()
-    );
-    assert!(
-        r11_generation_path(&destination, second.job_id, second.generation)
-            .join("CURRENT")
-            .exists()
+    publish_resumed_replacement(
+        &mut resumed_archive,
+        &destination,
+        source,
+        &resumed,
+        &[first, second],
     );
 }
 
@@ -705,12 +708,7 @@ fn r11_byte_identical_post_reservation_collision_is_never_claimed(
     let error = interrupted_archive
         .commit_publish(prepared.job_id, prepared.generation)
         .unwrap_err();
-    assert!(error.contains("export name collision"), "{error}");
-    assert_eq!(std::fs::read(&third_party_path).unwrap(), expected_txt);
-    assert!(
-        !generation.join("installed-exports.json").exists(),
-        "a byte-identical external file is never recorded as an application export"
-    );
+    assert_identical_collision_is_unclaimed(&error, &third_party_path, &expected_txt, &generation);
     let still_active = ArchiveStore::published_imports(&destination, &source_hash).unwrap();
     assert_eq!(still_active.len(), 1);
     assert_eq!(still_active[0].job_id, old_active[0].job_id);
@@ -738,28 +736,61 @@ fn r11_byte_identical_post_reservation_collision_is_never_claimed(
         )
         .unwrap();
     }
-    let mut retry_archive = ArchiveStore::new(&destination);
-    let retry_prepared = retry_archive.prepare(retry).unwrap();
-    retry_archive
+    publish_replacement_after_identical_collision(
+        &destination,
+        retry,
+        &expected_txt,
+        &third_party_path,
+        &reserved_name,
+        prepared.job_id,
+    );
+}
+
+fn publish_replacement_after_identical_collision(
+    destination: &std::path::Path,
+    retry: ImportRequest,
+    expected_txt: &[u8],
+    third_party_path: &std::path::Path,
+    reserved_name: &str,
+    interrupted_job_id: JobId,
+) {
+    let mut archive = ArchiveStore::new(destination);
+    let prepared = archive.prepare(retry).unwrap();
+    archive
         .persist_segment(&whisper_core::ports::WorkerSegment {
-            job_id: retry_prepared.job_id,
-            generation: retry_prepared.generation,
+            job_id: prepared.job_id,
+            generation: prepared.generation,
             instance_id: 1,
             segment_id: whisper_core::SegmentId(1),
-            range: SourceRange::new(0, retry_prepared.source_samples.unwrap(), 16_000).unwrap(),
+            range: SourceRange::new(0, prepared.source_samples.unwrap(), 16_000).unwrap(),
             text: "replacement transcript".into(),
         })
         .unwrap();
-    retry_archive
-        .publish(retry_prepared.job_id, retry_prepared.generation, 1)
+    archive
+        .publish(prepared.job_id, prepared.generation, 1)
         .unwrap();
-    assert_eq!(std::fs::read(&third_party_path).unwrap(), expected_txt);
-    let backup_collision = destination
-        .join("transcriptions-remplacees")
-        .join(format!("{reserved_name}-{:032x}-1.txt", prepared.job_id.0));
+    assert_eq!(std::fs::read(third_party_path).unwrap(), expected_txt);
+    let backup_collision = destination.join("transcriptions-remplacees").join(format!(
+        "{reserved_name}-{:032x}-1.txt",
+        interrupted_job_id.0
+    ));
     assert!(
         !backup_collision.exists(),
         "Replace never moves the byte-identical third-party export"
+    );
+}
+
+fn assert_identical_collision_is_unclaimed(
+    error: &str,
+    third_party_path: &std::path::Path,
+    expected_txt: &[u8],
+    generation: &std::path::Path,
+) {
+    assert!(error.contains("export name collision"), "{error}");
+    assert_eq!(std::fs::read(third_party_path).unwrap(), expected_txt);
+    assert!(
+        !generation.join("installed-exports.json").exists(),
+        "a byte-identical external file is never recorded as an application export"
     );
 }
 
@@ -925,36 +956,12 @@ fn r11_recover_after_single_export_collision(
     // the user; the interrupted app-created hard link must remain recoverable.
     std::fs::remove_file(&third_party_srt).unwrap();
     drop(first_archive);
-    let mut resumed_request = interrupted.clone();
-    resumed_request.generation = interrupted.generation.next().unwrap();
-    let mut resumed_archive = ArchiveStore::new(&destination);
-    let (resumed, prefix) = resumed_archive
-        .resume_from_with_qualification(&interrupted, resumed_request, None, None)
-        .unwrap();
-    assert_eq!(prefix.len(), 1);
-    assert_eq!(
-        ArchiveStore::published_imports(&destination, &source_hash).unwrap(),
-        old_active,
-        "resume keeps the prior publications active until commit"
-    );
-    resumed_archive
-        .persist_segment(&whisper_core::ports::WorkerSegment {
-            job_id: resumed.job_id,
-            generation: resumed.generation,
-            instance_id: 1,
-            segment_id: whisper_core::SegmentId(2),
-            range: SourceRange::new(8_000, 16_000, 16_000).unwrap(),
-            text: "confirmed suffix".into(),
-        })
-        .unwrap();
-    resumed_archive
-        .publish(resumed.job_id, resumed.generation, 2)
-        .unwrap();
-    let active = ArchiveStore::published_imports(&destination, &source_hash).unwrap();
-    assert_eq!(active.len(), 1);
-    assert_eq!(
-        (active[0].job_id, active[0].generation),
-        (resumed.job_id, resumed.generation)
+    resume_replacement_after_export_collision(
+        &destination,
+        &source_hash,
+        &old_active,
+        &interrupted,
+        "resume keeps the prior publications active until commit",
     );
 }
 
@@ -1047,50 +1054,16 @@ fn r11_recover_after_both_exports_before_current(
         old_active,
         "old publications remain active when both exports exist but CURRENT did not commit"
     );
-    for (extension, expected) in ["txt", "srt"].into_iter().zip(old_exports) {
-        assert_eq!(
-            std::fs::read(
-                destination
-                    .join("exports")
-                    .join(format!("{old_name}.{extension}"))
-            )
-            .unwrap(),
-            expected
-        );
-    }
+    assert_old_exports_preserved(&destination, &old_name, &old_exports);
 
     std::fs::remove_dir(&current_path).unwrap();
     drop(first_archive);
-    let mut resumed_request = interrupted.clone();
-    resumed_request.generation = interrupted.generation.next().unwrap();
-    let mut resumed_archive = ArchiveStore::new(&destination);
-    let (resumed, prefix) = resumed_archive
-        .resume_from_with_qualification(&interrupted, resumed_request, None, None)
-        .unwrap();
-    assert_eq!(prefix.len(), 1);
-    assert_eq!(
-        ArchiveStore::published_imports(&destination, &source_hash).unwrap(),
-        old_active,
-        "resume leaves the old generation visible until the new commit"
-    );
-    resumed_archive
-        .persist_segment(&whisper_core::ports::WorkerSegment {
-            job_id: resumed.job_id,
-            generation: resumed.generation,
-            instance_id: 1,
-            segment_id: whisper_core::SegmentId(2),
-            range: SourceRange::new(8_000, 16_000, 16_000).unwrap(),
-            text: "confirmed suffix".into(),
-        })
-        .unwrap();
-    resumed_archive
-        .publish(resumed.job_id, resumed.generation, 2)
-        .unwrap();
-    let active = ArchiveStore::published_imports(&destination, &source_hash).unwrap();
-    assert_eq!(active.len(), 1);
-    assert_eq!(
-        (active[0].job_id, active[0].generation),
-        (resumed.job_id, resumed.generation)
+    resume_replacement_after_export_collision(
+        &destination,
+        &source_hash,
+        &old_active,
+        &interrupted,
+        "resume leaves the old generation visible until the new commit",
     );
     assert!(
         !r11_generation_path(&destination, interrupted.job_id, interrupted.generation)
@@ -1108,6 +1081,120 @@ fn r11_reservation_path(
     destination
         .join(".whisper-publications/reservations")
         .join(format!("{:032x}-{}.json", job_id.0, generation.get()))
+}
+
+fn resume_replacement_after_export_collision(
+    destination: &std::path::Path,
+    source_hash: &str,
+    old_active: &[whisper_core::ports::PublishedImport],
+    interrupted: &ImportRequest,
+    prior_publication_message: &str,
+) {
+    let mut resumed_request = interrupted.clone();
+    resumed_request.generation = interrupted.generation.next().unwrap();
+    let mut resumed_archive = ArchiveStore::new(destination);
+    let (resumed, prefix) = resumed_archive
+        .resume_from_with_qualification(interrupted, resumed_request, None, None)
+        .unwrap();
+    assert_eq!(prefix.len(), 1);
+    assert_eq!(
+        ArchiveStore::published_imports(destination, source_hash).unwrap(),
+        old_active.to_vec(),
+        "{}",
+        prior_publication_message
+    );
+    resumed_archive
+        .persist_segment(&whisper_core::ports::WorkerSegment {
+            job_id: resumed.job_id,
+            generation: resumed.generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(2),
+            range: SourceRange::new(8_000, 16_000, 16_000).unwrap(),
+            text: "confirmed suffix".into(),
+        })
+        .unwrap();
+    resumed_archive
+        .publish(resumed.job_id, resumed.generation, 2)
+        .unwrap();
+    let active = ArchiveStore::published_imports(destination, source_hash).unwrap();
+    assert_eq!(active.len(), 1);
+    assert_eq!(
+        (active[0].job_id, active[0].generation),
+        (resumed.job_id, resumed.generation)
+    );
+}
+
+fn assert_old_exports_preserved(
+    destination: &std::path::Path,
+    old_name: &str,
+    old_exports: &[Vec<u8>; 2],
+) {
+    let names = ["txt", "srt"].map(|extension| format!("{old_name}.{extension}"));
+    assert_export_files_preserved(destination, &names, old_exports);
+}
+
+fn assert_export_files_preserved(
+    destination: &std::path::Path,
+    names: &[String; 2],
+    expected_exports: &[Vec<u8>],
+) {
+    for (name, expected) in names.iter().zip(expected_exports) {
+        assert_eq!(
+            std::fs::read(destination.join("exports").join(name))
+                .unwrap()
+                .as_slice(),
+            expected.as_slice()
+        );
+    }
+}
+
+fn assert_resume_replacement_reservation(
+    destination: &std::path::Path,
+    resumed: &ImportRequest,
+    previous_generation: Generation,
+    export_basename: &str,
+) {
+    let intent = r11_read_publication_intent(destination, resumed);
+    assert_eq!(intent["choice"], "Replace");
+    assert_eq!(intent["export_basename"], export_basename);
+    assert_eq!(intent["expected_active"].as_array().unwrap().len(), 2);
+    assert!(!r11_reservation_path(destination, resumed.job_id, previous_generation).exists());
+}
+
+fn publish_resumed_replacement(
+    archive: &mut ArchiveStore,
+    destination: &std::path::Path,
+    source: &std::path::Path,
+    resumed: &ImportRequest,
+    old: &[ImportRequest; 2],
+) {
+    archive
+        .persist_segment(&whisper_core::ports::WorkerSegment {
+            job_id: resumed.job_id,
+            generation: resumed.generation,
+            instance_id: 1,
+            segment_id: whisper_core::SegmentId(2),
+            range: SourceRange::new(8_000, 16_000, 16_000).unwrap(),
+            text: "suffix".into(),
+        })
+        .unwrap();
+    archive
+        .publish(resumed.job_id, resumed.generation, 2)
+        .unwrap();
+    let active =
+        ArchiveStore::published_imports(destination, &hex(&sha256_file(source).unwrap())).unwrap();
+    assert_eq!(active.len(), 1);
+    assert_eq!(
+        (active[0].job_id, active[0].generation),
+        (resumed.job_id, resumed.generation)
+    );
+    for previous in old {
+        assert!(
+            r11_generation_path(destination, previous.job_id, previous.generation)
+                .join("CURRENT")
+                .exists()
+        );
+    }
 }
 
 fn r11_generation_path(
@@ -1354,29 +1441,7 @@ fn real_wav_runs_through_cpu_worker_and_verified_archive() {
         },
     })
     .unwrap();
-    let started = Instant::now();
-    let mut saw_cpu = false;
-    loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        saw_cpu |= view.message.as_deref() == Some("Moteur actif : CPU");
-        if view
-            .active_job
-            .is_some_and(|(_, state)| state == JobState::Complete)
-        {
-            break;
-        }
-        if view
-            .active_job
-            .is_some_and(|(_, state)| state == JobState::Recoverable)
-        {
-            panic!("real import failed: {:?}", view.message);
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(300),
-            "real CPU transcription exceeded the campaign bound"
-        );
-        thread::sleep(Duration::from_millis(20));
-    }
+    let (started, saw_cpu) = wait_for_real_cpu_import(&mut app);
     if let Some(observation) = memory_observation {
         observation.finish(3);
     }
@@ -1411,6 +1476,33 @@ fn real_wav_runs_through_cpu_worker_and_verified_archive() {
         subtitles.len(),
         started.elapsed().as_millis()
     );
+}
+
+fn wait_for_real_cpu_import(app: &mut ImportApplication<AsyncImportIo>) -> (Instant, bool) {
+    let started = Instant::now();
+    let mut saw_cpu = false;
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        saw_cpu |= view.message.as_deref() == Some("Moteur actif : CPU");
+        if view
+            .active_job
+            .is_some_and(|(_, state)| state == JobState::Complete)
+        {
+            break;
+        }
+        if view
+            .active_job
+            .is_some_and(|(_, state)| state == JobState::Recoverable)
+        {
+            panic!("real import failed: {:?}", view.message);
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(300),
+            "real CPU transcription exceeded the campaign bound"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+    (started, saw_cpu)
 }
 
 #[cfg(all(windows, feature = "l01-memory-qualification"))]
@@ -1631,6 +1723,20 @@ fn stop_during_native_inference_is_prompt_and_never_publishes_complete() {
         "worker did not accrue 2s CPU while Ready and before Progress; CPU={inference_cpu:?}"
     );
 
+    assert_stop_is_prompt_and_cancelled(&mut app, job_id, generation);
+    let entries = ArchiveStore::scan(&destination).unwrap();
+    assert!(
+        entries.iter().all(|entry| !entry.complete),
+        "Stop must not publish a complete archive: {entries:?}"
+    );
+    let _ = std::fs::remove_dir_all(destination);
+}
+
+fn assert_stop_is_prompt_and_cancelled(
+    app: &mut ImportApplication<AsyncImportIo>,
+    job_id: JobId,
+    generation: Generation,
+) {
     let submitted = Instant::now();
     let view = app
         .dispatch(AppCommand::Stop { job_id, generation })
@@ -1665,12 +1771,6 @@ fn stop_during_native_inference_is_prompt_and_never_publishes_complete() {
         terminal.1
     );
     assert_ne!(terminal.0, JobState::Complete);
-    let entries = ArchiveStore::scan(&destination).unwrap();
-    assert!(
-        entries.iter().all(|entry| !entry.complete),
-        "Stop must not publish a complete archive: {entries:?}"
-    );
-    let _ = std::fs::remove_dir_all(destination);
 }
 
 fn worker_cpu_time(worker: &std::path::Path) -> Duration {
@@ -1801,25 +1901,39 @@ struct MemoryObservation {
 }
 
 #[cfg(windows)]
+fn prepare_memory_observation_paths(
+    trace_path: &std::path::Path,
+    adapter_trace_path: &std::path::Path,
+) -> (PathBuf, PathBuf) {
+    if let Some(parent) = trace_path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    if let Some(parent) = adapter_trace_path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let samples_path = trace_path.with_extension("process-samples.jsonl");
+    let stop_path = trace_path.with_extension("sampler-stop");
+    for path in [trace_path, adapter_trace_path, &samples_path, &stop_path] {
+        let _ = std::fs::remove_file(path);
+    }
+    (samples_path, stop_path)
+}
+
+#[cfg(windows)]
+fn memory_observation_trace_paths() -> Option<(PathBuf, PathBuf)> {
+    let trace_path = std::env::var_os("WHISPER_L01_MEMORY_TRACE").map(PathBuf::from)?;
+    let adapter_trace_path = std::env::var_os("WHISPER_L01_ADAPTER_MEMORY_TRACE")
+        .map(PathBuf::from)
+        .expect("set adapter trace path whenever worker trace is enabled");
+    Some((trace_path, adapter_trace_path))
+}
+
+#[cfg(windows)]
 impl MemoryObservation {
     fn start(_: &std::path::Path) -> Option<Self> {
-        use std::os::windows::process::CommandExt;
-
-        let trace_path = std::env::var_os("WHISPER_L01_MEMORY_TRACE").map(PathBuf::from)?;
-        let adapter_trace_path = std::env::var_os("WHISPER_L01_ADAPTER_MEMORY_TRACE")
-            .map(PathBuf::from)
-            .expect("set adapter trace path whenever worker trace is enabled");
-        if let Some(parent) = trace_path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        if let Some(parent) = adapter_trace_path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        let samples_path = trace_path.with_extension("process-samples.jsonl");
-        let stop_path = trace_path.with_extension("sampler-stop");
-        for path in [&trace_path, &adapter_trace_path, &samples_path, &stop_path] {
-            let _ = std::fs::remove_file(path);
-        }
+        let (trace_path, adapter_trace_path) = memory_observation_trace_paths()?;
+        let (samples_path, stop_path) =
+            prepare_memory_observation_paths(&trace_path, &adapter_trace_path);
         let script = r#"
 $samplePath = $env:WHISPER_L01_PROCESS_SAMPLES
 $stopPath = $env:WHISPER_L01_SAMPLER_STOP
@@ -1838,6 +1952,7 @@ public static class L01PipeApi {
  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetNamedPipeInfo(IntPtr pipe, out uint flags, out uint outBuffer, out uint inBuffer, out uint maxInstances);
  [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
 }
+
 '@
 Add-Type $pipeApi
 $writer = [System.IO.StreamWriter]::new($samplePath, $false, [System.Text.UTF8Encoding]::new($false))
@@ -1897,18 +2012,13 @@ try {
     }
 } finally { $writer.Dispose() }
 "#;
-        let sampler = Command::new("powershell.exe")
-            .args(["-NoProfile", "-Command", script])
-            .env("WHISPER_L01_PROCESS_SAMPLES", &samples_path)
-            .env("WHISPER_L01_SAMPLER_STOP", &stop_path)
-            .env("WHISPER_L01_ADAPTER_TRACE", &adapter_trace_path)
-            .env("WHISPER_L01_WORKER_TRACE", &trace_path)
-            .env("WHISPER_L01_TEST_PID", std::process::id().to_string())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .creation_flags(0x0800_0000)
-            .spawn()
-            .expect("PowerShell is required for Windows process-memory sampling");
+        let sampler = spawn_memory_sampler(
+            script,
+            &samples_path,
+            &stop_path,
+            &adapter_trace_path,
+            &trace_path,
+        );
         Some(Self {
             sampler,
             trace_path,
@@ -2235,6 +2345,30 @@ impl Drop for MemoryObservation {
             let _ = self.sampler.wait();
         }
     }
+}
+
+#[cfg(windows)]
+fn spawn_memory_sampler(
+    script: &str,
+    samples_path: &std::path::Path,
+    stop_path: &std::path::Path,
+    adapter_trace_path: &std::path::Path,
+    trace_path: &std::path::Path,
+) -> Child {
+    use std::os::windows::process::CommandExt;
+
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .env("WHISPER_L01_PROCESS_SAMPLES", samples_path)
+        .env("WHISPER_L01_SAMPLER_STOP", stop_path)
+        .env("WHISPER_L01_ADAPTER_TRACE", adapter_trace_path)
+        .env("WHISPER_L01_WORKER_TRACE", trace_path)
+        .env("WHISPER_L01_TEST_PID", std::process::id().to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(0x0800_0000)
+        .spawn()
+        .expect("PowerShell is required for Windows process-memory sampling")
 }
 
 #[cfg(not(windows))]
