@@ -999,7 +999,7 @@ mod tests {
             first_written = ack.written_samples;
         }
         assert_eq!(first_written, first_len as u64);
-        let source = PcmPartStore::open(&audio_path);
+        let _source = PcmPartStore::open(&audio_path);
         let mut document =
             ParakeetDocumentStore::create(root.join("document"), JobId(34), Generation::first())
                 .unwrap();

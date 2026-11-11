@@ -754,7 +754,7 @@ mod tests {
             &path,
             InventoryLogSnapshot {
                 generation: 4,
-                observations: &[observation.clone()],
+                observations: std::slice::from_ref(&observation),
                 dxgi: &[],
                 targets: &[],
                 results: None,

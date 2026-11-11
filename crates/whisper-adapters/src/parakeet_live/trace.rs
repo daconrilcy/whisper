@@ -43,7 +43,7 @@ impl D2WorkerDiagnostics {
     pub(super) fn enabled(&self) -> bool {
         #[cfg(test)]
         {
-            return self.path.is_some();
+            self.path.is_some()
         }
         #[cfg(not(test))]
         false
@@ -51,13 +51,12 @@ impl D2WorkerDiagnostics {
 
     pub(super) fn record(&self, value: serde_json::Value) {
         #[cfg(test)]
-        if let Some(path) = &self.path {
-            if let Ok(_guard) = self.write_lock.lock()
-                && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
-            {
-                let _ = serde_json::to_writer(&mut file, &value);
-                let _ = file.write_all(b"\n");
-            }
+        if let Some(path) = &self.path
+            && let Ok(_guard) = self.write_lock.lock()
+            && let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path)
+        {
+            let _ = serde_json::to_writer(&mut file, &value);
+            let _ = file.write_all(b"\n");
         }
         #[cfg(not(test))]
         let _ = value;

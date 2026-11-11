@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(state.pending[1].word.text, "juste");
         assert_eq!(state.pending[1].word.range, range(2_500, 8_500));
         assert!(!state.pending[1].witnessed_twice);
-        assert_eq!(state.confirmed(), &[immutable_context.clone()]);
+        assert_eq!(state.confirmed(), std::slice::from_ref(&immutable_context));
         assert_eq!(
             state
                 .pending

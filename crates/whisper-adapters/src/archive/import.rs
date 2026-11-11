@@ -205,15 +205,14 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
         binding: &crate::source_binding::SourceBinding,
     ) -> Result<ImportRequest, String> {
-        let result = self.prepare_inner_impl(
+        self.prepare_inner_impl(
             request,
             executable_model_path,
             qualification,
             Some(binding),
             None,
             None,
-        );
-        result
+        )
     }
 
     fn prepare_inner(
@@ -237,15 +236,14 @@ impl ArchiveStore {
         qualification: Option<ArchiveQualificationKey>,
         locked_destination: Option<&Path>,
     ) -> Result<ImportRequest, String> {
-        let result = self.prepare_inner_impl(
+        self.prepare_inner_impl(
             request,
             executable_model_path,
             qualification,
             None,
             None,
             locked_destination,
-        );
-        result
+        )
     }
 
     fn prepare_inner_impl(
