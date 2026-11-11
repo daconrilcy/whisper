@@ -98,6 +98,7 @@ Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescen
 
 ### Préparation et architecture
 
+- Aucun commit directement sur `main`, y compris pour la documentation et le cadrage : tout passe par la branche du lot, fusionnée par l'utilisateur.
 - Relever l'état Git et préserver les changements des autres tâches, y compris les fichiers non suivis. Une branche ou un état Git propre ne prouve pas l'absence d'un autre agent actif ; coordonner les responsabilités avant des modifications concurrentes.
 - Les worktrees sont créés hors du dépôt principal, sous une racine courte (par exemple `C:/wt/<tâche>`), jamais sous `C:/dev/whisper/.wt/` ni `target/`. Cela évite que les outils du dépôt principal parcourent les worktrees et que les chemins dépassent la limite Windows de 260 caractères.
 - Lire la carte `docs/architecture/ARCHITECTURE.md` et la fiche de la crate dans `docs/architecture/crates/` si elles sont présentes. Ces documents sont des relevés statiques à confronter aux sources et aux manifestes actuels ; ils ne valent ni plan de refonte ni autorisation. S'ils manquent, consulter les sources sans recréer une campagne documentaire.
