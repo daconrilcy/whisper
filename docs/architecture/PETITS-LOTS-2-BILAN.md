@@ -17,3 +17,5 @@ Décision : conserver le worktree et les preuves jusqu’à fusion utilisateur ;
 Preuves brutes (12 journaux, arborescence et SHA-256 vérifiés) : `evidence/PETITS-LOTS-2-validation.zip`, 86 700 octets, SHA-256 `ee9a4ba6803bc1971d1c881e7a6c362bd76d3aba1c452c52f64109aeb561b7b1`. `git diff --check` : PASS. Pas de Clippy workspace, conformément au périmètre CUDA.
 
 Commits du lot : `57272433` (point 2), `c5e6077f` (point 3), puis le commit point 1 et ce bilan. Nettoyage proposé après fusion utilisateur : supprimer seulement `C:\wt\petits-lots-2\target\parakeet-tests\garde-n1-categories`; conserver la cible Cargo partagée, le cache Cargo persistant, l’archive de preuves et le worktree jusqu’à la décision de fusion.
+
+Suivi du nettoyage : [PETITS-LOTS-2-SUIVI-NETTOYAGE.md](PETITS-LOTS-2-SUIVI-NETTOYAGE.md).
