@@ -170,8 +170,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn real_wav_runs_through_cpu_worker_and_verified_archive	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn start	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn stop_during_native_inference_is_prompt_and_never_publishes_complete	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn r11_mp3_content_identity_is_independent_of_filename_and_destination	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_mp3.rs|fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn archive_root	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	1
