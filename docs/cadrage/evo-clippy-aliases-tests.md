@@ -6,7 +6,7 @@ Décision : cadrer des alias de types locaux, sans autoriser leur implémentatio
 
 **Identifiant :** D-WHISPER-CLIPPY-ALIASES-01  
 **Nature :** évolution de maintenabilité, proposée pour planification.  
-**État :** DESIGN PROPOSÉ ; implémentation non autorisée par ce document.
+**État :** DESIGN READY après revue indépendante CLEAN ; implémentation non autorisée par ce document.
 
 ## BESOIN
 
@@ -59,3 +59,5 @@ Les cinq observations se résolvent par quatre alias proposés et la réutilisat
 ## RAPPORT
 
 Le cadrage retient un micro-lot de lisibilité exclusivement dans des supports de test. Sept alertes sont confirmées sur la base source comparable ; les quatre alias proposés et le réemploi d’un alias existant ont une portée limitée. L’efficacité des alias, la revue du diff futur et la N1 restent à démontrer après une autorisation d’implémentation distincte.
+
+**Revue indépendante : CLEAN** sur le contenu du commit `2f31c617acb1689268afebd7f5656df8044dc4cd` (`docs/cadrage/evo-clippy-aliases-tests.md`). Aucun constat requis ouvert. Avis consultatif pour le plan : rapprocher les diagnostics JSON avant/après par lint, chemin et champ/fonction, y compris les alias, car le seul PASS du cliquet ne prouve pas le retrait individuel des sept sites.
