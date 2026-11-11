@@ -24,13 +24,13 @@ Ordre : **T0 → T1 → T2 → T3 → T4 → T5 → T6 → T7**. Les constats de
 
 Si une base ultérieure rend T2 ou T3 admissible, préserver les dépendances : les auto-tests Cargo de T2 viennent après le N1 du point 3; aucun commit du point 3 avant revue, build et N1 de son candidat. Si la condition « point 3 en dernier » empêche alors l’ordre demandé, arrêter les points concernés et demander un arbitrage. Ne pas déplacer les changements d’un point dans le commit d’un autre.
 
-Toutes les commandes se lancent en PowerShell dans `C:\wt\petits-lots`, seulement après contrôle de l’état Git, de la garde, des racines autorisées, des liens/jonctions, d’au moins 30 Gio libres et du cache requis. Résultats Cargo, garde, revue et preuves de build sont des faits distincts. Budget diagnostic maximal : 3 essais ou 30 minutes.
+Les lectures Git, sources et preuves statiques se font en PowerShell dans `C:\wt\petits-lots` sans précondition de cache Cargo. Chaque tâche de test ou compilation a son propre préflight de garde, ressources, racines autorisées, liens/jonctions et au moins 30 Gio libres. L’absence de cache bloque seulement la campagne Cargo qui le requiert; elle ne bloque pas un SelfTest séparé qui ne l’utilise pas. Résultats Cargo, garde, revue et preuves de build sont des faits distincts. Budget diagnostic maximal : 3 essais ou 30 minutes.
 
 ## Tâches
 
 ### T0 — Préflight et portée commune
 
-**Responsable :** session principale. **Dépendances :** cadrage et présent plan. **Vérifications :** relever `git --no-optional-locks status --short --branch`, `git --no-optional-locks rev-parse --show-toplevel`, `git --no-optional-locks log -1 --oneline`; lire les `AGENTS.md` et gardes applicables; relever l’espace libre, racines et reparse points avant toute campagne. Confirmer worktree `C:/wt/petits-lots`, branche et absence de changements concurrents pertinents. Ne pas intervenir dans le dépôt principal. **Arrêt :** état ou racine inattendus, prérequis de garde absents, ou changement concurrent invalidant. Aucun changement de garde, test de garde, `native-profiles.json` ou configuration rustfmt; aucune construction native, requalification, N2, merge ou push.
+**Responsable :** session principale. **Dépendances :** cadrage et présent plan. **Vérifications en lecture seule :** relever `git --no-optional-locks status --short --branch`, `git --no-optional-locks rev-parse --show-toplevel`, `git --no-optional-locks log -1 --oneline`; lire les `AGENTS.md` et gardes applicables; confirmer worktree `C:/wt/petits-lots`, branche et absence de changements concurrents pertinents. **Arrêt :** état ou racine inattendus, ou changement concurrent invalidant. Ne pas faire dépendre les lectures Git/documentaires des prérequis de test Cargo. Avant chaque campagne ultérieure, son propre préflight vérifie espace libre, racines et reparse points. Aucun changement de garde, test de garde, `native-profiles.json` ou configuration rustfmt; aucune construction native, requalification, N2, merge ou push.
 
 ### T1 — `deliverables/` dans l’index et les usages
 
@@ -46,7 +46,7 @@ Toutes les commandes se lancent en PowerShell dans `C:\wt\petits-lots`, seulemen
 
 ### T4 — Auto-tests conditionnels de `GGML_NATIVE`
 
-**Responsable :** session principale; relecteur générique. **Dépendances :** T2 devient admissible et N1 précommit T3 réussit. Sinon **NON EXÉCUTÉ**. Vérifier que la cible canonique `target/parakeet-tests/cargo-shared` du worktree existe avant `guard-native` : un N1 avec `-FreshTarget` utilise une cible distincte. Dans la seule branche permise, modifier l’option existante, puis `ci/guard-native.ps1 -Mode SelfTest`; exécuter `ci/test-native-build-control.ps1` seulement si son test couvre effectivement `build-config`. Toute exigence d’édition d’une garde, liste ou empreinte, tout besoin de requalification ou échec arrête le point. Revue générique, puis commit `build: pin GGML_NATIVE=OFF` seulement pour un diff admissible et validé. Ne pas inclure les fichiers Rust dans son index.
+**Responsable :** session principale; relecteur générique. **Dépendances :** T2 devient admissible et N1 précommit T3 réussit. Sinon **NON EXÉCUTÉ**. Vérifier que la cible canonique `target/parakeet-tests/cargo-shared` du worktree existe avant `guard-native` : un N1 avec `-FreshTarget` utilise une cible distincte. Dans la seule branche permise, modifier l’option existante, puis appeler `ci/guard-native.ps1 -Mode SelfTest -LotRoot 'target/n2-native'`; ce chemin est la racine de travail de l’auto-test et ne lance ni campagne ni niveau N2. Exécuter `ci/test-native-build-control.ps1` seulement si sa couverture effective de `build-config` est établie. Toute exigence d’édition d’une garde, liste ou empreinte, tout besoin de requalification ou échec arrête le point. Revue générique, puis commit `build: pin GGML_NATIVE=OFF` seulement pour un diff admissible et validé. Ne pas inclure les fichiers Rust dans son index.
 
 ### T5 — Commit de formatage puis blame
 
@@ -54,7 +54,16 @@ Toutes les commandes se lancent en PowerShell dans `C:\wt\petits-lots`, seulemen
 
 ### T6 — SelfTest N1 et validation N1 finale
 
-**Responsable :** validateur désigné/session principale. **Dépendances :** T0 et dispositions finales des points. Exécuter séparément `ci/guard-level1.ps1 -SelfTest` après son propre préflight; consigner son résultat et code de sortie. Ce SelfTest exécute ses sondes metadata et ne prouve pas le N1 complet. Pour `cargo test --no-fail-fast`, vérifier les sources `target/cargo-home-shared/registry/src`, sélectionner une cible admise et confirmer que la compilation ne requiert aucun mécanisme natif interdit. L’absence de `CARGO_TARGET_DIR` dans le processus Cargo peut être obtenue avec `-WithoutCargoTargetDir`; selon le choix, la garde valide la cible canonique ou une `-FreshTarget` distincte. Un N1 de cible neuve ne remplit pas le prérequis de `guard-native`. Au préflight observé, le cache hors ligne manque; inscrire **N1 NON EXÉCUTÉ** si cela demeure vrai. Aucun `fetch --locked` sans mandat et sans cible canonique préexistante. Si admissible, relever code, compte réel et présence `CARGO_TARGET_DIR_child=False`; `944/0/129` est l’attente, non le résultat présumé.
+**Responsable :** validateur désigné/session principale. **Dépendances :** T0 et dispositions finales des points. Exécuter séparément `ci/guard-level1.ps1 -SelfTest` après son propre préflight (espace/root de lot, garde et sondes metadata); consigner résultat et code de sortie. Son exécution ne dépend pas de la présence de `registry/src` vérifiée pour le N1 complet et ne le prouve pas. Si le SelfTest échoue, arrêter les campagnes Cargo dépendantes. Pour chaque `cargo test --no-fail-fast` précommit ou final, vérifier les sources `target/cargo-home-shared/registry/src`, le modèle Parakeet personnel et son empreinte, sélectionner une cible admise, et confirmer que la compilation ne requiert aucun mécanisme natif interdit. Le modèle persistant est fourni avec `-PersonalParakeetModelPath <chemin-vérifié-hors-target>`; la garde valide le SHA-256 attendu et fixe `N1_TEST_PERSONAL_PARAKEET_MODEL`. Cette exigence s’applique aussi au N1 précommit T3 si cette branche devenait admissible. L’absence de `CARGO_TARGET_DIR` dans le processus Cargo s’obtient avec `-WithoutCargoTargetDir`; la garde valide soit la cible canonique existante, soit une `-FreshTarget` distincte. Un N1 de cible neuve ne remplit pas le prérequis de `guard-native`. Au préflight observé, le cache hors ligne manque; inscrire **N1 NON EXÉCUTÉ** si cela demeure vrai. Aucun `fetch --locked` sans mandat et sans cible canonique préexistante. Si admissible, relever code, compte réel et présence `CARGO_TARGET_DIR_child=False`; `944/0/129` est l’attente, non le résultat présumé.
+
+Exemple de commande N1 final si la cible fraîche et les autres prérequis sont admissibles; remplacer le chemin de modèle par la sélection persistante vérifiée avant exécution :
+
+```powershell
+.\ci\guard-level1.ps1 -LotRoot 'target/parakeet-tests/petits-lots-1' `
+  -WithoutCargoTargetDir -FreshTarget 'n1-final' `
+  -PersonalParakeetModelPath '<chemin-vérifié-hors-target>' `
+  -CargoArgsJson '["test","--no-fail-fast"]'
+```
 
 ### T7 — Bilan et propositions de clôture
 
@@ -69,7 +78,7 @@ if (Test-Path -LiteralPath 'C:\wb\deliverables') { throw 'Destination déjà pr�
 Move-Item -LiteralPath 'C:\dev\whisper\deliverables' -Destination 'C:\wb\deliverables' -ErrorAction Stop
 ```
 
-Proposer le nettoyage seulement après inventaire des ressources et des commits à préserver, avec le worktree propre et inutilisé : `git -C C:/dev/whisper worktree remove C:/wt/petits-lots`, sans `--force`. Garder la branche locale tant que ses commits ne sont pas conservés ailleurs. Ne supprimer aucun cache ou autre chemin par extension.
+Proposer le nettoyage seulement après inventaire des ressources et des commits à préserver, avec le worktree propre et inutilisé. Avant retrait, archiver les preuves de campagne éventuelles en préservant l’arborescence et en vérifiant nombre et SHA-256; vérifier et conserver caches persistants, preuves, livrables, modèles, audios, références de contrôles permanents et ressources de lot encore actives. Si une ressource protégée doit rester sur place, conserver le worktree et signaler le blocage. Sinon, proposer `git -C C:/dev/whisper worktree remove C:/wt/petits-lots`, sans `--force`. Garder la branche locale tant que ses commits ne sont pas conservés ailleurs. Ne supprimer aucun cache ou autre chemin par extension.
 
 ## Chemins et reprise
 
