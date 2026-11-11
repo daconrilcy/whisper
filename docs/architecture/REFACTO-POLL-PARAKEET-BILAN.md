@@ -34,3 +34,5 @@ N2 PersonalUnified : premier appel arrêté par la garde pendant compilation (é
 Suivi post-T6 : [inventaire et phase T7](REFACTO-POLL-PARAKEET-SUIVI-POST-T6.md).
 
 Suivi des validations T10 : [REFACTO-POLL-PARAKEET-SUIVI-T10.md](REFACTO-POLL-PARAKEET-SUIVI-T10.md).
+
+Complément de recette Windows après clôture : [résultats rapportés le 11 novembre 2026](REFACTO-POLL-PARAKEET-RECETTE-WINDOWS-COMPLEMENT.md).

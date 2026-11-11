@@ -6,8 +6,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use sha2::{Digest, Sha256};
 use whisper_adapters::source_binding::SourceBinding;
-use whisper_core::{Generation, JobConfig, JobId, ports::ImportRequest};
+use whisper_core::{Generation, JobConfig, JobId, model_registry::MODELS, ports::ImportRequest};
 
 fn root() -> PathBuf {
     static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
@@ -66,6 +67,182 @@ fn request(root: &std::path::Path, source: &std::path::Path, id: u128) -> Import
 
 fn registry(root: &std::path::Path) -> PathBuf {
     root.join("settings/reprocessing-snapshots")
+}
+
+fn write_complete_archive(
+    destination: &std::path::Path,
+    job_id: JobId,
+    generation: Generation,
+    source_sha256: &str,
+    source_samples: u64,
+) -> PathBuf {
+    let directory = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id.0))
+        .join(generation.get().to_string());
+    fs::create_dir_all(&directory).unwrap();
+    let model = &MODELS[0].artifact;
+    fs::write(
+        directory.join("pending.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "job_id": job_id.0,
+            "generation": generation.get(),
+            "source_path": "original.wav",
+            "source_sha256": source_sha256,
+            "source_samples": source_samples,
+            "model_path": model.file_name,
+            "model_sha256": model.sha256,
+            "model_size": model.size_bytes,
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let text = b"completed transcript";
+    let srt = b"1\n00:00:00,000 --> 00:00:00,500\ncompleted transcript\n";
+    let text_sha256 = format!("{:x}", Sha256::digest(text));
+    let srt_sha256 = format!("{:x}", Sha256::digest(srt));
+    fs::write(directory.join("transcript.txt"), text).unwrap();
+    fs::write(directory.join("transcript.srt"), srt).unwrap();
+    fs::write(
+        directory.join("segments.jsonl"),
+        format!(
+            "{}\n",
+            serde_json::json!({
+                "sequence": 1,
+                "range": { "start_sample": 0, "end_sample": 8_000, "sample_rate_hz": 16_000 },
+                "text": "completed transcript",
+            })
+        ),
+    )
+    .unwrap();
+    fs::write(
+        directory.join("manifest.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "job_id": job_id.0,
+            "generation": generation.get(),
+            "source_sha256": source_sha256,
+            "segments": 1,
+            "text": { "path": "transcript.txt", "sha256": text_sha256, "bytes": text.len() },
+            "srt": { "path": "transcript.srt", "sha256": srt_sha256, "bytes": srt.len() },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+    directory
+}
+
+fn write_pending_only(
+    destination: &std::path::Path,
+    request: &ImportRequest,
+    source_sha256: &str,
+    source_samples: u64,
+) -> PathBuf {
+    let directory = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", request.job_id.0))
+        .join(request.generation.get().to_string());
+    fs::create_dir_all(&directory).unwrap();
+    let model = &MODELS[0].artifact;
+    #[derive(serde::Serialize)]
+    struct PendingFixture<'a> {
+        version: u32,
+        job_id: JobId,
+        generation: Generation,
+        source_path: &'a str,
+        source_sha256: &'a str,
+        source_samples: u64,
+        model_path: &'a str,
+        model_sha256: &'a str,
+        model_size: u64,
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy,
+        qualification: Option<serde_json::Value>,
+    }
+    let pending = PendingFixture {
+        version: 1,
+        job_id: request.job_id,
+        generation: request.generation,
+        source_path: &request.source_path,
+        source_sha256,
+        source_samples,
+        model_path: model.file_name,
+        model_sha256: model.sha256,
+        model_size: model.size_bytes,
+        strategy: request.strategy,
+        qualification: None,
+    };
+    fs::write(
+        directory.join("pending.json"),
+        serde_json::to_vec(&pending).unwrap(),
+    )
+    .unwrap();
+    directory
+}
+
+fn bind_with_matching_pending_and_reservation(
+    root: &std::path::Path,
+    id: u128,
+) -> (
+    PathBuf,
+    PathBuf,
+    PathBuf,
+    PathBuf,
+    ImportRequest,
+    Vec<u8>,
+    Vec<u8>,
+) {
+    let registry_root = registry(root);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("original.wav");
+    wav(&source, 8_000);
+    let mut import = request(&destination, &source, id);
+    let binding = SourceBinding::acquire(&import, &registry_root).unwrap();
+    let snapshot = binding.snapshot_path().to_path_buf();
+    let source_hash = source_sha256(&binding);
+    let source_samples = binding.source_samples();
+    import.source_sha256 = Some(binding.source_sha256());
+    import.source_samples = Some(source_samples);
+    {
+        let _publication_lock =
+            whisper_adapters::archive::ArchiveStore::lock_publications(&destination).unwrap();
+        whisper_adapters::archive::ArchiveStore::reserve_create_only_new_import(
+            &destination,
+            &import,
+            &source_hash,
+        )
+        .unwrap();
+    }
+    let generation_directory =
+        write_pending_only(&destination, &import, &source_hash, source_samples);
+    let pending = generation_directory.join("pending.json");
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{:032x}-1.json", import.job_id.0));
+    let pending_bytes = fs::read(&pending).unwrap();
+    let reservation_bytes = fs::read(&reservation).unwrap();
+    drop(binding);
+    (
+        registry_root,
+        destination,
+        source,
+        snapshot,
+        import,
+        pending_bytes,
+        reservation_bytes,
+    )
+}
+
+fn source_sha256(binding: &SourceBinding) -> String {
+    binding
+        .source_sha256()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[test]
@@ -355,6 +532,432 @@ fn explicit_recovery_preserves_active_and_incomplete_bindings() {
         Err(error) if error.contains("SourceSnapshotCapacity")
     ));
     drop(active);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_retires_snapshot_after_matching_complete_archive() {
+    let root = root();
+    let registry_root = registry(&root);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("completed.wav");
+    wav(&source, 8_000);
+    let request = request(&destination, &source, 914);
+    let binding = SourceBinding::acquire(&request, &registry_root).unwrap();
+    let snapshot = binding.snapshot_path().to_path_buf();
+    let record = snapshot.with_extension("json");
+    let source_hash = source_sha256(&binding);
+    let source_samples = binding.source_samples();
+    let archive_directory = write_complete_archive(
+        &destination,
+        request.job_id,
+        request.generation,
+        &source_hash,
+        source_samples,
+    );
+    drop(binding);
+
+    let archive = whisper_adapters::archive::ArchiveStore::scan(&destination).unwrap();
+    assert!(archive.iter().any(|entry| {
+        entry.job_id == request.job_id
+            && entry.generation == request.generation
+            && entry.complete
+            && entry.diagnostic.is_none()
+            && entry.source_sha256 == source_hash
+    }));
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(inspected[0].recoverable);
+
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 1);
+    assert!(remaining.is_empty());
+    assert!(!snapshot.exists() && !record.exists());
+    assert_eq!(
+        fs::read(archive_directory.join("transcript.txt")).unwrap(),
+        b"completed transcript"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_complete_archive_source_hash_differs() {
+    let root = root();
+    let registry_root = registry(&root);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("different.wav");
+    wav(&source, 8_000);
+    let request = request(&destination, &source, 915);
+    let binding = SourceBinding::acquire(&request, &registry_root).unwrap();
+    let snapshot = binding.snapshot_path().to_path_buf();
+    let source_samples = binding.source_samples();
+    write_complete_archive(
+        &destination,
+        request.job_id,
+        request.generation,
+        &"ab".repeat(32),
+        source_samples,
+    );
+    drop(binding);
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    assert!(
+        inspected[0]
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("Archive ou pending"))
+    );
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_matching_archive_is_only_pending() {
+    let root = root();
+    let registry_root = registry(&root);
+    let destination = root.join("destination");
+    fs::create_dir_all(&destination).unwrap();
+    let source = root.join("pending.wav");
+    wav(&source, 8_000);
+    let request = request(&destination, &source, 916);
+    let binding = SourceBinding::acquire(&request, &registry_root).unwrap();
+    let snapshot = binding.snapshot_path().to_path_buf();
+    let source_hash = source_sha256(&binding);
+    let source_samples = binding.source_samples();
+    let archive_directory = write_complete_archive(
+        &destination,
+        request.job_id,
+        request.generation,
+        &source_hash,
+        source_samples,
+    );
+    fs::remove_file(archive_directory.join("CURRENT")).unwrap();
+    drop(binding);
+
+    let archive = whisper_adapters::archive::ArchiveStore::scan(&destination).unwrap();
+    assert!(archive.iter().any(|entry| {
+        entry.job_id == request.job_id && entry.generation == request.generation && !entry.complete
+    }));
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_retires_redundant_snapshot_when_exact_pending_source_matches() {
+    let root = root();
+    let (registry_root, destination, source, snapshot, import, pending_before, reservation_before) =
+        bind_with_matching_pending_and_reservation(&root, 924);
+    let record = snapshot.with_extension("json");
+    let generation_directory = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", import.job_id.0))
+        .join(import.generation.get().to_string());
+    let pending = generation_directory.join("pending.json");
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{:032x}-1.json", import.job_id.0));
+    let source_before = fs::read(&source).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(inspected[0].recoverable, "{:?}", inspected[0].reason);
+    assert!(
+        inspected[0]
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("Source originale vérifiée"))
+    );
+
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 1);
+    assert!(remaining.is_empty());
+    assert!(!snapshot.exists());
+    assert!(!record.exists());
+    assert_eq!(fs::read(&source).unwrap(), source_before);
+    assert_eq!(fs::read(&pending).unwrap(), pending_before);
+    assert_eq!(fs::read(&reservation).unwrap(), reservation_before);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_accepts_pending_job_id_above_u64_max() {
+    let root = root();
+    let job_id = (1_u128 << 100) + 0x001c18e56f6e3a7bea9;
+    assert!(job_id > u64::MAX as u128);
+    let (registry_root, destination, source, snapshot, import, pending_before, reservation_before) =
+        bind_with_matching_pending_and_reservation(&root, job_id);
+    assert_eq!(import.job_id, JobId(job_id));
+    let pending = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id))
+        .join(import.generation.get().to_string())
+        .join("pending.json");
+    assert!(
+        fs::read_to_string(&pending)
+            .unwrap()
+            .contains(&format!("\"job_id\":{job_id}"))
+    );
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{job_id:032x}-1.json"));
+    let source_before = fs::read(&source).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(inspected[0].recoverable, "{:?}", inspected[0].reason);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 1);
+    assert!(remaining.is_empty());
+    assert!(!snapshot.exists());
+    assert!(!snapshot.with_extension("json").exists());
+    assert_eq!(fs::read(&source).unwrap(), source_before);
+    assert_eq!(fs::read(&pending).unwrap(), pending_before);
+    assert_eq!(fs::read(&reservation).unwrap(), reservation_before);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_accepts_exact_legacy_publication_operation_id() {
+    let root = root();
+    let job_id = 0x000000000000ee1c18e56f6e3a7bea9c_u128;
+    let (registry_root, destination, source, snapshot, import, pending_before, _) =
+        bind_with_matching_pending_and_reservation(&root, job_id);
+    let pending = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id))
+        .join(import.generation.get().to_string())
+        .join("pending.json");
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{job_id:032x}-1.json"));
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fs::read(&reservation).unwrap()).unwrap();
+    let legacy_operation_id = format!("legacy-{job_id:032x}-1");
+    value["operation_id"] = serde_json::json!(legacy_operation_id);
+    fs::write(&reservation, serde_json::to_vec(&value).unwrap()).unwrap();
+    let reservation_before = fs::read(&reservation).unwrap();
+    let source_before = fs::read(&source).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(inspected[0].recoverable, "{:?}", inspected[0].reason);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 1);
+    assert!(remaining.is_empty());
+    assert!(!snapshot.exists());
+    assert!(!snapshot.with_extension("json").exists());
+    assert_eq!(fs::read(&source).unwrap(), source_before);
+    assert_eq!(fs::read(&pending).unwrap(), pending_before);
+    assert_eq!(fs::read(&reservation).unwrap(), reservation_before);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_rejects_divergent_legacy_publication_operation_id() {
+    let root = root();
+    let job_id = 0x000000000000ee1c18e56e3a7bea9c_u128;
+    let (registry_root, destination, source, snapshot, import, pending_before, _) =
+        bind_with_matching_pending_and_reservation(&root, job_id);
+    let pending = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id))
+        .join(import.generation.get().to_string())
+        .join("pending.json");
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{job_id:032x}-1.json"));
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fs::read(&reservation).unwrap()).unwrap();
+    value["operation_id"] = serde_json::json!(format!("legacy-{:032x}-1", job_id + 1));
+    fs::write(&reservation, serde_json::to_vec(&value).unwrap()).unwrap();
+    let reservation_before = fs::read(&reservation).unwrap();
+    let source_before = fs::read(&source).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    assert_eq!(fs::read(&source).unwrap(), source_before);
+    assert_eq!(fs::read(&pending).unwrap(), pending_before);
+    assert_eq!(fs::read(&reservation).unwrap(), reservation_before);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_pending_identity_differs() {
+    let root = root();
+    let (registry_root, destination, _source, snapshot, import, _, _) =
+        bind_with_matching_pending_and_reservation(&root, 925);
+    let pending = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", import.job_id.0))
+        .join(import.generation.get().to_string())
+        .join("pending.json");
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fs::read(&pending).unwrap()).unwrap();
+    value["source_sha256"] = serde_json::json!("ab".repeat(32));
+    fs::write(&pending, serde_json::to_vec(&value).unwrap()).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_publication_reservation_differs() {
+    let root = root();
+    let (registry_root, destination, _source, snapshot, import, _, _) =
+        bind_with_matching_pending_and_reservation(&root, 929);
+    let reservation = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!("{:032x}-1.json", import.job_id.0));
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fs::read(&reservation).unwrap()).unwrap();
+    value["source_sha256"] = serde_json::json!("cd".repeat(32));
+    fs::write(&reservation, serde_json::to_vec(&value).unwrap()).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_rejects_malformed_publication_intent_schemas() {
+    for (index, mutation) in [0_u128, 1, 2, 3, 4].into_iter().enumerate() {
+        let root = root();
+        let (registry_root, destination, _source, snapshot, import, _, _) =
+            bind_with_matching_pending_and_reservation(&root, 940 + index as u128);
+        let reservation = destination
+            .join(".whisper-publications")
+            .join("reservations")
+            .join(format!("{:032x}-1.json", import.job_id.0));
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&reservation).unwrap()).unwrap();
+        match mutation {
+            0 => {
+                value.as_object_mut().unwrap().remove("choice");
+            }
+            1 => value["expected_active"] = serde_json::json!("not an identity list"),
+            2 => {
+                value["expected_active"] = serde_json::json!([{
+                    "job_id": 999,
+                    "generation": 1,
+                    "unexpected": true,
+                }]);
+            }
+            3 => value["source_samples"] = serde_json::json!("8000"),
+            4 => value["unexpected"] = serde_json::json!(true),
+            _ => unreachable!(),
+        }
+        let malformed = serde_json::to_vec(&value).unwrap();
+        fs::write(&reservation, &malformed).unwrap();
+
+        let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+        assert_eq!(inspected.len(), 1);
+        assert!(!inspected[0].recoverable, "mutation {mutation}");
+        let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+        assert_eq!(freed, 0);
+        assert_eq!(remaining.len(), 1);
+        assert!(snapshot.is_file());
+        assert_eq!(fs::read(&reservation).unwrap(), malformed);
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_exact_pending_is_corrupt() {
+    let root = root();
+    let (registry_root, destination, _source, snapshot, import, _, _) =
+        bind_with_matching_pending_and_reservation(&root, 926);
+    let pending = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", import.job_id.0))
+        .join(import.generation.get().to_string())
+        .join("pending.json");
+    fs::write(&pending, b"{ corrupt pending").unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    assert_eq!(fs::read(&pending).unwrap(), b"{ corrupt pending");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_snapshot_when_pending_source_is_absent() {
+    let root = root();
+    let (registry_root, _destination, source, snapshot, _import, _, _) =
+        bind_with_matching_pending_and_reservation(&root, 927);
+    fs::remove_file(&source).unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn explicit_recovery_keeps_matching_pending_snapshot_when_job_is_queued() {
+    let root = root();
+    let (registry_root, destination, _source, snapshot, import, _, _) =
+        bind_with_matching_pending_and_reservation(&root, 928);
+    whisper_adapters::queue_store::QueueStore::open(&destination)
+        .unwrap()
+        .enqueue(import)
+        .unwrap();
+
+    let inspected = SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+    assert_eq!(inspected.len(), 1);
+    assert!(!inspected[0].recoverable);
+    assert!(
+        inspected[0]
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("file durable"))
+    );
+    let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+    assert_eq!(freed, 0);
+    assert_eq!(remaining.len(), 1);
+    assert!(snapshot.is_file());
     fs::remove_dir_all(root).unwrap();
 }
 

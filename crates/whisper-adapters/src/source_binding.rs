@@ -52,6 +52,94 @@ struct RegistryEntry {
 struct RetirementIntent {
     snapshot: RecoveryArtifact,
     record: RecoveryArtifact,
+    #[serde(default)]
+    source_record: Option<SnapshotRecord>,
+    #[serde(default)]
+    source_record_bytes: Option<Vec<u8>>,
+}
+
+#[derive(Deserialize)]
+struct RecoveryPendingIdentity {
+    job_id: JobId,
+    generation: Generation,
+    source_path: String,
+    source_sha256: String,
+    source_samples: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryPublicationIntent {
+    version: u32,
+    operation_id: String,
+    choice: whisper_core::ports::DuplicateImportChoice,
+    source_sha256: String,
+    source_samples: u64,
+    expected_active: Vec<RecoveryPublicationIdentity>,
+    export_basename: String,
+    #[serde(default)]
+    internal_only: bool,
+    #[serde(default)]
+    cleanup_id: Option<String>,
+    #[serde(default)]
+    cleanup_targets: Vec<RecoveryCleanupTarget>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryPublicationIdentity {
+    job_id: JobId,
+    generation: Generation,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryCleanupObjectIdentity {
+    volume_serial: u64,
+    file_id: [u8; 16],
+    is_directory: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryCleanupObject {
+    relative_path: String,
+    identity: RecoveryCleanupObjectIdentity,
+    sha256: Option<String>,
+    #[serde(default = "cleanup_owned_default")]
+    owned: bool,
+    removed: bool,
+    error: Option<String>,
+}
+
+fn cleanup_owned_default() -> bool {
+    true
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryCleanupAncestor {
+    relative_path: String,
+    identity: RecoveryCleanupObjectIdentity,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryCleanupTarget {
+    treatment: RecoveryTreatmentIdentity,
+    source_sha256: String,
+    ancestors: Vec<RecoveryCleanupAncestor>,
+    objects: Vec<RecoveryCleanupObject>,
+    #[serde(default)]
+    container: Option<RecoveryCleanupObject>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoveryTreatmentIdentity {
+    destination: String,
+    job_id: JobId,
+    generation: Generation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -544,7 +632,8 @@ impl SourceBinding {
         })?;
         let mut record_file =
             crate::windows_file_identity::VerifiedFile::open(&self.record_path, false)?;
-        let current_record: SnapshotRecord = serde_json::from_slice(&record_file.read_all()?)
+        let record_bytes = record_file.read_all()?;
+        let current_record: SnapshotRecord = serde_json::from_slice(&record_bytes)
             .map_err(|error| format!("SourceSnapshotCorrupt: snapshot record: {error}"))?;
         if current_record != self.record {
             return Err("SourceSnapshotMismatch: record changed before retirement".into());
@@ -561,6 +650,8 @@ impl SourceBinding {
                 &self.record.source_sha256,
             )?,
             record: recovery_artifact_from_file(&self.record_path, &mut record_file)?,
+            source_record: Some(self.record.clone()),
+            source_record_bytes: Some(record_bytes),
         };
         registry.begin_retirement(&self.record, intent.clone())?;
         delete_verified_handle(snapshot, &intent.snapshot)?;
@@ -587,7 +678,7 @@ impl SourceBinding {
             return Ok(());
         };
         if entry.status == RegistryStatus::Retiring {
-            return resume_retirement(&registry, &entry);
+            return resume_retirement(&registry, &entry, false);
         }
         let binding = Self::reopen_for_identity(registry_root, destination, job_id, generation)?
             .ok_or_else(|| {
@@ -609,6 +700,8 @@ impl SourceBinding {
             .read_entries()?
             .iter()
             .map(|entry| {
+                let publication_guard =
+                    recovery_publication_guard(Path::new(&entry.destination), &entry.destination)?;
                 let operation_guard = recovery_operation_guard(registry_root)?;
                 let (operation_guard_acquired, operation_guard_busy) =
                     operation_guard_state(&operation_guard);
@@ -617,6 +710,7 @@ impl SourceBinding {
                     active,
                     operation_guard_acquired,
                     operation_guard_busy,
+                    publication_guard.is_some(),
                 )
             })
             .collect()
@@ -642,12 +736,13 @@ impl SourceBinding {
                 active,
                 operation_guard_acquired,
                 operation_guard_busy,
+                true,
             )?;
             if !candidate.recoverable {
                 continue;
             }
             if entry.status == RegistryStatus::Retiring {
-                resume_retirement(&registry, entry)?;
+                resume_retirement(&registry, entry, true)?;
             } else {
                 recover_new_entry(&registry, entry)?;
             }
@@ -657,6 +752,8 @@ impl SourceBinding {
             .read_entries()?
             .iter()
             .map(|entry| {
+                let publication_guard =
+                    recovery_publication_guard(Path::new(&entry.destination), &entry.destination)?;
                 let operation_guard = recovery_operation_guard(registry_root)?;
                 let (operation_guard_acquired, operation_guard_busy) =
                     operation_guard_state(&operation_guard);
@@ -665,6 +762,7 @@ impl SourceBinding {
                     active,
                     operation_guard_acquired,
                     operation_guard_busy,
+                    publication_guard.is_some(),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -677,6 +775,7 @@ fn recovery_candidate(
     active: &[(JobId, u64)],
     operation_guard_acquired: bool,
     operation_guard_busy: bool,
+    publication_lock_acquired: bool,
 ) -> Result<SourceSnapshotRecoveryCandidate, String> {
     let protected = |reason: String| SourceSnapshotRecoveryCandidate {
         job_id: entry.job_id,
@@ -721,15 +820,6 @@ fn recovery_candidate(
         Ok(archive) => archive,
         Err(error) => return Ok(protected(format!("État d'archive illisible : {error}"))),
     };
-    if archived.iter().any(|item| {
-        (item.job_id == entry.job_id
-            && (item.generation == entry.generation || item.diagnostic.is_some()))
-            || (item.job_id == JobId(0) && item.diagnostic.is_some())
-    }) {
-        return Ok(protected(
-            "Archive ou pending encore présent pour cette réservation".into(),
-        ));
-    }
     let publication_reservation = canonical
         .join(".whisper-publications")
         .join("reservations")
@@ -738,11 +828,7 @@ fn recovery_candidate(
             entry.job_id.0,
             entry.generation.get()
         ));
-    if file_exists_strict(&publication_reservation)? {
-        return Ok(protected(
-            "Réservation de publication encore présente".into(),
-        ));
-    }
+    let publication_reservation_exists = file_exists_strict(&publication_reservation)?;
 
     let snapshot_path = expected_snapshot_path(&canonical, entry);
     let partial_path = canonical.join(SNAPSHOT_DIRECTORY).join(format!(
@@ -766,6 +852,49 @@ fn recovery_candidate(
         if let Err(error) = check_pending_intent(intent) {
             return Ok(protected(error));
         }
+        let archive_blocks = archive_blocks_snapshot_recovery(
+            &archived,
+            entry.job_id,
+            entry.generation,
+            Some(&intent.snapshot.sha256),
+        );
+        if archive_blocks || publication_reservation_exists {
+            if !operation_guard_acquired || !publication_lock_acquired {
+                return Ok(protected(
+                    "Verrous requis indisponibles pour reprendre le retrait".into(),
+                ));
+            }
+            let record = match retirement_source_record(&canonical, entry, intent) {
+                Ok(Some(record)) => record,
+                Ok(None) => {
+                    return Ok(protected(
+                        "Intention de retrait sans identité source vérifiable".into(),
+                    ));
+                }
+                Err(error) => return Ok(protected(error)),
+            };
+            let _pending_guard = match redundant_pending_source_guard(
+                &canonical,
+                entry,
+                &record,
+                &archived,
+                &publication_reservation,
+            ) {
+                Ok(Some(guard)) => guard,
+                Ok(None) | Err(_) => {
+                    return Ok(protected(
+                        "Archive ou pending encore présent pour cette réservation".into(),
+                    ));
+                }
+            };
+            return Ok(SourceSnapshotRecoveryCandidate {
+                job_id: entry.job_id,
+                generation: entry.generation,
+                destination: entry.destination.clone(),
+                recoverable: true,
+                reason: Some("Retrait interrompu, source redondante vérifiée".into()),
+            });
+        }
         return Ok(SourceSnapshotRecoveryCandidate {
             job_id: entry.job_id,
             generation: entry.generation,
@@ -779,6 +908,18 @@ fn recovery_candidate(
     let snapshot_exists = file_exists_strict(&snapshot_path)?;
     let record_exists = file_exists_strict(&record_path)?;
     if !snapshot_exists && !record_exists {
+        if publication_reservation_exists
+            || archive_blocks_snapshot_recovery(&archived, entry.job_id, entry.generation, None)
+        {
+            if publication_reservation_exists {
+                return Ok(protected(
+                    "Réservation de publication encore présente".into(),
+                ));
+            }
+            return Ok(protected(
+                "Archive ou pending encore présent pour cette réservation".into(),
+            ));
+        }
         return Ok(SourceSnapshotRecoveryCandidate {
             job_id: entry.job_id,
             generation: entry.generation,
@@ -799,8 +940,55 @@ fn recovery_candidate(
             "Une réservation inachevée possède des fichiers inattendus".into(),
         ));
     }
-    if let Err(error) = inspect_bound_pair(entry, &canonical, &snapshot_path, &record_path) {
-        return Ok(protected(error));
+    let (record, _) = match inspect_bound_pair(entry, &canonical, &snapshot_path, &record_path) {
+        Ok(pair) => pair,
+        Err(error) => return Ok(protected(error)),
+    };
+    let source_sha256 = hex_bytes(&record.source_sha256);
+    let archive_blocks = archive_blocks_snapshot_recovery(
+        &archived,
+        entry.job_id,
+        entry.generation,
+        Some(&source_sha256),
+    );
+    if archive_blocks || publication_reservation_exists {
+        if publication_reservation_exists && !archive_blocks {
+            return Ok(protected(
+                "Réservation de publication encore présente".into(),
+            ));
+        }
+        match redundant_pending_source_guard(
+            &canonical,
+            entry,
+            &record,
+            &archived,
+            &publication_reservation,
+        ) {
+            Ok(Some(_guard))
+                if operation_guard_acquired
+                    && !operation_guard_busy
+                    && publication_lock_acquired =>
+            {
+                return Ok(SourceSnapshotRecoveryCandidate {
+                    job_id: entry.job_id,
+                    generation: entry.generation,
+                    destination: entry.destination.clone(),
+                    recoverable: true,
+                    reason: Some(
+                        "Source originale vérifiée identique, copie redondante récupérable".into(),
+                    ),
+                });
+            }
+            Err(error) => {
+                return Ok(protected(format!(
+                    "Archive ou pending encore présent pour cette réservation : {error}"
+                )));
+            }
+            Ok(_) => {}
+        }
+        return Ok(protected(
+            "Archive ou pending encore présent pour cette réservation".into(),
+        ));
     }
     Ok(SourceSnapshotRecoveryCandidate {
         job_id: entry.job_id,
@@ -811,6 +999,223 @@ fn recovery_candidate(
     })
 }
 
+struct RedundantPendingSourceGuard {
+    _source: crate::windows_file_identity::VerifiedFile,
+    _pending: crate::windows_file_identity::VerifiedFile,
+    _reservation: crate::windows_file_identity::VerifiedFile,
+}
+
+fn redundant_pending_source_guard(
+    destination: &Path,
+    entry: &RegistryEntry,
+    record: &SnapshotRecord,
+    archived: &[crate::archive::ArchiveEntry],
+    reservation_path: &Path,
+) -> Result<Option<RedundantPendingSourceGuard>, String> {
+    let source_sha256 = hex_bytes(&record.source_sha256);
+    let mut matching_pending = 0;
+    for item in archived {
+        if item.diagnostic.is_some() && (item.job_id == entry.job_id || item.job_id == JobId(0)) {
+            return Ok(None);
+        }
+        if item.job_id == entry.job_id && item.generation == entry.generation {
+            if item.complete || item.publication_recovery || item.source_sha256 != source_sha256 {
+                return Ok(None);
+            }
+            matching_pending += 1;
+        }
+    }
+    if matching_pending != 1 {
+        return Ok(None);
+    }
+
+    let generation_directory = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", entry.job_id.0))
+        .join(entry.generation.get().to_string());
+    let pending_path = generation_directory.join("pending.json");
+    let mut pending_file =
+        match crate::windows_file_identity::VerifiedFile::open(&pending_path, false) {
+            Ok(file) => file,
+            Err(_) => return Ok(None),
+        };
+    let pending: RecoveryPendingIdentity = match serde_json::from_slice(&pending_file.read_all()?) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    if pending.job_id != entry.job_id
+        || pending.generation != entry.generation
+        || pending.source_path != record.original_path
+        || pending.source_sha256 != source_sha256
+        || pending.source_samples != record.source_samples
+    {
+        return Ok(None);
+    }
+
+    let mut reservation_file =
+        match crate::windows_file_identity::VerifiedFile::open(reservation_path, false) {
+            Ok(file) => file,
+            Err(_) => return Ok(None),
+        };
+    let reservation: RecoveryPublicationIntent =
+        match serde_json::from_slice(&reservation_file.read_all()?) {
+            Ok(value) => value,
+            Err(_) => return Ok(None),
+        };
+    if !validate_recovery_publication_intent(&reservation, entry, record) {
+        return Ok(None);
+    }
+
+    let source_path = Path::new(&record.original_path);
+    let mut source_file = match crate::windows_file_identity::VerifiedFile::open(source_path, false)
+    {
+        Ok(file) => file,
+        Err(_) => return Ok(None),
+    };
+    let source_identity = source_file.identity.clone();
+    let source_metadata = match fs::metadata(source_path) {
+        Ok(metadata) if metadata.is_file() => metadata,
+        _ => return Ok(None),
+    };
+    if source_metadata.len() != record.source_len
+        || source_file.sha256()? != source_sha256
+        || crate::archive::source_output_samples(source_path).ok() != Some(record.source_samples)
+        || fs::metadata(source_path)
+            .ok()
+            .map(|metadata| metadata.len())
+            != Some(record.source_len)
+    {
+        return Ok(None);
+    }
+    source_file.verify(&source_identity)?;
+
+    Ok(Some(RedundantPendingSourceGuard {
+        _source: source_file,
+        _pending: pending_file,
+        _reservation: reservation_file,
+    }))
+}
+
+fn validate_recovery_publication_intent(
+    intent: &RecoveryPublicationIntent,
+    entry: &RegistryEntry,
+    record: &SnapshotRecord,
+) -> bool {
+    let bare_operation_id = format!("{:032x}-{}", entry.job_id.0, entry.generation.get());
+    let resumed_operation_id = format!("{}-{bare_operation_id}", record.strategy.stable_id());
+    let legacy_operation_id = format!("legacy-{bare_operation_id}");
+    if intent.version != 1
+        || (intent.operation_id != bare_operation_id
+            && intent.operation_id != resumed_operation_id
+            && intent.operation_id != legacy_operation_id)
+        || intent.source_sha256 != hex_bytes(&record.source_sha256)
+        || !is_hex_sha256(&intent.source_sha256)
+        || intent.source_samples == 0
+        || intent.source_samples != record.source_samples
+        || intent.export_basename.is_empty()
+        || intent.export_basename == "."
+        || intent.export_basename == ".."
+        || intent
+            .export_basename
+            .chars()
+            .any(|character| matches!(character, '/' | '\\' | ':'))
+        || intent.cleanup_id.as_ref().is_some_and(String::is_empty)
+    {
+        return false;
+    }
+
+    if matches!(
+        &intent.choice,
+        whisper_core::ports::DuplicateImportChoice::CreateNew
+    ) && (intent.cleanup_id.is_some() || !intent.cleanup_targets.is_empty())
+    {
+        return false;
+    }
+
+    for (index, identity) in intent.expected_active.iter().enumerate() {
+        if identity.job_id == entry.job_id && identity.generation == entry.generation
+            || intent.expected_active[index + 1..].iter().any(|other| {
+                identity.job_id == other.job_id && identity.generation == other.generation
+            })
+        {
+            return false;
+        }
+    }
+    for (index, target) in intent.cleanup_targets.iter().enumerate() {
+        if !is_hex_sha256(&target.source_sha256)
+            || target.source_sha256 != intent.source_sha256
+            || target.treatment.destination != entry.destination
+            || (target.treatment.job_id == entry.job_id
+                && target.treatment.generation == entry.generation)
+            || intent.cleanup_targets[index + 1..].iter().any(|other| {
+                target.treatment.job_id == other.treatment.job_id
+                    && target.treatment.generation == other.treatment.generation
+            })
+        {
+            return false;
+        }
+        for ancestor in &target.ancestors {
+            if !safe_relative_identity_path(&ancestor.relative_path)
+                || !valid_cleanup_identity(&ancestor.identity)
+            {
+                return false;
+            }
+        }
+        for object in target.objects.iter().chain(target.container.iter()) {
+            if !safe_relative_identity_path(&object.relative_path)
+                || !valid_cleanup_identity(&object.identity)
+                || object
+                    .sha256
+                    .as_ref()
+                    .is_some_and(|sha| !is_hex_sha256(sha))
+            {
+                return false;
+            }
+            let _ownership_state = object.owned;
+            let _cleanup_state = (object.removed, &object.error);
+        }
+    }
+    let _internal_only = intent.internal_only;
+    true
+}
+
+fn is_hex_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn safe_relative_identity_path(path: &str) -> bool {
+    let path = Path::new(path);
+    !path.as_os_str().is_empty()
+        && !path.is_absolute()
+        && path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+}
+
+fn valid_cleanup_identity(identity: &RecoveryCleanupObjectIdentity) -> bool {
+    let _is_directory = identity.is_directory;
+    identity.volume_serial != 0 || identity.file_id.iter().any(|byte| *byte != 0)
+}
+
+fn archive_blocks_snapshot_recovery(
+    archived: &[crate::archive::ArchiveEntry],
+    job_id: JobId,
+    generation: Generation,
+    source_sha256: Option<&str>,
+) -> bool {
+    archived.iter().any(|item| {
+        if item.diagnostic.is_some() && (item.job_id == job_id || item.job_id == JobId(0)) {
+            return true;
+        }
+        if item.job_id != job_id || item.generation != generation {
+            return false;
+        }
+        !item.complete
+            || item.publication_recovery
+            || source_sha256 != Some(item.source_sha256.as_str())
+    })
+}
+
 fn inspect_bound_pair(
     entry: &RegistryEntry,
     destination: &Path,
@@ -818,7 +1223,8 @@ fn inspect_bound_pair(
     record_path: &Path,
 ) -> Result<(SnapshotRecord, RetirementIntent), String> {
     let mut record_file = crate::windows_file_identity::VerifiedFile::open(record_path, false)?;
-    let record: SnapshotRecord = serde_json::from_slice(&record_file.read_all()?)
+    let record_bytes = record_file.read_all()?;
+    let record: SnapshotRecord = serde_json::from_slice(&record_bytes)
         .map_err(|error| format!("SourceSnapshotCorrupt: snapshot record: {error}"))?;
     validate_record(
         &record,
@@ -836,6 +1242,8 @@ fn inspect_bound_pair(
     let intent = RetirementIntent {
         snapshot: recovery_artifact(snapshot_path, &snapshot, &record.source_sha256)?,
         record: recovery_artifact_from_file(record_path, &mut record_file)?,
+        source_record: Some(record.clone()),
+        source_record_bytes: Some(record_bytes),
     };
     Ok((record, intent))
 }
@@ -858,15 +1266,51 @@ fn recover_new_entry(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
     }
     let (record, intent) = inspect_bound_pair(entry, &destination, &snapshot_path, &record_path)?;
     let mut record_file = crate::windows_file_identity::VerifiedFile::open(&record_path, false)?;
-    let current_record: SnapshotRecord = serde_json::from_slice(&record_file.read_all()?)
+    let current_record_bytes = record_file.read_all()?;
+    let current_record: SnapshotRecord = serde_json::from_slice(&current_record_bytes)
         .map_err(|error| format!("SourceSnapshotCorrupt: snapshot record: {error}"))?;
     if current_record != record {
         return Err("SourceSnapshotMismatch: record changed before recovery".into());
     }
+    let archived = crate::archive::ArchiveStore::scan(&destination)?;
+    let reservation_path = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!(
+            "{:032x}-{}.json",
+            entry.job_id.0,
+            entry.generation.get()
+        ));
+    let has_publication_reservation = file_exists_strict(&reservation_path)?;
+    let source_sha256 = hex_bytes(&record.source_sha256);
+    let _redundant_source_guard = if has_publication_reservation
+        || archive_blocks_snapshot_recovery(
+            &archived,
+            entry.job_id,
+            entry.generation,
+            Some(&source_sha256),
+        ) {
+        Some(
+            redundant_pending_source_guard(
+                &destination,
+                entry,
+                &record,
+                &archived,
+                &reservation_path,
+            )?
+            .ok_or_else(|| {
+                "SourceSnapshotMismatch: pending/source identity changed before recovery".to_owned()
+            })?,
+        )
+    } else {
+        None
+    };
     let snapshot = open_disposition_snapshot(&snapshot_path, &record)?;
     let fresh = RetirementIntent {
         snapshot: recovery_artifact(&snapshot_path, &snapshot, &record.source_sha256)?,
         record: recovery_artifact_from_file(&record_path, &mut record_file)?,
+        source_record: Some(record.clone()),
+        source_record_bytes: Some(current_record_bytes),
     };
     if fresh != intent {
         return Err("SourceSnapshotMismatch: file identity changed before recovery".into());
@@ -877,7 +1321,11 @@ fn recover_new_entry(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
     registry.finish_retirement(&record)
 }
 
-fn resume_retirement(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Result<(), String> {
+fn resume_retirement(
+    registry: &SnapshotRegistry,
+    entry: &RegistryEntry,
+    allow_exact_pending_source: bool,
+) -> Result<(), String> {
     let intent = entry
         .retirement
         .as_ref()
@@ -885,9 +1333,142 @@ fn resume_retirement(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
     let record_path = PathBuf::from(&intent.record.path);
     let snapshot_path = PathBuf::from(&intent.snapshot.path);
     check_pending_intent(intent)?;
+    let destination = fs::canonicalize(&entry.destination)
+        .map_err(|error| format!("StorageUnavailable: destination: {error}"))?;
+    if destination.to_string_lossy() != entry.destination {
+        return Err("CleanupUnsafePath: destination identity changed".into());
+    }
+    let archived = crate::archive::ArchiveStore::scan(&destination)?;
+    let reservation_path = destination
+        .join(".whisper-publications")
+        .join("reservations")
+        .join(format!(
+            "{:032x}-{}.json",
+            entry.job_id.0,
+            entry.generation.get()
+        ));
+    let reservation_exists = file_exists_strict(&reservation_path)?;
+    let archive_blocks = archive_blocks_snapshot_recovery(
+        &archived,
+        entry.job_id,
+        entry.generation,
+        Some(&intent.snapshot.sha256),
+    );
+    let _pending_source_guard = if reservation_exists || archive_blocks {
+        if !allow_exact_pending_source {
+            return Err("Archive ou pending encore présent pour cette réservation".into());
+        }
+        let record = retirement_source_record(&destination, entry, intent)?.ok_or_else(|| {
+            "SourceSnapshotMismatch: retirement source identity unavailable".to_owned()
+        })?;
+        Some(
+            redundant_pending_source_guard(
+                &destination,
+                entry,
+                &record,
+                &archived,
+                &reservation_path,
+            )?
+            .ok_or_else(|| {
+                "SourceSnapshotMismatch: pending, reservation or source changed before retirement"
+                    .to_owned()
+            })?,
+        )
+    } else {
+        None
+    };
     delete_path_if_identity_matches(&snapshot_path, &intent.snapshot)?;
     delete_path_if_identity_matches(&record_path, &intent.record)?;
-    let record = SnapshotRecord {
+    let record = intent
+        .source_record
+        .clone()
+        .unwrap_or_else(|| legacy_retirement_record(entry, intent));
+    registry.finish_retirement(&record)
+}
+
+fn retirement_source_record(
+    destination: &Path,
+    entry: &RegistryEntry,
+    intent: &RetirementIntent,
+) -> Result<Option<SnapshotRecord>, String> {
+    let record_path = expected_record_path(destination, entry);
+    if Path::new(&intent.record.path) != record_path {
+        return Err("CleanupUnsafePath: retirement record path diverged".into());
+    }
+    let mut record = intent.source_record.clone();
+    if file_exists_strict(&record_path)? {
+        let mut record_file =
+            crate::windows_file_identity::VerifiedFile::open(&record_path, false)?;
+        if recovery_artifact_from_file(&record_path, &mut record_file)? != intent.record {
+            return Err("CleanupIdentityChanged: retirement record changed".into());
+        }
+        let record_bytes = record_file.read_all()?;
+        if intent
+            .source_record_bytes
+            .as_ref()
+            .is_some_and(|expected| expected != &record_bytes)
+        {
+            return Err("SourceSnapshotMismatch: retirement record bytes changed".into());
+        }
+        let persisted: SnapshotRecord = serde_json::from_slice(&record_bytes)
+            .map_err(|error| format!("SourceSnapshotCorrupt: snapshot record: {error}"))?;
+        if record
+            .as_ref()
+            .is_some_and(|expected| expected != &persisted)
+        {
+            return Err("SourceSnapshotMismatch: embedded retirement record diverged".into());
+        }
+        record = Some(persisted);
+    } else if let Some(record) = record.as_ref() {
+        let bytes = intent.source_record_bytes.as_ref().ok_or_else(|| {
+            "SourceSnapshotMismatch: exact retirement record bytes unavailable".to_owned()
+        })?;
+        let digest = hex_bytes(&Sha256::digest(bytes));
+        if digest != intent.record.sha256 {
+            return Err("SourceSnapshotMismatch: embedded retirement record hash diverged".into());
+        }
+        let persisted: SnapshotRecord = serde_json::from_slice(bytes)
+            .map_err(|error| format!("SourceSnapshotCorrupt: retirement record: {error}"))?;
+        if &persisted != record {
+            return Err("SourceSnapshotMismatch: embedded retirement record diverged".into());
+        }
+    }
+    let Some(record) = record else {
+        return Ok(None);
+    };
+    let expected_snapshot = expected_snapshot_path(destination, entry);
+    if file_exists_strict(&expected_snapshot)? {
+        validate_record(
+            &record,
+            destination,
+            &expected_snapshot,
+            entry.job_id,
+            entry.generation,
+        )?;
+    } else if intent.source_record.as_ref() != Some(&record)
+        || (record.version == 1 && record.strategy != legacy_strategy())
+        || (record.version == 2
+            && record.strategy
+                != whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1)
+        || !matches!(record.version, 1 | 2)
+        || record.job_id != entry.job_id
+        || record.generation != entry.generation
+        || record.destination != destination.to_string_lossy()
+        || Path::new(&record.snapshot_path) != expected_snapshot
+    {
+        return Err("SourceSnapshotMismatch: retirement record does not match its intent".into());
+    }
+    if record.destination != entry.destination
+        || record.snapshot_path != intent.snapshot.path
+        || hex_bytes(&record.source_sha256) != intent.snapshot.sha256
+    {
+        return Err("SourceSnapshotMismatch: retirement source identity diverged".into());
+    }
+    Ok(Some(record))
+}
+
+fn legacy_retirement_record(entry: &RegistryEntry, intent: &RetirementIntent) -> SnapshotRecord {
+    SnapshotRecord {
         version: 1,
         job_id: entry.job_id,
         generation: entry.generation,
@@ -898,8 +1479,7 @@ fn resume_retirement(registry: &SnapshotRegistry, entry: &RegistryEntry) -> Resu
         source_sha256: [0; 32],
         source_samples: 0,
         strategy: legacy_strategy(),
-    };
-    registry.finish_retirement(&record)
+    }
 }
 
 fn check_pending_intent(intent: &RetirementIntent) -> Result<(), String> {
@@ -1355,6 +1935,27 @@ fn lock_operation(registry_root: &Path) -> Result<File, String> {
     Ok(file)
 }
 
+fn recovery_publication_guard(
+    destination: &Path,
+    persisted_destination: &str,
+) -> Result<Option<File>, String> {
+    let canonical = match fs::canonicalize(destination) {
+        Ok(path) if path.to_string_lossy() == persisted_destination => path,
+        _ => return Ok(None),
+    };
+    let path = canonical.join(".whisper-publications.lock");
+    let file = match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Ok(None),
+    };
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(_)) => Ok(None),
+    }
+}
+
 fn recovery_operation_guard(registry_root: &Path) -> Result<OperationGuardProbe, String> {
     let file = match OpenOptions::new()
         .read(true)
@@ -1572,6 +2173,61 @@ mod recovery_tests {
         }
     }
 
+    fn add_matching_pending_and_reservation(
+        destination: &Path,
+        request: &mut ImportRequest,
+        source_sha256: &[u8; 32],
+        source_samples: u64,
+    ) -> (PathBuf, PathBuf, Vec<u8>, Vec<u8>) {
+        let source_sha256_hex = hex_bytes(source_sha256);
+        request.source_sha256 = Some(*source_sha256);
+        request.source_samples = Some(source_samples);
+        {
+            let _publication_lock =
+                crate::archive::ArchiveStore::lock_publications(destination).unwrap();
+            crate::archive::ArchiveStore::reserve_create_only_new_import(
+                destination,
+                request,
+                &source_sha256_hex,
+            )
+            .unwrap();
+        }
+        let directory = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        let model = &whisper_core::model_registry::MODELS[0].artifact;
+        let pending = directory.join("pending.json");
+        std::fs::write(
+            &pending,
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1,
+                "job_id": request.job_id.0,
+                "generation": request.generation.get(),
+                "source_path": request.source_path,
+                "source_sha256": source_sha256_hex,
+                "source_samples": source_samples,
+                "model_path": model.file_name,
+                "model_sha256": model.sha256,
+                "model_size": model.size_bytes,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let reservation = destination
+            .join(".whisper-publications")
+            .join("reservations")
+            .join(format!(
+                "{:032x}-{}.json",
+                request.job_id.0,
+                request.generation.get()
+            ));
+        let pending_bytes = std::fs::read(&pending).unwrap();
+        let reservation_bytes = std::fs::read(&reservation).unwrap();
+        (pending, reservation, pending_bytes, reservation_bytes)
+    }
+
     #[test]
     fn snapshot_v2_preserves_strategy_and_rejects_request_mismatch() {
         let root = root();
@@ -1629,10 +2285,13 @@ mod recovery_tests {
             let snapshot = open_disposition_snapshot(&snapshot_path, &record).unwrap();
             let mut record_file =
                 crate::windows_file_identity::VerifiedFile::open(&record_path, false).unwrap();
+            let record_bytes = record_file.read_all().unwrap();
             let intent = RetirementIntent {
                 snapshot: recovery_artifact(&snapshot_path, &snapshot, &record.source_sha256)
                     .unwrap(),
                 record: recovery_artifact_from_file(&record_path, &mut record_file).unwrap(),
+                source_record: Some(record.clone()),
+                source_record_bytes: Some(record_bytes),
             };
             registry.begin_retirement(&record, intent.clone()).unwrap();
             drop(snapshot);
@@ -1653,6 +2312,141 @@ mod recovery_tests {
             assert!(registry.read_entries().unwrap().is_empty());
             std::fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    #[test]
+    fn explicit_recovery_retiring_pending_replays_after_each_disposition_boundary() {
+        for (index, delete_snapshot, delete_record) in
+            [(0_u128, false, false), (1, true, false), (2, true, true)]
+        {
+            let root = root();
+            let destination = root.join("destination");
+            std::fs::create_dir_all(&destination).unwrap();
+            let source = root.join("source.wav");
+            write_wav(&source);
+            let registry_root = root.join("settings/reprocessing-snapshots");
+            let mut import = request(&destination, &source, 1100 + index);
+            let binding = SourceBinding::acquire(&import, &registry_root).unwrap();
+            let snapshot_path = binding.snapshot_path.clone();
+            let record_path = binding.record_path.clone();
+            let record = binding.record.clone();
+            let (pending_path, reservation_path, pending_before, reservation_before) =
+                add_matching_pending_and_reservation(
+                    &destination,
+                    &mut import,
+                    &record.source_sha256,
+                    record.source_samples,
+                );
+            let source_before = std::fs::read(&source).unwrap();
+            drop(binding);
+
+            let registry = SnapshotRegistry::new(&registry_root);
+            let snapshot = open_disposition_snapshot(&snapshot_path, &record).unwrap();
+            let mut record_file =
+                crate::windows_file_identity::VerifiedFile::open(&record_path, false).unwrap();
+            let record_bytes = record_file.read_all().unwrap();
+            let intent = RetirementIntent {
+                snapshot: recovery_artifact(&snapshot_path, &snapshot, &record.source_sha256)
+                    .unwrap(),
+                record: recovery_artifact_from_file(&record_path, &mut record_file).unwrap(),
+                source_record: Some(record.clone()),
+                source_record_bytes: Some(record_bytes),
+            };
+            registry.begin_retirement(&record, intent.clone()).unwrap();
+            drop(snapshot);
+            drop(record_file);
+
+            if delete_snapshot {
+                delete_path_if_identity_matches(&snapshot_path, &intent.snapshot).unwrap();
+            }
+            if delete_record {
+                delete_path_if_identity_matches(&record_path, &intent.record).unwrap();
+            }
+
+            let inspected =
+                SourceBinding::inspect_recovery_candidates(&registry_root, &[]).unwrap();
+            assert_eq!(inspected.len(), 1);
+            assert!(inspected[0].recoverable, "{:?}", inspected[0].reason);
+            let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+            assert_eq!(freed, 1);
+            assert!(remaining.is_empty());
+            assert!(!snapshot_path.exists());
+            assert!(!record_path.exists());
+            assert_eq!(std::fs::read(&source).unwrap(), source_before);
+            assert_eq!(std::fs::read(&pending_path).unwrap(), pending_before);
+            assert_eq!(
+                std::fs::read(&reservation_path).unwrap(),
+                reservation_before
+            );
+            assert!(registry.read_entries().unwrap().is_empty());
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn explicit_recovery_retiring_historical_record_replays_after_sidecar_removal() {
+        let root = root();
+        let destination = root.join("destination");
+        std::fs::create_dir_all(&destination).unwrap();
+        let source = root.join("source.wav");
+        write_wav(&source);
+        let registry_root = root.join("settings/reprocessing-snapshots");
+        let mut import = request(&destination, &source, 1199);
+        let binding = SourceBinding::acquire(&import, &registry_root).unwrap();
+        let snapshot_path = binding.snapshot_path.clone();
+        let record_path = binding.record_path.clone();
+        let record = binding.record.clone();
+        let expected_record = record.clone();
+        drop(binding);
+
+        let mut historical_record: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&record_path).unwrap()).unwrap();
+        historical_record
+            .as_object_mut()
+            .unwrap()
+            .remove("strategy");
+        let record_bytes = serde_json::to_vec(&historical_record).unwrap();
+        std::fs::write(&record_path, &record_bytes).unwrap();
+        let record: SnapshotRecord = serde_json::from_slice(&record_bytes).unwrap();
+        assert_eq!(record, expected_record);
+
+        let (pending_path, reservation_path, pending_before, reservation_before) =
+            add_matching_pending_and_reservation(
+                &destination,
+                &mut import,
+                &record.source_sha256,
+                record.source_samples,
+            );
+        let source_before = std::fs::read(&source).unwrap();
+        let registry = SnapshotRegistry::new(&registry_root);
+        let snapshot = open_disposition_snapshot(&snapshot_path, &record).unwrap();
+        let mut record_file =
+            crate::windows_file_identity::VerifiedFile::open(&record_path, false).unwrap();
+        let intent = RetirementIntent {
+            snapshot: recovery_artifact(&snapshot_path, &snapshot, &record.source_sha256).unwrap(),
+            record: recovery_artifact_from_file(&record_path, &mut record_file).unwrap(),
+            source_record: Some(record.clone()),
+            source_record_bytes: Some(record_file.read_all().unwrap()),
+        };
+        registry.begin_retirement(&record, intent.clone()).unwrap();
+        drop(snapshot);
+        drop(record_file);
+        delete_path_if_identity_matches(&snapshot_path, &intent.snapshot).unwrap();
+        delete_path_if_identity_matches(&record_path, &intent.record).unwrap();
+
+        let (freed, remaining) = SourceBinding::recover_abandoned(&registry_root, &[]).unwrap();
+        assert_eq!(freed, 1);
+        assert!(remaining.is_empty());
+        assert!(!snapshot_path.exists());
+        assert!(!record_path.exists());
+        assert_eq!(std::fs::read(&source).unwrap(), source_before);
+        assert_eq!(std::fs::read(&pending_path).unwrap(), pending_before);
+        assert_eq!(
+            std::fs::read(&reservation_path).unwrap(),
+            reservation_before
+        );
+        assert!(registry.read_entries().unwrap().is_empty());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -29,7 +29,7 @@ impl<A: Application> DesktopApp<A> {
                     ui.colored_label(egui::Color32::YELLOW, notice);
                 }
                 if prompt.resume_from.is_some() {
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         if ui.button("Reprendre et remplacer les traitements existants").clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
                                 prompt: Box::new(prompt.clone()),
@@ -58,7 +58,7 @@ impl<A: Application> DesktopApp<A> {
                             publication.success_ordinal.map_or_else(|| "ordre historique inconnu".to_owned(), |ordinal| format!("succès #{ordinal}")),
                         ));
                     }
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         if ui.add_enabled(latest_available, egui::Button::new("Remplacer le dernier traitement")).clicked() {
                             self.dispatch(AppCommand::ResolveDuplicateImport {
                                 prompt: Box::new(prompt.clone()),
