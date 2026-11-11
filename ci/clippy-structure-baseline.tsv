@@ -175,7 +175,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_a
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn pending_scan_and_resume_require_the_exact_qualified_test_key	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn r5_2_a4_product_route_publishes_french_and_english_txt_srt	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive_personal_history.rs|fn personal_archives_recognize_previous_workers_without_admitting_them_for_execution	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_control.rs|fn run_barrier_case	1
