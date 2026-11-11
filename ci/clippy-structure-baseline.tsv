@@ -34,7 +34,6 @@ clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/impo
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
 clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	1
@@ -43,8 +42,6 @@ clippy::cognitive_complexity|whisper-desktop|crates/whisper-desktop/src/ui/tests
 clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run	1
 clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	1
 clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn observe_controlled_child	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
 clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|fn run_cleanup_plan_locked	1
@@ -168,10 +165,7 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_i
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_gpu_application_import_with_native	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_product_transport_failure	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn build_long_fixture	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs|fn validate_fixture	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/event_metadata.rs|fn identity	1
