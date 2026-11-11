@@ -4,8 +4,8 @@ Décision : cadrer des alias de types locaux, sans autoriser leur implémentatio
 
 # Whisper — Cadrage des alias de types dans les supports de test
 
-**Identifiant :** D-WHISPER-CLIPPY-ALIASES-01  
-**Nature :** évolution de maintenabilité, proposée pour planification.  
+**Identifiant :** D-WHISPER-CLIPPY-ALIASES-01
+**Nature :** évolution de maintenabilité, proposée pour planification.
 **État :** DESIGN READY après revue indépendante CLEAN ; implémentation non autorisée par ce document.
 
 ## BESOIN
