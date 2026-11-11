@@ -157,14 +157,9 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn assert_cpu_incompatible_native_refusal	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn gpu_app_en5_twice_release	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r6_application_single_pass_recipe	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r7_application_timing	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_gpu_application_import_with_native	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_product_transport_failure	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1

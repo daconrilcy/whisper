@@ -20,6 +20,92 @@ use whisper_core::{
     JobConfig, JobId, LanguageChoice, model_catalog::ModelId,
 };
 
+fn recipe_application(
+    runtime: &std::path::Path,
+    model_path: &std::path::Path,
+    worker: PathBuf,
+    native: PathBuf,
+) -> ImportApplication<AsyncImportIo> {
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: worker,
+            native_dir: native,
+            model: model_path.to_path_buf(),
+            runtime_root: runtime.to_path_buf(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    ImportApplication::new(io).with_model_guard(guard)
+}
+
+fn wait_for_recipe_result(
+    app: &mut ImportApplication<AsyncImportIo>,
+    case: &str,
+    label: &str,
+    timeout: Duration,
+    deadline: Instant,
+) -> (u64, u64) {
+    let mut refresh_count = 0_u64;
+    let mut poll_sleep_ms = 0_u64;
+    loop {
+        refresh_count += 1;
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!(
+                "{label} {case} refresh failed: {error:?}; view={:?}",
+                app.view()
+            )
+        });
+        if view.last_result.is_some() {
+            break;
+        }
+        if let Some((_, state)) = view.active_job {
+            assert_ne!(
+                state,
+                whisper_core::JobState::Recoverable,
+                "{label} {case} failed: {view:?}"
+            );
+            assert_ne!(
+                state,
+                whisper_core::JobState::Interrupted,
+                "{label} {case} interrupted: {view:?}"
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{label} {case} exceeded {timeout:?}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(100));
+        poll_sleep_ms += 100;
+    }
+    (refresh_count, poll_sleep_ms)
+}
+
 #[test]
 #[cfg_attr(
     not(feature = "native-tests"),
@@ -1428,42 +1514,7 @@ fn r6_application_single_pass_recipe() {
         .join(&case);
     let _ = fs::remove_dir_all(&destination);
     fs::create_dir_all(destination.parent().expect("recipe destination parent")).unwrap();
-    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
-    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: turbo_worker.clone(),
-            gpu: turbo_worker,
-        },
-        model_path.parent().unwrap().to_path_buf(),
-        historical_turbo.to_string_lossy().into_owned(),
-        Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-            executable: worker,
-            native_dir: native,
-            model: model_path.clone(),
-            runtime_root: runtime.clone(),
-        }),
-    );
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model_path.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                historical_turbo.to_string_lossy().into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let mut app = recipe_application(&runtime, &model_path, worker, native);
     let request = ImportRequest {
         strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job_id),
@@ -1487,31 +1538,7 @@ fn r6_application_single_pass_recipe() {
     app.dispatch(AppCommand::StartImport { request }).unwrap();
     let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
     let deadline = started + timeout;
-    loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
-            panic!("R6 {case} refresh failed: {error:?}; view={:?}", app.view())
-        });
-        if view.last_result.is_some() {
-            break;
-        }
-        if let Some((_, state)) = view.active_job {
-            assert_ne!(
-                state,
-                whisper_core::JobState::Recoverable,
-                "R6 {case} failed: {view:?}"
-            );
-            assert_ne!(
-                state,
-                whisper_core::JobState::Interrupted,
-                "R6 {case} interrupted: {view:?}"
-            );
-        }
-        assert!(
-            Instant::now() < deadline,
-            "R6 {case} exceeded {timeout:?}: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(100));
-    }
+    wait_for_recipe_result(&mut app, &case, "R6", timeout, deadline);
     let elapsed = started.elapsed();
     let passage = destination
         .join("transcriptions")
@@ -1573,42 +1600,7 @@ fn r7_application_timing() {
         worker_sha,
         "1d8f57b9e92d69629618be422077a0508303b9ae10d622b5f5aaad8867e103c0"
     );
-    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
-    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: turbo_worker.clone(),
-            gpu: turbo_worker,
-        },
-        model_path.parent().unwrap().to_path_buf(),
-        historical_turbo.to_string_lossy().into_owned(),
-        Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-            executable: worker,
-            native_dir: native,
-            model: model_path.clone(),
-            runtime_root: runtime.clone(),
-        }),
-    );
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model_path.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                historical_turbo.to_string_lossy().into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let mut app = recipe_application(&runtime, &model_path, worker, native);
     let request = ImportRequest {
         strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
         job_id: JobId(job_id),
@@ -1632,35 +1624,8 @@ fn r7_application_timing() {
     app.dispatch(AppCommand::StartImport { request }).unwrap();
     let timeout = Duration::from_secs(samples / 16_000 / 4 + 120);
     let deadline = started + timeout;
-    let mut refresh_count = 0_u64;
-    let mut poll_sleep_ms = 0_u64;
-    loop {
-        refresh_count += 1;
-        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
-            panic!("R7 {case} refresh failed: {error:?}; view={:?}", app.view())
-        });
-        if view.last_result.is_some() {
-            break;
-        }
-        if let Some((_, state)) = view.active_job {
-            assert_ne!(
-                state,
-                whisper_core::JobState::Recoverable,
-                "R7 {case} failed: {view:?}"
-            );
-            assert_ne!(
-                state,
-                whisper_core::JobState::Interrupted,
-                "R7 {case} interrupted: {view:?}"
-            );
-        }
-        assert!(
-            Instant::now() < deadline,
-            "R7 {case} exceeded {timeout:?}: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(100));
-        poll_sleep_ms += 100;
-    }
+    let (refresh_count, poll_sleep_ms) =
+        wait_for_recipe_result(&mut app, &case, "R7", timeout, deadline);
     let app_elapsed = started.elapsed();
     let passage = destination
         .join("transcriptions")
@@ -2175,6 +2140,87 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         runtime_root: runtime.clone(),
     });
     let incompatible_dir = existing_incompatible_gpu_fixture(&runtime);
+    let personal_candidate = std::env::var_os("PARAKEET_L6P_STAGE").is_some();
+    let bad_paths = ParakeetWorkerPaths {
+        executable: worker.clone(),
+        native_dir: incompatible_dir.clone(),
+        model: model_path.clone(),
+        runtime_root: runtime.clone(),
+    };
+    assert_incompatible_gpu_fixture(&incompatible_dir, &bad_paths, personal_candidate);
+
+    let source = required_path("PARAKEET_L2_EN_WAV");
+    let destination = execution_root.join(format!("archive/r8-loader-{}", std::process::id()));
+    fs::create_dir_all(&destination).unwrap();
+    let job_id = JobId(0x2a4);
+    let generation = Generation::first();
+    let mut app =
+        start_incompatible_gpu_import(&bad_paths, &model_path, &runtime, &destination, &source);
+    // Preparing can include several minutes of adapter/model setup on the
+    // constrained qualification host; this is a harness ceiling, not a
+    // product response-time criterion.
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(240);
+    let refusal_message = loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
+            eprintln!("R8 loader refusal observed after {:?}", started.elapsed());
+            break view.message.unwrap_or_default();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "qualification refusal missing: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    if personal_candidate {
+        assert!(
+            refusal_message.contains("ProfileUnavailable"),
+            "Personal route must explain why the incompatible DLL directory is refused: {refusal_message}"
+        );
+    } else {
+        assert!(
+            refusal_message.contains("ModelNotQualified: Parakeet GPU candidate is not admitted"),
+            "unexpected refusal: {refusal_message}"
+        );
+    }
+    let passage = passage_dir(&destination, job_id, generation);
+    assert!(
+        !passage.join("pending.json").exists(),
+        "qualification refusal happens before archive admission"
+    );
+    assert!(!passage.join("transcript.txt").exists());
+    assert!(!passage.join("transcript.srt").exists());
+
+    assert_incompatible_dll_fails_at_worker_loader(
+        &worker,
+        &model_path,
+        &incompatible_dir,
+        &runtime,
+    );
+    assert!(source.is_file());
+    assert!(!passage.join("pending.json").exists());
+    assert!(!passage.join("transcript.txt").exists());
+    assert!(!passage.join("transcript.srt").exists());
+    let auto = run_gpu_application_import_with_native(
+        "auto-bad-dll-cpu-fallback",
+        &source,
+        ComputeChoice::Auto,
+        true,
+        None,
+        Some(incompatible_dir),
+    );
+    assert!(
+        auto.last_result.is_some(),
+        "Auto must complete through Parakeet CPU when the registered GPU DLL identity differs: {auto:?}"
+    );
+}
+
+fn assert_incompatible_gpu_fixture(
+    incompatible_dir: &std::path::Path,
+    bad_paths: &ParakeetWorkerPaths,
+    personal_candidate: bool,
+) {
     let required_dlls = [
         "cublas64_12.dll",
         "cublasLt64_12.dll",
@@ -2191,25 +2237,17 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
             .iter()
             .all(|name| incompatible_dir.join(name).is_file())
     );
+    let nemo_dll = incompatible_dir.join("nemo_speech_asr_c.dll");
     assert_eq!(
-        sha256(&incompatible_dir.join("nemo_speech_asr_c.dll")),
+        sha256(&nemo_dll),
         "9148ba2ed0eaeee385d09eba37e1a297d5e2f0649a02ffd4e325fea562c29ea6",
         "the preserved L3b fixture must retain its intentionally incompatible ABI DLL"
     );
     assert_eq!(
-        sha256(&incompatible_dir.join("nemo_speech_asr_c.dll")),
+        sha256(&nemo_dll),
         sha256(&incompatible_dir.join("ggml.dll")),
         "the preserved fixture records the deliberate ggml-to-NeMo ABI mismatch"
     );
-
-    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let personal_candidate = std::env::var_os("PARAKEET_L6P_STAGE").is_some();
-    let bad_paths = ParakeetWorkerPaths {
-        executable: worker.clone(),
-        native_dir: incompatible_dir.clone(),
-        model: model_path.clone(),
-        runtime_root: runtime.clone(),
-    };
     let bad_key = bad_paths
         .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS);
     if personal_candidate {
@@ -2225,10 +2263,16 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
             "the altered native copy should yield a distinct candidate key for admission to reject"
         );
     }
+}
 
-    let source = required_path("PARAKEET_L2_EN_WAV");
-    let destination = execution_root.join(format!("archive/r8-loader-{}", std::process::id()));
-    fs::create_dir_all(&destination).unwrap();
+fn start_incompatible_gpu_import(
+    bad_paths: &ParakeetWorkerPaths,
+    model_path: &std::path::Path,
+    runtime: &std::path::Path,
+    destination: &std::path::Path,
+    source: &std::path::Path,
+) -> ImportApplication<AsyncImportIo> {
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
     let io = AsyncImportIo::start_with_model_catalog_and_parakeet_routes(
         WorkerPaths {
@@ -2243,8 +2287,8 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         Some(ParakeetWorkerPaths {
             executable: cpu_worker_path(),
             native_dir: cpu_native_dir(),
-            model: model_path.clone(),
-            runtime_root: runtime.clone(),
+            model: model_path.to_path_buf(),
+            runtime_root: runtime.to_path_buf(),
         }),
         Some(bad_paths.clone()),
     );
@@ -2291,52 +2335,26 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
-    // Preparing can include several minutes of adapter/model setup on the
-    // constrained qualification host; this is a harness ceiling, not a
-    // product response-time criterion.
-    let started = Instant::now();
-    let deadline = started + Duration::from_secs(240);
-    let refusal_message = loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
-            eprintln!("R8 loader refusal observed after {:?}", started.elapsed());
-            break view.message.unwrap_or_default();
-        }
-        assert!(
-            Instant::now() < deadline,
-            "qualification refusal missing: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    };
-    if personal_candidate {
-        assert!(
-            refusal_message.contains("ProfileUnavailable"),
-            "Personal route must explain why the incompatible DLL directory is refused: {refusal_message}"
-        );
-    } else {
-        assert!(
-            refusal_message.contains("ModelNotQualified: Parakeet GPU candidate is not admitted"),
-            "unexpected refusal: {refusal_message}"
-        );
-    }
-    let passage = passage_dir(&destination, job_id, generation);
-    assert!(
-        !passage.join("pending.json").exists(),
-        "qualification refusal happens before archive admission"
-    );
-    assert!(!passage.join("transcript.txt").exists());
-    assert!(!passage.join("transcript.srt").exists());
+    app
+}
 
+fn assert_incompatible_dll_fails_at_worker_loader(
+    worker: &std::path::Path,
+    model_path: &std::path::Path,
+    incompatible_dir: &std::path::Path,
+    runtime: &std::path::Path,
+) {
+    let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
     let asr_log_dir = runtime.join("logs");
     fs::create_dir_all(&asr_log_dir).unwrap();
-    let output = Command::new(&worker)
+    let output = Command::new(worker)
         .arg("--model")
-        .arg(&model_path)
+        .arg(model_path)
         .arg("--model-sha256")
         .arg(record.artifact.sha256)
         .arg("--native-dir")
-        .arg(&incompatible_dir)
-        .env("PARAKEET_L2_RUNTIME_ROOT", &runtime)
+        .arg(incompatible_dir)
+        .env("PARAKEET_L2_RUNTIME_ROOT", runtime)
         .env(
             "PARAKEET_L3_ASR_LOG",
             asr_log_dir.join(format!(
@@ -2369,23 +2387,6 @@ fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary() 
         "loader/export failure phase is not attributed: {stderr}"
     );
     assert!(String::from_utf8_lossy(&output.stdout).is_empty());
-    assert!(source.is_file());
-    assert!(!passage.join("pending.json").exists());
-    assert!(!passage.join("transcript.txt").exists());
-    assert!(!passage.join("transcript.srt").exists());
-
-    let auto = run_gpu_application_import_with_native(
-        "auto-bad-dll-cpu-fallback",
-        &source,
-        ComputeChoice::Auto,
-        true,
-        None,
-        Some(incompatible_dir),
-    );
-    assert!(
-        auto.last_result.is_some(),
-        "Auto must complete through Parakeet CPU when the registered GPU DLL identity differs: {auto:?}"
-    );
 }
 
 fn ensure_staged_incompatible_native_fixtures(runtime: &std::path::Path) {
@@ -2593,18 +2594,7 @@ fn assert_cpu_incompatible_native_refusal(
         },
     })
     .unwrap();
-    let deadline = Instant::now() + Duration::from_secs(240);
-    let refusal = loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
-            break view.message.unwrap_or_default();
-        }
-        assert!(
-            Instant::now() < deadline,
-            "CPU DLL refusal missing: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    };
+    let refusal = wait_for_cpu_qualification_refusal(&mut app, job_id);
     assert!(
         refusal.contains("QualificationMismatch: runtime="),
         "{refusal}"
@@ -2614,14 +2604,48 @@ fn assert_cpu_incompatible_native_refusal(
     assert!(!passage.join("transcript.txt").exists());
     assert!(!passage.join("transcript.srt").exists());
 
+    assert_incompatible_cpu_loader_fails_before_ready(
+        &cpu_worker,
+        model_path,
+        record.artifact.sha256,
+        &incompatible_native,
+        &cpu_runtime,
+    );
+}
+
+fn wait_for_cpu_qualification_refusal(
+    app: &mut ImportApplication<AsyncImportIo>,
+    job_id: JobId,
+) -> String {
+    let deadline = Instant::now() + Duration::from_secs(240);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
+            return view.message.unwrap_or_default();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "CPU DLL refusal missing: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn assert_incompatible_cpu_loader_fails_before_ready(
+    cpu_worker: &std::path::Path,
+    model_path: &std::path::Path,
+    model_sha256: &str,
+    incompatible_native: &std::path::Path,
+    cpu_runtime: &std::path::Path,
+) {
     let output = Command::new(cpu_worker)
         .arg("--model")
         .arg(model_path)
         .arg("--model-sha256")
-        .arg(record.artifact.sha256)
+        .arg(model_sha256)
         .arg("--native-dir")
-        .arg(&incompatible_native)
-        .env("PARAKEET_L2_RUNTIME_ROOT", &cpu_runtime)
+        .arg(incompatible_native)
+        .env("PARAKEET_L2_RUNTIME_ROOT", cpu_runtime)
         .stdin(Stdio::null())
         .output()
         .expect("frozen CPU worker loader probe starts with the preserved L2b fixture");
@@ -2970,6 +2994,26 @@ fn run_product_transport_failure(
         },
     };
     app.dispatch(AppCommand::StartImport { request }).unwrap();
+    wait_for_product_import_running(&mut app, job_id);
+    let passage = passage_dir(&destination, job_id, generation);
+    assert!(passage.join("pending.json").is_file());
+    let failure_view = wait_for_product_import_failure(&mut app, job_id);
+    assert_product_import_failure(
+        failure_view,
+        ProductFailureEvidence {
+            expected_error,
+            control: &control,
+            signal,
+            passage: &passage,
+            source: &source,
+            source_sha_before: &source_sha_before,
+            destination: &destination,
+            job_id,
+        },
+    );
+}
+
+fn wait_for_product_import_running(app: &mut ImportApplication<AsyncImportIo>, job_id: JobId) {
     let deadline = Instant::now() + Duration::from_secs(240);
     loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
@@ -2986,20 +3030,51 @@ fn run_product_transport_failure(
         );
         thread::sleep(Duration::from_millis(20));
     }
-    let passage = passage_dir(&destination, job_id, generation);
-    assert!(passage.join("pending.json").is_file());
+}
+
+fn wait_for_product_import_failure(
+    app: &mut ImportApplication<AsyncImportIo>,
+    job_id: JobId,
+) -> whisper_core::AppView {
     let deadline = Instant::now() + Duration::from_secs(30);
-    let failure_view = loop {
+    loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if view.active_job == Some((job_id, whisper_core::JobState::Recoverable)) {
-            break view;
+            return view;
         }
         assert!(
             Instant::now() < deadline,
             "failure was not routed: {view:?}"
         );
         thread::sleep(Duration::from_millis(10));
-    };
+    }
+}
+
+struct ProductFailureEvidence<'a> {
+    expected_error: &'a str,
+    control: &'a std::path::Path,
+    signal: &'a str,
+    passage: &'a std::path::Path,
+    source: &'a std::path::Path,
+    source_sha_before: &'a str,
+    destination: &'a std::path::Path,
+    job_id: JobId,
+}
+
+fn assert_product_import_failure(
+    failure_view: whisper_core::AppView,
+    evidence: ProductFailureEvidence<'_>,
+) {
+    let ProductFailureEvidence {
+        expected_error,
+        control,
+        signal,
+        passage,
+        source,
+        source_sha_before,
+        destination,
+        job_id,
+    } = evidence;
     let message = failure_view.message.unwrap_or_default();
     assert!(message.contains(expected_error), "{message}");
     assert!(control.join(format!("{signal}.entered")).is_file());
@@ -3008,14 +3083,14 @@ fn run_product_transport_failure(
     assert!(!passage.join("transcript.txt").exists());
     assert!(!passage.join("transcript.srt").exists());
     assert_eq!(
-        format!("{:x}", Sha256::digest(fs::read(&source).unwrap())),
+        format!("{:x}", Sha256::digest(fs::read(source).unwrap())),
         source_sha_before,
         "source bytes survive transport failure"
     );
     assert!(!message.to_ascii_lowercase().contains("fallback"));
     assert!(!message.to_ascii_lowercase().contains("turbo"));
     assert!(
-        ArchiveStore::scan(&destination)
+        ArchiveStore::scan(destination)
             .unwrap()
             .iter()
             .all(|entry| entry.job_id != job_id || !entry.complete),
