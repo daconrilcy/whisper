@@ -46,8 +46,6 @@ clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-p
 clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn observe_controlled_child	1
 clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path	1
 clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_choice	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn run_import_with_duplicate_choice	1
 clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|fn run_cleanup_plan_locked	1
@@ -192,7 +190,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_u
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_long_case	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native/voxpopuli.rs|fn validate_fixture	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn r11_application_baseline	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn create_failed_cleanup_fixture	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1

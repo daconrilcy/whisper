@@ -85,9 +85,33 @@ fn r11_application_baseline() {
     );
     let mut app = ImportApplication::new(io).with_model_guard(guard);
     let campaign_deadline = Instant::now() + Duration::from_secs(3 * 60 * 60);
-    let mut total_imports = 0u8;
     let run_id = format!("{}-{}", std::process::id(), unix_nanos());
     let mut serial = 1u128;
+    let total_imports = run_application_baseline(
+        &mut app,
+        &root,
+        &model_path,
+        &model_record.artifact.sha256,
+        &campaign_deadline,
+        &run_id,
+        &mut serial,
+    );
+    assert_eq!(
+        total_imports, 18,
+        "E0 campaign must perform exactly eighteen imports"
+    );
+}
+
+fn run_application_baseline(
+    app: &mut ImportApplication<AsyncImportIo>,
+    root: &Path,
+    model_path: &Path,
+    model_hash: &str,
+    campaign_deadline: &Instant,
+    run_id: &str,
+    serial: &mut u128,
+) -> u8 {
+    let mut total_imports = 0u8;
     for (source_index, (name, variable)) in SOURCES.into_iter().enumerate() {
         let source = required_path(variable);
         assert!(source.is_file(), "{variable} missing: {}", source.display());
@@ -115,14 +139,14 @@ fn r11_application_baseline() {
             let base = request(
                 &source,
                 &destination,
-                &model_path,
-                model_record.artifact.sha256,
-                next_job_id(&mut serial),
+                model_path,
+                model_hash,
+                next_job_id(serial),
             );
             run_import(
-                &mut app,
+                app,
                 base.clone(),
-                &campaign_deadline,
+                campaign_deadline,
                 "no-duplicate",
                 name,
                 source_index,
@@ -134,19 +158,15 @@ fn r11_application_baseline() {
             let create = request(
                 &source,
                 &destination,
-                &model_path,
-                model_record.artifact.sha256,
-                next_job_id(&mut serial),
+                model_path,
+                model_hash,
+                next_job_id(serial),
             );
             run_import_with_duplicate_choice(
-                &mut app,
+                app,
                 create,
                 DuplicateImportChoice::CreateNew,
-                &campaign_deadline,
-                "create-new",
-                name,
-                source_index,
-                pass,
+                ImportRunContext::new(campaign_deadline, "create-new", name, source_index, pass),
             );
             total_imports += 1;
             assert_outputs_for_source(&destination, &source, &source_hash, 2);
@@ -154,20 +174,16 @@ fn r11_application_baseline() {
             let replace = request(
                 &source,
                 &destination,
-                &model_path,
-                model_record.artifact.sha256,
-                next_job_id(&mut serial),
+                model_path,
+                model_hash,
+                next_job_id(serial),
             );
             let previous_generations = generation_dirs(&destination);
             run_import_with_duplicate_choice(
-                &mut app,
+                app,
                 replace,
                 DuplicateImportChoice::Replace,
-                &campaign_deadline,
-                "replace",
-                name,
-                source_index,
-                pass,
+                ImportRunContext::new(campaign_deadline, "replace", name, source_index, pass),
             );
             total_imports += 1;
             assert_outputs_for_source(&destination, &source, &source_hash, 1);
@@ -178,7 +194,7 @@ fn r11_application_baseline() {
             );
         }
         assert!(
-            Instant::now() < campaign_deadline,
+            Instant::now() < *campaign_deadline,
             "E0 total campaign exceeded three hours"
         );
         assert_eq!(
@@ -187,10 +203,7 @@ fn r11_application_baseline() {
             "source changed during measurement"
         );
     }
-    assert_eq!(
-        total_imports, 18,
-        "E0 campaign must perform exactly eighteen imports"
-    );
+    total_imports
 }
 
 fn request(
@@ -230,48 +243,53 @@ fn run_import(
         app,
         request,
         None,
-        deadline,
-        operation,
-        source,
-        source_index,
-        pass,
+        ImportRunContext::new(deadline, operation, source, source_index, pass),
     );
+}
+
+struct ImportRunContext<'a> {
+    deadline: &'a Instant,
+    operation: &'a str,
+    source: &'a str,
+    source_index: usize,
+    pass: u8,
+}
+
+impl<'a> ImportRunContext<'a> {
+    fn new(
+        deadline: &'a Instant,
+        operation: &'a str,
+        source: &'a str,
+        source_index: usize,
+        pass: u8,
+    ) -> Self {
+        Self {
+            deadline,
+            operation,
+            source,
+            source_index,
+            pass,
+        }
+    }
 }
 
 fn run_import_with_duplicate_choice(
     app: &mut ImportApplication<AsyncImportIo>,
     request: ImportRequest,
     choice: DuplicateImportChoice,
-    deadline: &Instant,
-    operation: &str,
-    source: &str,
-    source_index: usize,
-    pass: u8,
+    context: ImportRunContext<'_>,
 ) {
-    run_import_with_choice(
-        app,
-        request,
-        Some(choice),
-        deadline,
-        operation,
-        source,
-        source_index,
-        pass,
-    );
+    run_import_with_choice(app, request, Some(choice), context);
 }
 
 fn run_import_with_choice(
     app: &mut ImportApplication<AsyncImportIo>,
     request: ImportRequest,
     duplicate_choice: Option<DuplicateImportChoice>,
-    campaign_deadline: &Instant,
-    operation: &str,
-    source: &str,
-    source_index: usize,
-    pass: u8,
+    context: ImportRunContext<'_>,
 ) {
     let started = Instant::now();
-    let import_deadline = operation_deadline(campaign_deadline);
+    let import_deadline = operation_deadline(context.deadline);
     let source_path = request.source_path.clone();
     let destination = request.destination.clone();
     let operation_id = format!("{:032x}-{}", request.job_id.0, request.generation.get());
@@ -286,7 +304,10 @@ fn run_import_with_choice(
             .expect("refresh enqueue result");
         if let Some(prompt) = view.duplicate_import_prompt {
             let choice = duplicate_choice.unwrap_or_else(|| {
-                panic!("{operation}: unexpected duplicate prompt for {source_path}")
+                panic!(
+                    "{}: unexpected duplicate prompt for {source_path}",
+                    context.operation
+                )
             });
             app.dispatch(AppCommand::ResolveDuplicateImport {
                 prompt: Box::new(prompt),
@@ -301,14 +322,16 @@ fn run_import_with_choice(
         }) {
             assert!(
                 duplicate_choice.is_none(),
-                "{operation}: expected duplicate confirmation before queue admission"
+                "{}: expected duplicate confirmation before queue admission",
+                context.operation
             );
             break entry.request;
         }
 
         assert!(
             Instant::now() < import_deadline,
-            "{operation}: enqueue did not produce a queue entry or duplicate prompt"
+            "{}: enqueue did not produce a queue entry or duplicate prompt",
+            context.operation
         );
         thread::sleep(Duration::from_millis(50));
     };
@@ -318,17 +341,17 @@ fn run_import_with_choice(
         request: queued.clone(),
     })
     .expect("start queued import through the application flow");
-    wait_for_complete(app, &import_deadline, operation);
+    wait_for_complete(app, &import_deadline, context.operation);
     record_harness_timing(
         "harness-import-total",
         started.elapsed(),
         serde_json::json!({
             "measurement_scope":"application-request-to-published-txt-srt",
-            "operation":operation,
+            "operation":context.operation,
             "operation_id":operation_id,
-            "source":source,
-            "source_index":source_index,
-            "pass":pass,
+            "source":context.source,
+            "source_index":context.source_index,
+            "pass":context.pass,
             "destination":destination,
             "pid":std::process::id(),
             "outcome":"ok"
