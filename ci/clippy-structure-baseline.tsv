@@ -195,7 +195,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_u
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_baseline.rs|fn r11_application_baseline	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn create_failed_cleanup_fixture	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_create.rs|fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/event_metadata.rs|fn identity	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn direct_start_failure_before_live_started_keeps_a_capture_row_without_wav	1

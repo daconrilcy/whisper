@@ -316,9 +316,38 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
     app.dispatch(AppCommand::EnqueueImport { request: incoming })
         .unwrap();
     let enqueue_started = Instant::now();
+    let prompt = wait_for_duplicate_prompt(&mut app, enqueue_started);
+    app.dispatch(AppCommand::ResolveDuplicateImport {
+        prompt: Box::new(prompt),
+        choice: DuplicateImportChoice::CreateNew,
+    })
+    .unwrap();
 
+    let queued = wait_for_queued_import(&mut app, JobId(121));
+    app.dispatch(AppCommand::ProcessQueued {
+        request: queued.clone(),
+    })
+    .unwrap();
+
+    wait_for_import_complete(&mut app, queued.job_id);
+    assert_application_publications(
+        &root,
+        &destination,
+        &old_generation,
+        &old_txt,
+        &old_srt,
+        &queued,
+        &source_hash,
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+fn wait_for_duplicate_prompt(
+    app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    enqueue_started: Instant,
+) -> whisper_core::ports::DuplicateImportPrompt {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    let prompt = loop {
+    loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if let Some(prompt) = view.duplicate_import_prompt {
             eprintln!(
@@ -332,20 +361,20 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
             "duplicate prompt did not arrive: {view:?}"
         );
         thread::sleep(std::time::Duration::from_millis(10));
-    };
-    app.dispatch(AppCommand::ResolveDuplicateImport {
-        prompt: Box::new(prompt),
-        choice: DuplicateImportChoice::CreateNew,
-    })
-    .unwrap();
+    }
+}
 
+fn wait_for_queued_import(
+    app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    previous_job: JobId,
+) -> ImportRequest {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    let queued = loop {
+    loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
         if let Some(entry) = view
             .queue
             .iter()
-            .find(|entry| entry.request.job_id != JobId(121))
+            .find(|entry| entry.request.job_id != previous_job)
         {
             break entry.request.clone();
         }
@@ -354,21 +383,22 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
             "CreateNew was not durably queued"
         );
         thread::sleep(std::time::Duration::from_millis(10));
-    };
-    app.dispatch(AppCommand::ProcessQueued {
-        request: queued.clone(),
-    })
-    .unwrap();
+    }
+}
 
+fn wait_for_import_complete(
+    app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    job_id: JobId,
+) {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if view.active_job == Some((queued.job_id, JobState::Complete)) {
+        if view.active_job == Some((job_id, JobState::Complete)) {
             break;
         }
         assert_ne!(
             view.active_job,
-            Some((queued.job_id, JobState::Recoverable)),
+            Some((job_id, JobState::Recoverable)),
             "fake worker import failed: {:?}",
             view.message
         );
@@ -378,7 +408,17 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
         );
         thread::sleep(std::time::Duration::from_millis(10));
     }
+}
 
+fn assert_application_publications(
+    root: &std::path::Path,
+    destination: &std::path::Path,
+    old_generation: &std::path::Path,
+    old_txt: &[u8],
+    old_srt: &[u8],
+    queued: &ImportRequest,
+    source_hash: &str,
+) {
     let start_frame = fs::read_to_string(root.join("worker-start.json")).unwrap();
     assert!(start_frame.contains(".whisper-source-snapshots"));
     assert!(start_frame.contains(".snapshot"));
@@ -402,12 +442,11 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
         fs::read(old_generation.join("transcript.srt")).unwrap(),
         old_srt
     );
-    let publications = ArchiveStore::published_imports(&destination, &source_hash).unwrap();
+    let publications = ArchiveStore::published_imports(destination, source_hash).unwrap();
     assert_eq!(publications.len(), 2);
     assert!(
         publications
             .iter()
             .all(|publication| publication.export_basename.is_none())
     );
-    fs::remove_dir_all(root).unwrap();
 }
