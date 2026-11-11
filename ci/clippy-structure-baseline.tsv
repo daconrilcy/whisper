@@ -35,7 +35,6 @@ clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/live
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn r9_application_recipe	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
 clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text	1
 clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/runtime/tests/selection_and_microphone.rs|fn microphone_test_owns_one_capture_then_releases_before_live_restart	1
 clippy::cognitive_complexity|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens	1
@@ -162,7 +161,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_i
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn run_gpu_application_import_with_native	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_unified_native.rs|fn run_native_import_from_path_timed	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/reprocessing_cleanup.rs|fn replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/support/parakeet_runtime_isolation.rs|fn run_matrix	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/event_metadata.rs|fn identity	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn direct_start_failure_before_live_started_keeps_a_capture_row_without_wav	1
 clippy::too_many_lines|whisper-core|crates/whisper-core/src/application/runtime/tests/parakeet_sessions.rs|fn late_automatic_import_failure_updates_only_its_capture_row	1
