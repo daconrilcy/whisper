@@ -176,13 +176,15 @@
         assert!(runtime.unified_sessions[&identity].native_route.is_some());
     }
 
+    type ControlledCaptureBlocks = Option<Arc<Mutex<VecDeque<(JobId, Generation, Vec<f32>)>>>>;
+
     struct RuntimeImportPort {
         runtime: ImportRuntime,
         events: VecDeque<ImportEvent>,
         capture_progress: Option<(JobId, Arc<AtomicU64>)>,
         document_revision: Option<(JobId, Arc<AtomicU64>)>,
         unified_stop_submissions: Option<Arc<AtomicU64>>,
-        controlled_capture_blocks: Option<Arc<Mutex<VecDeque<(JobId, Generation, Vec<f32>)>>>>,
+        controlled_capture_blocks: ControlledCaptureBlocks,
     }
 
     impl ImportIoPort for RuntimeImportPort {
@@ -398,41 +400,27 @@
         }
     }
 
-    fn held_worker(
-        hold_call: u64,
-    ) -> (
+    type HeldWorkerResult = (
         Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
         Arc<AtomicU64>,
         Arc<AtomicU64>,
         Arc<std::sync::Mutex<Vec<String>>>,
         std::sync::mpsc::Receiver<String>,
         std::sync::mpsc::SyncSender<()>,
-    ) {
+    );
+
+    fn held_worker(hold_call: u64) -> HeldWorkerResult {
         held_worker_with_mode(hold_call, false)
     }
 
-    fn held_final_a_worker() -> (
-        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-        Arc<AtomicU64>,
-        Arc<AtomicU64>,
-        Arc<std::sync::Mutex<Vec<String>>>,
-        std::sync::mpsc::Receiver<String>,
-        std::sync::mpsc::SyncSender<()>,
-    ) {
+    fn held_final_a_worker() -> HeldWorkerResult {
         held_worker_with_mode(0, true)
     }
 
     fn held_worker_with_mode(
         hold_call: u64,
         hold_first_final_a: bool,
-    ) -> (
-        Box<dyn crate::parakeet_pipeline::WindowTranscriber>,
-        Arc<AtomicU64>,
-        Arc<AtomicU64>,
-        Arc<std::sync::Mutex<Vec<String>>>,
-        std::sync::mpsc::Receiver<String>,
-        std::sync::mpsc::SyncSender<()>,
-    ) {
+    ) -> HeldWorkerResult {
         let calls = Arc::new(AtomicU64::new(0));
         let active = Arc::new(AtomicU64::new(0));
         let maximum_active = Arc::new(AtomicU64::new(0));

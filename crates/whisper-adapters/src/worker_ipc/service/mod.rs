@@ -40,6 +40,17 @@ pub struct AsyncImportIo {
     poll_automatic_first: bool,
 }
 
+#[cfg(test)]
+pub(super) type AsyncImportIoTestChannels = (
+    AsyncImportIo,
+    Receiver<ImportEffect>,
+    Receiver<ImportEffect>,
+    SyncSender<ImportEvent>,
+    Receiver<ImportEffect>,
+    Receiver<ImportEffect>,
+    SyncSender<ImportEvent>,
+);
+
 impl AsyncImportIo {
     pub fn start(worker_path: PathBuf) -> Self {
         let gpu = worker_path
@@ -256,17 +267,7 @@ impl AsyncImportIo {
     }
 
     #[cfg(test)]
-    pub(super) fn for_test(
-        publication_gate: Arc<PublicationGate>,
-    ) -> (
-        Self,
-        Receiver<ImportEffect>,
-        Receiver<ImportEffect>,
-        SyncSender<ImportEvent>,
-        Receiver<ImportEffect>,
-        Receiver<ImportEffect>,
-        SyncSender<ImportEvent>,
-    ) {
+    pub(super) fn for_test(publication_gate: Arc<PublicationGate>) -> AsyncImportIoTestChannels {
         let (effect_tx, effect_rx) = mpsc::sync_channel(8);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
         let (event_tx, event_rx) = mpsc::sync_channel(EVENTS_PER_STAGE);

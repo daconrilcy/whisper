@@ -896,11 +896,13 @@
         }
     }
 
+    type SampleCaptureMessage = (Vec<i16>, SyncSender<Result<u64, String>>);
+
     struct SampleDrivenWavCapture {
         path: PathBuf,
         file: Option<fs::File>,
         identity: Option<(JobId, Generation)>,
-        samples_rx: Receiver<(Vec<i16>, SyncSender<Result<u64, String>>)>,
+        samples_rx: Receiver<SampleCaptureMessage>,
         started_tx: SyncSender<(JobId, Generation)>,
         samples: Vec<i16>,
     }
@@ -971,7 +973,7 @@
 
     struct RuntimeAutomaticPublisher {
         runtime: ImportRuntime,
-        gates: Arc<Mutex<HashMap<(JobId, u64), Arc<PublicationGate>>>>,
+        gates: PublicationGateRegistry,
         started_tx: SyncSender<(JobId, Generation)>,
         publication_ready_tx: SyncSender<Result<(JobId, Generation), String>>,
         release_rx: Receiver<()>,
