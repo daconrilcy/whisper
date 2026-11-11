@@ -67,12 +67,6 @@ mod native_ffi {
     ) -> Result<(u32, String), String> {
         crate::native_boundary::forbid("native_ffi::whisper_gpu_device_index")
     }
-
-    pub fn verify_windows_identity(
-        _candidate: &whisper_core::gpu_inventory::GpuRuntimeIdentity,
-    ) -> Result<(), String> {
-        crate::native_boundary::forbid("native_ffi::verify_windows_identity")
-    }
 }
 
 mod session {

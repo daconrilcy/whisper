@@ -20,10 +20,7 @@ pub(crate) fn run(
     let mut input = stdin.lock();
     let mut last_request_id = 0_u64;
     let mut job_attempts = BTreeMap::<String, (u64, u64)>::new();
-    loop {
-        let Some(frame) = read_frame(&mut input)? else {
-            break;
-        };
+    while let Some(frame) = read_frame(&mut input)? {
         let envelope: Envelope<Command> = match serde_json::from_slice(&frame) {
             Ok(value) => value,
             Err(error) => {

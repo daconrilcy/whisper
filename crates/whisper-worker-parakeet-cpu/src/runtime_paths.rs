@@ -51,7 +51,7 @@ pub(crate) fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
     {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
         let allowed = allowed_runtime_roots(&repository);
-        if !allowed.iter().any(|candidate| root == *candidate) {
+        if !allowed.contains(&root) {
             return Err(
                 "RuntimeRootMismatch: worker runtime is outside authorized Test roots".into(),
             );
@@ -160,7 +160,7 @@ fn allowed_runtime_roots(repository: &Path) -> Vec<PathBuf> {
 
 #[cfg(all(test, not(feature = "parakeet-cuda")))]
 fn allowed_runtime_roots_for(repository: &Path, lots: &[&str]) -> Vec<PathBuf> {
-    lots.into_iter()
+    lots.iter()
         .filter_map(|lot| {
             repository
                 .join("target")
