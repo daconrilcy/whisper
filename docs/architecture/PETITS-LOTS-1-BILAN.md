@@ -4,6 +4,8 @@ Décision : T1 déjà conforme; arrêts T2/T3 appliqués; aucun changement produ
 
 # Bilan — PETITS-LOTS-1
 
+Suivi après clôture : [vérification du nettoyage](PETITS-LOTS-1-SUIVI-NETTOYAGE.md).
+
 Base : worktree `C:/wt/petits-lots`, branche `petits-lots-1`, HEAD initial `981b0bd5`; état propre. Aucun changement concurrent pertinent.
 
 | Point | Résultat et preuve |
