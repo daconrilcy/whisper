@@ -378,8 +378,7 @@ impl ArchiveStore {
     }
 
     pub fn scan(root: &Path) -> Result<Vec<ArchiveEntry>, String> {
-        let result = Self::scan_publications(root);
-        result
+        Self::scan_publications(root)
     }
 
     fn scan_publications(root: &Path) -> Result<Vec<ArchiveEntry>, String> {

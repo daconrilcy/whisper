@@ -78,7 +78,7 @@ impl OpenModelFile {
 
 impl ModelFileHashCache {
     fn sha256(&self, path: &Path) -> io::Result<(u64, [u8; 32], bool)> {
-        self.sha256_with(path, |file, hasher| io::copy(file, hasher))
+        self.sha256_with(path, io::copy)
     }
 
     fn sha256_with(

@@ -53,9 +53,9 @@ impl ImportRuntime {
             ..
         } = prepared;
         match self.route_attestation_and_ready(event, job_id, generation, instance_id) {
-            PollRouteControl::Return(output) => return output,
+            PollRouteControl::Return(output) => output,
             PollRouteControl::Finish(result) => {
-                return self.finish_routed_event(result, job_id, generation);
+                self.finish_routed_event(result, job_id, generation)
             }
             PollRouteControl::Next(event) => {
                 match self.route_remaining_event(event, job_id, generation, instance_id) {
@@ -312,9 +312,7 @@ impl ImportRuntime {
             {
                 match self.poll_import_segment(dto, job_id, generation) {
                     Ok(event) => FinalRouteControl::Finish(Ok(event)),
-                    Err(failure) => {
-                        return FinalRouteControl::Return(Some(Err(failure)));
-                    }
+                    Err(failure) => FinalRouteControl::Return(Some(Err(failure))),
                 }
             }
             WorkerEvent::End {

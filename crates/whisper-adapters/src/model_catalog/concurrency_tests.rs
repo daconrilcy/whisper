@@ -277,7 +277,7 @@ fn reader_error_releases_same_key_waiter_which_can_retry() {
     let retry_path = path.clone();
     let retry = thread::spawn(move || {
         finished_tx
-            .send(slot.sha256(&retry_path, opened, |file, hasher| io::copy(file, hasher)))
+            .send(slot.sha256(&retry_path, opened, io::copy))
             .unwrap();
     });
     resume_tx.send(()).unwrap();

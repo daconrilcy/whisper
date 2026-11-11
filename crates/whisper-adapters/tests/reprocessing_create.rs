@@ -288,7 +288,9 @@ fn application_create_new_processes_the_bound_snapshot_and_preserves_prior_publi
         .expect("Turbo model must be present in the inspected catalog");
     let model_hash = model_sha
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect::<Vec<_>>()
         .try_into()

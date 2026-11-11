@@ -81,15 +81,15 @@ fn personal_cpu_and_gpu_do_not_require_l3b() {
         std::fs::create_dir_all(paths.executable.parent().unwrap()).unwrap();
         std::fs::create_dir_all(&paths.native_dir).unwrap();
         std::fs::create_dir_all(paths.model.parent().unwrap()).unwrap();
-        crate::pe_fixture::compile_failing_worker(&root, &paths.executable);
+        crate::pe_fixture::compile_failing_worker(root, &paths.executable);
         std::fs::write(&paths.model, b"fixture model").unwrap();
     }
     let output = Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
         .arg("parakeet_import::legacy_runtime_tests::personal_cpu_and_gpu_do_not_require_l3b")
         .arg("--nocapture")
-        .env("LOCALAPPDATA", &root)
-        .env(CHILD_ROOT, &root)
+        .env("LOCALAPPDATA", root)
+        .env(CHILD_ROOT, root)
         .output()
         .unwrap();
     assert!(

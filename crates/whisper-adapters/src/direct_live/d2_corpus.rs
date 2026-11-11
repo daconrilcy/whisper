@@ -300,12 +300,13 @@ fn turbo_case(
     let midpoint = samples.len() / 2;
     let mut changed = false;
     while offset < samples.len() {
-        if !changed && offset >= midpoint {
-            if let Some(gain) = transition {
-                live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
-                    .unwrap();
-                changed = true;
-            }
+        if !changed
+            && offset >= midpoint
+            && let Some(gain) = transition
+        {
+            live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
+                .unwrap();
+            changed = true;
         }
         let boundary = if !changed && transition.is_some() {
             midpoint
@@ -374,12 +375,13 @@ fn parakeet_case(
     let midpoint = samples.len() / 2;
     let mut changed = false;
     while offset < samples.len() {
-        if !changed && offset >= midpoint {
-            if let Some(gain) = transition {
-                live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
-                    .unwrap();
-                changed = true;
-            }
+        if !changed
+            && offset >= midpoint
+            && let Some(gain) = transition
+        {
+            live.set_gain("d2:approved-wav", 0, GainDb::new(gain).unwrap())
+                .unwrap();
+            changed = true;
         }
         let boundary = if !changed && transition.is_some() {
             midpoint
@@ -484,9 +486,9 @@ fn read_wav16(path: &Path) -> (u32, u16, Vec<i16>) {
     }
     assert_eq!(format, Some(1));
     assert_eq!(bits, Some(16));
-    let samples = pcm
-        .unwrap()
-        .chunks_exact(2)
+    let (chunks, _) = pcm.unwrap().as_chunks::<2>();
+    let samples = chunks
+        .iter()
         .map(|p| i16::from_le_bytes([p[0], p[1]]))
         .collect();
     (rate.unwrap(), channels.unwrap(), samples)
@@ -537,20 +539,22 @@ mod tests {
     #[test]
     fn d2_event_drain_stops_after_its_bounded_batch() {
         let mut pending = (0..D2_MAX_EVENTS_PER_DRAIN + 3).collect::<VecDeque<_>>();
-        let mut poll = || Ok(pending.pop_front());
         let mut observed = Vec::new();
-        let mut record = |event| observed.push(event);
-        assert_eq!(
-            drain_d2_events(&mut poll, &mut record).unwrap(),
-            D2_MAX_EVENTS_PER_DRAIN
-        );
-        drop(record);
-        drop(poll);
+        {
+            let mut poll = || Ok(pending.pop_front());
+            let mut record = |event| observed.push(event);
+            assert_eq!(
+                drain_d2_events(&mut poll, &mut record).unwrap(),
+                D2_MAX_EVENTS_PER_DRAIN
+            );
+        }
         assert_eq!(observed.len(), D2_MAX_EVENTS_PER_DRAIN);
         assert_eq!(pending.len(), 3);
-        let mut poll = || Ok(pending.pop_front());
-        let mut record = |event| observed.push(event);
-        assert_eq!(drain_d2_events(&mut poll, &mut record).unwrap(), 3);
+        {
+            let mut poll = || Ok(pending.pop_front());
+            let mut record = |event| observed.push(event);
+            assert_eq!(drain_d2_events(&mut poll, &mut record).unwrap(), 3);
+        }
         assert_eq!(observed.len(), D2_MAX_EVENTS_PER_DRAIN + 3);
     }
 

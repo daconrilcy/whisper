@@ -44,8 +44,8 @@ mod native_ffi {
     #[path = "../../../src/native_ffi/pure.rs"]
     mod pure;
     use self::pure::{
-        BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
-        validate_selected_cuda_registry_device, whisper_gpu_position,
+        BackendRegistryEntry, validate_native_gpu_log, validate_selected_cuda_registry_device,
+        whisper_gpu_position,
     };
     pub use self::pure::{CudaDevice, GgmlDevice};
 
@@ -66,12 +66,6 @@ mod native_ffi {
         _expected_pci_id: &str,
     ) -> Result<(u32, String), String> {
         crate::native_boundary::forbid("native_ffi::whisper_gpu_device_index")
-    }
-
-    pub fn verify_windows_identity(
-        _candidate: &whisper_core::gpu_inventory::GpuRuntimeIdentity,
-    ) -> Result<(), String> {
-        crate::native_boundary::forbid("native_ffi::verify_windows_identity")
     }
 }
 

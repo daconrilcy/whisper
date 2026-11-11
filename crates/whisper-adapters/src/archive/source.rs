@@ -127,8 +127,7 @@ pub fn sha256_file(path: &Path) -> Result<[u8; 32], String> {
 }
 
 pub(crate) fn source_output_samples(path: &Path) -> Result<u64, String> {
-    let result = source_output_samples_inner(path);
-    result
+    source_output_samples_inner(path)
 }
 
 fn source_output_samples_inner(path: &Path) -> Result<u64, String> {

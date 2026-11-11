@@ -138,7 +138,9 @@ pub fn finish_reader<T>(reader: JoinHandle<T>, child: &BoundedChild) -> T {
         );
         thread::sleep(Duration::from_millis(20));
     }
-    reader.join().ok().expect("output reader panicked")
+    reader
+        .join()
+        .unwrap_or_else(|_| panic!("output reader panicked"))
 }
 
 pub fn output(command: &mut Command, input: Option<Vec<u8>>, timeout: Duration) -> Output {

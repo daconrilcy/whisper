@@ -168,8 +168,6 @@ fn permission_denied(message: &str) -> io::Error {
 
 #[cfg(windows)]
 fn report_diagnostic(mut output: impl std::io::Write, message: &str) {
-    use std::io::Write as _;
-
     let _ = writeln!(output, "{message}");
 }
 

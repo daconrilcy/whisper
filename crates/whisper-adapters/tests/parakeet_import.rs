@@ -1378,9 +1378,7 @@ fn worker_stderr_since(started: SystemTime) -> String {
 static NEXT_GPU_RECIPE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 fn personal_worker_build(backend: &str) -> Option<String> {
-    if std::env::var_os("PARAKEET_L6P_STAGE").is_none() {
-        return None;
-    }
+    std::env::var_os("PARAKEET_L6P_STAGE")?;
     #[cfg(feature = "personal-qualification")]
     {
         return whisper_adapters::parakeet_import::ParakeetWorkerPaths::personal_candidate_keys_from_env()
@@ -2720,10 +2718,10 @@ fn assert_worker_death(paths: &ParakeetWorkerPaths, source: &std::path::Path, jo
     let mut process = ParakeetProcess::spawn(paths).unwrap();
     let identity = wait_for_ready(&mut process);
     process.accept_ready(identity).unwrap();
-    let bytes = fs::read(&source).unwrap();
+    let bytes = fs::read(source).unwrap();
     let source_sha = format!("{:x}", Sha256::digest(bytes));
     process
-        .transcribe(job_id.into(), 1, 1, &source, source_sha)
+        .transcribe(job_id.into(), 1, 1, source, source_sha)
         .unwrap();
     // The frozen R6 CPU worker does not emit NativeCallStarted; retain the
     // historical R8 behavior and terminate immediately after Transcribe.
@@ -3175,25 +3173,24 @@ fn r8_exec_root() -> PathBuf {
     if let (Some(local_app_data), Ok(backend)) = (
         std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
         std::env::var("PARAKEET_L6P_BACKEND"),
-    ) {
-        if matches!(backend.as_str(), "CPU" | "CUDA0") {
-            let staging_parent = local_app_data
-                .join("Whisper/.staging")
+    ) && matches!(backend.as_str(), "CPU" | "CUDA0")
+    {
+        let staging_parent = local_app_data
+            .join("Whisper/.staging")
+            .canonicalize()
+            .expect("canonical Personal staging parent exists");
+        if configured_runtime.parent() == Some(staging_parent.as_path()) {
+            let expected = configured_runtime
+                .join("qualification")
+                .join(backend)
+                .join("r8")
                 .canonicalize()
-                .expect("canonical Personal staging parent exists");
-            if configured_runtime.parent() == Some(staging_parent.as_path()) {
-                let expected = configured_runtime
-                    .join("qualification")
-                    .join(backend)
-                    .join("r8")
-                    .canonicalize()
-                    .expect("canonical Personal R8 execution root exists");
-                assert_eq!(
-                    root, expected,
-                    "Personal R8 scenarios stay in the selected backend staging root"
-                );
-                return root;
-            }
+                .expect("canonical Personal R8 execution root exists");
+            assert_eq!(
+                root, expected,
+                "Personal R8 scenarios stay in the selected backend staging root"
+            );
+            return root;
         }
     }
     let l3b_r8 = l3b_runtime.join("r8");

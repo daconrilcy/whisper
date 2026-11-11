@@ -120,46 +120,43 @@ impl<A: Application> DesktopApp<A> {
     }
 
     fn request_current_model_inspection(&mut self) {
-        if self.startup_preferences_loaded || self.selection_touched {
-            if let (Some(model), Some(requests), Some(preferences)) = (
+        if (self.startup_preferences_loaded || self.selection_touched)
+            && let (Some(model), Some(requests), Some(preferences)) = (
                 self.selection.model,
                 self.inspection_requests.as_ref(),
                 self.preference_commands.as_ref(),
-            ) {
-                if requests.selected_model() != Some(model) {
-                    self.selection_notice = match preferences.inspect_selection(model) {
-                        Ok(()) => Some("Vérification du modèle en cours…".into()),
-                        Err(_) => Some(
-                            "Catalogue de modèles indisponible : vérification non transmise."
-                                .into(),
-                        ),
-                    };
-                }
-                if let Some(entry) = self
-                    .catalog
-                    .as_ref()
-                    .and_then(|catalog| catalog.entries.iter().find(|entry| entry.id == model))
+            )
+        {
+            if requests.selected_model() != Some(model) {
+                self.selection_notice = match preferences.inspect_selection(model) {
+                    Ok(()) => Some("Vérification du modèle en cours…".into()),
+                    Err(_) => Some(
+                        "Catalogue de modèles indisponible : vérification non transmise.".into(),
+                    ),
+                };
+            }
+            if let Some(entry) = self
+                .catalog
+                .as_ref()
+                .and_then(|catalog| catalog.entries.iter().find(|entry| entry.id == model))
+                && (entry.availability
+                    != whisper_core::model_catalog::ModelAvailability::Uninspected
+                    || entry
+                        .diagnostic
+                        .as_deref()
+                        .is_some_and(|diagnostic| diagnostic != "Modèle non vérifié."))
+                && requests.model_is_current(
+                    model,
+                    self.catalog.as_ref().expect("catalog entry").generation,
+                )
+            {
+                self.selection_notice = if entry.availability
+                    == whisper_core::model_catalog::ModelAvailability::Ready
                 {
-                    if (entry.availability
-                        != whisper_core::model_catalog::ModelAvailability::Uninspected
-                        || entry
-                            .diagnostic
-                            .as_deref()
-                            .is_some_and(|diagnostic| diagnostic != "Modèle non vérifié."))
-                        && requests.model_is_current(
-                            model,
-                            self.catalog.as_ref().expect("catalog entry").generation,
-                        )
-                    {
-                        self.selection_notice = if entry.availability
-                            == whisper_core::model_catalog::ModelAvailability::Ready
-                        {
-                            None
-                        } else {
-                            entry.diagnostic.clone()
-                        };
-                    }
-                }
+                    None
+                } else {
+                    entry.diagnostic.clone()
+                };
             }
         }
     }

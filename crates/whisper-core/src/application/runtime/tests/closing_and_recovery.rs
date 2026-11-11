@@ -277,8 +277,10 @@
 
     #[test]
     fn request_close_waits_for_an_already_committing_import_result() {
-        let mut io = ScanTestIo::default();
-        io.stop_committing = true;
+        let io = ScanTestIo {
+            stop_committing: true,
+            ..ScanTestIo::default()
+        };
         let mut app = ImportApplication::new(io);
         let job_id = JobId(995);
         let generation = Generation::first();

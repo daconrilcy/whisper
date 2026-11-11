@@ -117,7 +117,7 @@ fn personal_paths_with_timing(
     ParakeetWorkerPaths,
 ) {
     let prepare_started = timing.as_deref_mut().map(|_| Instant::now());
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing.as_mut() {
         trace.event("personal_paths_prepare_begin", serde_json::Value::Null);
     }
     let local_app_data = std::env::var_os("LOCALAPPDATA")
@@ -183,7 +183,7 @@ fn personal_paths_with_timing(
         gpu.validate().is_ok(),
         "personal GPU route must match its exact layout"
     );
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing.as_mut() {
         trace.event(
             "gpu_route_validation_end",
             serde_json::json!({"duration_ms":gpu_validation_started.expect("trace timer exists").elapsed().as_secs_f64()*1000.0}),
@@ -327,7 +327,7 @@ fn run_native_import_from_path_timed(
     }
     let source_started = Instant::now();
     assert!(source.is_file(), "native import input must exist");
-    let before_sha = sha256_file(&source);
+    let before_sha = sha256_file(source);
     if let Some(trace) = timing.as_deref_mut() {
         let source_sha256 = before_sha
             .iter()
@@ -389,7 +389,7 @@ fn run_native_import_from_path_timed(
     if let Some(trace) = timing.as_deref_mut() {
         trace.event("request_construction_begin", serde_json::Value::Null);
     }
-    let request = request(&source, &parakeet_model, &destination, compute);
+    let request = request(source, &parakeet_model, &destination, compute);
     if let Some(trace) = timing.as_deref_mut() {
         trace.event(
             "request_construction_end",
@@ -598,11 +598,11 @@ fn run_native_import_from_path_timed(
         trace.event("source_immutability_hash_begin", serde_json::Value::Null);
     }
     assert_eq!(
-        sha256_file(&source),
+        sha256_file(source),
         before_sha,
         "source fixture changed during native inference"
     );
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing.as_mut() {
         trace.event("source_immutability_hash_end", serde_json::json!({"duration_ms":source_recheck_started.elapsed().as_secs_f64()*1000.0}));
     }
     if let Some(trace) = timing.as_deref_mut() {
@@ -757,7 +757,7 @@ fn run_native_import_from_path_timed(
         trace.event("post_result_complete", serde_json::json!({"indexed_samples":indexed_samples,"archive_complete":entry.complete,"transcript_bytes":transcript.len(),"parts":part_count}));
     }
     drop(app);
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing.as_mut() {
         trace.event("app_drop_service_handles", serde_json::Value::Null);
         trace.event(
             "run_native_import_from_path_end",

@@ -128,7 +128,7 @@ fn live_capture_state(root: &Path, job_id: JobId) -> LiveCaptureState {
         generation,
     )
     .expect("start synthetic progress probe");
-    let staging = crate::staging::PcmStaging::create(&root.join("pending.pcm"))
+    let staging = crate::staging::PcmStaging::create(root.join("pending.pcm"))
         .expect("create synthetic live staging")
         .into_writer();
 
@@ -618,7 +618,7 @@ fn poll_ready_opens_live_capture_and_draining_phases_for_live_and_pending_live()
             let archive =
                 crate::archive::LiveArchive::prepare(&request.destination, request.clone())
                     .expect("prepare synthetic pending live archive");
-            let staging = crate::staging::PcmStaging::create(&root.0.join("pending-live.pcm"))
+            let staging = crate::staging::PcmStaging::create(root.0.join("pending-live.pcm"))
                 .expect("prepare synthetic pending live staging")
                 .into_writer();
             runtime.pending_live = Some(PendingLiveState {

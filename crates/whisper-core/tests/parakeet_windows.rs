@@ -77,7 +77,7 @@ fn no_silence_before_native_bound_returns_an_explicit_error() {
 
 #[test]
 fn reference_profile_duration_is_bounded_and_window_margins_are_joint() {
-    assert!(MAX_REFERENCE_SAMPLES == 3_600 * SAMPLE_RATE);
+    const _: () = assert!(MAX_REFERENCE_SAMPLES == 3_600 * SAMPLE_RATE);
     let mut pcm = audio(200, 100);
     add_silence(&mut pcm, 90, 20);
     add_silence(&mut pcm, 180, 20);

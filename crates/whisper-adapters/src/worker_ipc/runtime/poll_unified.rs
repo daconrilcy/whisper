@@ -487,18 +487,16 @@ impl ImportRuntime {
                     {
                         executor.disconnect_result_for = self.controlled_disconnect_session;
                         executor.panic_during_transcription_for = self.controlled_panic_session;
-                        if executor.disconnect_result_for.is_some()
-                            || executor.panic_during_transcription_for.is_some()
-                        {
-                            if let Err(error) =
+                        if (executor.disconnect_result_for.is_some()
+                            || executor.panic_during_transcription_for.is_some())
+                            && let Err(error) =
                                 executor.stop_and_reap().and_then(|()| executor.restart())
-                            {
-                                return std::ops::ControlFlow::Break(Some(Err((
-                                    JobId(0),
-                                    Generation::first(),
-                                    error,
-                                ))));
-                            }
+                        {
+                            return std::ops::ControlFlow::Break(Some(Err((
+                                JobId(0),
+                                Generation::first(),
+                                error,
+                            ))));
                         }
                     }
                     self.unified_executor = Some(executor);

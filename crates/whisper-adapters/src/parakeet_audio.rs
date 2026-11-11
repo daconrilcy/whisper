@@ -960,9 +960,7 @@ mod tests {
         let mut output = Vec::new();
         // The first input packet ends after sample 0; state is retained while
         // the next packet supplies the remaining two source samples.
-        for sample in [-1.0_f32] {
-            output.extend(resampler.push(sample).unwrap());
-        }
+        output.extend(resampler.push(-1.0_f32).unwrap());
         for sample in [0.25_f32, 1.0] {
             output.extend(resampler.push(sample).unwrap());
         }

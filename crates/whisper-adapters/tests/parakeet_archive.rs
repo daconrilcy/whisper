@@ -1245,7 +1245,9 @@ fn pcm16_mono_wav(path: &std::path::Path) -> Vec<i16> {
     assert_eq!(format, Some((1, 1, 16_000, 2, 16)));
     let data = data.expect("WAV data chunk");
     assert_eq!(data.len() % 2, 0);
-    data.chunks_exact(2)
+    data.as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
         .collect()
 }
@@ -1658,7 +1660,9 @@ mod r5_2_long_tests {
         assert_eq!(format, Some((1, 1, 16_000, 2, 16)));
         let data = data.expect("WAV data chunk");
         assert_eq!(data.len() % 2, 0);
-        data.chunks_exact(2)
+        data.as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
             .collect()
     }
@@ -1959,11 +1963,9 @@ mod r5_2_long_tests {
                 "um" | "uh" | "euh" | "hum" | "ben" | "bah"
             ) {
                 index += 1;
-            } else if words[index] == "you"
-                && words.get(index + 1).is_some_and(|word| word == "know")
-            {
-                index += 2;
-            } else if words[index] == "i" && words.get(index + 1).is_some_and(|word| word == "mean")
+            } else if (words[index] == "you"
+                && words.get(index + 1).is_some_and(|word| word == "know"))
+                || (words[index] == "i" && words.get(index + 1).is_some_and(|word| word == "mean"))
             {
                 index += 2;
             } else {

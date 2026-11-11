@@ -6,8 +6,8 @@ mod pure;
 mod tests;
 
 use self::pure::{
-    BackendRegistryEntry, normalize_pci, validate_native_gpu_log,
-    validate_selected_cuda_registry_device, whisper_gpu_position,
+    BackendRegistryEntry, validate_native_gpu_log, validate_selected_cuda_registry_device,
+    whisper_gpu_position,
 };
 pub use self::pure::{CudaDevice, GgmlDevice};
 use std::sync::{Mutex, OnceLock};
@@ -406,8 +406,10 @@ fn device_interface_instance_id(path: *const u16) -> Result<String, String> {
     }
     .map_err(|error| format!("SetupDiGetClassDevsW: {error}"))?;
     let result = (|| {
-        let mut interface = SP_DEVICE_INTERFACE_DATA::default();
-        interface.cbSize = std::mem::size_of::<SP_DEVICE_INTERFACE_DATA>() as u32;
+        let mut interface = SP_DEVICE_INTERFACE_DATA {
+            cbSize: std::mem::size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..SP_DEVICE_INTERFACE_DATA::default()
+        };
         // SAFETY: the DisplayConfig path is NUL terminated and the information set stays live.
         unsafe { SetupDiOpenDeviceInterfaceW(set, PCWSTR(path), 0, Some(&mut interface)) }
             .map_err(|error| format!("SetupDiOpenDeviceInterfaceW: {error}"))?;
@@ -429,8 +431,10 @@ fn device_interface_instance_id(path: *const u16) -> Result<String, String> {
         unsafe {
             (*detail).cbSize = std::mem::size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
         }
-        let mut device = SP_DEVINFO_DATA::default();
-        device.cbSize = std::mem::size_of::<SP_DEVINFO_DATA>() as u32;
+        let mut device = SP_DEVINFO_DATA {
+            cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+            ..SP_DEVINFO_DATA::default()
+        };
         // SAFETY: initialized output and bounded detail storage are live for the API call.
         unsafe {
             SetupDiGetDeviceInterfaceDetailW(
