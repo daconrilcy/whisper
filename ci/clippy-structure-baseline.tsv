@@ -160,10 +160,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn archive_root	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn pending_scan_and_resume_require_the_exact_qualified_test_key	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_archive.rs|fn r5_2_a4_product_route_publishes_french_and_english_txt_srt	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn assert_cpu_incompatible_native_refusal	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn gpu_app_en5_twice_release	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/parakeet_import.rs|fn incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary	1
