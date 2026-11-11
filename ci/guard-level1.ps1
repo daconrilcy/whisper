@@ -408,6 +408,207 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
     } finally { $process.Dispose() }
 }
 
+$script:structuralClippyLints = @(
+    'clippy::too_many_lines',
+    'clippy::cognitive_complexity',
+    'clippy::too_many_arguments',
+    'clippy::type_complexity'
+)
+
+function Test-StructuralClippyInvocation([string[]]$Arguments) {
+    if ($Arguments.Count -eq 0 -or $Arguments[0] -cne 'clippy' -or '--message-format=json' -cnotin $Arguments) { return $false }
+    $delimiter = [Array]::IndexOf($Arguments,'--')
+    if ($delimiter -lt 0) { return $false }
+    $lintArgs = @($Arguments[($delimiter + 1)..($Arguments.Count - 1)])
+    foreach ($lint in $script:structuralClippyLints) {
+        $found = $false
+        for ($i = 0; $i + 1 -lt $lintArgs.Count; $i += 2) {
+            if ($lintArgs[$i] -ceq '-W' -and $lintArgs[$i + 1] -ceq $lint) { $found = $true; break }
+        }
+        if (-not $found) { return $false }
+    }
+    return $true
+}
+
+function Get-StructuralClippyKey($Diagnostic, [string]$RepositoryRoot) {
+    $lint = [string]$Diagnostic.message.code.code
+    if ($lint -cnotin $script:structuralClippyLints) { return $null }
+    $span = @($Diagnostic.message.spans | Where-Object { $_.is_primary }) | Select-Object -First 1
+    if ($null -eq $span -or $null -eq $span.text -or $span.text.Count -lt 1 -or [string]::IsNullOrWhiteSpace([string]$span.text[0].text)) {
+        throw "Structural Clippy diagnostic $lint has no primary source text."
+    }
+    if ($null -eq $span.line_start -or [int]$span.line_start -lt 1) { throw "Structural Clippy diagnostic $lint has no source line." }
+    if ($null -eq $span.byte_start -or $null -eq $span.byte_end -or [long]$span.byte_end -lt [long]$span.byte_start) { throw "Structural Clippy diagnostic $lint has no valid primary span byte range." }
+    $packageId = [string]$Diagnostic.package_id
+    if ([string]::IsNullOrWhiteSpace($packageId)) { throw "Structural Clippy diagnostic $lint has no package id." }
+    $package = $packageId
+    if ($packageId -match '^path\+.+/([^/#]+)(?:#[^/]*)?$') { $package = [Uri]::UnescapeDataString($Matches[1]) }
+    $path = ([string]$span.file_name).Replace('\','/')
+    if ([string]::IsNullOrWhiteSpace($path)) { throw "Structural Clippy diagnostic $lint has no source path." }
+    if ([IO.Path]::IsPathRooted([string]$span.file_name)) {
+        $root = (Get-FullPath $RepositoryRoot).Replace('\','/') + '/'
+        if (-not $path.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)) { throw "Structural Clippy path is outside the worktree: $path" }
+        $path = $path.Substring($root.Length)
+    }
+    while ($path.StartsWith('./',[StringComparison]::Ordinal)) { $path = $path.Substring(2) }
+    if (($path -split '/') -contains '..' -or ($path -split '/') -contains '.' -or $path.Contains("`t")) { throw "Structural Clippy path is not a normalized relative path: $path" }
+    $signature = ([regex]::Replace([string]$span.text[0].text,'\s+',' ')).Trim()
+    $cut = $signature.Length
+    foreach ($marker in @('(','<','{')) {
+        $index = $signature.IndexOf($marker,[StringComparison]::Ordinal)
+        if ($index -ge 0 -and ($index + 1) -lt $cut) { $cut = $index + 1 }
+    }
+    $signature = $signature.Substring(0,$cut).Trim()
+    if ([string]::IsNullOrWhiteSpace($signature)) { throw "Structural Clippy diagnostic $lint has an empty normalized signature." }
+    return "$lint|$package|$path|$signature"
+}
+
+function ConvertFrom-StructuralClippyBaseline([string]$Text) {
+    $metadata = @{}
+    $rows = [Collections.Generic.List[string]]::new()
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line.StartsWith('#')) {
+            if ($line -match '^# (source_commit|date|command)=(.*)$') {
+                if ($metadata.ContainsKey($Matches[1])) { throw "Clippy structure baseline repeats # $($Matches[1]) metadata." }
+                $metadata[$Matches[1]] = $Matches[2]
+            }
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $rows.Add($line)
+    }
+    foreach ($name in @('source_commit','date','command')) {
+        if (-not $metadata.ContainsKey($name) -or [string]::IsNullOrWhiteSpace([string]$metadata[$name])) { throw "Clippy structure baseline is missing # $name metadata." }
+    }
+    if ($metadata.source_commit -notmatch '^[0-9a-f]{40}$') { throw 'Clippy structure baseline source_commit is not a full Git hash.' }
+    if ($metadata.date -notmatch '^\d{4}-\d{2}-\d{2}$') { throw 'Clippy structure baseline date must use YYYY-MM-DD.' }
+    $parsedDate = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($metadata.date,'yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$parsedDate)) { throw 'Clippy structure baseline date is invalid.' }
+    if ($rows.Count -lt 1 -or $rows[0] -cne "key`tcount") { throw 'Clippy structure baseline header must be key<TAB>count.' }
+    $counts = @{}
+    $previous = $null
+    for ($i = 1; $i -lt $rows.Count; $i++) {
+        $parts = $rows[$i].Split("`t")
+        if ($parts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0]) -or $parts[0] -notmatch '^(clippy::too_many_lines|clippy::cognitive_complexity|clippy::too_many_arguments|clippy::type_complexity)\|') { throw "Invalid Clippy structure baseline row $($i + 1)." }
+        $keyParts = $parts[0].Split([char]'|',4,[StringSplitOptions]::None)
+        if ($keyParts.Count -ne 4 -or [string]::IsNullOrWhiteSpace($keyParts[1]) -or [string]::IsNullOrWhiteSpace($keyParts[2]) -or [string]::IsNullOrWhiteSpace($keyParts[3])) { throw "Invalid Clippy structure baseline key on row $($i + 1)." }
+        if ($keyParts[2].Contains('\') -or [IO.Path]::IsPathRooted($keyParts[2]) -or ($keyParts[2] -split '/') -contains '..' -or ($keyParts[2] -split '/') -contains '.') { throw "Clippy structure baseline path is not normalized and relative on row $($i + 1)." }
+        if ($keyParts[3] -match '\s{2,}' -or $keyParts[3] -ne $keyParts[3].Trim()) { throw "Clippy structure baseline signature is not whitespace-normalized on row $($i + 1)." }
+        $count = 0
+        if (-not [int]::TryParse($parts[1],[ref]$count) -or $count -lt 1) { throw "Invalid Clippy structure baseline count on row $($i + 1)." }
+        if ($null -ne $previous -and [StringComparer]::Ordinal.Compare($previous,$parts[0]) -ge 0) { throw 'Clippy structure baseline keys must be unique and ordinally sorted.' }
+        if ($counts.ContainsKey($parts[0])) { throw "Duplicate Clippy structure baseline key: $($parts[0])" }
+        $counts[$parts[0]] = $count
+        $previous = $parts[0]
+    }
+    return [pscustomobject]@{ Counts=$counts; Metadata=$metadata }
+}
+
+function Read-StructuralClippyBaseline([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw 'Clippy structure baseline is missing; guarded Clippy fails closed.' }
+    return [IO.File]::ReadAllText($Path)
+}
+
+function Get-StructuralClippyCounts([string]$JsonLines, [string]$RepositoryRoot) {
+    $counts = @{}
+    $emissions = @{}
+    foreach ($line in ($JsonLines -split "`r?`n")) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try { $record = ConvertFrom-Json -InputObject $line -ErrorAction Stop } catch { throw "Clippy JSON output is invalid: $($_.Exception.Message)" }
+        if ($record.reason -cne 'compiler-message' -or $null -eq $record.message.code -or $record.message.code.code -cnotin $script:structuralClippyLints) { continue }
+        $key = Get-StructuralClippyKey $record $RepositoryRoot
+        $span = @($record.message.spans | Where-Object { $_.is_primary }) | Select-Object -First 1
+        $packageId = [string]$record.package_id
+        $package = $packageId
+        if ($packageId -match '^path\+.+/([^/#]+)(?:#[^/]*)?$') { $package = [Uri]::UnescapeDataString($Matches[1]) }
+        $path = ([string]$span.file_name).Replace('\','/')
+        $emission = "$($record.message.code.code)|$package|$path|$($span.byte_start)|$($span.byte_end)|$($record.message.message)"
+        if ($emissions.ContainsKey($emission)) { continue }
+        $emissions[$emission] = $true
+        if (-not $counts.ContainsKey($key)) { $counts[$key] = 0 }
+        $counts[$key]++
+    }
+    return $counts
+}
+
+function Compare-StructuralClippy([string]$JsonLines, [string]$BaselineText, [string]$RepositoryRoot) {
+    $baseline = ConvertFrom-StructuralClippyBaseline $BaselineText
+    $current = Get-StructuralClippyCounts $JsonLines $RepositoryRoot
+    $newSites = [Collections.Generic.List[string]]::new()
+    foreach ($key in $current.Keys) {
+        $accepted = if ($baseline.Counts.ContainsKey($key)) { [int]$baseline.Counts[$key] } else { 0 }
+        if ([int]$current[$key] -gt $accepted) { $newSites.Add("$key (current=$($current[$key]), baseline=$accepted)") }
+    }
+    return [pscustomobject]@{ NewSites=@($newSites.ToArray()); Current=$current; Baseline=$baseline }
+}
+
+function Assert-StructuralClippyPassed([int]$ExitCode) {
+    if ($ExitCode -ne 0) { throw "Guarded Cargo command failed with exit code $ExitCode." }
+}
+
+function New-StructuralClippyFixture([string]$Lint, [string]$Path, [string]$Signature, [int]$Line, [string]$TargetKind='lib', [int]$ByteStart=0) {
+    $name = switch ($TargetKind) { 'lib' { 'fixture_lib' } 'test' { 'fixture_test' } default { 'fixture_other' } }
+    return [pscustomobject]@{
+        reason='compiler-message'
+        package_id='path+file:///C:/fixture/crates/fixture-package#0.1.0'
+        target=[pscustomobject]@{ name=$name; kind=@($TargetKind) }
+        message=[pscustomobject]@{
+            code=[pscustomobject]@{ code=$Lint }
+            spans=@([pscustomobject]@{ is_primary=$true; file_name=$Path; line_start=$Line; line_end=$Line; byte_start=$ByteStart; byte_end=($ByteStart + $Signature.Length); text=@([pscustomobject]@{ text=$Signature }) })
+        }
+    } | ConvertTo-Json -Depth 8 -Compress
+}
+
+function Invoke-StructuralClippySelfTests {
+    $baseSignature = 'pub fn convert(value: usize) {'
+    $baseRecord = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10
+    $movedRecord = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 99
+    $key = 'clippy::too_many_lines|fixture-package|crates/fixture/src/lib.rs|pub fn convert('
+    $baseline = "# source_commit=$('a' * 40)`n# date=2026-11-11`n# command=cargo clippy fixture`nkey`tcount`n$key`t1"
+    $positive = 0
+    $negative = 0
+    foreach ($case in @(
+        @{ Name='unchanged'; Lines=@($baseRecord); Expected=0 },
+        @{ Name='retired'; Lines=@(); Expected=0 },
+        @{ Name='moved'; Lines=@($movedRecord); Expected=0 },
+        @{ Name='multi-target duplicate'; Lines=@($baseRecord,(New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10 'test')); Expected=0 },
+        @{ Name='out-of-scope lint'; Lines=@((New-StructuralClippyFixture 'clippy::needless_return' 'crates/fixture/src/lib.rs' $baseSignature 10)); Expected=0 }
+    )) {
+        $result = Compare-StructuralClippy ($case.Lines -join "`n") $baseline $repo
+        if ($result.NewSites.Count -ne $case.Expected) { throw "Structural Clippy SelfTest failed for $($case.Name)." }
+        $positive++
+    }
+    foreach ($case in @(
+        @{ Name='new alert'; Lines=@((New-StructuralClippyFixture 'clippy::cognitive_complexity' 'crates/fixture/src/lib.rs' 'fn fresh() {' 20)); Baseline=$baseline; Match='clippy::cognitive_complexity' },
+        @{ Name='same-key duplicate occurrence'; Lines=@($baseRecord,(New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10 'lib' 100)); Baseline=$baseline; Match='current=2, baseline=1' },
+        @{ Name='invalid baseline'; Lines=@($baseRecord); Baseline="# source_commit=bad`n# date=2026-11-11`n# command=cargo clippy`nkey`tcount`n$key`t1"; Match='source_commit' },
+        @{ Name='malformed JSON'; Lines=@('{bad json'); Baseline=$baseline; Match='JSON output is invalid' }
+    )) {
+        $rejected = $false
+        try { $result = Compare-StructuralClippy ($case.Lines -join "`n") $case.Baseline $repo; $rejected = $result.NewSites.Count -gt 0 } catch { $rejected = $_.Exception.Message.Contains($case.Match) }
+        if (-not $rejected) { throw "Structural Clippy SelfTest accepted $($case.Name)." }
+        $negative++
+    }
+    $missingSpan = New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10 | ConvertFrom-Json
+    $missingSpan.message.spans[0].text = @()
+    $rejected = $false
+    try { [void](Compare-StructuralClippy ($missingSpan | ConvertTo-Json -Depth 8 -Compress) $baseline $repo) } catch { $rejected = $_.Exception.Message.Contains('no primary source text') }
+    if (-not $rejected) { throw 'Structural Clippy SelfTest accepted a primary span without text.' }
+    $negative++
+    $rejected = $false
+    try { [void](Read-StructuralClippyBaseline (Join-Path $runRoot ('missing-baseline-' + [guid]::NewGuid().ToString('N') + '.tsv'))) } catch { $rejected = $_.Exception.Message.Contains('baseline is missing') }
+    if (-not $rejected) { throw 'Structural Clippy SelfTest accepted a missing baseline.' }
+    $negative++
+    $rejected = $false
+    try { Assert-StructuralClippyPassed 101 } catch { $rejected = $_.Exception.Message -match 'exit code 101' }
+    if (-not $rejected) { throw 'Structural Clippy SelfTest accepted a failed Cargo command.' }
+    $negative++
+    $goodArgs = @('clippy','--workspace','--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')
+    if (-not (Test-StructuralClippyInvocation $goodArgs) -or (Test-StructuralClippyInvocation @('clippy','--workspace','--message-format=json','--','-W','clippy::too_many_lines'))) { throw 'Structural Clippy SelfTest found an invalid activation boundary.' }
+    $positive++
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
+}
+
 function Set-ProcessEnvironmentValue([string]$Name, [AllowNull()][object]$Value) {
     if ($null -eq $Value) {
         # A null passed to the .NET string parameter can leave an empty entry.
@@ -781,8 +982,11 @@ function Invoke-SelfTests {
         $script:personalModel = $savedModel
         Set-CleanEnvironment
     }
+    $clippySelfTests = Invoke-StructuralClippySelfTests
+    $pCount += $clippySelfTests.Positive
+    $nCount += $clippySelfTests.Negative
     "CARGO_TARGET_DIR_CLEANUP present_before=$script:cargoTargetDirPresentBeforeClean present_after=$script:cargoTargetDirPresentAfterClean"
-    'PASS self-test parser cases: positives={0}, negatives={1}.' -f $pCount,$nCount
+    'PASS self-test parser and Clippy ratchet cases: positives={0}, negatives={1}.' -f $pCount,$nCount
 }
 
 function Invoke-Structure {
@@ -849,6 +1053,7 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $checked = Test-CargoArguments $CargoArgs $members
 }
 Set-CargoCommandEnvironment $checked.Args[0]
+$script:structuralClippyActive = Test-StructuralClippyInvocation $checked.Args
 $cargoArgs = @($checked.Args)
 if ($script:useConfigTarget -and $checked.Args[0] -cne 'fmt') {
     if ($checked.Category -eq 'Fetch') { throw 'The no-variable mode is not available for cargo fetch.' }
@@ -871,4 +1076,16 @@ $result = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $cargoArg
 Get-Content -LiteralPath $result.OutPath -Tail 30
 Get-Content -LiteralPath $result.ErrPath -Tail 30
 "N1_GUARD category=$($checked.Category) exit_code=$($result.ExitCode) CARGO_TARGET_DIR_child=$($result.CargoTargetEnvPresent) target_directory=$script:targetRoot stdout=$($result.OutPath) stderr=$($result.ErrPath)"
-if ($result.ExitCode -ne 0) { throw "Guarded Cargo command failed with exit code $($result.ExitCode)." }
+try { Assert-StructuralClippyPassed $result.ExitCode } catch { throw $_ }
+if ($script:structuralClippyActive) {
+    $baselinePath = Join-Path $repo 'ci/clippy-structure-baseline.tsv'
+    $baselineText = Read-StructuralClippyBaseline $baselinePath
+    $comparison = Compare-StructuralClippy $result.Stdout $baselineText $repo
+    if ($comparison.NewSites.Count -gt 0) {
+        $details = [string]::Join("`n",[string[]]$comparison.NewSites)
+        throw "New structural Clippy alert(s) detected:`n$details"
+    }
+    $currentSites = [int](($comparison.Current.Values | Measure-Object -Sum).Sum)
+    $baselineSites = [int](($comparison.Baseline.Counts.Values | Measure-Object -Sum).Sum)
+    "CLIPPY_STRUCTURE_RATCHET PASS keys=$($comparison.Current.Count) sites=$currentSites baseline_keys=$($comparison.Baseline.Counts.Count) baseline_sites=$baselineSites"
+}
