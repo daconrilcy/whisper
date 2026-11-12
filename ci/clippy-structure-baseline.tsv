@@ -93,7 +93,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/r
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/capture.rs|fn pump_live_windows	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs|fn advance_parakeet_vad_decode	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/parakeet.rs|fn poll_parakeet_worker	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests.rs|fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phases	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/collection_priority.rs|fn poll_ready_unified_import_precedes_ready_document_drain	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll_unified.rs|fn retry_native_gpu_startup_on_cpu	1

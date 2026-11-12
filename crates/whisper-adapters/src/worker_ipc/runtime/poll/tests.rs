@@ -531,20 +531,7 @@ fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phase
         Some(Ok(ImportEvent::Ready { .. }))
     ));
     let stalled_at = Instant::now() + Duration::from_secs(61);
-    assert!(matches!(
-        runtime
-            .progress
-            .as_mut()
-            .and_then(|progress| progress.take_warning(stalled_at)),
-        Some((ProgressPhase::Inference, _))
-    ));
-    assert!(matches!(
-        runtime
-            .progress
-            .as_mut()
-            .and_then(|progress| progress.take_warning(stalled_at)),
-        Some((ProgressPhase::Import, _))
-    ));
+    assert_inference_and_import_warnings(&mut runtime.progress, stalled_at);
     assert!(matches!(
         runtime.poll(),
         Some(Ok(ImportEvent::Progress {
@@ -560,20 +547,10 @@ fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phase
             .and_then(|progress| progress.take_warning(observed_at + Duration::from_secs(59)))
             .is_none()
     );
-    assert!(matches!(
-        runtime
-            .progress
-            .as_mut()
-            .and_then(|progress| progress.take_warning(observed_at + Duration::from_secs(61))),
-        Some((ProgressPhase::Inference, _))
-    ));
-    assert!(matches!(
-        runtime
-            .progress
-            .as_mut()
-            .and_then(|progress| progress.take_warning(observed_at + Duration::from_secs(61))),
-        Some((ProgressPhase::Import, _))
-    ));
+    assert_inference_and_import_warnings(
+        &mut runtime.progress,
+        observed_at + Duration::from_secs(61),
+    );
     let rearmed_at = Instant::now();
     for phase in [ProgressPhase::Inference, ProgressPhase::Import] {
         runtime
@@ -601,6 +578,24 @@ fn poll_progress_observations_reset_idle_warning_and_terminal_events_close_phase
     assert!(diagnostic.contains("\"phase\":\"import\""));
     assert!(diagnostic.contains("\"completed_samples\":120"));
     assert!(diagnostic.contains("\"phase\":\"cancelling\""));
+}
+
+fn assert_inference_and_import_warnings(
+    progress: &mut Option<ProgressSupervisor>,
+    observed_at: Instant,
+) {
+    assert!(matches!(
+        progress
+            .as_mut()
+            .and_then(|progress| progress.take_warning(observed_at)),
+        Some((ProgressPhase::Inference, _))
+    ));
+    assert!(matches!(
+        progress
+            .as_mut()
+            .and_then(|progress| progress.take_warning(observed_at)),
+        Some((ProgressPhase::Import, _))
+    ));
 }
 
 #[test]
