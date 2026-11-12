@@ -705,15 +705,7 @@
         .with_controlled_transcriber(worker);
         recycled.native_executor_route = Some(make_route(ComputeChoice::Gpu));
         let mut executor = UnifiedInferenceExecutor::start(controlled_worker().0).unwrap();
-        let ready_deadline = Instant::now() + Duration::from_secs(5);
-        while !executor.is_ready().unwrap() {
-            assert!(
-                Instant::now() < ready_deadline,
-                "initial worker did not become ready"
-            );
-            thread::sleep(Duration::from_millis(2));
-        }
-        executor.stop_and_reap().unwrap();
+        wait_until_ready_then_reap(&mut executor);
         recycled.unified_executor = Some(executor);
         let session = whisper_core::parakeet_scheduler::SchedulerSession {
             job_id: request.job_id,
@@ -777,6 +769,18 @@
             .stop_and_reap()
             .unwrap();
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn wait_until_ready_then_reap(executor: &mut UnifiedInferenceExecutor) {
+        let ready_deadline = Instant::now() + Duration::from_secs(5);
+        while !executor.is_ready().unwrap() {
+            assert!(
+                Instant::now() < ready_deadline,
+                "initial worker did not become ready"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+        executor.stop_and_reap().unwrap();
     }
 
     #[cfg(windows)]

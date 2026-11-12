@@ -110,7 +110,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_executor_backend_changes_only_after_the_prior_instance_is_reaped	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c	1
