@@ -252,27 +252,13 @@ struct ControlledChildObservation {
 #[cfg(test)]
 fn observe_controlled_child(
     observer: Option<&Arc<Mutex<Vec<ControlledChildObservation>>>>,
-    incarnation: u64,
-    event: &'static str,
-    job_id: Option<JobId>,
-    generation: Option<Generation>,
-    attempt: Option<u64>,
-    wire_request_id: u64,
-    retained_job_ids: usize,
+    observation: ControlledChildObservation,
 ) {
     if let Some(observer) = observer {
         observer
             .lock()
             .expect("controlled child observation mutex")
-            .push(ControlledChildObservation {
-                incarnation,
-                event,
-                job_id,
-                generation,
-                attempt,
-                wire_request_id,
-                retained_job_ids,
-            });
+            .push(observation);
     }
 }
 

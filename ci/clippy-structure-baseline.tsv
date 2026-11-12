@@ -40,7 +40,6 @@ clippy::cognitive_complexity|whisper-core|crates/whisper-core/src/application/ru
 clippy::cognitive_complexity|whisper-desktop|crates/whisper-desktop/src/ui/tests/microphone_controls.rs|fn microphone_test_button_stops_after_neutral_gain_ack_and_reopens	1
 clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_diagnostics_absence.rs|fn run	1
 clippy::cognitive_complexity|whisper-worker-parakeet-cpu|crates/whisper-worker-parakeet-cpu/tests/native_import.rs|fn cpu_worker_accepts_fr_and_en_twenty_times_in_one_process_and_exits_without_unload	1
-clippy::too_many_arguments|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn observe_controlled_child	1
 clippy::too_many_arguments|whisper-worker-cpu|crates/whisper-worker-cpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_arguments|whisper-worker-gpu|crates/whisper-worker-gpu/src/session/live.rs|fn run_live_service	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/cleanup/execution.rs|fn run_cleanup_plan_locked	1
