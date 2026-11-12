@@ -139,7 +139,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/live_archive.rs|fn passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation	1

@@ -472,26 +472,20 @@ fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events() {
         job_id: request.job_id,
         generation: request.generation,
     };
-    for _ in 0..100 {
-        runtime
-            .borrow_mut()
-            .unified_sessions
-            .get_mut(&session)
-            .unwrap()
-            .source
-            .enqueue_test_block(vec![0.2; 320]);
-        app.dispatch(AppCommand::Refresh).unwrap();
-        thread::sleep(Duration::from_millis(20));
-    }
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline {
+    feed_capture_until_probes_arrive(|enqueue| {
+        if enqueue {
+            runtime
+                .borrow_mut()
+                .unified_sessions
+                .get_mut(&session)
+                .unwrap()
+                .source
+                .enqueue_test_block(vec![0.2; 320]);
+        }
         app.dispatch(AppCommand::Refresh).unwrap();
         let view = app.view();
-        if view.microphone_meter.is_some() && view.microphone_spectrum.is_some() {
-            break;
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
+        view.microphone_meter.is_some() && view.microphone_spectrum.is_some()
+    });
     let view = app.view();
     let meter = view
         .microphone_meter
@@ -501,56 +495,90 @@ fn unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events() {
         .microphone_spectrum
         .clone()
         .expect("unified spectrum arrives");
-    assert_eq!(
+    assert_probe_identity(
         (
             meter.job_id,
             meter.generation,
-            meter.source_identity.as_str()
+            meter.source_identity.as_str(),
         ),
-        (request.job_id, request.generation, source_identity.as_str())
+        (request.job_id, request.generation, source_identity.as_str()),
     );
-    assert_eq!(
+    assert_probe_identity(
         (
             spectrum.job_id,
             spectrum.generation,
-            spectrum.source_identity.as_str()
+            spectrum.source_identity.as_str(),
         ),
-        (request.job_id, request.generation, source_identity.as_str())
+        (request.job_id, request.generation, source_identity.as_str()),
     );
-    let mut old_meter = meter.clone();
-    old_meter.job_id = JobId(request.job_id.0 - 1);
-    old_meter.sequence += 100;
-    inject
-        .try_send(ImportEvent::MicrophoneMeter(old_meter))
-        .unwrap();
-    app.dispatch(AppCommand::Refresh).unwrap();
-    assert_eq!(
-        app.view().microphone_meter.as_ref().unwrap().job_id,
-        request.job_id
-    );
-    let mut wrong_spectrum = spectrum;
-    wrong_spectrum.source_identity = "test:wrong".into();
-    wrong_spectrum.sequence += 100;
-    inject
-        .try_send(ImportEvent::MicrophoneSpectrum(
-            whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(wrong_spectrum),
-        ))
-        .unwrap();
-    app.dispatch(AppCommand::Refresh).unwrap();
-    assert_eq!(
+    assert_ignored_old_meter(&inject, meter.clone(), request.job_id, || {
+        app.dispatch(AppCommand::Refresh).unwrap();
+        app.view().microphone_meter.as_ref().unwrap().job_id
+    });
+    assert_ignored_wrong_spectrum(&inject, spectrum, &source_identity, || {
+        app.dispatch(AppCommand::Refresh).unwrap();
         app.view()
             .microphone_spectrum
             .as_ref()
             .unwrap()
-            .source_identity,
-        source_identity
-    );
+            .source_identity
+            .clone()
+    });
     app.dispatch(AppCommand::StopUnifiedLive {
         job_id: request.job_id,
         generation: request.generation,
     })
     .unwrap();
     assert!(app.view().microphone_meter.is_none() && app.view().microphone_spectrum.is_none());
+}
+
+fn assert_probe_identity(actual: (JobId, Generation, &str), expected: (JobId, Generation, &str)) {
+    assert_eq!(actual, expected);
+}
+
+fn feed_capture_until_probes_arrive(mut refresh: impl FnMut(bool) -> bool) {
+    for _ in 0..100 {
+        refresh(true);
+        thread::sleep(Duration::from_millis(20));
+    }
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if refresh(false) {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn assert_ignored_old_meter(
+    inject: &std::sync::mpsc::SyncSender<ImportEvent>,
+    meter: whisper_core::microphone_level::MicrophoneMeter,
+    expected_job_id: JobId,
+    refresh_and_current_job: impl FnOnce() -> JobId,
+) {
+    let mut old_meter = meter;
+    old_meter.job_id = JobId(expected_job_id.0 - 1);
+    old_meter.sequence += 100;
+    inject
+        .try_send(ImportEvent::MicrophoneMeter(old_meter))
+        .unwrap();
+    assert_eq!(refresh_and_current_job(), expected_job_id);
+}
+
+fn assert_ignored_wrong_spectrum(
+    inject: &std::sync::mpsc::SyncSender<ImportEvent>,
+    mut spectrum: whisper_core::microphone_level::MicrophoneSpectrum,
+    expected_source_identity: &str,
+    refresh_and_current_identity: impl FnOnce() -> String,
+) {
+    spectrum.source_identity = "test:wrong".into();
+    spectrum.sequence += 100;
+    inject
+        .try_send(ImportEvent::MicrophoneSpectrum(
+            whisper_core::microphone_level::MicrophoneSpectrumUpdate::Available(spectrum),
+        ))
+        .unwrap();
+    assert_eq!(refresh_and_current_identity(), expected_source_identity);
 }
 
 #[test]
