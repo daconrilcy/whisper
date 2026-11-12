@@ -2,61 +2,68 @@ use super::*;
 
 pub(super) enum PollCollectionControl {
     Next,
-    Return(Option<Result<ImportEvent, (JobId, Generation, String)>>),
+    Return,
     Finish(WorkerEvent),
+}
+
+type PollOutput = Option<Result<ImportEvent, (JobId, Generation, String)>>;
+
+fn return_poll(output: &mut PollOutput, value: PollOutput) -> PollCollectionControl {
+    *output = value;
+    PollCollectionControl::Return
 }
 
 #[warn(clippy::too_many_lines, clippy::cognitive_complexity)]
 impl ImportRuntime {
-    pub(super) fn collect_poll_event(&mut self) -> PollCollectionControl {
-        match self.poll_priority_sources() {
+    pub(super) fn collect_poll_event(&mut self, output: &mut PollOutput) -> PollCollectionControl {
+        match self.poll_priority_sources(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_parakeet_capture() {
+        match self.poll_parakeet_capture(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_live_observations() {
+        match self.poll_live_observations(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_live_capture_event() {
+        match self.poll_live_capture_event(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_parakeet_vad() {
+        match self.poll_parakeet_vad(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_parakeet_event() {
+        match self.poll_parakeet_event(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        match self.poll_deferred_live_stop() {
+        match self.poll_deferred_live_stop(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
-        self.poll_transport_event()
+        self.poll_transport_event(output)
     }
 
-    fn poll_priority_sources(&mut self) -> PollCollectionControl {
+    fn poll_priority_sources(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if let Some(event) = self.poll_unified_sessions() {
             if let Err((job_id, generation, _)) = &event {
                 self.release_unified_terminal_state(*job_id, *generation);
             }
-            return PollCollectionControl::Return(Some(event));
+            return return_poll(output, Some(event));
         }
         if let Some(event) = self.poll_unified_document() {
             if let Err((job_id, generation, _)) = &event {
                 self.release_unified_terminal_state(*job_id, *generation);
             }
-            return PollCollectionControl::Return(Some(event));
+            return return_poll(output, Some(event));
         }
         if let Some(event) = self.parakeet_pending_events.pop_front() {
-            return PollCollectionControl::Return(Some(Ok(event)));
+            return return_poll(output, Some(Ok(event)));
         }
-        match self.poll_microphone_test() {
+        match self.poll_microphone_test(output) {
             PollCollectionControl::Next => {}
             control => return control,
         }
@@ -67,30 +74,28 @@ impl ImportRuntime {
         {
             self.idle_worker = None;
         }
-        self.poll_direct_live()
+        self.poll_direct_live(output)
     }
 
-    fn poll_microphone_test(&mut self) -> PollCollectionControl {
+    fn poll_microphone_test(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if let Some(test) = self.microphone_test.as_mut() {
             let identity = (test.job_id, test.generation);
             match test.pump() {
-                Ok(Some(event)) => return PollCollectionControl::Return(Some(Ok(event))),
+                Ok(Some(event)) => return return_poll(output, Some(Ok(event))),
                 Ok(None) => {}
                 Err(error) => {
                     if let Some(mut test) = self.microphone_test.take() {
                         test.probe.invalidate();
                         test.capture.stop();
                     }
-                    return PollCollectionControl::Return(Some(Err((
-                        identity.0, identity.1, error,
-                    ))));
+                    return return_poll(output, Some(Err((identity.0, identity.1, error))));
                 }
             }
         }
         PollCollectionControl::Next
     }
 
-    fn poll_direct_live(&mut self) -> PollCollectionControl {
+    fn poll_direct_live(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if let Some(direct) = self.direct_live.as_mut() {
             let id = direct.identity();
             let result = direct.poll().map_err(|error| direct.fail(error));
@@ -112,21 +117,21 @@ impl ImportRuntime {
                 self.direct_live = None;
             }
             match result {
-                Ok(Some(event)) => return PollCollectionControl::Return(Some(Ok(event))),
+                Ok(Some(event)) => return return_poll(output, Some(Ok(event))),
                 Ok(None) => {}
                 Err(error) => {
-                    return PollCollectionControl::Return(Some(Err((id.0, id.1, error))));
+                    return return_poll(output, Some(Err((id.0, id.1, error))));
                 }
             }
         }
         PollCollectionControl::Next
     }
 
-    fn poll_parakeet_capture(&mut self) -> PollCollectionControl {
+    fn poll_parakeet_capture(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if let Some(live) = self.parakeet_live.as_mut() {
             let id = live.identity();
             match live.poll() {
-                Ok(Some(event)) => return PollCollectionControl::Return(Some(Ok(event))),
+                Ok(Some(event)) => return return_poll(output, Some(Ok(event))),
                 Ok(None) => {}
                 Err(error) => {
                     let event = live.stop_after_capture_error(error);
@@ -134,30 +139,29 @@ impl ImportRuntime {
                     self.parakeet_pending_events.push_back(event);
                     self.parakeet_live = None;
                     if let Some(event) = self.parakeet_pending_events.pop_front() {
-                        return PollCollectionControl::Return(Some(Ok(event)));
+                        return return_poll(output, Some(Ok(event)));
                     }
-                    return PollCollectionControl::Return(Some(Err((
-                        id.0,
-                        id.1,
-                        "Capture Parakeet interrompue".into(),
-                    ))));
+                    return return_poll(
+                        output,
+                        Some(Err((id.0, id.1, "Capture Parakeet interrompue".into()))),
+                    );
                 }
             }
         }
         PollCollectionControl::Next
     }
 
-    fn poll_live_observations(&mut self) -> PollCollectionControl {
+    fn poll_live_observations(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if let Some(event) = self.pending_recovery_counters.take() {
-            return PollCollectionControl::Return(Some(Ok(event)));
+            return return_poll(output, Some(Ok(event)));
         }
         if self.live.as_ref().is_some_and(|live| live.worker_ready)
             && let Some(event) = self.pending_attempt_reset.take()
         {
-            return PollCollectionControl::Return(Some(Ok(event)));
+            return return_poll(output, Some(Ok(event)));
         }
         if let Some(event) = self.take_observation_notice() {
-            return PollCollectionControl::Return(Some(Ok(event)));
+            return return_poll(output, Some(Ok(event)));
         }
         if self
             .live
@@ -168,13 +172,13 @@ impl ImportRuntime {
                 live.telemetry_due_after_event = false;
             }
             if let Some(event) = self.take_legacy_live_telemetry() {
-                return PollCollectionControl::Return(Some(Ok(event)));
+                return return_poll(output, Some(Ok(event)));
             }
         }
         PollCollectionControl::Next
     }
 
-    fn poll_live_capture_event(&mut self) -> PollCollectionControl {
+    fn poll_live_capture_event(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         let capture_may_publish = live_capture_poll_allowed(
             self.live_capture_events_since_worker_poll,
             self.transport.is_some(),
@@ -196,15 +200,15 @@ impl ImportRuntime {
             }
             self.live_capture_events_since_worker_poll =
                 self.live_capture_events_since_worker_poll.saturating_add(1);
-            return PollCollectionControl::Return(Some(event));
+            return return_poll(output, Some(event));
         }
         if self.deferred_live_window_finished.is_some() && self.live_pending_persistence > 0 {
-            return PollCollectionControl::Return(None);
+            return return_poll(output, None);
         }
         PollCollectionControl::Next
     }
 
-    fn poll_parakeet_vad(&mut self) -> PollCollectionControl {
+    fn poll_parakeet_vad(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if self
             .parakeet_vad
             .as_ref()
@@ -218,7 +222,7 @@ impl ImportRuntime {
             self.parakeet_vad = None;
             self.parakeet_events.clear();
             self.active = None;
-            return PollCollectionControl::Return(Some(Err(failure)));
+            return return_poll(output, Some(Err(failure)));
         }
         if self
             .parakeet_vad
@@ -233,11 +237,11 @@ impl ImportRuntime {
                 self.parakeet_vad = None;
                 self.parakeet_events.clear();
                 self.active = None;
-                return PollCollectionControl::Return(Some(Err(failure)));
+                return return_poll(output, Some(Err(failure)));
             }
             let active = match self.active.as_ref() {
                 Some(active) => active,
-                None => return PollCollectionControl::Return(None),
+                None => return return_poll(output, None),
             };
             self.parakeet_events.push_back(WorkerEvent::Ready {
                 job_id: active.job_id,
@@ -252,29 +256,29 @@ impl ImportRuntime {
         PollCollectionControl::Next
     }
 
-    fn poll_parakeet_event(&mut self) -> PollCollectionControl {
+    fn poll_parakeet_event(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if self.parakeet.is_some() || !self.parakeet_events.is_empty() {
             match self.poll_parakeet_worker() {
                 Some(Ok(event)) => return PollCollectionControl::Finish(event),
                 Some(Err(error)) => {
                     let active = match self.active.as_ref() {
                         Some(active) => active,
-                        None => return PollCollectionControl::Return(None),
+                        None => return return_poll(output, None),
                     };
                     let failure = (active.job_id, active.generation, format!("{error:?}"));
                     self.parakeet = None;
                     self.parakeet_stopped_ack = false;
                     self.parakeet_events.clear();
                     self.active = None;
-                    return PollCollectionControl::Return(Some(Err(failure)));
+                    return return_poll(output, Some(Err(failure)));
                 }
-                None => return PollCollectionControl::Return(None),
+                None => return return_poll(output, None),
             }
         }
         PollCollectionControl::Next
     }
 
-    fn poll_deferred_live_stop(&mut self) -> PollCollectionControl {
+    fn poll_deferred_live_stop(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         if self.deferred_live_stopped.is_some() {
             if self.live_pending_persistence > 0
                 || self
@@ -283,23 +287,23 @@ impl ImportRuntime {
                     .and_then(|transport| transport.try_wait().ok().flatten())
                     .is_none()
             {
-                return PollCollectionControl::Return(None);
+                return return_poll(output, None);
             }
             return match take_ready_live_stop(
                 self.live_pending_persistence,
                 &mut self.deferred_live_stopped,
             ) {
                 Some(event) => PollCollectionControl::Finish(event),
-                None => PollCollectionControl::Return(None),
+                None => return_poll(output, None),
             };
         }
         PollCollectionControl::Next
     }
 
-    fn poll_transport_event(&mut self) -> PollCollectionControl {
+    fn poll_transport_event(&mut self, output: &mut PollOutput) -> PollCollectionControl {
         let transport = match self.transport.as_mut() {
             Some(transport) => transport,
-            None => return PollCollectionControl::Return(None),
+            None => return return_poll(output, None),
         };
         let received = transport.receive();
         self.live_capture_events_since_worker_poll = 0;
@@ -307,16 +311,20 @@ impl ImportRuntime {
             Ok(Some(event)) => PollCollectionControl::Finish(event),
             Ok(None) => {
                 let _ = transport.try_wait();
-                PollCollectionControl::Return(self.take_legacy_live_telemetry().map(Ok))
+                return_poll(output, self.take_legacy_live_telemetry().map(Ok))
             }
-            Err(error) => self.poll_transport_error(error),
+            Err(error) => self.poll_transport_error(error, output),
         }
     }
 
-    fn poll_transport_error(&mut self, error: PortError) -> PollCollectionControl {
+    fn poll_transport_error(
+        &mut self,
+        error: PortError,
+        output: &mut PollOutput,
+    ) -> PollCollectionControl {
         let active = match self.active.as_ref() {
             Some(active) => active,
-            None => return PollCollectionControl::Return(None),
+            None => return return_poll(output, None),
         };
         let (job_id, generation, instance_id) =
             (active.job_id, active.generation, active.instance_id);
@@ -337,12 +345,15 @@ impl ImportRuntime {
                 generation,
                 instance_id,
             });
-            return PollCollectionControl::Return(Some(self.handle_worker_failure(
-                job_id,
-                generation,
-                whisper_core::ipc::WorkerErrorCode::WorkerExited,
-                format!("WorkerExited without End: {error:?}"),
-            )));
+            return return_poll(
+                output,
+                Some(self.handle_worker_failure(
+                    job_id,
+                    generation,
+                    whisper_core::ipc::WorkerErrorCode::WorkerExited,
+                    format!("WorkerExited without End: {error:?}"),
+                )),
+            );
         }
         let failure = Err((
             job_id,
@@ -357,6 +368,6 @@ impl ImportRuntime {
         self.live_archive = None;
         self.transport = None;
         self.active = None;
-        PollCollectionControl::Return(Some(failure))
+        return_poll(output, Some(failure))
     }
 }

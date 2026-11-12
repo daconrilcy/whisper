@@ -203,24 +203,7 @@ impl ParakeetLive {
         self.finalizing = true;
         self.probe.invalidate();
         let mut failures = Vec::new();
-        if let Some(mut capture) = self.capture.take() {
-            capture.stop();
-            if let Err(error) = self.drain_stopped_capture(&mut capture) {
-                failures.push(format!("Drain microphone incomplet : {error}"));
-            }
-        }
-        if let Some(mut converter) = self.converter.take() {
-            match converter.finish() {
-                Ok(tail) => {
-                    if let Some(wav) = self.wav.as_mut()
-                        && let Err(error) = wav.append(&tail)
-                    {
-                        failures.push(format!("Dernier bloc audio non écrit : {error}"));
-                    }
-                }
-                Err(error) => failures.push(format!("Conversion audio incomplète : {error}")),
-            }
-        }
+        self.finish_capture_input(&mut failures);
         let durable_end = self.wav.as_ref().map_or(0, WavOutput::sample_count);
         let deadline = Instant::now() + FINALIZE_TIMEOUT;
         while !self.unavailable && Instant::now() < deadline {
@@ -242,71 +225,14 @@ impl ParakeetLive {
             failures.push("Délai de finalisation Parakeet dépassé".into());
         }
         if failures.is_empty() && !self.unavailable {
-            // One bounded reread per unresolved interval, at most four intervals.
-            // The source is the already durable WAV, never an inferred text edit.
-            for range in self.confirmation.recovery_ranges() {
-                if Instant::now() >= deadline {
-                    break;
-                }
-                if self.recovery_attempts.len() >= MAX_RECOVERY_ATTEMPTS {
-                    break;
-                }
-                // Live and finalization rereads share one ledger. Overlapping
-                // targets represent the same unresolved audio portion and may
-                // not consume a second attempt.
-                if self.recovery_attempts.contains_overlap(range) {
-                    continue;
-                }
-                let local_start = range
-                    .start_sample
-                    .saturating_sub(self.request.group_offset_samples);
-                let start = local_start.saturating_sub(SAMPLE_RATE);
-                let count = durable_end.saturating_sub(start).min(WINDOW_SAMPLES);
-                if count < SAMPLE_RATE {
-                    continue;
-                }
-                match self.submit_window(start, count, false, Some(range)) {
-                    Ok(true) => self.recovery_attempts.record(range),
-                    Ok(false) => {
-                        failures.push("Récupération Parakeet non admise".into());
-                        break;
-                    }
-                    Err(error) => {
-                        self.recovery_attempts.record(range);
-                        failures.push(format!("Récupération Parakeet impossible : {error}"));
-                        break;
-                    }
-                }
-                while self.inflight && !self.unavailable && Instant::now() < deadline {
-                    if let Err(error) = self.poll() {
-                        failures.push(format!("Récupération Parakeet interrompue : {error}"));
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(10));
-                }
-                if self.inflight || self.unavailable || !failures.is_empty() {
-                    break;
-                }
-            }
+            self.recover_unresolved_ranges(durable_end, deadline, &mut failures);
         }
         if self.inflight && !failures.iter().any(|item| item.contains("Délai")) {
             failures.push("Délai de finalisation Parakeet dépassé".into());
         }
         self.confirmation.finalize_observed();
         self.cancel_inference.store(true, Ordering::Release);
-        let path = match self.wav.take() {
-            Some(wav) => match wav.finish() {
-                Ok(path) => path,
-                Err(error) => {
-                    failures.push(format!("Finalisation WAV impossible : {error}"));
-                    String::new()
-                }
-            },
-            None => {
-                failures.push("WAV de capture indisponible à la clôture".into());
-                String::new()
-            }
-        };
+        let path = self.finish_wav(&mut failures);
         let _ = self.inference_request.try_send(InferenceRequest::Stop);
         // The worker writes its stderr log beneath this session root. Keep that
         // diagnostic evidence; a non-empty root is not a capture-stop failure.
@@ -350,6 +276,94 @@ impl ParakeetLive {
             diagnostic: (!diagnostic.is_empty()).then(|| diagnostic.join(" ; ")),
             automatic_final: None,
         })
+    }
+
+    fn finish_capture_input(&mut self, failures: &mut Vec<String>) {
+        if let Some(mut capture) = self.capture.take() {
+            capture.stop();
+            if let Err(error) = self.drain_stopped_capture(&mut capture) {
+                failures.push(format!("Drain microphone incomplet : {error}"));
+            }
+        }
+        if let Some(mut converter) = self.converter.take() {
+            match converter.finish() {
+                Ok(tail) => {
+                    if let Some(wav) = self.wav.as_mut()
+                        && let Err(error) = wav.append(&tail)
+                    {
+                        failures.push(format!("Dernier bloc audio non écrit : {error}"));
+                    }
+                }
+                Err(error) => failures.push(format!("Conversion audio incomplète : {error}")),
+            }
+        }
+    }
+
+    fn recover_unresolved_ranges(
+        &mut self,
+        durable_end: u64,
+        deadline: Instant,
+        failures: &mut Vec<String>,
+    ) {
+        // One bounded reread per unresolved interval, at most four intervals.
+        // The source is the already durable WAV, never an inferred text edit.
+        for range in self.confirmation.recovery_ranges() {
+            if Instant::now() >= deadline || self.recovery_attempts.len() >= MAX_RECOVERY_ATTEMPTS {
+                break;
+            }
+            // Live and finalization rereads share one ledger. Overlapping
+            // targets represent the same unresolved audio portion and may
+            // not consume a second attempt.
+            if self.recovery_attempts.contains_overlap(range) {
+                continue;
+            }
+            let local_start = range
+                .start_sample
+                .saturating_sub(self.request.group_offset_samples);
+            let start = local_start.saturating_sub(SAMPLE_RATE);
+            let count = durable_end.saturating_sub(start).min(WINDOW_SAMPLES);
+            if count < SAMPLE_RATE {
+                continue;
+            }
+            match self.submit_window(start, count, false, Some(range)) {
+                Ok(true) => self.recovery_attempts.record(range),
+                Ok(false) => {
+                    failures.push("Récupération Parakeet non admise".into());
+                    break;
+                }
+                Err(error) => {
+                    self.recovery_attempts.record(range);
+                    failures.push(format!("Récupération Parakeet impossible : {error}"));
+                    break;
+                }
+            }
+            while self.inflight && !self.unavailable && Instant::now() < deadline {
+                if let Err(error) = self.poll() {
+                    failures.push(format!("Récupération Parakeet interrompue : {error}"));
+                    break;
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+            if self.inflight || self.unavailable || !failures.is_empty() {
+                break;
+            }
+        }
+    }
+
+    fn finish_wav(&mut self, failures: &mut Vec<String>) -> String {
+        match self.wav.take() {
+            Some(wav) => match wav.finish() {
+                Ok(path) => path,
+                Err(error) => {
+                    failures.push(format!("Finalisation WAV impossible : {error}"));
+                    String::new()
+                }
+            },
+            None => {
+                failures.push("WAV de capture indisponible à la clôture".into());
+                String::new()
+            }
+        }
     }
 
     pub(super) fn drain_stopped_capture(

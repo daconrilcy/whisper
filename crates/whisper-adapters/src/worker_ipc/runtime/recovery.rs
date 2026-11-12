@@ -70,96 +70,11 @@ impl ImportRuntime {
                     return RecoveryEffect::Return;
                 }
             };
-            let destination = Path::new(&request.destination);
-            match crate::archive::ArchiveStore::publication_reconfirmation_required(
-                destination,
-                previous.job_id,
-                previous.generation,
-            ) {
-                Ok(Some(reserved_export_basename)) => {
-                    let _lock = match crate::archive::ArchiveStore::lock_publications(destination) {
-                        Ok(lock) => lock,
-                        Err(error) => {
-                            events.push_back(ImportEvent::Failed {
-                                job_id: id.0,
-                                generation: id.1,
-                                message: error,
-                            });
-                            return RecoveryEffect::Return;
-                        }
-                    };
-                    let source_sha256 = match previous.source_sha256 {
-                        Some(sha) => format_sha256(&sha),
-                        None => {
-                            events.push_back(ImportEvent::Failed {
-                                job_id: id.0,
-                                generation: id.1,
-                                message: "SourceChanged: resume source identity is missing".into(),
-                            });
-                            return RecoveryEffect::Return;
-                        }
-                    };
-                    let publications = match crate::archive::ArchiveStore::published_imports(
-                        destination,
-                        &source_sha256,
-                    ) {
-                        Ok(publications) => publications,
-                        Err(message) => {
-                            events.push_back(ImportEvent::Failed {
-                                job_id: id.0,
-                                generation: id.1,
-                                message,
-                            });
-                            return RecoveryEffect::Return;
-                        }
-                    };
-                    let export_basename =
-                        match crate::archive::ArchiveStore::suggest_duplicate_export_basename(
-                            destination,
-                            &previous.source_path,
-                        ) {
-                            Ok(name) => name,
-                            Err(message) => {
-                                events.push_back(ImportEvent::Failed {
-                                    job_id: id.0,
-                                    generation: id.1,
-                                    message,
-                                });
-                                return RecoveryEffect::Return;
-                            }
-                        };
-                    let Some(source_samples) = previous.source_samples else {
-                        events.push_back(ImportEvent::Failed {
-                            job_id: id.0,
-                            generation: id.1,
-                            message: "SourceChanged: resume source duration is missing".into(),
-                        });
-                        return RecoveryEffect::Return;
-                    };
-                    events.push_back(ImportEvent::DuplicateImportFound(DuplicateImportPrompt {
-                            request,
-                            source_sha256,
-                            source_samples,
-                            publications,
-                            export_basename,
-                            revalidation_notice: Some(format!(
-                                "Une sortie interrompue au nom « {reserved_export_basename} » ne peut pas être attribuée sans risque. Confirmez explicitement ce nouveau nom pour reprendre ; l'ancienne sortie et les traitements existants sont conservés."
-                            )),
-                            resume_from: Some(*previous),
-                            reserved_export_basename: Some(reserved_export_basename),
-                        }));
-                    return RecoveryEffect::Return;
-                }
-                Ok(None) => {}
-                Err(message) => {
-                    events.push_back(ImportEvent::Failed {
-                        job_id: id.0,
-                        generation: id.1,
-                        message,
-                    });
-                    return RecoveryEffect::Return;
-                }
-            }
+            let Some((previous, request)) =
+                reconfirm_interrupted_publication(previous, request, events)
+            else {
+                return RecoveryEffect::Return;
+            };
             // Keep the historical model identity in the durable checkpoint. The execution
             // request is rebound to the verified catalog only after the checkpoint exists.
             let archive_destination = request.destination.clone();
@@ -391,4 +306,99 @@ impl ImportRuntime {
         events.push_back(ImportEvent::ReplacementCleanups(cleanups));
         Ok(())
     }
+}
+
+fn reconfirm_interrupted_publication(
+    previous: Box<ImportRequest>,
+    request: ImportRequest,
+    events: &mut VecDeque<ImportEvent>,
+) -> Option<(Box<ImportRequest>, ImportRequest)> {
+    let id = (request.job_id, request.generation);
+    let destination = Path::new(&request.destination);
+    let reserved_export_basename =
+        match crate::archive::ArchiveStore::publication_reconfirmation_required(
+            destination,
+            previous.job_id,
+            previous.generation,
+        ) {
+            Ok(Some(name)) => name,
+            Ok(None) => return Some((previous, request)),
+            Err(message) => {
+                events.push_back(ImportEvent::Failed {
+                    job_id: id.0,
+                    generation: id.1,
+                    message,
+                });
+                return None;
+            }
+        };
+    let _lock = match crate::archive::ArchiveStore::lock_publications(destination) {
+        Ok(lock) => lock,
+        Err(error) => {
+            events.push_back(ImportEvent::Failed {
+                job_id: id.0,
+                generation: id.1,
+                message: error,
+            });
+            return None;
+        }
+    };
+    let source_sha256 = match previous.source_sha256.as_ref() {
+        Some(sha) => format_sha256(sha),
+        None => {
+            events.push_back(ImportEvent::Failed {
+                job_id: id.0,
+                generation: id.1,
+                message: "SourceChanged: resume source identity is missing".into(),
+            });
+            return None;
+        }
+    };
+    let publications =
+        match crate::archive::ArchiveStore::published_imports(destination, &source_sha256) {
+            Ok(publications) => publications,
+            Err(message) => {
+                events.push_back(ImportEvent::Failed {
+                    job_id: id.0,
+                    generation: id.1,
+                    message,
+                });
+                return None;
+            }
+        };
+    let export_basename = match crate::archive::ArchiveStore::suggest_duplicate_export_basename(
+        destination,
+        &previous.source_path,
+    ) {
+        Ok(name) => name,
+        Err(message) => {
+            events.push_back(ImportEvent::Failed {
+                job_id: id.0,
+                generation: id.1,
+                message,
+            });
+            return None;
+        }
+    };
+    let Some(source_samples) = previous.source_samples else {
+        events.push_back(ImportEvent::Failed {
+            job_id: id.0,
+            generation: id.1,
+            message: "SourceChanged: resume source duration is missing".into(),
+        });
+        return None;
+    };
+    events.push_back(ImportEvent::DuplicateImportFound(DuplicateImportPrompt {
+        request,
+        source_sha256,
+        source_samples,
+        publications,
+        export_basename,
+        revalidation_notice: Some(format!(
+            "Une sortie interrompue au nom « {reserved_export_basename} » ne peut pas être attribuée sans risque. Confirmez explicitement ce nouveau nom pour reprendre ; l'ancienne sortie et les traitements existants sont conservés."
+        )),
+        resume_from: Some(*previous),
+        reserved_export_basename: Some(reserved_export_basename),
+    }));
+    None
 }

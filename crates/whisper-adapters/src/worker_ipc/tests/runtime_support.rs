@@ -261,28 +261,3 @@ fn observe_controlled_child(
             .push(observation);
     }
 }
-
-#[cfg(test)]
-struct ScheduledWindowTranscriber<'a> {
-    scheduler: &'a mut whisper_core::parakeet_scheduler::ParakeetScheduler,
-    call: whisper_core::parakeet_scheduler::ScheduledCall,
-    transcriber: &'a mut dyn crate::parakeet_pipeline::WindowTranscriber,
-}
-
-#[cfg(test)]
-impl crate::parakeet_pipeline::WindowTranscriber for ScheduledWindowTranscriber<'_> {
-    fn instance_id(&self) -> u64 {
-        self.transcriber.instance_id()
-    }
-
-    fn transcribe(
-        &mut self,
-        window: whisper_core::parakeet_session::AudioWindow,
-        pcm: &[i16],
-    ) -> Result<Vec<whisper_core::parakeet_ipc::Word>, String> {
-        self.scheduler
-            .begin_call(self.call)
-            .map_err(|error| format!("SchedulerInvoke: {error:?}"))?;
-        self.transcriber.transcribe(window, pcm)
-    }
-}

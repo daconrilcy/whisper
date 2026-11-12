@@ -177,7 +177,7 @@ fn run_isolated_scenarios(base: &TestTempDir, test_name: &str, fake_exe: &Path) 
         std::fs::create_dir_all(personal.join("models")).unwrap();
         std::fs::create_dir_all(personal.join("settings")).unwrap();
         std::fs::create_dir_all(root.join("session")).unwrap();
-        crate::pe_fixture::copy_verified_pe(&fake_exe, &worker);
+        crate::pe_fixture::copy_verified_pe(fake_exe, &worker);
         std::fs::write(
             personal.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf"),
             b"fixture",
@@ -186,7 +186,7 @@ fn run_isolated_scenarios(base: &TestTempDir, test_name: &str, fake_exe: &Path) 
         let mut child = Command::new(std::env::current_exe().unwrap());
         child
             .arg("--exact")
-            .arg(&test_name)
+            .arg(test_name)
             .arg("--nocapture")
             .env(CHILD_ROOT, &root)
             .env("WHISPER_P1_BACKEND", backend)

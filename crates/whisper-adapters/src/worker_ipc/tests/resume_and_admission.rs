@@ -799,7 +799,7 @@ fn main() {
                 .join("pending.json")
                 .exists()
         );
-        let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        let queue = crate::queue_store::QueueStore::open(destination).unwrap();
         assert_eq!(queue.entries().len(), 1);
         assert_eq!(
             queue.entries()[0].status,
@@ -1294,7 +1294,7 @@ fn main() {
             model.canonicalize().unwrap()
         );
         assert_eq!(prepared.generation, resumed.generation);
-        let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
+        let queue = crate::queue_store::QueueStore::open(destination).unwrap();
         assert_eq!(queue.entries()[0].request.model_path, request.model_path);
         let pending_path = destination
             .join("transcriptions")

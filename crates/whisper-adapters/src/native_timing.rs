@@ -1,26 +1,35 @@
+#[cfg(feature = "native-tests")]
 use std::{
     fs::{File, OpenOptions},
-    io::{self, BufWriter, Write},
-    path::{Path, PathBuf},
+    io::BufWriter,
     sync::{Mutex, OnceLock},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
+};
+use std::{
+    io::{self, Write},
+    path::{Path, PathBuf},
+    time::Instant,
 };
 
 use serde_json::Value;
 
+#[cfg(feature = "native-tests")]
 static TRACE: OnceLock<Mutex<Option<TraceWriter>>> = OnceLock::new();
 
+#[cfg(feature = "native-tests")]
 struct TraceWriter {
     output: BufWriter<File>,
     origin: Instant,
 }
 
+#[cfg(feature = "native-tests")]
 pub(crate) struct Phase {
     name: &'static str,
     details: Value,
     started: Instant,
 }
 
+#[cfg(feature = "native-tests")]
 pub(crate) fn phase(name: &'static str, details: Value) -> Option<Phase> {
     if !enabled() {
         return None;
@@ -33,6 +42,7 @@ pub(crate) fn phase(name: &'static str, details: Value) -> Option<Phase> {
     })
 }
 
+#[cfg(feature = "native-tests")]
 impl Drop for Phase {
     fn drop(&mut self) {
         record(
@@ -45,6 +55,7 @@ impl Drop for Phase {
     }
 }
 
+#[cfg(feature = "native-tests")]
 pub(crate) fn record(name: &str, details: Value) {
     if !enabled() {
         return;
@@ -96,18 +107,22 @@ fn write_record(
     output.write_all(b"\n")
 }
 
+#[cfg(feature = "native-tests")]
 fn enabled() -> bool {
     trace_enabled(std::env::var_os("WHISPER_DIAG_BANC_TRACE").as_deref())
 }
 
+#[cfg(any(test, feature = "native-tests"))]
 fn trace_enabled(value: Option<&std::ffi::OsStr>) -> bool {
     value == Some(std::ffi::OsStr::new("1"))
 }
 
+#[cfg(feature = "native-tests")]
 fn trace_lock() -> Option<std::sync::MutexGuard<'static, Option<TraceWriter>>> {
     TRACE.get_or_init(|| Mutex::new(None)).lock().ok()
 }
 
+#[cfg(feature = "native-tests")]
 fn open_trace() -> io::Result<TraceWriter> {
     let root = PathBuf::from(
         std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")

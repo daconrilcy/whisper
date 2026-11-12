@@ -145,9 +145,10 @@ impl ImportRuntime {
     pub(in crate::worker_ipc) fn poll(
         &mut self,
     ) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-        let event = match self.collect_poll_event() {
+        let mut output = None;
+        let event = match self.collect_poll_event(&mut output) {
             collection::PollCollectionControl::Next => return None,
-            collection::PollCollectionControl::Return(output) => return output,
+            collection::PollCollectionControl::Return => return output,
             collection::PollCollectionControl::Finish(event) => event,
         };
         self.route_collected_event(event)

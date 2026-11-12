@@ -19,11 +19,6 @@ struct PreparedPollEvent {
     backend: BackendKind,
 }
 
-enum PriorityControl {
-    Next(PreparedPollEvent),
-    Return(PollOutput),
-}
-
 enum PollRouteControl {
     Next(WorkerEvent),
     Return(PollOutput),
@@ -37,13 +32,12 @@ enum FinalRouteControl {
 
 impl ImportRuntime {
     pub(super) fn route_collected_event(&mut self, event: WorkerEvent) -> PollOutput {
-        let prepared = match self.prepare_poll_event(event) {
-            Ok(prepared) => prepared,
-            Err(output) => return output,
+        let mut output = None;
+        let Some(prepared) = self.prepare_poll_event(event, &mut output) else {
+            return output;
         };
-        let prepared = match self.route_priority_events(prepared) {
-            PriorityControl::Next(prepared) => prepared,
-            PriorityControl::Return(output) => return output,
+        let Some(prepared) = self.route_priority_events(prepared, &mut output) else {
+            return output;
         };
         let PreparedPollEvent {
             event,
@@ -71,10 +65,9 @@ impl ImportRuntime {
     fn prepare_poll_event(
         &mut self,
         mut event: WorkerEvent,
-    ) -> Result<PreparedPollEvent, PollOutput> {
-        let Some(active) = self.active.as_ref() else {
-            return Err(None);
-        };
+        output: &mut PollOutput,
+    ) -> Option<PreparedPollEvent> {
+        let active = self.active.as_ref()?;
         let (job_id, generation, instance_id, backend, startup_ready) = (
             active.job_id,
             active.generation,
@@ -88,17 +81,15 @@ impl ImportRuntime {
             startup_ready,
         );
         if worker_event_is_stale(&event, (job_id, generation, instance_id)) {
-            return Err(None);
+            return None;
         }
         if let WorkerEvent::ImportStarted { .. } = &event {
-            return Err(
-                match self.poll_import_started_ack(job_id, generation, instance_id) {
-                    AdmissionAckControl::Accepted => None,
-                    AdmissionAckControl::Rejected(message) => {
-                        Some(Err((job_id, generation, message)))
-                    }
-                },
-            );
+            if let AdmissionAckControl::Rejected(message) =
+                self.poll_import_started_ack(job_id, generation, instance_id)
+            {
+                *output = Some(Err((job_id, generation, message)));
+            }
+            return None;
         }
         if matches!(
             &event,
@@ -112,14 +103,15 @@ impl ImportRuntime {
                     ..
                 }
         ) {
-            return Err(Some(self.handle_worker_failure(
+            *output = Some(self.handle_worker_failure(
                 job_id,
                 generation,
                 whisper_core::ipc::WorkerErrorCode::ProtocolMismatch,
                 "ProtocolMismatch: worker failure lacks current attempt identity".into(),
-            )));
+            ));
+            return None;
         }
-        Ok(PreparedPollEvent {
+        Some(PreparedPollEvent {
             event,
             job_id,
             generation,
@@ -128,7 +120,11 @@ impl ImportRuntime {
         })
     }
 
-    fn route_priority_events(&mut self, prepared: PreparedPollEvent) -> PriorityControl {
+    fn route_priority_events(
+        &mut self,
+        prepared: PreparedPollEvent,
+        output: &mut PollOutput,
+    ) -> Option<PreparedPollEvent> {
         self.observe_worker_event(
             &prepared.event,
             prepared.job_id,
@@ -161,7 +157,7 @@ impl ImportRuntime {
                     .is_none())
         {
             self.deferred_live_stopped = Some(prepared.event);
-            return PriorityControl::Return(None);
+            return None;
         }
         match self.poll_live_mp3_packet(
             &prepared.event,
@@ -170,16 +166,18 @@ impl ImportRuntime {
             prepared.instance_id,
         ) {
             LiveMp3PacketControl::Continue => {}
-            LiveMp3PacketControl::ReturnNone => return PriorityControl::Return(None),
+            LiveMp3PacketControl::ReturnNone => return None,
         }
         match self.poll_window_finished(&prepared.event, prepared.job_id, prepared.generation) {
             WindowFinishedControl::Continue => {}
-            WindowFinishedControl::ReturnNone => return PriorityControl::Return(None),
+            WindowFinishedControl::ReturnNone => return None,
             WindowFinishedControl::ImmediateError(job_id, generation, message) => {
-                return PriorityControl::Return(Some(Err((job_id, generation, message))));
+                *output = Some(Err((job_id, generation, message)));
+                return None;
             }
             WindowFinishedControl::Confirm(finished) => {
-                return PriorityControl::Return(Some(self.confirm_live_window(finished)));
+                *output = Some(self.confirm_live_window(finished));
+                return None;
             }
         }
         if let Some(result) = self.poll_stopped_pending_live_recovery(
@@ -187,24 +185,30 @@ impl ImportRuntime {
             prepared.job_id,
             prepared.generation,
         ) {
-            return PriorityControl::Return(Some(result));
+            *output = Some(result);
+            return None;
         }
         if let Some(result) = self.poll_stopped_import_auto_retry(
             &prepared.event,
             prepared.job_id,
             prepared.generation,
         ) {
-            return PriorityControl::Return(Some(result));
+            *output = Some(result);
+            return None;
         }
         if let Some(result) =
             self.poll_stopped_active_live(&prepared.event, prepared.job_id, prepared.generation)
         {
-            return PriorityControl::Return(Some(result));
+            *output = Some(result);
+            return None;
         }
         match self.poll_resume_prefix(&prepared.event, prepared.job_id, prepared.generation) {
-            ResumePrefixControl::Continue => PriorityControl::Next(prepared),
-            ResumePrefixControl::Suppress => PriorityControl::Return(None),
-            ResumePrefixControl::Reject(failure) => PriorityControl::Return(Some(Err(failure))),
+            ResumePrefixControl::Continue => Some(prepared),
+            ResumePrefixControl::Suppress => None,
+            ResumePrefixControl::Reject(failure) => {
+                *output = Some(Err(failure));
+                None
+            }
         }
     }
 

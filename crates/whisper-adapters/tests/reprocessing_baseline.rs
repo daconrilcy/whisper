@@ -91,7 +91,7 @@ fn r11_application_baseline() {
         &mut app,
         &root,
         &model_path,
-        &model_record.artifact.sha256,
+        model_record.artifact.sha256,
         &campaign_deadline,
         &run_id,
         &mut serial,
@@ -124,10 +124,10 @@ fn run_application_baseline(
         for pass in 1..=2 {
             let destination = root
                 .join("archive")
-                .join(&run_id)
+                .join(run_id)
                 .join(name)
                 .join(format!("pass-{pass}"));
-            validate_destination_under_root(&root, &destination)
+            validate_destination_under_root(root, &destination)
                 .expect("E0 destination must be inside the canonical campaign root");
             assert!(
                 !destination.exists(),
@@ -135,7 +135,7 @@ fn run_application_baseline(
                 destination.display()
             );
             fs::create_dir_all(&destination).expect("create fresh E0 archive");
-            assert_inside(&destination, &root);
+            assert_inside(&destination, root);
             let base = request(
                 &source,
                 &destination,
