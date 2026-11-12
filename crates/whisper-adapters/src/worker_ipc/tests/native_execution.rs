@@ -1416,6 +1416,28 @@
             + whisper_core::parakeet_windows::MARGIN_SAMPLES
             + 16_000;
         assert!(annotation.source_samples >= sample_count);
+        assert_native_long_annotation_coverage(&annotation, sample_count);
+
+        let byte_count =
+            usize::try_from(sample_count * 2).expect("bounded spoken prefix fits address space");
+        std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(44))
+            .expect("seek to the bounded PCM prefix");
+        let mut bytes = vec![0_u8; byte_count];
+        file.read_exact(&mut bytes)
+            .expect("read only the bounded spoken prefix");
+        bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / 32_768.0)
+            .collect()
+    }
+
+    #[cfg(windows)]
+    fn assert_native_long_annotation_coverage(
+        annotation: &NativeLongAnnotation,
+        sample_count: u64,
+    ) {
         let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
@@ -1435,20 +1457,6 @@
         }
         assert_eq!(covered_samples, annotation.source_samples);
         assert!(covered_samples >= sample_count);
-
-        let byte_count =
-            usize::try_from(sample_count * 2).expect("bounded spoken prefix fits address space");
-        std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(44))
-            .expect("seek to the bounded PCM prefix");
-        let mut bytes = vec![0_u8; byte_count];
-        file.read_exact(&mut bytes)
-            .expect("read only the bounded spoken prefix");
-        bytes
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / 32_768.0)
-            .collect()
     }
 
     fn source_binding_map_events(
@@ -3255,6 +3263,14 @@
             vec![0.1; 4 * 16_000],
         ));
 
+        stop_and_assert_synthetic_capture_published(&mut app, &request, &archive_root);
+    }
+
+    fn stop_and_assert_synthetic_capture_published(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        request: &LiveRequest,
+        archive_root: &Path,
+    ) {
         let captured_deadline = Instant::now() + Duration::from_secs(60);
         let mut captured = false;
         while Instant::now() < captured_deadline {
@@ -3310,7 +3326,7 @@
         assert!(session.txt_path.is_some());
         assert!(session.srt_path.is_some());
         let files = ArchiveStore::published_unified_files(
-            &archive_root,
+            archive_root,
             request.job_id,
             request.generation,
         )
