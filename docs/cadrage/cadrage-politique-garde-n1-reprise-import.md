@@ -1,11 +1,11 @@
 Avancée : proposition bornée pour permettre les vérifications prévues du lot `resume_interrupted`.
 Blocage : la branche documentaire ne contient pas le durcissement de garde de `6193fbdf`; le worker CPU peut aussi déclencher CMake.
-Décision : faire accepter la matrice de commandes exacte ci-dessous avant toute modification de la garde; traiter séparément l’autorisation de compilation CPU.
+Décision : matrice POL-N1-REPRISE-01 acceptée par l’utilisateur le 12 novembre 2026; l’accord ne couvre ni le code de garde ni une compilation CPU/CMake.
 
 # Cadrage — politique de garde N1 pour la reprise d’import
 
 **Nature :** adaptation ciblée de `ci/guard-level1.ps1`, préalable au lot d’implémentation de `resume_interrupted`.
-**État :** PROPOSÉ — décision utilisateur attendue; aucune modification de garde, commande Cargo ou exécution de SelfTest autorisée ici.
+**État :** ACCEPTÉ le 12 novembre 2026 — la matrice POL-N1-REPRISE-01 a été acceptée telle quelle dans la session. Cela n’autorise pas la modification de la garde ni l’exécution de commandes Cargo.
 **But produit :** permettre les contrôles N1 et Clippy nécessaires pour livrer la refactorisation sans changer le comportement de reprise.
 
 ## Sources et état observé
@@ -56,7 +56,7 @@ Cette adaptation ne modifie ni le produit, ni `recovery.rs`, ni les manifestes/v
 | `main@6193fbdf` contient le durcissement absent de `7993ad9d` | AC-POL-03 | Base du futur candidat doit contenir `6193fbdf` |
 | Le worker CPU peut dépendre d’une reconstruction CMake | Q-POL-01 | Autorisation de compilation non résolue et non transmise d’un ancien lot |
 
-**Readiness proposée :** prête pour décision utilisateur sur la matrice POL-N1-REPRISE-01. La mise en œuvre de la garde exige ensuite un accord précis pour toucher `ci/guard-level1.ps1` et ses SelfTests. La reprise de `recovery.rs` attend en plus le T0 complet, dont la résolution de Q-POL-01 si la compilation CPU est nécessaire.
+**Readiness :** POL-N1-REPRISE-01 acceptée par l’utilisateur le 12 novembre 2026. La mise en œuvre de la garde exige un accord précis dans la session pour toucher `ci/guard-level1.ps1` et ses SelfTests. La reprise de `recovery.rs` attend en plus le T0 complet, dont la résolution de Q-POL-01 si la compilation CPU est nécessaire.
 
 ## Apports bruts des spécialistes
 
