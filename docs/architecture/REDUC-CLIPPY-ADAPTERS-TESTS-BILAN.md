@@ -7,4 +7,4 @@ Identités : 776/776, SHA-256 trié 4B6519229B32C4832C653289CCD60C376FCF62745C69
 N1 : 944 réussis, 0 échec, 129 ignorés; avant les derniers correctifs R1/R2.
 SelfTest : PASS, 72 positifs / 106 négatifs; fmt-check et diff-check PASS.
 Revue : R2 fermé; R1/R3 ouverts à l’échéance; aucun merge/push.
-Suivi : aucun
+Suivi : docs/architecture/REDUC-CLIPPY-ADAPTERS-TESTS-SUIVI.md
