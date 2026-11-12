@@ -1788,46 +1788,46 @@ fn main() {
         service.join().unwrap();
     }
 
+    struct SaturatedPendingRuntime {
+        gate: Arc<PublicationGate>,
+        remaining_events: usize,
+        saturated: Option<mpsc::SyncSender<()>>,
+        actions: mpsc::Sender<&'static str>,
+    }
+    impl ServiceRuntime for SaturatedPendingRuntime {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            match effect {
+                ImportEffect::StartLive(_) => {
+                    if self.gate.is_cancelled() {
+                        self.actions.send("late-start-skipped").unwrap();
+                    } else {
+                        self.actions.send("new-start-accepted").unwrap();
+                    }
+                }
+                ImportEffect::Stop { job_id, generation } => {
+                    self.actions.send("stop-without-active-worker").unwrap();
+                    pending.push_back(ImportEvent::Stopped { job_id, generation });
+                }
+                _ => {}
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            if self.remaining_events == 0 {
+                return None;
+            }
+            self.remaining_events -= 1;
+            if self.remaining_events == 0
+                && let Some(saturated) = self.saturated.take()
+            {
+                saturated.send(()).unwrap();
+            }
+            Some(Ok(ImportEvent::History(Vec::new())))
+        }
+    }
+
     #[test]
     fn saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start() {
-        struct Runtime {
-            gate: Arc<PublicationGate>,
-            remaining_events: usize,
-            saturated: Option<mpsc::SyncSender<()>>,
-            actions: mpsc::Sender<&'static str>,
-        }
-        impl ServiceRuntime for Runtime {
-            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
-                match effect {
-                    ImportEffect::StartLive(_) => {
-                        if self.gate.is_cancelled() {
-                            self.actions.send("late-start-skipped").unwrap();
-                        } else {
-                            self.actions.send("new-start-accepted").unwrap();
-                        }
-                    }
-                    ImportEffect::Stop { job_id, generation } => {
-                        self.actions.send("stop-without-active-worker").unwrap();
-                        pending.push_back(ImportEvent::Stopped { job_id, generation });
-                    }
-                    _ => {}
-                }
-            }
-
-            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-                if self.remaining_events == 0 {
-                    return None;
-                }
-                self.remaining_events -= 1;
-                if self.remaining_events == 0
-                    && let Some(saturated) = self.saturated.take()
-                {
-                    saturated.send(()).unwrap();
-                }
-                Some(Ok(ImportEvent::History(Vec::new())))
-            }
-        }
-
         let gate = Arc::new(PublicationGate::default());
         let (effect_tx, effect_rx) = mpsc::sync_channel(2);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
@@ -1837,7 +1837,7 @@ fn main() {
         }
         let (saturated_tx, saturated_rx) = mpsc::sync_channel(1);
         let (actions_tx, actions_rx) = mpsc::channel();
-        let runtime = Runtime {
+        let runtime = SaturatedPendingRuntime {
             gate: gate.clone(),
             remaining_events: EVENTS_PER_STAGE,
             saturated: Some(saturated_tx),
