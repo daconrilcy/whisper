@@ -112,7 +112,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_personal_ab_c	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn run_native_queued_unified_import	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn event_65_backpressures_all_production_stages_then_delivers_in_order	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case	1
