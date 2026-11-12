@@ -5,7 +5,7 @@ Décision : isoler un contrat de sélection de paquets pour chaque commande cibl
 # Cadrage — contrôle exact des paquets Cargo par la garde N1
 
 **Nature :** cadrage d’un correctif de garde ; ce document ne déclenche aucune implémentation.
-**État :** À VALIDER — la source de liaison entre le lot protégé et sa politique doit être arbitrée avant que le plan soit exécutable.
+**État :** À VALIDER — la décision de portée `--workspace` est acceptée ; la validation N1 complète reste à arbitrer avant clôture.
 
 ## BESOIN
 
@@ -50,10 +50,11 @@ Empêcher `ci/guard-level1.ps1` de lancer une commande Cargo ciblée sur des paq
 ## DÉCISIONS À VALIDER
 
 - **D-01 — Source de l’autorisation du lot :** choisir un registre versionné de jeux de paquets nommés dans la garde ou un autre support versionné vérifiable. Un paramètre libre fourni en parallèle de CargoArgs est plus simple, mais permet qu’une erreur recopie la sélection erronée dans les deux valeurs ; il ne satisfait pas seul l’objectif. Recommandation : un identifiant de sélection versionné résolu par la garde en liste de paquets, avec modification explicite de cette entrée quand un lot change.
-- **D-02 — Contexte du lot protégé :** lier l’autorisation à un contexte de lot versionné et canonique indépendant de CargoArgs, de sorte que l’omission ou le remplacement d’un identifiant ne désactive pas le contrôle pour le contexte protégé. Recommandation : une politique enregistrée dans la garde, sélectionnée par la racine canonique de lot résolue ; pour toute commande à sélection explicite par `-p`, une racine sans politique enregistrée échoue fermée. Cela impose d’enregistrer les futures racines de lots ciblés. Dans la racine protégée, `--workspace` est refusé car il ne fournit pas la sélection exacte attendue ; hors de cette racine, le comportement général existant est conservé. Tester racine protégée, racine non enregistrée, politique différente et `--workspace` dans la racine protégée.
+- **D-02 — Contexte du lot protégé — ACCEPTÉ le 12 novembre 2026 :** une politique versionnée est enregistrée dans la garde et sélectionnée par la racine canonique de lot résolue. Toute sélection explicite sous une racine sans politique échoue fermée. Les racines des futurs lots ciblés doivent être enregistrées.
+- **D-04 — Portée globale de `--workspace` — ACCEPTÉ le 12 novembre 2026 :** l’utilisateur choisit le refus global recommandé afin qu’un changement de `-LotRoot` ne contourne pas la politique. Toute commande qui transmet `--workspace` est donc refusée par la garde, y compris hors de la racine protégée. Ce choix retire l’usage de `--workspace` dans les commandes Cargo gardées ; les sélections explicites par `-p` ne sont permises que pour les racines enregistrées et leurs listes exactes.
 
 - **D-03 — Matrice N1 :** décider avant exécution si la validation de cette garde doit inclure la commande N1 complète `cargo test --no-fail-fast` prescrite par `AGENTS.md`. Recommandation : respecter la règle si les préconditions sont satisfaites ; si cette commande nécessite un build natif suspendu ou une commande interdite par la demande, arrêter et demander une décision, sans la remplacer par un N1 partiel présenté comme complet.
 
 ## RAPPORT
 
-L’incident provient d’un contrôle d’appartenance au workspace qui ne garantit pas que la commande respecte la sélection du lot. Le préflight doit maintenant refuser avant tout processus Cargo et prouver zéro appel sur les chemins négatifs ; les vérifications de membres continuent après une sélection exacte. Le contexte d’autorisation versionné et l’application de la matrice N1 complète devront être résolus avant exécution.
+L’incident provient d’un contrôle d’appartenance au workspace qui ne garantit pas que la commande respecte la sélection du lot. Le préflight refuse avant tout processus Cargo et prouve zéro appel sur les chemins négatifs ; les vérifications de membres continuent après une sélection exacte. Le refus global de `--workspace` est accepté. La matrice N1 complète reste à résoudre avant clôture.

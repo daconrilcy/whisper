@@ -47,6 +47,18 @@ $scratchRoot = Join-Path $lotRoot 'scratch'
 $runRoot = $null
 $utf8NoBom = [Text.UTF8Encoding]::new($false)
 $allowedUnsetPatterns = @('^CUDA_PATH$', '^CUDA_PATH_V.*$', '^GGML_.*$', '^WHISPER_.*$', '^PARAKEET_.*$')
+$script:cargoProcessLaunchCount = 0
+# A scoped package invocation is allowed only through its registered canonical lot root.
+$script:packageSetPolicies = @{
+    'target/parakeet-tests/garde-n1-paquets-20261112' = @(
+        'whisper-core',
+        'whisper-adapters',
+        'whisper-desktop',
+        'whisper-bootstrap',
+        'whisper-worker-common',
+        'whisper-worker-parakeet-cpu'
+    )
+}
 
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
@@ -141,7 +153,7 @@ function Assert-AllowedFeatures([string[]]$Values, [bool]$Release) {
 
 function Get-WorkspaceMembers([string[]]$Members) { return @($Members) }
 
-function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
+function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members, [switch]$SkipMemberValidation) {
     if ($CommandTokens.Count -lt 1) { throw 'A Cargo command is required.' }
     if ($CommandTokens[0] -ceq 'fetch') {
         if ($CommandTokens.Count -ne 2 -or $CommandTokens[1] -cne '--locked') {
@@ -324,13 +336,71 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members) {
     Assert-AllowedFeatures $features.ToArray() $release
     if ($sub -in @('check','build','clippy') -and -not ($hasWorkspace -or $packages.Count -gt 0)) { throw "$sub requires --workspace or one or more -p members." }
     if ($sub -in $readCommands -and ($hasWorkspace -or $packages.Count -gt 0)) { }
-    foreach ($package in $packages) { if ($package -cnotin $Members) { throw "Unknown workspace package: $package" } }
+    if (-not $SkipMemberValidation) {
+        foreach ($package in $packages) { if ($package -cnotin $Members) { throw "Unknown workspace package: $package" } }
+    }
     $result = [Collections.Generic.List[string]]::new()
     $result.Add($sub)
     $result.Add('--offline')
     $result.Add('--locked')
     for ($resultIndex = 1; $resultIndex -lt $normalizedArgs.Count; $resultIndex++) { $result.Add($normalizedArgs[$resultIndex]) }
     return [pscustomobject]@{ Args = @($result.ToArray()); Category = $category }
+}
+
+function Get-CargoPackageScope([string[]]$Arguments) {
+    $packages = [Collections.Generic.List[string]]::new()
+    $workspace = $false
+    for ($i = 1; $i -lt $Arguments.Count; $i++) {
+        $arg = $Arguments[$i]
+        if ($arg -eq '--') { break }
+        if ($arg -ceq '--workspace') { $workspace = $true; continue }
+        if ($arg -ceq '-p') {
+            if (($i + 1) -lt $Arguments.Count) { $i++; $packages.Add($Arguments[$i]) }
+            continue
+        }
+        if ($arg -cmatch '^-p(.+)$') { $packages.Add($Matches[1]) }
+    }
+    return [pscustomobject]@{ Packages=@($packages.ToArray()); Workspace=$workspace }
+}
+
+function Get-PackagePolicyKey([string]$Root) {
+    $relative = [IO.Path]::GetRelativePath($repo, (Get-FullPath $Root)).Replace('\','/')
+    return $relative.ToLowerInvariant()
+}
+
+function Assert-CargoPackagePolicy([string[]]$Arguments, [string]$Root) {
+    $scope = Get-CargoPackageScope $Arguments
+    $policyKey = Get-PackagePolicyKey $Root
+    $isProtectedLot = $script:packageSetPolicies.ContainsKey($policyKey)
+    if (-not $isProtectedLot -and $scope.Packages.Count -eq 0 -and -not $scope.Workspace) { return $null }
+    if (-not $isProtectedLot) {
+        throw "No versioned package policy is registered for lot root '$policyKey'; Cargo not launched."
+    }
+    if ($scope.Workspace) {
+        throw "--workspace is not allowed for package policy '$policyKey'; Cargo not launched."
+    }
+    if ($scope.Packages.Count -eq 0) {
+        throw "Package policy '$policyKey' requires an explicit -p selection; Cargo not launched."
+    }
+    $expected = @($script:packageSetPolicies[$policyKey])
+    $unexpected = @($scope.Packages | Where-Object { $_ -cnotin $expected })
+    $missing = @($expected | Where-Object { $_ -cnotin $scope.Packages })
+    $duplicates = @($scope.Packages | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+    if ($unexpected.Count -gt 0 -or $missing.Count -gt 0 -or $duplicates.Count -gt 0) {
+        $details = [Collections.Generic.List[string]]::new()
+        if ($unexpected.Count -gt 0) { $details.Add('unexpected=' + [string]::Join(',', [string[]]$unexpected)) }
+        if ($missing.Count -gt 0) { $details.Add('missing=' + [string]::Join(',', [string[]]$missing)) }
+        if ($duplicates.Count -gt 0) { $details.Add('duplicate=' + [string]::Join(',', [string[]]$duplicates)) }
+        throw "Cargo package selection differs from versioned lot policy '$policyKey' ($([string]::Join('; ', [string[]]$details))); Cargo not launched."
+    }
+    return [pscustomobject]@{ Key=$policyKey; Packages=$expected }
+}
+
+function Invoke-GuardedCargoPreflight([string[]]$CommandTokens, [string]$Root, [scriptblock]$CargoMetadataAction) {
+    $prechecked = Test-CargoArguments $CommandTokens @() -SkipMemberValidation
+    [void](Assert-CargoPackagePolicy $prechecked.Args $Root)
+    $metadata = & $CargoMetadataAction $prechecked
+    return [pscustomobject]@{ Prechecked=$prechecked; Metadata=$metadata }
 }
 
 function Assert-WriteRoots {
@@ -406,6 +476,11 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
         Assert-NoReparseChain $errPath 'stderr log'
         return [pscustomobject]@{ ExitCode=$process.ExitCode; Stdout=$stdout; Stderr=$stderr; OutPath=$outPath; ErrPath=$errPath; CargoTargetEnvPresent=$start.Environment.ContainsKey('CARGO_TARGET_DIR') }
     } finally { $process.Dispose() }
+}
+
+function Invoke-CargoCaptured([string[]]$Arguments, [string]$Label) {
+    $script:cargoProcessLaunchCount++
+    return Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $Arguments $Label
 }
 
 $script:structuralClippyLints = @(
@@ -675,6 +750,67 @@ function Assert-OfflineCache([string]$CacheRoot) {
     }
 }
 
+function Invoke-PackagePolicySelfTests {
+    $policyRoot = Join-Path $repo 'target/parakeet-tests/garde-n1-paquets-20261112'
+    $expected = @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')
+    $before = $script:cargoProcessLaunchCount
+    $script:packagePolicyCallbackCalls = 0
+    $metadataProbe = { param($checked) $script:packagePolicyCallbackCalls++; return [pscustomobject]@{ Args=$checked.Args } }
+    $argv = @('clippy')
+    foreach ($package in $expected) { $argv += @('-p',$package) }
+    $checked = Invoke-GuardedCargoPreflight $argv $policyRoot $metadataProbe
+    $positive = 1
+    $jsonArgs = Convert-CargoArgsJson ('["clippy",' + (($expected | ForEach-Object { '"-p","' + $_ + '"' }) -join ',') + ']')
+    $checkedJson = Invoke-GuardedCargoPreflight $jsonArgs $policyRoot $metadataProbe
+    $positive++
+    if ($script:packagePolicyCallbackCalls -ne 2) { throw 'Package policy SelfTest did not pass exact selections to the post-authorization metadata boundary.' }
+    $beforeRejections = $script:packagePolicyCallbackCalls
+    $negative = 0
+    foreach ($extraPackage in @('whisper-worker-cpu','whisper-worker-gpu')) {
+        $bad = @('clippy')
+        foreach ($package in $expected) { $bad += @('-p',$package) }
+        $bad += @('-p',$extraPackage)
+        $rejected = $false
+        try {
+            [void](Invoke-GuardedCargoPreflight $bad $policyRoot $metadataProbe)
+        } catch { $rejected = $_.Exception.Message.Contains($extraPackage) -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "Package policy SelfTest accepted extra $extraPackage or omitted the preflight diagnostic." }
+        $negative++
+        $badJson = Convert-CargoArgsJson ('["clippy",' + (($expected | ForEach-Object { '"-p","' + $_ + '"' }) -join ',') + ',"-p","' + $extraPackage + '"]')
+        $rejected = $false
+        try {
+            [void](Invoke-GuardedCargoPreflight $badJson $policyRoot $metadataProbe)
+        } catch { $rejected = $_.Exception.Message.Contains($extraPackage) -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "JSON package policy SelfTest accepted extra $extraPackage or omitted the preflight diagnostic." }
+        $negative++
+    }
+    foreach ($bad in @(
+        @{ Args=@('clippy','-p','whisper-core'); Match='missing=' },
+        @{ Args=@('clippy','-p','whisper-core','-p','whisper-core'); Match='duplicate=' },
+        @{ Args=@('clippy','--workspace'); Match='--workspace' },
+        @{ Args=@('test'); Match='requires an explicit -p selection' }
+    )) {
+        $rejected = $false
+        try {
+            [void](Invoke-GuardedCargoPreflight $bad.Args $policyRoot $metadataProbe)
+        } catch { $rejected = $_.Exception.Message.Contains($bad.Match) -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "Package policy SelfTest failed to reject $($bad.Args -join ' ')." }
+        $negative++
+    }
+    $unregisteredRoot = Join-Path $repo 'target/parakeet-tests/unregistered-package-policy'
+    foreach ($unregisteredScope in @(@('clippy','-p','whisper-core'),@('clippy','--workspace'))) {
+        $rejected = $false
+        try { [void](Invoke-GuardedCargoPreflight $unregisteredScope $unregisteredRoot $metadataProbe) }
+        catch { $rejected = $_.Exception.Message.Contains('No versioned package policy') -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "Package policy SelfTest accepted scope under an unregistered lot root: $($unregisteredScope -join ' ')" }
+        $negative++
+    }
+    if ($script:packagePolicyCallbackCalls -ne $beforeRejections) { throw 'Package policy rejection SelfTest reached the Cargo metadata boundary.' }
+    if ($script:cargoProcessLaunchCount -ne $before) { throw 'Package policy rejection SelfTest launched a Cargo process.' }
+    "PACKAGE_POLICY_SELFTEST cargo_processes=$($script:cargoProcessLaunchCount - $before)"
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
+}
+
 function Invoke-SelfTests {
     $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
@@ -752,7 +888,9 @@ function Invoke-SelfTests {
     $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::too_many_lines','--config','bad')
     $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::too_many_lines','--locked')
     $negative += ,@('test','--message-format=json')
-    $pCount = 1
+    $policyTests = Invoke-PackagePolicySelfTests
+    $pCount = 1 + $policyTests.Positive
+    $nCount = $policyTests.Negative
     $fetch = Test-CargoArguments @('fetch','--locked') $members
     if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
     $pCount++
@@ -761,7 +899,7 @@ function Invoke-SelfTests {
     $cacheRejected = $false
     try { Assert-OfflineCache $missingCache } catch { $cacheRejected = $_.Exception.Message -match 'cache is absent.*fetch' }
     if (-not $cacheRejected -or (Test-Path -LiteralPath $missingCache)) { throw 'Missing offline cache must be rejected with fetch guidance before Cargo.' }
-    $nCount = 1
+    $nCount++
     $presentCache = Join-Path $runRoot 'populated-cache-fixture'
     Initialize-Directory (Join-Path $presentCache 'registry/src') 'offline cache fixture'
     Assert-OfflineCache $presentCache
@@ -956,7 +1094,7 @@ function Invoke-SelfTests {
                     # Prove that the process boundary removes even a subsequently injected value.
                     [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR','C:\invalid-selftest-target','Process')
                 }
-                $probe = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $metadataArgs ('selftest-cargo-target-' + $pCount)
+                $probe = Invoke-CargoCaptured $metadataArgs ('selftest-cargo-target-' + $pCount)
                 if ($probe.ExitCode -ne 0) { throw "Self-test cargo metadata failed ($($probe.ExitCode)): $($probe.ErrPath)" }
                 if ($probe.CargoTargetEnvPresent -eq $withoutVariable) { throw 'Self-test found an unexpected Cargo child target environment.' }
                 $observedTarget = (ConvertFrom-Json $probe.Stdout).target_directory
@@ -1062,14 +1200,19 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
 } elseif ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fmt') {
     $checked = Test-CargoArguments $CargoArgs $members
 } else {
-    Assert-OfflineCache $cargoHome
-    $metadataArgs = @('metadata','--offline','--locked','--no-deps','--format-version','1')
-    if ($script:useConfigTarget) { $metadataArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot))) }
-    $metadataRun = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $metadataArgs 'workspace-metadata'
-    if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode). If dependencies are missing, run guarded cargo fetch --locked." }
-    $metadata = $metadataRun.Stdout | ConvertFrom-Json
-    if ((Get-FullPath $metadata.target_directory) -ine (Get-FullPath $script:targetRoot)) { throw "Cargo metadata target_directory mismatch: $($metadata.target_directory)" }
-    $members = @($metadata.packages | ForEach-Object name)
+    $preflight = Invoke-GuardedCargoPreflight $CargoArgs $lotRoot {
+        param($prechecked)
+        Assert-OfflineCache $cargoHome
+        $metadataArgs = @('metadata','--offline','--locked','--no-deps','--format-version','1')
+        if ($script:useConfigTarget) { $metadataArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot))) }
+        $metadataRun = Invoke-CargoCaptured $metadataArgs 'workspace-metadata'
+        if ($metadataRun.ExitCode -ne 0) { throw "Guarded cargo metadata failed: $($metadataRun.ExitCode). If dependencies are missing, run guarded cargo fetch --locked." }
+        $metadata = $metadataRun.Stdout | ConvertFrom-Json
+        if ((Get-FullPath $metadata.target_directory) -ine (Get-FullPath $script:targetRoot)) { throw "Cargo metadata target_directory mismatch: $($metadata.target_directory)" }
+        return [pscustomobject]@{ Run=$metadataRun; Members=@($metadata.packages | ForEach-Object name) }
+    }
+    $metadataRun = $preflight.Metadata.Run
+    $members = $preflight.Metadata.Members
     $checked = Test-CargoArguments $CargoArgs $members
 }
 Set-CargoCommandEnvironment $checked.Args[0]
@@ -1092,7 +1235,7 @@ if ($FreshTarget) {
 }
 if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$cargoArgs)) target=$script:targetRoot"; exit 0 }
 Assert-WriteRoots
-$result = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $cargoArgs 'cargo-command'
+$result = Invoke-CargoCaptured $cargoArgs 'cargo-command'
 Get-Content -LiteralPath $result.OutPath -Tail 30
 Get-Content -LiteralPath $result.ErrPath -Tail 30
 "N1_GUARD category=$($checked.Category) exit_code=$($result.ExitCode) CARGO_TARGET_DIR_child=$($result.CargoTargetEnvPresent) target_directory=$script:targetRoot stdout=$($result.OutPath) stderr=$($result.ErrPath)"
