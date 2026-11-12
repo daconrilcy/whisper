@@ -1,13 +1,13 @@
 Avancée : plan borné à la reprise d’import et relié au cadrage DESIGN CLEAN.
 Blocage : le préflight N1/Clippy du futur lot ne peut pas être déclaré satisfaisable avec la politique de garde actuelle.
-Décision : ne commencer ni code ni Cargo tant qu’une voie de vérification N1 conforme et une autorisation d’implémentation précise ne sont pas établies.
+Décision : l’accord d’implémentation est reçu pour le périmètre de ce plan ; exécution suspendue au T0 jusqu’à résolution distincte de la voie de garde N1/Clippy.
 
 # Plan — refactorisation de `resume_interrupted`
 
 **Référence design :** [cadrage-refacto-reprise-import.md](cadrage-refacto-reprise-import.md), DESIGN CLEAN au commit `8373e8faef3f685f4adc1c66a0a251756a6e284f`.
 **Base de code observée :** `main@6193fbdf`; sources Rust identiques au worktree Clippy `5f59d920` utilisé pour le relevé frais. Le lot d’implémentation devra refaire son préflight depuis son HEAD réel.
 **Constat initial :** Clippy frais gardé le 12 novembre 2026, six crates N1, `resume_interrupted` à 272 lignes contre le seuil de 100 ; cliquet structural PASS, 153 sites contre 168. Les builds/workers Turbo restent non mesurés.
-**État :** candidat à la revue indépendante du plan. Ce document ne donne pas l’autorisation de coder ou de lancer Cargo.
+**État :** PLANS CLEAN après revue indépendante au commit `3812836ae0b4d8581827b1b09929866c576caeb7`.
 
 ## Périmètre et chemins
 
@@ -99,4 +99,4 @@ Les commandes par sélection worker et leurs contrôles PE ne sont admissibles q
 
 **Hors périmètre :** modifications des autres alertes Clippy, réduction générale du cliquet, modification de garde/baseline, nouvelles fonctionnalités de reprise, builds natifs, GPU niveau 2, campagne de performance, recette Windows, merge et push. Le nettoyage des intermédiaires propres au lot est requis à la clôture lorsque ses conditions de rétention sont établies ; tout nettoyage non admissible est différé et signalé.
 
-**Autorisation :** seule la préparation de ce plan est autorisée actuellement. Toute implémentation Rust exige une demande et un accord écrit précis ultérieurs, les prérequis T0 satisfaits et la délégation à `rust_implementer`. Aucun commit de code ou push n’est couvert.
+**Autorisation de la session :** l’utilisateur a autorisé l’implémentation de la refactorisation décrite dans ce plan, limitée à `crates/whisper-adapters/src/worker_ipc/runtime/recovery.rs`. Les tâches de vérification restent conditionnées à T0. Cet accord ne couvre pas la modification de la garde, l’enregistrement d’une nouvelle racine, l’ajout des sélections workers actuellement refusées, ni un élargissement de fichiers. Aucune modification Rust ou commande Cargo ne commence avant qu’une voie conforme à N1/Clippy soit disponible et vérifiée. Quand T0 sera satisfait, l’implémentation sera déléguée à `rust_implementer` conformément à `AGENTS.md`. Aucun push n’est couvert.
