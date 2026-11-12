@@ -763,27 +763,7 @@ fn main() {
             }),
             "non-candidate refusal should remain visible: {refused:?}"
         );
-        let mut observed_native_events = Vec::new();
-        native_event_drain(&native_events, &mut observed_native_events);
-        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
-        assert!(
-            !observed_native_events.iter().any(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::PreparedRoute { session, .. }
-                    if session.job_id == identity.0 && session.generation == identity.1
-            )),
-            "non-candidate admission must not prepare a native route"
-        );
-        assert!(
-            !observed_native_events.iter().any(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::Starting { .. }
-                    | NativeQualificationEventKind::Spawned { .. }
-                    | NativeQualificationEventKind::Ready { .. }
-                    | NativeQualificationEventKind::RequestSent { .. }
-            )),
-            "non-candidate refusal must not start a native worker"
-        );
+        assert_non_candidate_route_not_started(&native_events, &native_observer, identity);
         assert!(
             !destination
                 .join("transcriptions")
@@ -1237,6 +1217,16 @@ fn main() {
             },
             &mut events,
         );
+        assert_resumed_checkpoint_identity(&events, &model, &request, &resumed, &destination);
+    }
+
+    fn assert_resumed_checkpoint_identity(
+        events: &VecDeque<ImportEvent>,
+        model: &std::path::Path,
+        request: &whisper_core::ports::ImportRequest,
+        resumed: &whisper_core::ports::ImportRequest,
+        destination: &std::path::Path,
+    ) {
         let checkpoint = events.iter().find_map(|event| match event {
             ImportEvent::ResumeCheckpoint {
                 confirmed_segments,
@@ -1254,7 +1244,7 @@ fn main() {
             })
             .expect("verified resume emits a worker request");
         assert_eq!(
-            PathBuf::from(&prepared.model_path).canonicalize().unwrap(),
+            std::path::PathBuf::from(&prepared.model_path).canonicalize().unwrap(),
             model.canonicalize().unwrap()
         );
         assert_eq!(prepared.generation, resumed.generation);
@@ -1266,8 +1256,36 @@ fn main() {
             .join(resumed.generation.get().to_string())
             .join("pending.json");
         let pending: serde_json::Value =
-            serde_json::from_slice(&fs::read(pending_path).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(pending_path).unwrap()).unwrap();
         assert_eq!(pending["model_path"], request.model_path);
+    }
+
+    fn assert_non_candidate_route_not_started(
+        native_events: &Receiver<NativeQualificationEvent>,
+        native_observer: &NativeQualificationObserver,
+        identity: (JobId, Generation),
+    ) {
+        let mut observed_native_events = Vec::new();
+        native_event_drain(native_events, &mut observed_native_events);
+        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::PreparedRoute { session, .. }
+                    if session.job_id == identity.0 && session.generation == identity.1
+            )),
+            "non-candidate admission must not prepare a native route"
+        );
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::Starting { .. }
+                    | NativeQualificationEventKind::Spawned { .. }
+                    | NativeQualificationEventKind::Ready { .. }
+                    | NativeQualificationEventKind::RequestSent { .. }
+            )),
+            "non-candidate refusal must not start a native worker"
+        );
     }
 
     fn hex_sha256(path: &std::path::Path) -> [u8; 32] {
@@ -1300,21 +1318,7 @@ fn main() {
         let job_id = JobId(88);
         let generation = Generation::first();
         app.dispatch(AppCommand::StartImport {
-            request: ImportRequest {
-                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-                job_id,
-                generation,
-                source_path: "fixture.wav".into(),
-                source_sha256: None,
-                source_samples: None,
-                model_path: "model.bin".into(),
-                model_sha256: [0; 32],
-                destination: "archive".into(),
-                config: JobConfig {
-                    language: LanguageChoice::Manual("fr".into()),
-                    compute: ComputeChoice::Cpu,
-                },
-            },
+            request: blocked_commit_import_request(job_id, generation),
         })
         .unwrap();
         assert!(matches!(effects.try_recv(), Ok(ImportEffect::Prepare(_))));
@@ -1398,4 +1402,22 @@ fn main() {
         ui.join().unwrap();
         fs::remove_file(current_pointer).unwrap();
         fs::remove_dir(commit_directory).unwrap();
+    }
+
+    fn blocked_commit_import_request(job_id: JobId, generation: Generation) -> ImportRequest {
+        ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            job_id,
+            generation,
+            source_path: "fixture.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Manual("fr".into()),
+                compute: ComputeChoice::Cpu,
+            },
+        }
     }

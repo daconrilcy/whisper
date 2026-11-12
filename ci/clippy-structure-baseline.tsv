@@ -116,10 +116,7 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/reprocessing_and_transport.rs|fn event_65_backpressures_all_production_stages_then_delivers_in_order	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn queued_unified_non_candidate_refusal_does_not_prepare_or_start	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn run_integrated_copy_resume_case	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/resume_and_admission.rs|fn stop_during_blocked_commit_returns_promptly_and_reports_finalizing	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/runtime_support.rs|fn fmt	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn global_close_waits_for_both_capture_publications_and_refuses_new_admission	1
