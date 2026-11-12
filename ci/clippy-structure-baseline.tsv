@@ -21,7 +21,6 @@ clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view	1
@@ -116,14 +115,10 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/t
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs|fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_external_publication	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn assert_app_view_internal_publication	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_resumes_a_verified_interrupted_unified_import	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_import.rs|fn resumed_create_only_publication_paths_reach_app_view	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/unified_restart_and_pages.rs|fn unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/tests/import_cpu.rs|fn finish	1
