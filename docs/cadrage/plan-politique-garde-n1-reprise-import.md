@@ -36,7 +36,7 @@ Les profils s’appliquent seulement à la racine canonique exacte du nouveau lo
    - `r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision`;
    - `resumed_prefix_copy_retries_after_pending_creation_without_duplication`;
    - `unified_poll_resumed_prefix_emits_only_new_segments`.
-4. Pour chacun de `whisper-worker-cpu`, `whisper-worker-parakeet-cpu`, `whisper-worker-common` : `test -p <membre>`, `test --no-run -p <membre>`, `test -p <membre> -- --list`.
+4. Pour chacun de `whisper-worker-cpu`, `whisper-worker-parakeet-cpu`, `whisper-worker-common` : `test -p <membre>`, `test -p <membre> --no-run`, `test -p <membre> -- --list`.
 5. Clippy du plan, avec exactement `whisper-core`, `whisper-adapters`, `whisper-desktop`, `whisper-bootstrap`, `whisper-worker-common`, `whisper-worker-parakeet-cpu`, `--all-targets`, JSON et les quatre lints structurels.
 
 Pour toute autre racine, l’admission et les commandes sans `-p` conservent les règles historiques. Les nouvelles sélections `-p` ne sont pas transférées aux racines voisines/enfants/non inscrites. `fetch`, `--manifest-path`, `--workspace`, les options absentes des profils, les combinaisons étrangères et les sélections GPU sont refusés selon le cadrage.
@@ -44,6 +44,7 @@ Pour toute autre racine, l’admission et les commandes sans `-p` conservent les
 ## Preuve et environnement
 
 - Le SelfTest complet actuel effectue quatre probes `cargo metadata --offline --locked --no-deps --format-version 1` (deux modes de cible, deux modes de variable). Il n’exécute pas la compilation du produit; toutefois, il lance Cargo. Ces quatre appels et les écritures de SelfTest doivent figurer dans l’accord précis du G0.
+- Invocation unique proposée après accord, depuis la racine du worktree approuvé : `pwsh -NoProfile -File ci/guard-level1.ps1 -SelfTest -LotRoot target/parakeet-tests/refacto-reprise-import`. Ne pas omettre `-LotRoot`, car le défaut vise une autre racine. Attendu : code retour 0, quatre probes `metadata` observées (2 modes de cible × présence/absence de `CARGO_TARGET_DIR`), aucune compilation; arrêt au premier échec et conservation des sorties.
 - Ne pas utiliser `-DryRun` comme preuve sans Cargo : il peut appeler `metadata` et initialiser une `FreshTarget`.
 - Le candidat de worktree relevé était propre sur `6193fbdf`, mais aucune cible partagée ni cache n’a été détecté lors du plan. Au G0, vérifier leur présence et les autres prérequis. Si le SelfTest réclame une récupération réseau ou une cible de compilation, arrêter; `fetch` n’est pas autorisé par ce plan.
 - Les sous-tests de décision de politique utilisent un rappel simulé; ils ne doivent pas lancer de processus Cargo. Les commandes de validation syntaxique et `git diff --check` sont distinctes des quatre probes metadata.
