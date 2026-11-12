@@ -56,7 +56,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/reco
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn reprocessing_reservation_tracks_only_current_strategy_publications_for_resume	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/archive_and_contracts.rs|fn unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn published_running_row_is_removed_durably_and_recovery_scans_are_stable	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn resumed_prefix_copy_retries_after_pending_creation_without_duplication	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn scan_preserves_healthy_entries_and_reports_each_corrupt_generation	1

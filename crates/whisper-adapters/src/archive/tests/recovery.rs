@@ -623,24 +623,34 @@
             .publish(request.job_id, request.generation, 1)
             .unwrap();
 
-        let mut reopened = QueueStore::open(&root).unwrap();
+        assert_recovery_scans_after_publication(&root, &request, &other);
+    }
+
+    fn assert_recovery_scans_after_publication(
+        root: &Path,
+        request: &ImportRequest,
+        other: &ImportRequest,
+    ) {
+        use crate::queue_store::QueueStore;
+
+        let mut reopened = QueueStore::open(root).unwrap();
         reopened.remove(request.job_id, request.generation).unwrap();
         drop(reopened);
-        let first = crate::recovery::scan(&root).unwrap();
-        let second = crate::recovery::scan(&root).unwrap();
+        let first = crate::recovery::scan(root).unwrap();
+        let second = crate::recovery::scan(root).unwrap();
         assert_eq!(
             first, second,
             "recovery is stable after publication cleanup"
         );
         assert_eq!(first.queue.len(), 1);
         assert_eq!(first.queue[0].request.job_id, other.job_id);
-        assert!(ArchiveStore::scan(&root).unwrap().iter().any(|entry| {
+        assert!(ArchiveStore::scan(root).unwrap().iter().any(|entry| {
             entry.job_id == request.job_id
                 && entry.generation == request.generation
                 && entry.complete
         }));
         assert!(
-            !QueueStore::open(&root)
+            !QueueStore::open(root)
                 .unwrap()
                 .entries()
                 .iter()
