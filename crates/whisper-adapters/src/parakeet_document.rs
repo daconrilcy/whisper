@@ -900,61 +900,26 @@ mod tests {
 
         let invalid_directory =
             std::env::temp_dir().join(format!("whisper-parakeet-short-resume-invalid-{stamp}"));
-        let mut invalid =
-            ParakeetDocumentStore::create(&invalid_directory, id, generation).unwrap();
-        let mut short_segment = segment(id, generation, 1);
-        short_segment.range = whisper_core::SourceRange::new(0, 8_000, 16_000).unwrap();
-        invalid.append_final(short_segment).unwrap();
-        invalid
-            .record_coverage(ParakeetWindowCoverage {
-                sequence: 1,
-                range: whisper_core::SourceRange::new(0, 16_000, 16_000).unwrap(),
-                last_segment_sequence: 1,
-            })
-            .unwrap();
-        drop(invalid);
-        let invalid = ParakeetDocumentStore::latest_resume_checkpoint(
+        assert_resume_checkpoint_rejected(
             &invalid_directory,
             id,
             generation,
             source_samples,
-            1,
-        );
-        assert!(
-            invalid.as_ref().is_err_and(
-                |error| error.contains("resume coverage is not a valid contiguous checkpoint")
-            ),
-            "a short checkpoint before source EOF must be rejected: {invalid:?}"
+            8_000,
+            16_000,
+            "a short checkpoint before source EOF must be rejected",
         );
 
         let oversized_directory =
             std::env::temp_dir().join(format!("whisper-parakeet-oversized-resume-window-{stamp}"));
-        let mut oversized =
-            ParakeetDocumentStore::create(&oversized_directory, id, generation).unwrap();
-        let mut oversized_segment = segment(id, generation, 1);
-        oversized_segment.range =
-            whisper_core::SourceRange::new(0, source_samples, 16_000).unwrap();
-        oversized.append_final(oversized_segment).unwrap();
-        oversized
-            .record_coverage(ParakeetWindowCoverage {
-                sequence: 1,
-                range: whisper_core::SourceRange::new(0, source_samples, 16_000).unwrap(),
-                last_segment_sequence: 1,
-            })
-            .unwrap();
-        drop(oversized);
-        let oversized = ParakeetDocumentStore::latest_resume_checkpoint(
+        assert_resume_checkpoint_rejected(
             &oversized_directory,
             id,
             generation,
             source_samples,
-            1,
-        );
-        assert!(
-            oversized.as_ref().is_err_and(
-                |error| error.contains("resume coverage is not a valid contiguous checkpoint")
-            ),
-            "a checkpoint wider than the scheduler's maximum window must be rejected: {oversized:?}"
+            source_samples,
+            source_samples,
+            "a checkpoint wider than the scheduler's maximum window must be rejected",
         );
 
         let valid_directory =
@@ -1000,6 +965,42 @@ mod tests {
         fs::remove_dir_all(invalid_directory).unwrap();
         fs::remove_dir_all(oversized_directory).unwrap();
         fs::remove_dir_all(valid_directory).unwrap();
+    }
+
+    fn assert_resume_checkpoint_rejected(
+        directory: &Path,
+        id: JobId,
+        generation: Generation,
+        source_samples: u64,
+        segment_end: u64,
+        coverage_end: u64,
+        reason: &str,
+    ) {
+        let mut document = ParakeetDocumentStore::create(directory, id, generation).unwrap();
+        let mut first_segment = segment(id, generation, 1);
+        first_segment.range = whisper_core::SourceRange::new(0, segment_end, 16_000).unwrap();
+        document.append_final(first_segment).unwrap();
+        document
+            .record_coverage(ParakeetWindowCoverage {
+                sequence: 1,
+                range: whisper_core::SourceRange::new(0, coverage_end, 16_000).unwrap(),
+                last_segment_sequence: 1,
+            })
+            .unwrap();
+        drop(document);
+        let checkpoint = ParakeetDocumentStore::latest_resume_checkpoint(
+            directory,
+            id,
+            generation,
+            source_samples,
+            1,
+        );
+        assert!(
+            checkpoint.as_ref().is_err_and(|error| {
+                error.contains("resume coverage is not a valid contiguous checkpoint")
+            }),
+            "{reason}: {checkpoint:?}"
+        );
     }
 
     #[test]

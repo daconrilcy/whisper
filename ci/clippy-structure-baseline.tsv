@@ -69,7 +69,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/gpu_inventory.rs|fn start	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/microphone_probe.rs|fn push	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|fn ingest_observed	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_document.rs|fn resume_coverage_rejects_impossible_window_geometry_and_accepts_short_terminal_eof	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_import.rs|fn spawn_profile_with_log_root	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/events.rs|fn poll	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/parakeet_live/inference.rs|fn inference_thread	1
