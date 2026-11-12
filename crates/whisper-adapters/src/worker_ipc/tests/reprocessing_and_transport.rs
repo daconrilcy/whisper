@@ -1788,46 +1788,46 @@ fn main() {
         service.join().unwrap();
     }
 
+    struct SaturatedPendingRuntime {
+        gate: Arc<PublicationGate>,
+        remaining_events: usize,
+        saturated: Option<mpsc::SyncSender<()>>,
+        actions: mpsc::Sender<&'static str>,
+    }
+    impl ServiceRuntime for SaturatedPendingRuntime {
+        fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
+            match effect {
+                ImportEffect::StartLive(_) => {
+                    if self.gate.is_cancelled() {
+                        self.actions.send("late-start-skipped").unwrap();
+                    } else {
+                        self.actions.send("new-start-accepted").unwrap();
+                    }
+                }
+                ImportEffect::Stop { job_id, generation } => {
+                    self.actions.send("stop-without-active-worker").unwrap();
+                    pending.push_back(ImportEvent::Stopped { job_id, generation });
+                }
+                _ => {}
+            }
+        }
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            if self.remaining_events == 0 {
+                return None;
+            }
+            self.remaining_events -= 1;
+            if self.remaining_events == 0
+                && let Some(saturated) = self.saturated.take()
+            {
+                saturated.send(()).unwrap();
+            }
+            Some(Ok(ImportEvent::History(Vec::new())))
+        }
+    }
+
     #[test]
     fn saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start() {
-        struct Runtime {
-            gate: Arc<PublicationGate>,
-            remaining_events: usize,
-            saturated: Option<mpsc::SyncSender<()>>,
-            actions: mpsc::Sender<&'static str>,
-        }
-        impl ServiceRuntime for Runtime {
-            fn apply_effect(&mut self, effect: ImportEffect, pending: &mut VecDeque<ImportEvent>) {
-                match effect {
-                    ImportEffect::StartLive(_) => {
-                        if self.gate.is_cancelled() {
-                            self.actions.send("late-start-skipped").unwrap();
-                        } else {
-                            self.actions.send("new-start-accepted").unwrap();
-                        }
-                    }
-                    ImportEffect::Stop { job_id, generation } => {
-                        self.actions.send("stop-without-active-worker").unwrap();
-                        pending.push_back(ImportEvent::Stopped { job_id, generation });
-                    }
-                    _ => {}
-                }
-            }
-
-            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-                if self.remaining_events == 0 {
-                    return None;
-                }
-                self.remaining_events -= 1;
-                if self.remaining_events == 0
-                    && let Some(saturated) = self.saturated.take()
-                {
-                    saturated.send(()).unwrap();
-                }
-                Some(Ok(ImportEvent::History(Vec::new())))
-            }
-        }
-
         let gate = Arc::new(PublicationGate::default());
         let (effect_tx, effect_rx) = mpsc::sync_channel(2);
         let (stop_tx, stop_rx) = mpsc::sync_channel(1);
@@ -1837,7 +1837,7 @@ fn main() {
         }
         let (saturated_tx, saturated_rx) = mpsc::sync_channel(1);
         let (actions_tx, actions_rx) = mpsc::channel();
-        let runtime = Runtime {
+        let runtime = SaturatedPendingRuntime {
             gate: gate.clone(),
             remaining_events: EVENTS_PER_STAGE,
             saturated: Some(saturated_tx),
@@ -2044,62 +2044,61 @@ fn main() {
         );
     }
 
-    #[test]
-    fn event_65_backpressures_all_production_stages_then_delivers_in_order() {
-        struct WireRuntime {
-            worker_events: Receiver<WorkerReaderMessage>,
-            consumed: Arc<std::sync::atomic::AtomicUsize>,
-            shutdown: Receiver<()>,
-        }
-        impl ServiceRuntime for WireRuntime {
-            fn apply_effect(&mut self, _: ImportEffect, _: &mut VecDeque<ImportEvent>) {}
+    struct BackpressureWireRuntime {
+        worker_events: Receiver<WorkerReaderMessage>,
+        consumed: Arc<std::sync::atomic::AtomicUsize>,
+        shutdown: Receiver<()>,
+    }
 
-            fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
-                match self.worker_events.try_recv() {
-                    Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Progress {
+    impl ServiceRuntime for BackpressureWireRuntime {
+        fn apply_effect(&mut self, _: ImportEffect, _: &mut VecDeque<ImportEvent>) {}
+
+        fn poll_event(&mut self) -> Option<Result<ImportEvent, (JobId, Generation, String)>> {
+            match self.worker_events.try_recv() {
+                Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Progress {
+                    job_id,
+                    generation,
+                    completed_samples,
+                    total_samples,
+                    ..
+                }))) => {
+                    self.consumed.fetch_add(1, Ordering::AcqRel);
+                    Some(Ok(ImportEvent::Progress {
                         job_id,
                         generation,
                         completed_samples,
                         total_samples,
-                        ..
-                    }))) => {
-                        self.consumed.fetch_add(1, Ordering::AcqRel);
-                        Some(Ok(ImportEvent::Progress {
-                            job_id,
-                            generation,
-                            completed_samples,
-                            total_samples,
-                        }))
-                    }
-                    Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Failed {
-                        job_id: Some(job_id),
-                        generation: Some(generation),
-                        message,
-                        ..
-                    }))) => {
-                        self.consumed.fetch_add(1, Ordering::AcqRel);
-                        Some(Err((job_id, generation, message)))
-                    }
-                    Ok(WorkerReaderMessage::Event(Err(error))) => Some(Err((
-                        JobId(903),
-                        Generation::first(),
-                        format!("worker reader: {error:?}"),
-                    ))),
-                    Ok(WorkerReaderMessage::Event(Ok(_)) | WorkerReaderMessage::TransportEnded) => {
-                        None
-                    }
-                    Err(TryRecvError::Empty) => match self.shutdown.try_recv() {
-                        Ok(()) => Some(Ok(ImportEvent::History(Vec::new()))),
-                        Err(_) => None,
-                    },
-                    Err(TryRecvError::Disconnected) => match self.shutdown.try_recv() {
-                        Ok(()) => Some(Ok(ImportEvent::History(Vec::new()))),
-                        Err(_) => None,
-                    },
+                    }))
                 }
+                Ok(WorkerReaderMessage::Event(Ok(WorkerEvent::Failed {
+                    job_id: Some(job_id),
+                    generation: Some(generation),
+                    message,
+                    ..
+                }))) => {
+                    self.consumed.fetch_add(1, Ordering::AcqRel);
+                    Some(Err((job_id, generation, message)))
+                }
+                Ok(WorkerReaderMessage::Event(Err(error))) => Some(Err((
+                    JobId(903),
+                    Generation::first(),
+                    format!("worker reader: {error:?}"),
+                ))),
+                Ok(WorkerReaderMessage::Event(Ok(_)) | WorkerReaderMessage::TransportEnded) => None,
+                Err(TryRecvError::Empty) => match self.shutdown.try_recv() {
+                    Ok(()) => Some(Ok(ImportEvent::History(Vec::new()))),
+                    Err(_) => None,
+                },
+                Err(TryRecvError::Disconnected) => match self.shutdown.try_recv() {
+                    Ok(()) => Some(Ok(ImportEvent::History(Vec::new()))),
+                    Err(_) => None,
+                },
             }
         }
+    }
 
+    #[test]
+    fn event_65_backpressures_all_production_stages_then_delivers_in_order() {
         const BACKLOG: usize = EVENTS_PER_STAGE * 3 + 1;
         const EVENT_COUNT: usize = BACKLOG + 1;
         let job_id = JobId(903);
@@ -2138,7 +2137,7 @@ fn main() {
                 effect_rx,
                 stop_rx,
                 app_tx,
-                WireRuntime {
+                BackpressureWireRuntime {
                     worker_events: worker_rx,
                     consumed,
                     shutdown: shutdown_rx,

@@ -92,21 +92,7 @@ fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled()
     use whisper_adapters::{WorkerTransport, worker_ipc::ChildWorkerTransport};
     use whisper_core::gpu_inventory_app::GpuInventoryApp;
 
-    let model_path = std::env::var_os("WHISPER_L04_MODEL")
-        .expect("WHISPER_L04_MODEL must name the local large-v3-turbo model");
-    let source_path = std::env::var_os("WHISPER_L04_WAV")
-        .expect("WHISPER_L04_WAV must name the real WAV corpus input");
-    let worker_path = std::env::var_os("WHISPER_L04_GPU_WORKER")
-        .expect("WHISPER_L04_GPU_WORKER must name the release GPU worker");
-    let model_path = std::path::PathBuf::from(model_path);
-    let source_path = std::path::PathBuf::from(source_path);
-    let worker_path = std::path::PathBuf::from(worker_path);
-    assert!(
-        model_path.is_file(),
-        "local large-v3-turbo model is missing"
-    );
-    assert!(source_path.is_file(), "local WAV is missing");
-    assert!(worker_path.is_file(), "release GPU worker is missing");
+    let (model_path, source_path, worker_path) = required_gpu_import_paths();
 
     let mut inventory = GpuInventoryApp::new(Box::new(
         whisper_adapters::gpu_inventory::WindowsGpuInventoryPort::new(worker_path.clone()),
@@ -159,94 +145,70 @@ fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled()
     let started_at = Instant::now();
     let mut child = ChildWorkerTransport::spawn(&worker_path).expect("launch release GPU worker");
     child.request(command).expect("send GPU import request");
-
-    let deadline = Instant::now() + Duration::from_secs(300);
-    let mut attested = false;
-    let mut ready_at = None;
-    let mut transcript = String::new();
-    let mut first_text_elapsed = None;
-    let mut got_end = false;
-    let mut completed_at = None;
-    while Instant::now() < deadline {
-        let event = match child.receive() {
-            Ok(Some(event)) => event,
-            Ok(None) => {
-                std::thread::sleep(Duration::from_millis(5));
-                continue;
-            }
-            Err(error) => panic!("GPU worker transport rejected event: {error:?}"),
-        };
-        match event {
-            WorkerEvent::GpuSessionAttested {
-                job_id: actual_job,
-                generation: actual_generation,
-                instance_id: actual_instance,
-                candidate: pnp,
-                dxgi_rank,
-                luid,
-                pci_id,
-                cuda_ordinal,
-                ggml_ordinal,
-            } => {
-                assert_eq!(
-                    (actual_job, actual_generation, actual_instance),
-                    (job_id, generation, instance_id)
-                );
-                assert_eq!(pnp, candidate.pnp_instance_id);
-                assert_eq!(dxgi_rank, candidate.dxgi_rank);
-                assert_eq!(luid, candidate.luid);
-                assert_eq!(pci_id, candidate.pci_id);
-                assert_eq!(cuda_ordinal, candidate.cuda_ordinal);
-                assert_eq!(ggml_ordinal, candidate.ggml_ordinal);
-                attested = true;
-            }
-            WorkerEvent::Ready {
-                job_id: actual_job,
-                generation: actual_generation,
-                instance_id: actual_instance,
-                backend,
-            } => {
-                assert!(attested, "Ready arrived before fresh GPU session identity");
-                assert_eq!(
-                    (actual_job, actual_generation, actual_instance),
-                    (job_id, generation, instance_id)
-                );
-                assert_eq!(backend, BackendKind::Cuda);
-                ready_at = Some(Instant::now());
-            }
-            WorkerEvent::Segment(segment) => {
-                first_text_elapsed.get_or_insert_with(|| started_at.elapsed());
-                transcript.push_str(&segment.text);
-            }
-            WorkerEvent::End {
-                job_id: actual_job,
-                generation: actual_generation,
-                instance_id: actual_instance,
-                ..
-            } => {
-                assert_eq!(
-                    (actual_job, actual_generation, actual_instance),
-                    (job_id, generation, instance_id)
-                );
-                got_end = true;
-                completed_at = Some(Instant::now());
-                break;
-            }
-            WorkerEvent::Failed { code, message, .. } => {
-                panic!("real GPU import failed ({code:?}): {message}")
-            }
-            _ => {}
-        }
-    }
+    let context = GpuImportContext {
+        candidate: candidate.clone(),
+        job_id,
+        generation,
+        instance_id,
+        started_at,
+    };
+    let outcome = collect_gpu_import_events(&mut child, &context);
     assert!(
-        got_end,
+        outcome.got_end,
         "GPU worker did not finish before the 300-second bound"
     );
-    let ready_at = ready_at.expect("GPU Ready event missing");
+    let ready_at = outcome.ready_at.expect("GPU Ready event missing");
+    let transcript = outcome.transcript;
     assert!(
         !transcript.trim().is_empty(),
         "GPU produced no transcript text"
     );
+    shutdown_gpu_worker(&mut child);
+    assert_eq!(
+        Sha256::digest(std::fs::read(&source_path).unwrap()).as_slice(),
+        before
+    );
+    report_gpu_import(
+        &candidate,
+        started_at,
+        ready_at,
+        outcome
+            .first_text_elapsed
+            .expect("first text timestamp missing"),
+        outcome.completed_at.expect("completion timestamp missing"),
+        expected_source_samples,
+        &transcript,
+    );
+}
+
+#[cfg(windows)]
+fn required_gpu_import_paths() -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    let model_path = std::path::PathBuf::from(
+        std::env::var_os("WHISPER_L04_MODEL")
+            .expect("WHISPER_L04_MODEL must name the local large-v3-turbo model"),
+    );
+    let source_path = std::path::PathBuf::from(
+        std::env::var_os("WHISPER_L04_WAV")
+            .expect("WHISPER_L04_WAV must name the real WAV corpus input"),
+    );
+    let worker_path = std::path::PathBuf::from(
+        std::env::var_os("WHISPER_L04_GPU_WORKER")
+            .expect("WHISPER_L04_GPU_WORKER must name the release GPU worker"),
+    );
+    assert!(
+        model_path.is_file(),
+        "local large-v3-turbo model is missing"
+    );
+    assert!(source_path.is_file(), "local WAV is missing");
+    assert!(worker_path.is_file(), "release GPU worker is missing");
+    (model_path, source_path, worker_path)
+}
+
+#[cfg(windows)]
+fn shutdown_gpu_worker(child: &mut whisper_adapters::worker_ipc::ChildWorkerTransport) {
+    use std::time::{Duration, Instant};
+    use whisper_adapters::WorkerTransport;
+
     child
         .request(WorkerCommand::Shutdown)
         .expect("shutdown GPU worker");
@@ -262,10 +224,18 @@ fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled()
         std::thread::sleep(Duration::from_millis(5));
     };
     assert!(status.success(), "GPU worker exited with {status}");
-    assert_eq!(
-        Sha256::digest(std::fs::read(&source_path).unwrap()).as_slice(),
-        before
-    );
+}
+
+#[cfg(windows)]
+fn report_gpu_import(
+    candidate: &GpuRuntimeIdentity,
+    started_at: std::time::Instant,
+    ready_at: std::time::Instant,
+    first_text_elapsed: std::time::Duration,
+    completed_at: std::time::Instant,
+    expected_source_samples: u64,
+    transcript: &str,
+) {
     println!(
         "V-L04 REAL GPU PASS: backend=CUDA; pnp={}; dxgi_rank={}; luid={:#x}; pci={}; cuda_ordinal={}; ggml_ordinal={}; ready_ms={}; first_text_ms={}; import_ms={}; source_samples={}; transcript={:?}",
         candidate.pnp_instance_id,
@@ -275,16 +245,140 @@ fn real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled()
         candidate.cuda_ordinal,
         candidate.ggml_ordinal,
         ready_at.duration_since(started_at).as_millis(),
-        first_text_elapsed
-            .expect("first text timestamp missing")
-            .as_millis(),
-        completed_at
-            .expect("completion timestamp missing")
-            .duration_since(started_at)
-            .as_millis(),
+        first_text_elapsed.as_millis(),
+        completed_at.duration_since(started_at).as_millis(),
         expected_source_samples,
         transcript,
     );
+}
+
+#[cfg(windows)]
+struct GpuImportContext {
+    candidate: GpuRuntimeIdentity,
+    job_id: JobId,
+    generation: Generation,
+    instance_id: u64,
+    started_at: std::time::Instant,
+}
+
+#[cfg(windows)]
+struct GpuImportOutcome {
+    attested: bool,
+    ready_at: Option<std::time::Instant>,
+    transcript: String,
+    first_text_elapsed: Option<std::time::Duration>,
+    got_end: bool,
+    completed_at: Option<std::time::Instant>,
+}
+
+#[cfg(windows)]
+fn collect_gpu_import_events(
+    child: &mut whisper_adapters::worker_ipc::ChildWorkerTransport,
+    context: &GpuImportContext,
+) -> GpuImportOutcome {
+    use std::time::{Duration, Instant};
+    use whisper_adapters::WorkerTransport;
+
+    let mut outcome = GpuImportOutcome {
+        attested: false,
+        ready_at: None,
+        transcript: String::new(),
+        first_text_elapsed: None,
+        got_end: false,
+        completed_at: None,
+    };
+    let deadline = Instant::now() + Duration::from_secs(300);
+    while Instant::now() < deadline {
+        let event = match child.receive() {
+            Ok(Some(event)) => event,
+            Ok(None) => {
+                std::thread::sleep(Duration::from_millis(5));
+                continue;
+            }
+            Err(error) => panic!("GPU worker transport rejected event: {error:?}"),
+        };
+        if record_gpu_import_event(&mut outcome, context, event) {
+            break;
+        }
+    }
+    outcome
+}
+
+#[cfg(windows)]
+fn record_gpu_import_event(
+    outcome: &mut GpuImportOutcome,
+    context: &GpuImportContext,
+    event: WorkerEvent,
+) -> bool {
+    use std::time::Instant;
+
+    match event {
+        WorkerEvent::GpuSessionAttested {
+            job_id: actual_job,
+            generation: actual_generation,
+            instance_id: actual_instance,
+            candidate: pnp,
+            dxgi_rank,
+            luid,
+            pci_id,
+            cuda_ordinal,
+            ggml_ordinal,
+        } => {
+            assert_eq!(
+                (actual_job, actual_generation, actual_instance),
+                (context.job_id, context.generation, context.instance_id)
+            );
+            assert_eq!(pnp, context.candidate.pnp_instance_id);
+            assert_eq!(dxgi_rank, context.candidate.dxgi_rank);
+            assert_eq!(luid, context.candidate.luid);
+            assert_eq!(pci_id, context.candidate.pci_id);
+            assert_eq!(cuda_ordinal, context.candidate.cuda_ordinal);
+            assert_eq!(ggml_ordinal, context.candidate.ggml_ordinal);
+            outcome.attested = true;
+        }
+        WorkerEvent::Ready {
+            job_id: actual_job,
+            generation: actual_generation,
+            instance_id: actual_instance,
+            backend,
+        } => {
+            assert!(
+                outcome.attested,
+                "Ready arrived before fresh GPU session identity"
+            );
+            assert_eq!(
+                (actual_job, actual_generation, actual_instance),
+                (context.job_id, context.generation, context.instance_id)
+            );
+            assert_eq!(backend, BackendKind::Cuda);
+            outcome.ready_at = Some(Instant::now());
+        }
+        WorkerEvent::Segment(segment) => {
+            outcome
+                .first_text_elapsed
+                .get_or_insert_with(|| context.started_at.elapsed());
+            outcome.transcript.push_str(&segment.text);
+        }
+        WorkerEvent::End {
+            job_id: actual_job,
+            generation: actual_generation,
+            instance_id: actual_instance,
+            ..
+        } => {
+            assert_eq!(
+                (actual_job, actual_generation, actual_instance),
+                (context.job_id, context.generation, context.instance_id)
+            );
+            outcome.got_end = true;
+            outcome.completed_at = Some(Instant::now());
+            return true;
+        }
+        WorkerEvent::Failed { code, message, .. } => {
+            panic!("real GPU import failed ({code:?}): {message}")
+        }
+        _ => {}
+    }
+    false
 }
 
 #[cfg(windows)]

@@ -17,6 +17,53 @@ use whisper_core::{
     JobConfig, JobId, LanguageChoice, model_catalog::ModelId,
 };
 
+fn parakeet_test_application(
+    runtime: &std::path::Path,
+    model: &std::path::Path,
+    turbo_worker: PathBuf,
+) -> ImportApplication<AsyncImportIo> {
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model.parent().unwrap().to_path_buf(),
+        runtime
+            .join("historical/ggml-large-v3-turbo.bin")
+            .to_string_lossy()
+            .into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: required_path("PARAKEET_L2_WORKER"),
+            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
+            model: model.to_path_buf(),
+            runtime_root: runtime.to_path_buf(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                runtime
+                    .join("historical/ggml-large-v3-turbo.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+    ImportApplication::new(io).with_model_guard(guard)
+}
+
 #[test]
 #[cfg_attr(
     not(feature = "native-tests"),
@@ -146,11 +193,11 @@ fn stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_p
         assert!(Instant::now() < deadline, "Stop did not complete: {view:?}");
         thread::sleep(Duration::from_millis(10));
     }
-    let pending = destination
-        .join("transcriptions")
-        .join(format!("{:032x}", job_id.0))
-        .join("1")
-        .join("pending.json");
+    assert_interrupted_checkpoint(&destination, job_id);
+}
+
+fn assert_interrupted_checkpoint(destination: &std::path::Path, job_id: JobId) {
+    let pending = passage_dir(destination, job_id, Generation::first()).join("pending.json");
     assert!(
         pending.is_file(),
         "interrupted archive checkpoint is preserved"
@@ -263,46 +310,7 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
         .unwrap();
 
     let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: dummy_turbo.clone(),
-            gpu: dummy_turbo,
-        },
-        model.parent().unwrap().to_path_buf(),
-        runtime
-            .join("historical/ggml-large-v3-turbo.bin")
-            .to_string_lossy()
-            .into_owned(),
-        Some(ParakeetWorkerPaths {
-            executable: required_path("PARAKEET_L2_WORKER"),
-            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
-            model: model.clone(),
-            runtime_root: runtime.clone(),
-        }),
-    );
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                runtime
-                    .join("historical/ggml-large-v3-turbo.bin")
-                    .to_string_lossy()
-                    .into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let mut app = parakeet_test_application(&runtime, &model, dummy_turbo);
     app.dispatch(AppCommand::ProcessQueued {
         request: request.clone(),
     })
@@ -350,6 +358,22 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
             .all(|entry| entry.job_id != request.job_id || !entry.complete)
     );
 
+    verify_next_import_after_queue_failure(
+        &mut app,
+        &runtime,
+        &source,
+        &model,
+        record.artifact.sha256,
+    );
+}
+
+fn verify_next_import_after_queue_failure(
+    app: &mut ImportApplication<AsyncImportIo>,
+    runtime: &std::path::Path,
+    source: &std::path::Path,
+    model: &std::path::Path,
+    model_hash: &str,
+) {
     let next_destination = runtime.join(format!("archive/r9-next-import-{}", std::process::id()));
     fs::create_dir_all(&next_destination).unwrap();
     let barrier = next_destination.join(".l2a2-acceptance");
@@ -363,7 +387,7 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
         source_sha256: None,
         source_samples: None,
         model_path: model.to_string_lossy().into_owned(),
-        model_sha256: decode_sha256(record.artifact.sha256),
+        model_sha256: decode_sha256(model_hash),
         destination: next_destination.to_string_lossy().into_owned(),
         config: JobConfig {
             language: LanguageChoice::Automatic,
@@ -401,7 +425,7 @@ fn stop_queue_journal_failure_settles_runtime_and_allows_next_import() {
     .unwrap();
     fs::write(barrier.join("prepare.release"), b"release").unwrap();
     wait_for_state(
-        &mut app,
+        app,
         JobId(0x2a9),
         whisper_core::JobState::Cancelled,
         Duration::from_secs(60),
@@ -422,48 +446,9 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let barriers = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&barriers).unwrap();
     fs::write(barriers.join("resume-prefix-confirmed.enabled"), b"enabled").unwrap();
-    let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: dummy_turbo.clone(),
-            gpu: dummy_turbo,
-        },
-        model.parent().unwrap().to_path_buf(),
-        runtime
-            .join("historical/ggml-large-v3-turbo.bin")
-            .to_string_lossy()
-            .into_owned(),
-        Some(ParakeetWorkerPaths {
-            executable: required_path("PARAKEET_L2_WORKER"),
-            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
-            model: model.clone(),
-            runtime_root: runtime.clone(),
-        }),
-    );
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                runtime
-                    .join("historical/ggml-large-v3-turbo.bin")
-                    .to_string_lossy()
-                    .into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
+    let mut app = parakeet_test_application(&runtime, &model, dummy_turbo);
     let job_id = JobId(0x2ac);
     let first_generation = Generation::first();
     let mut request = ImportRequest {
@@ -543,8 +528,17 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
         Duration::from_secs(240),
     );
 
+    assert_resumed_import_published(&destination, job_id, first_generation, &prefix_rows);
+}
+
+fn assert_resumed_import_published(
+    destination: &std::path::Path,
+    job_id: JobId,
+    first_generation: Generation,
+    prefix_rows: &[serde_json::Value],
+) {
     let resumed_generation = first_generation.next().unwrap();
-    let resumed_passage = passage_dir(&destination, job_id, resumed_generation);
+    let resumed_passage = passage_dir(destination, job_id, resumed_generation);
     let resumed_rows = read_segment_rows(&resumed_passage.join("segments.jsonl"));
     assert!(resumed_rows.len() > prefix_rows.len());
     assert_eq!(resumed_rows[0], prefix_rows[0], "prefix is byte-identical");
@@ -560,13 +554,13 @@ fn resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once() {
     );
     assert!(resumed_passage.join("transcript.srt").is_file());
     assert!(resumed_passage.join("CURRENT").is_file());
-    let complete: Vec<_> = ArchiveStore::scan(&destination)
+    let complete: Vec<_> = ArchiveStore::scan(destination)
         .unwrap()
         .into_iter()
         .filter(|entry| entry.job_id == job_id && entry.complete)
         .collect();
     assert_eq!(complete.len(), 1, "one generation is published");
-    assert!(QueueStore::open(&destination).unwrap().entries().is_empty());
+    assert!(QueueStore::open(destination).unwrap().entries().is_empty());
 }
 
 #[test]
@@ -583,47 +577,8 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     fs::create_dir_all(&destination).unwrap();
     let barriers = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&barriers).unwrap();
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: turbo_decoder.clone(),
-            gpu: turbo_decoder,
-        },
-        model.parent().unwrap().to_path_buf(),
-        runtime
-            .join("historical/ggml-large-v3-turbo.bin")
-            .to_string_lossy()
-            .into_owned(),
-        Some(ParakeetWorkerPaths {
-            executable: required_path("PARAKEET_L2_WORKER"),
-            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
-            model: model.clone(),
-            runtime_root: runtime.clone(),
-        }),
-    );
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                runtime
-                    .join("historical/ggml-large-v3-turbo.bin")
-                    .to_string_lossy()
-                    .into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let mut app = parakeet_test_application(&runtime, &model, turbo_decoder);
     let job_id = JobId(0x2a3);
     let first_generation = Generation::first();
     let mut request = ImportRequest {
@@ -652,18 +607,7 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     })
     .unwrap();
 
-    let deadline = Instant::now() + Duration::from_secs(600);
-    loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if view.active_job == Some((job_id, whisper_core::JobState::Running)) {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "VAD worker did not reach native inference: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    }
+    wait_for_vad_worker_running(&mut app, job_id);
     thread::sleep(Duration::from_millis(100));
     app.dispatch(AppCommand::Stop {
         job_id,
@@ -676,15 +620,7 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
         whisper_core::JobState::Cancelled,
         Duration::from_secs(30),
     );
-    let first_passage = passage_dir(&destination, job_id, first_generation);
-    let first_pending: serde_json::Value =
-        serde_json::from_slice(&fs::read(first_passage.join("pending.json")).unwrap()).unwrap();
-    assert_eq!(
-        first_pending["qualification"]["inference_profile"],
-        "import-vad"
-    );
-    assert!(!first_passage.join("CURRENT").exists());
-    assert!(!first_passage.join("transcript.txt").exists());
+    assert_vad_first_stop(&destination, job_id, first_generation);
 
     fs::write(barriers.join("resume-prefix-confirmed.enabled"), b"enabled").unwrap();
     app.dispatch(AppCommand::ResumeInterrupted {
@@ -694,18 +630,7 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     let second_generation = first_generation.next().unwrap();
     let entered = barriers.join("resume-prefix-confirmed.entered");
     let segment_path = passage_dir(&destination, job_id, second_generation).join("segments.jsonl");
-    let deadline = Instant::now() + Duration::from_secs(600);
-    loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if entered.is_file() && segment_path.is_file() {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "confirmed prefix was not persisted: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    }
+    wait_for_resume_prefix(&mut app, &entered, &segment_path);
     app.dispatch(AppCommand::Stop {
         job_id,
         generation: second_generation,
@@ -744,8 +669,17 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
         Duration::from_secs(3_600),
     );
 
-    let resumed_generation = second_generation.next().unwrap();
-    let resumed_passage = passage_dir(&destination, job_id, resumed_generation);
+    assert_resumed_vad_import_published(&destination, job_id, second_generation, &prefix_rows);
+}
+
+fn assert_resumed_vad_import_published(
+    destination: &std::path::Path,
+    job_id: JobId,
+    stopped_generation: Generation,
+    prefix_rows: &[serde_json::Value],
+) {
+    let resumed_generation = stopped_generation.next().unwrap();
+    let resumed_passage = passage_dir(destination, job_id, resumed_generation);
     let resumed_rows = read_segment_rows(&resumed_passage.join("segments.jsonl"));
     assert!(resumed_rows.len() > prefix_rows.len());
     assert_eq!(
@@ -764,13 +698,63 @@ fn resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once() {
     );
     assert!(resumed_passage.join("transcript.srt").is_file());
     assert!(resumed_passage.join("CURRENT").is_file());
-    let complete: Vec<_> = ArchiveStore::scan(&destination)
+    let complete: Vec<_> = ArchiveStore::scan(destination)
         .unwrap()
         .into_iter()
         .filter(|entry| entry.job_id == job_id && entry.complete)
         .collect();
     assert_eq!(complete.len(), 1, "one generation is published");
-    assert!(QueueStore::open(&destination).unwrap().entries().is_empty());
+    assert!(QueueStore::open(destination).unwrap().entries().is_empty());
+}
+
+fn assert_vad_first_stop(
+    destination: &std::path::Path,
+    job_id: JobId,
+    first_generation: Generation,
+) {
+    let first_passage = passage_dir(destination, job_id, first_generation);
+    let first_pending: serde_json::Value =
+        serde_json::from_slice(&fs::read(first_passage.join("pending.json")).unwrap()).unwrap();
+    assert_eq!(
+        first_pending["qualification"]["inference_profile"],
+        "import-vad"
+    );
+    assert!(!first_passage.join("CURRENT").exists());
+    assert!(!first_passage.join("transcript.txt").exists());
+}
+
+fn wait_for_vad_worker_running(app: &mut ImportApplication<AsyncImportIo>, job_id: JobId) {
+    let deadline = Instant::now() + Duration::from_secs(600);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if view.active_job == Some((job_id, whisper_core::JobState::Running)) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "VAD worker did not reach native inference: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_resume_prefix(
+    app: &mut ImportApplication<AsyncImportIo>,
+    entered: &std::path::Path,
+    segment_path: &std::path::Path,
+) {
+    let deadline = Instant::now() + Duration::from_secs(600);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if entered.is_file() && segment_path.is_file() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "confirmed prefix was not persisted: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn read_segment_rows(path: &std::path::Path) -> Vec<serde_json::Value> {
@@ -794,49 +778,8 @@ fn run_barrier_case(
     let barrier = destination.join(".l2a2-acceptance");
     fs::create_dir_all(&barrier).unwrap();
     fs::write(barrier.join(format!("{phase}.enabled")), b"enabled").unwrap();
-    let model = required_path("PARAKEET_L2_MODEL");
-    let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
-    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-        WorkerPaths {
-            cpu: dummy_turbo.clone(),
-            gpu: dummy_turbo,
-        },
-        model.parent().unwrap().to_path_buf(),
-        runtime
-            .join("historical/ggml-large-v3-turbo.bin")
-            .to_string_lossy()
-            .into_owned(),
-        Some(ParakeetWorkerPaths {
-            executable: required_path("PARAKEET_L2_WORKER"),
-            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
-            model: model.clone(),
-            runtime_root: runtime.to_path_buf(),
-        }),
-    );
+    let (model, mut app) = barrier_import_app(runtime);
     let record = whisper_core::model_registry::model(ModelId::ParakeetTdt06BV3);
-    let snapshot = whisper_core::model_registry::engine_snapshot(
-        1,
-        |_| whisper_core::model_catalog::ModelAvailability::Ready,
-        vec![],
-    );
-    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-        snapshot,
-        1,
-        [
-            (
-                ModelId::ParakeetTdt06BV3,
-                model.to_string_lossy().into_owned(),
-            ),
-            (
-                ModelId::WhisperLargeV3Turbo,
-                runtime
-                    .join("historical/ggml-large-v3-turbo.bin")
-                    .to_string_lossy()
-                    .into_owned(),
-            ),
-        ],
-    );
-    let mut app = ImportApplication::new(io).with_model_guard(guard);
     let job_id = match &stop_command {
         AppCommand::Stop { job_id, .. } | AppCommand::Quit { job_id, .. } => *job_id,
         _ => panic!("barrier case requires Stop or Quit"),
@@ -894,6 +837,51 @@ fn run_barrier_case(
     }
     fs::write(barrier.join(format!("{phase}.release")), b"release").unwrap();
     wait_for_state(&mut app, job_id, expected, Duration::from_secs(240));
+}
+
+fn barrier_import_app(runtime: &std::path::Path) -> (PathBuf, ImportApplication<AsyncImportIo>) {
+    let model = required_path("PARAKEET_L2_MODEL");
+    let dummy_turbo = runtime.join("worker/not-used-turbo.exe");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: dummy_turbo.clone(),
+            gpu: dummy_turbo,
+        },
+        model.parent().unwrap().to_path_buf(),
+        runtime
+            .join("historical/ggml-large-v3-turbo.bin")
+            .to_string_lossy()
+            .into_owned(),
+        Some(ParakeetWorkerPaths {
+            executable: required_path("PARAKEET_L2_WORKER"),
+            native_dir: required_path("PARAKEET_L2_NATIVE_DIR"),
+            model: model.clone(),
+            runtime_root: runtime.to_path_buf(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                runtime
+                    .join("historical/ggml-large-v3-turbo.bin")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+    (model, ImportApplication::new(io).with_model_guard(guard))
 }
 
 fn wait_for_state(

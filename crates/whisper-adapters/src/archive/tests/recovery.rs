@@ -623,24 +623,34 @@
             .publish(request.job_id, request.generation, 1)
             .unwrap();
 
-        let mut reopened = QueueStore::open(&root).unwrap();
+        assert_recovery_scans_after_publication(&root, &request, &other);
+    }
+
+    fn assert_recovery_scans_after_publication(
+        root: &Path,
+        request: &ImportRequest,
+        other: &ImportRequest,
+    ) {
+        use crate::queue_store::QueueStore;
+
+        let mut reopened = QueueStore::open(root).unwrap();
         reopened.remove(request.job_id, request.generation).unwrap();
         drop(reopened);
-        let first = crate::recovery::scan(&root).unwrap();
-        let second = crate::recovery::scan(&root).unwrap();
+        let first = crate::recovery::scan(root).unwrap();
+        let second = crate::recovery::scan(root).unwrap();
         assert_eq!(
             first, second,
             "recovery is stable after publication cleanup"
         );
         assert_eq!(first.queue.len(), 1);
         assert_eq!(first.queue[0].request.job_id, other.job_id);
-        assert!(ArchiveStore::scan(&root).unwrap().iter().any(|entry| {
+        assert!(ArchiveStore::scan(root).unwrap().iter().any(|entry| {
             entry.job_id == request.job_id
                 && entry.generation == request.generation
                 && entry.complete
         }));
         assert!(
-            !QueueStore::open(&root)
+            !QueueStore::open(root)
                 .unwrap()
                 .entries()
                 .iter()
@@ -752,32 +762,9 @@
             .join(format!("{:032x}", request.job_id.0))
             .join(request.generation.get().to_string());
         fs::create_dir_all(&target).unwrap();
-        let pending = PendingRecord {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            version: 1,
-            job_id: request.job_id,
-            generation: request.generation,
-            source_path: request.source_path.clone(),
-            source_sha256: hex(&[0; 32]),
-            source_samples: 320,
-            model_path: request.model_path.clone(),
-            model_sha256: APPROVED_MODEL_SHA256.into(),
-            model_size: APPROVED_MODEL_SIZE,
-            qualification: None,
-        };
+        let pending = interrupted_prefix_pending_record(&request);
         assert_eq!(initialize_pending(&target, &pending).unwrap(), 1);
-        let prefix = vec![
-            SegmentRecord {
-                sequence: 1,
-                range: SourceRange::new(0, 160, 16_000).unwrap(),
-                text: "one".into(),
-            },
-            SegmentRecord {
-                sequence: 2,
-                range: SourceRange::new(160, 320, 16_000).unwrap(),
-                text: "two".into(),
-            },
-        ];
+        let prefix = interrupted_prefix_segments();
         let mut interrupted_archive = ArchiveStore::new(&root);
         interrupted_archive.current = Some(ActiveArchive {
             job_id: request.job_id,
@@ -844,4 +831,35 @@
             prefix
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    fn interrupted_prefix_pending_record(request: &ImportRequest) -> PendingRecord {
+        PendingRecord {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            version: 1,
+            job_id: request.job_id,
+            generation: request.generation,
+            source_path: request.source_path.clone(),
+            source_sha256: hex(&[0; 32]),
+            source_samples: 320,
+            model_path: request.model_path.clone(),
+            model_sha256: APPROVED_MODEL_SHA256.into(),
+            model_size: APPROVED_MODEL_SIZE,
+            qualification: None,
+        }
+    }
+
+    fn interrupted_prefix_segments() -> Vec<SegmentRecord> {
+        vec![
+            SegmentRecord {
+                sequence: 1,
+                range: SourceRange::new(0, 160, 16_000).unwrap(),
+                text: "one".into(),
+            },
+            SegmentRecord {
+                sequence: 2,
+                range: SourceRange::new(160, 320, 16_000).unwrap(),
+                text: "two".into(),
+            },
+        ]
     }

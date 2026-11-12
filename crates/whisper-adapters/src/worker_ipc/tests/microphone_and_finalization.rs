@@ -1242,8 +1242,7 @@
             wav_size_after_import > wav_size_during_import,
             "capture B WAV stopped advancing while final import A was active"
         );
-        assert_eq!(io.active_identity, Some((capture_b, Generation::first())));
-        assert_eq!(main_gate.0.load(Ordering::Acquire), GATE_ACTIVE);
+        assert_direct_capture_remains_active(&io, capture_b, &main_gate);
 
         io.submit(ImportEffect::Stop {
             job_id: capture_b,
@@ -1261,6 +1260,15 @@
         }
 
         let bytes = fs::read(&wav_path).unwrap();
+        assert_finalized_wav_contains_samples(&bytes);
+
+        drop(io);
+        main_thread.join().unwrap();
+        automatic_thread.join().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn assert_finalized_wav_contains_samples(bytes: &[u8]) {
         assert_eq!(&bytes[..4], b"RIFF");
         assert_eq!(
             u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize,
@@ -1270,11 +1278,15 @@
             bytes.len() > 44,
             "finalized WAV contains no captured samples"
         );
+    }
 
-        drop(io);
-        main_thread.join().unwrap();
-        automatic_thread.join().unwrap();
-        fs::remove_dir_all(root).unwrap();
+    fn assert_direct_capture_remains_active(
+        io: &AsyncImportIo,
+        capture: JobId,
+        gate: &PublicationGate,
+    ) {
+        assert_eq!(io.active_identity, Some((capture, Generation::first())));
+        assert_eq!(gate.0.load(Ordering::Acquire), GATE_ACTIVE);
     }
 
     #[test]

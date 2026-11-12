@@ -51,6 +51,44 @@ fn pending(root: &Path, job: u128, key: &ArchiveQualificationKey) {
     .unwrap();
 }
 
+fn historical_request(root: &Path, job: u128) -> whisper_core::ports::ImportRequest {
+    let artifact = model(ModelId::ParakeetTdt06BV3).artifact;
+    let mut model_sha = [0_u8; 32];
+    for (index, byte) in model_sha.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&artifact.sha256[index * 2..index * 2 + 2], 16).unwrap();
+    }
+    whisper_core::ports::ImportRequest {
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        job_id: JobId(job),
+        generation: Generation::first(),
+        source_path: "historical-source.wav".into(),
+        source_sha256: Some([0xab; 32]),
+        source_samples: Some(480_000),
+        model_path: "historical-model.gguf".into(),
+        model_sha256: model_sha,
+        destination: root.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    }
+}
+
+fn assert_historical_archive(root: &Path, expected: &[(JobId, bool)]) {
+    let entries = ArchiveStore::scan(root).unwrap();
+    assert_eq!(entries.len(), expected.len());
+    for (job, valid) in expected {
+        let entry = entries.iter().find(|entry| entry.job_id == *job).unwrap();
+        assert_eq!(
+            entry.diagnostic.is_none(),
+            *valid,
+            "job {job:?}: {:?}",
+            entry.diagnostic
+        );
+        assert!(!entry.complete);
+    }
+}
+
 #[test]
 fn personal_archives_recognize_previous_workers_without_admitting_them_for_execution() {
     let root = std::env::temp_dir().join(format!(
@@ -88,26 +126,7 @@ fn personal_archives_recognize_previous_workers_without_admitting_them_for_execu
             .join(format!("{old_job:032x}"))
             .join("1/pending.json");
         let old_bytes = fs::read(&old_pending).unwrap();
-        let artifact = model(ModelId::ParakeetTdt06BV3).artifact;
-        let mut model_sha = [0_u8; 32];
-        for (index, byte) in model_sha.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&artifact.sha256[index * 2..index * 2 + 2], 16).unwrap();
-        }
-        let previous = whisper_core::ports::ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            job_id: JobId(old_job),
-            generation: Generation::first(),
-            source_path: "historical-source.wav".into(),
-            source_sha256: Some([0xab; 32]),
-            source_samples: Some(480_000),
-            model_path: "historical-model.gguf".into(),
-            model_sha256: model_sha,
-            destination: root.to_string_lossy().into_owned(),
-            config: JobConfig {
-                language: LanguageChoice::Automatic,
-                compute: ComputeChoice::Cpu,
-            },
-        };
+        let previous = historical_request(&root, old_job);
         let mut request = previous.clone();
         request.generation = previous.generation.next().unwrap();
         let error = ArchiveStore::new(&root)
@@ -153,26 +172,7 @@ fn personal_archives_recognize_previous_workers_without_admitting_them_for_execu
             .join(format!("{job:032x}"))
             .join("1/pending.json");
         let bytes = fs::read(&file).unwrap();
-        let artifact = model(ModelId::ParakeetTdt06BV3).artifact;
-        let mut model_sha = [0_u8; 32];
-        for (index, byte) in model_sha.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&artifact.sha256[index * 2..index * 2 + 2], 16).unwrap();
-        }
-        let previous = whisper_core::ports::ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            job_id: JobId(job),
-            generation: Generation::first(),
-            source_path: "historical-source.wav".into(),
-            source_sha256: Some([0xab; 32]),
-            source_samples: Some(480_000),
-            model_path: "historical-model.gguf".into(),
-            model_sha256: model_sha,
-            destination: root.to_string_lossy().into_owned(),
-            config: JobConfig {
-                language: LanguageChoice::Automatic,
-                compute: ComputeChoice::Cpu,
-            },
-        };
+        let previous = historical_request(&root, job);
         let mut request = previous.clone();
         request.generation = previous.generation.next().unwrap();
         let error = ArchiveStore::new(&root)
@@ -184,16 +184,5 @@ fn personal_archives_recognize_previous_workers_without_admitting_them_for_execu
         );
         assert_eq!(fs::read(file).unwrap(), bytes);
     }
-    let entries = ArchiveStore::scan(&root).unwrap();
-    assert_eq!(entries.len(), expected.len());
-    for (job, valid) in expected {
-        let entry = entries.iter().find(|entry| entry.job_id == job).unwrap();
-        assert_eq!(
-            entry.diagnostic.is_none(),
-            valid,
-            "job {job:?}: {:?}",
-            entry.diagnostic
-        );
-        assert!(!entry.complete);
-    }
+    assert_historical_archive(&root, &expected);
 }

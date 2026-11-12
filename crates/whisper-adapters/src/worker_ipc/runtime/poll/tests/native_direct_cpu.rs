@@ -165,6 +165,10 @@ fn assert_published_outputs(events: &[ImportEvent], job_id: JobId) -> u64 {
         Some("wav")
     );
     let wav = fs::read(&paths[2]).expect("read published WAV");
+    assert_wav_header_and_sample_count(&wav)
+}
+
+fn assert_wav_header_and_sample_count(wav: &[u8]) -> u64 {
     assert_eq!(
         wav.len(),
         44 + SAMPLE_COUNT * 2,

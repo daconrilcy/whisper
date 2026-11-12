@@ -175,31 +175,7 @@ fn validate_fixture(name: &str, language: &str, minimum_samples: u64) -> (PathBu
         .as_u64()
         .expect("annotated sample count");
     assert!(samples >= minimum_samples);
-    if source
-        .extension()
-        .is_some_and(|extension| extension == "wav")
-    {
-        assert_eq!(
-            source.file_name(),
-            Path::new(field(&annotation, "audio")).file_name(),
-            "WAV is resolved by basename only from the staged corpus root"
-        );
-        verify_wav(&source, samples);
-        assert_eq!(hex_sha256(&source), field(&annotation, "audio_sha256"));
-    } else {
-        let mp3 = &annotation["mp3"];
-        assert_eq!(
-            source.file_name().and_then(|name| name.to_str()),
-            Path::new(field(mp3, "path"))
-                .file_name()
-                .and_then(|name| name.to_str()),
-            "MP3 is resolved by basename only from the staged corpus root"
-        );
-        assert_eq!(hex_sha256(&source), field(mp3, "sha256"));
-        assert_eq!(mp3["decoded"]["samples"].as_u64(), Some(samples));
-        assert_eq!(mp3["decoded"]["sample_rate_hz"].as_u64(), Some(SAMPLE_RATE));
-        assert_eq!(mp3["decoded"]["channels"].as_u64(), Some(1));
-    }
+    verify_audio_annotation(&source, &annotation, samples);
     let reference = corpus_root
         .join(
             Path::new(field(&annotation, "reference"))
@@ -244,6 +220,34 @@ fn validate_fixture(name: &str, language: &str, minimum_samples: u64) -> (PathBu
     (source, samples)
 }
 
+fn verify_audio_annotation(source: &Path, annotation: &serde_json::Value, samples: u64) {
+    if source
+        .extension()
+        .is_some_and(|extension| extension == "wav")
+    {
+        assert_eq!(
+            source.file_name(),
+            Path::new(field(annotation, "audio")).file_name(),
+            "WAV is resolved by basename only from the staged corpus root"
+        );
+        verify_wav(source, samples);
+        assert_eq!(hex_sha256(source), field(annotation, "audio_sha256"));
+    } else {
+        let mp3 = &annotation["mp3"];
+        assert_eq!(
+            source.file_name().and_then(|name| name.to_str()),
+            Path::new(field(mp3, "path"))
+                .file_name()
+                .and_then(|name| name.to_str()),
+            "MP3 is resolved by basename only from the staged corpus root"
+        );
+        assert_eq!(hex_sha256(source), field(mp3, "sha256"));
+        assert_eq!(mp3["decoded"]["samples"].as_u64(), Some(samples));
+        assert_eq!(mp3["decoded"]["sample_rate_hz"].as_u64(), Some(SAMPLE_RATE));
+        assert_eq!(mp3["decoded"]["channels"].as_u64(), Some(1));
+    }
+}
+
 fn fresh_personal_settings() {
     let local_app_data = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -259,19 +263,21 @@ fn fresh_personal_settings() {
 
 fn import_gpu(name: &str, language: &str, minimum_samples: u64, case: &str, auto: bool) {
     let (source, samples) = validate_fixture(name, language, minimum_samples);
-    let imported = run_native_import_from_path(
+    let imported = run_native_import_from_options(
         &source,
         case,
-        if auto {
-            ComputeChoice::Auto
-        } else {
-            ComputeChoice::Gpu
+        NativeImportOptions {
+            compute: if auto {
+                ComputeChoice::Auto
+            } else {
+                ComputeChoice::Gpu
+            },
+            gpu_candidate: Some(personal_gpu_candidate()),
+            minimum_samples: (minimum_samples > 60 * SAMPLE_RATE).then_some(minimum_samples),
+            require_nonempty_text: true,
+            require_gpu_for_auto: auto,
+            use_personal_settings: true,
         },
-        Some(personal_gpu_candidate()),
-        (minimum_samples > 60 * SAMPLE_RATE).then_some(minimum_samples),
-        true,
-        auto,
-        true,
     );
     assert_eq!(
         imported, samples,

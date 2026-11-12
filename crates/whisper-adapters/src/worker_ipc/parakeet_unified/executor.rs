@@ -176,8 +176,16 @@ impl UnifiedInferenceExecutor {
                     let mut wire_request_id = 0_u64;
                     #[cfg(test)]
                     observe_controlled_child(
-                        child_observer.as_ref(), child_incarnation, "Spawn", None, None, None,
-                        wire_request_id, child_jobs.len(),
+                        child_observer.as_ref(),
+                        ControlledChildObservation {
+                            incarnation: child_incarnation,
+                            event: "Spawn",
+                            job_id: None,
+                            generation: None,
+                            attempt: None,
+                            wire_request_id,
+                            retained_job_ids: child_jobs.len(),
+                        },
                     );
                     if let Err(error) = worker.initialize_instance(&thread_stop_requested) {
                         let outcome = match worker.stop_instance() {
@@ -203,8 +211,16 @@ impl UnifiedInferenceExecutor {
                     }
                     #[cfg(test)]
                     observe_controlled_child(
-                        child_observer.as_ref(), child_incarnation, "Ready", None, None, None,
-                        wire_request_id, child_jobs.len(),
+                        child_observer.as_ref(),
+                        ControlledChildObservation {
+                            incarnation: child_incarnation,
+                            event: "Ready",
+                            job_id: None,
+                            generation: None,
+                            attempt: None,
+                            wire_request_id,
+                            retained_job_ids: child_jobs.len(),
+                        },
                     );
                     let _ = ready_tx.send(Ok(()));
                     while let Ok(command) = command_rx.recv() {
@@ -259,13 +275,15 @@ impl UnifiedInferenceExecutor {
                                 #[cfg(test)]
                                 observe_controlled_child(
                                     child_observer.as_ref(),
-                                    child_incarnation,
-                                    if admission.is_ok() { "Command" } else { "Rejected" },
-                                    Some(session.job_id),
-                                    Some(session.generation),
-                                    logical_attempt,
-                                    wire_request_id,
-                                    child_jobs.len(),
+                                    ControlledChildObservation {
+                                        incarnation: child_incarnation,
+                                        event: if admission.is_ok() { "Command" } else { "Rejected" },
+                                        job_id: Some(session.job_id),
+                                        generation: Some(session.generation),
+                                        attempt: logical_attempt,
+                                        wire_request_id,
+                                        retained_job_ids: child_jobs.len(),
+                                    },
                                 );
                                 let words = admission.and_then(|_| {
                                     worker.transcribe_scheduled(
@@ -293,8 +311,16 @@ impl UnifiedInferenceExecutor {
                             UnifiedExecutorCommand::Stop => {
                                 #[cfg(test)]
                                 observe_controlled_child(
-                                    child_observer.as_ref(), child_incarnation, "Stop", None, None,
-                                    None, wire_request_id, child_jobs.len(),
+                                    child_observer.as_ref(),
+                                    ControlledChildObservation {
+                                        incarnation: child_incarnation,
+                                        event: "Stop",
+                                        job_id: None,
+                                        generation: None,
+                                        attempt: None,
+                                        wire_request_id,
+                                        retained_job_ids: child_jobs.len(),
+                                    },
                                 );
                                 break;
                             }
@@ -302,8 +328,16 @@ impl UnifiedInferenceExecutor {
                     }
                     #[cfg(test)]
                     observe_controlled_child(
-                        child_observer.as_ref(), child_incarnation, "Exit", None, None, None,
-                        wire_request_id, child_jobs.len(),
+                        child_observer.as_ref(),
+                        ControlledChildObservation {
+                            incarnation: child_incarnation,
+                            event: "Exit",
+                            job_id: None,
+                            generation: None,
+                            attempt: None,
+                            wire_request_id,
+                            retained_job_ids: child_jobs.len(),
+                        },
                     );
                     worker.stop_instance()?;
                     Ok(worker)
@@ -388,13 +422,15 @@ impl UnifiedInferenceExecutor {
         #[cfg(test)]
         observe_controlled_child(
             self.child_observer.as_ref(),
-            self.current_child_incarnation,
-            "Reaped",
-            None,
-            None,
-            None,
-            0,
-            0,
+            ControlledChildObservation {
+                incarnation: self.current_child_incarnation,
+                event: "Reaped",
+                job_id: None,
+                generation: None,
+                attempt: None,
+                wire_request_id: 0,
+                retained_job_ids: 0,
+            },
         );
         Ok(())
     }
@@ -411,13 +447,15 @@ impl UnifiedInferenceExecutor {
                 #[cfg(test)]
                 observe_controlled_child(
                     self.child_observer.as_ref(),
-                    self.current_child_incarnation,
-                    "Reaped",
-                    None,
-                    None,
-                    None,
-                    0,
-                    0,
+                    ControlledChildObservation {
+                        incarnation: self.current_child_incarnation,
+                        event: "Reaped",
+                        job_id: None,
+                        generation: None,
+                        attempt: None,
+                        wire_request_id: 0,
+                        retained_job_ids: 0,
+                    },
                 );
                 Ok(())
             }
@@ -426,13 +464,15 @@ impl UnifiedInferenceExecutor {
                 #[cfg(test)]
                 observe_controlled_child(
                     self.child_observer.as_ref(),
-                    self.current_child_incarnation,
-                    "Reaped",
-                    None,
-                    None,
-                    None,
-                    0,
-                    0,
+                    ControlledChildObservation {
+                        incarnation: self.current_child_incarnation,
+                        event: "Reaped",
+                        job_id: None,
+                        generation: None,
+                        attempt: None,
+                        wire_request_id: 0,
+                        retained_job_ids: 0,
+                    },
                 );
                 Err("InferenceReap: disconnected worker thread panicked".into())
             }

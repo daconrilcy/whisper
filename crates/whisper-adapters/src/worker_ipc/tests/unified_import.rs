@@ -147,28 +147,28 @@
         );
     }
 
+    #[derive(serde::Deserialize)]
+    struct AppViewArtifact {
+        path: String,
+        sha256: String,
+        bytes: u64,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct AppViewManifest {
+        version: u32,
+        job_id: JobId,
+        generation: Generation,
+        source_sha256: String,
+        segments: u64,
+        text: AppViewArtifact,
+        srt: AppViewArtifact,
+    }
+
     fn assert_app_view_internal_publication(
         session: &whisper_core::ports::UnifiedParakeetSessionView,
         archive_root: &Path,
     ) {
-        #[derive(serde::Deserialize)]
-        struct Artifact {
-            path: String,
-            sha256: String,
-            bytes: u64,
-        }
-
-        #[derive(serde::Deserialize)]
-        struct Manifest {
-            version: u32,
-            job_id: JobId,
-            generation: Generation,
-            source_sha256: String,
-            segments: u64,
-            text: Artifact,
-            srt: Artifact,
-        }
-
         assert_eq!(
             session.phase,
             whisper_core::ports::UnifiedSessionPhase::Complete
@@ -181,7 +181,7 @@
             std::fs::read(generation_directory.join("CURRENT")).unwrap(),
             b"manifest.json\n"
         );
-        let manifest: Manifest = serde_json::from_slice(
+        let manifest: AppViewManifest = serde_json::from_slice(
             &std::fs::read(generation_directory.join("manifest.json")).unwrap(),
         )
         .unwrap();
@@ -190,21 +190,18 @@
         assert_eq!(manifest.generation, session.generation);
         assert!(manifest.segments > 0);
         let canonical_generation = generation_directory.canonicalize().unwrap();
-        let expected_artifact = |artifact: &Artifact, expected_name: &str| {
-            assert_eq!(artifact.path, expected_name);
-            let path = generation_directory.join(&artifact.path);
-            let canonical = path.canonicalize().unwrap();
-            assert!(canonical.starts_with(&canonical_generation));
-            let metadata = std::fs::metadata(&canonical).unwrap();
-            assert_eq!(metadata.len(), artifact.bytes);
-            assert_eq!(
-                crate::parakeet_import::sha256_file(&canonical).unwrap(),
-                artifact.sha256
-            );
-            canonical
-        };
-        let expected_txt = expected_artifact(&manifest.text, "transcript.txt");
-        let expected_srt = expected_artifact(&manifest.srt, "transcript.srt");
+        let expected_txt = assert_app_view_internal_artifact(
+            &manifest.text,
+            "transcript.txt",
+            &generation_directory,
+            &canonical_generation,
+        );
+        let expected_srt = assert_app_view_internal_artifact(
+            &manifest.srt,
+            "transcript.srt",
+            &generation_directory,
+            &canonical_generation,
+        );
         let expected_wav = generation_directory
             .join("parakeet-unified/source.wav")
             .canonicalize()
@@ -221,6 +218,44 @@
             audio.total_samples().unwrap(),
             session.total_samples.unwrap()
         );
+        let covered = assert_app_view_audio_pages(&audio, &canonical_generation, &expected_wav);
+        assert_eq!(covered, session.total_samples.unwrap());
+        assert_eq!(session.captured_samples, covered);
+        assert_eq!(session.durable_samples, covered);
+        let entry = ArchiveStore::scan(archive_root)
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.job_id == session.job_id && entry.generation == session.generation)
+            .expect("AppView publication must remain in archive history");
+        assert!(entry.complete);
+        assert_eq!(entry.source_sha256, manifest.source_sha256);
+        assert_eq!(entry.export_basename, None);
+    }
+
+    fn assert_app_view_internal_artifact(
+        artifact: &AppViewArtifact,
+        expected_name: &str,
+        generation_directory: &Path,
+        canonical_generation: &Path,
+    ) -> PathBuf {
+        assert_eq!(artifact.path, expected_name);
+        let path = generation_directory.join(&artifact.path);
+        let canonical = path.canonicalize().unwrap();
+        assert!(canonical.starts_with(canonical_generation));
+        let metadata = std::fs::metadata(&canonical).unwrap();
+        assert_eq!(metadata.len(), artifact.bytes);
+        assert_eq!(
+            crate::parakeet_import::sha256_file(&canonical).unwrap(),
+            artifact.sha256
+        );
+        canonical
+    }
+
+    fn assert_app_view_audio_pages(
+        audio: &crate::parakeet_audio::PcmPartStore,
+        canonical_generation: &Path,
+        expected_wav: &Path,
+    ) -> u64 {
         let mut offset = 0_u64;
         let mut covered = 0_u64;
         let mut expected_number = 1_u64;
@@ -234,7 +269,7 @@
                 assert_eq!(part.start_sample, covered);
                 assert!(part.end_sample > part.start_sample);
                 let canonical_part = part.path.canonicalize().unwrap();
-                assert!(canonical_part.starts_with(&canonical_generation));
+                assert!(canonical_part.starts_with(canonical_generation));
                 if expected_number == 1 {
                     assert_eq!(canonical_part, expected_wav);
                 }
@@ -243,17 +278,7 @@
             }
             offset += page.len() as u64;
         }
-        assert_eq!(covered, session.total_samples.unwrap());
-        assert_eq!(session.captured_samples, covered);
-        assert_eq!(session.durable_samples, covered);
-        let entry = ArchiveStore::scan(archive_root)
-            .unwrap()
-            .into_iter()
-            .find(|entry| entry.job_id == session.job_id && entry.generation == session.generation)
-            .expect("AppView publication must remain in archive history");
-        assert!(entry.complete);
-        assert_eq!(entry.source_sha256, manifest.source_sha256);
-        assert_eq!(entry.export_basename, None);
+        covered
     }
 
     fn assert_app_view_external_publication(
@@ -812,74 +837,94 @@
 
             app.dispatch(AppCommand::ProcessQueued { request: queued })
                 .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(60);
-            let mut phase = "session not visible".to_owned();
-            let mut message = None;
-            let mut complete = false;
-            while Instant::now() < deadline {
-                let view = match app.dispatch(AppCommand::Refresh) {
-                    Ok(view) => view,
-                    Err(error) => {
-                        let trace = event_trace.lock().expect("import event trace lock");
-                        IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
-                        panic!(
-                            "durable queued import Refresh failed ({seconds}s, {compute:?}, identity={identity:?}): {error:?}; session={:?}; events={trace:?}",
-                            app.view().unified_parakeet_sessions.iter().find(|session| (
-                                session.job_id,
-                                session.generation
-                            )
-                                == identity)
-                        );
-                    }
-                };
-                message = view.message.clone();
-                if let Some(session) = view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .find(|session| (session.job_id, session.generation) == identity)
-                {
-                    phase = format!("{:?}", session.phase);
-                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
-                        panic!(
-                            "durable queued import failed ({seconds}s, {compute:?}): {phase}; message={message:?}"
-                        );
-                    }
-                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
-                        complete = true;
-                        break;
-                    }
-                }
-                thread::sleep(Duration::from_millis(2));
-            }
-            assert!(
-                complete,
-                "durable queued import did not reach Complete ({seconds}s, {compute:?}): phase={phase}, message={message:?}"
-            );
+            wait_queued_import(&mut app, seconds, compute, identity, &event_trace);
             assert!(calls.load(Ordering::Relaxed) > 0);
-            let archive_root = root.join("archive");
-            let entry = ArchiveStore::scan(&archive_root)
-                .unwrap()
-                .into_iter()
-                .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
-                .expect("the queued import must publish a complete archive");
-            assert_eq!(entry.strategy, request.strategy);
-            assert!(
-                archive_root
-                    .join("exports")
-                    .join(format!("{}.txt", entry.export_basename.as_deref().unwrap()))
-                    .is_file()
-            );
-            assert!(
-                archive_root
-                    .join("exports")
-                    .join(format!("{}.srt", entry.export_basename.as_deref().unwrap()))
-                    .is_file()
-            );
-            assert_eq!(hex_sha256(&source_path), source_sha);
+            assert_queued_import_published(&root, &request, &source_path, source_sha, identity);
             drop(app);
             std::fs::remove_dir_all(&root).unwrap();
         }
         IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
+    }
+
+    fn wait_queued_import(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        seconds: u64,
+        compute: ComputeChoice,
+        identity: (JobId, Generation),
+        event_trace: &Arc<Mutex<Vec<String>>>,
+    ) {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut phase = "session not visible".to_owned();
+        let mut message = None;
+        let mut complete = false;
+        while Instant::now() < deadline {
+            let view = match app.dispatch(AppCommand::Refresh) {
+                Ok(view) => view,
+                Err(error) => {
+                    let trace = event_trace.lock().expect("import event trace lock");
+                    IMPORT_PORT_EVENT_TRACE.with(|trace| *trace.borrow_mut() = None);
+                    panic!(
+                        "durable queued import Refresh failed ({seconds}s, {compute:?}, identity={identity:?}): {error:?}; session={:?}; events={trace:?}",
+                        app.view().unified_parakeet_sessions.iter().find(|session| (
+                            session.job_id,
+                            session.generation
+                        )
+                            == identity)
+                    );
+                }
+            };
+            message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
+                phase = format!("{:?}", session.phase);
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!(
+                        "durable queued import failed ({seconds}s, {compute:?}): {phase}; message={message:?}"
+                    );
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    complete = true;
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            complete,
+            "durable queued import did not reach Complete ({seconds}s, {compute:?}): phase={phase}, message={message:?}"
+        );
+    }
+
+    fn assert_queued_import_published(
+        root: &Path,
+        request: &ImportRequest,
+        source_path: &Path,
+        source_sha: [u8; 32],
+        identity: (JobId, Generation),
+    ) {
+        let archive_root = root.join("archive");
+        let entry = ArchiveStore::scan(&archive_root)
+            .unwrap()
+            .into_iter()
+            .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
+            .expect("the queued import must publish a complete archive");
+        assert_eq!(entry.strategy, request.strategy);
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{}.txt", entry.export_basename.as_deref().unwrap()))
+                .is_file()
+        );
+        assert!(
+            archive_root
+                .join("exports")
+                .join(format!("{}.srt", entry.export_basename.as_deref().unwrap()))
+                .is_file()
+        );
+        assert_eq!(hex_sha256(source_path), source_sha);
     }
 
     #[test]
@@ -1476,77 +1521,10 @@
             controlled_capture_blocks: None,
         });
 
-        let run_queued = |app: &mut ImportApplication<RuntimeImportPort>,
-                          request: ImportRequest,
-                          confirmation: Option<DuplicateImportChoice>| {
-            let requested_job = request.job_id;
-            app.dispatch(AppCommand::EnqueueImport { request })
-                .expect("enqueue create-only or reprocessing import");
-            let deadline = Instant::now() + Duration::from_secs(60);
-            let mut confirmation = confirmation;
-            let queued = loop {
-                let view = app
-                    .dispatch(AppCommand::Refresh)
-                    .expect("refresh import admission and queue");
-                if let Some(prompt) = view.duplicate_import_prompt.clone() {
-                    assert_eq!(prompt.request.job_id, requested_job);
-                    let choice = confirmation
-                        .take()
-                        .expect("only repeated source imports require a choice");
-                    app.dispatch(AppCommand::ResolveDuplicateImport {
-                        prompt: Box::new(prompt),
-                        choice,
-                    })
-                    .expect("confirm duplicate or reprocessing choice");
-                    continue;
-                }
-                if let Some(entry) = view.queue.iter().find(|entry| {
-                    entry.request.job_id == requested_job
-                        && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
-                }) {
-                    break entry.request.clone();
-                }
-                assert!(
-                    Instant::now() < deadline,
-                    "import did not enter the durable queue: view={view:?}"
-                );
-                thread::sleep(Duration::from_millis(2));
-            };
-            let identity = (queued.job_id, queued.generation);
-            app.dispatch(AppCommand::ProcessQueued { request: queued })
-                .expect("ProcessQueued must use the real reprocessing route");
-            let deadline = Instant::now() + Duration::from_secs(60);
-            loop {
-                let view = app
-                    .dispatch(AppCommand::Refresh)
-                    .expect("refresh reprocessing session");
-                let last_message = view.message.clone();
-                if let Some(session) = view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .find(|session| (session.job_id, session.generation) == identity)
-                {
-                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
-                        panic!("reprocessing import failed: {session:?}; {last_message:?}");
-                    }
-                    if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
-                        assert_app_view_internal_publication(session, &archive_root);
-                        return session.clone();
-                    }
-                }
-                assert!(
-                    Instant::now() < deadline,
-                    "reprocessing import did not complete: {last_message:?}; view={:?}",
-                    app.view()
-                );
-                thread::sleep(Duration::from_millis(2));
-            }
-        };
-
         let mut first_request = unified_import_request(&archive_root, &source_path, 0x51_111);
         first_request.config.compute = ComputeChoice::Cpu;
         assert_real_unified_model(&first_request);
-        let first = run_queued(&mut app, first_request, None);
+        let first = run_queued_create_only_import(&mut app, &archive_root, first_request, None);
         let first_txt = first.txt_path.as_deref().unwrap().to_owned();
         let first_srt = first.srt_path.as_deref().unwrap().to_owned();
         let first_txt_bytes = std::fs::read(&first_txt).unwrap();
@@ -1554,8 +1532,9 @@
 
         let mut second_request = unified_import_request(&archive_root, &source_path, 0x51_112);
         second_request.config.compute = ComputeChoice::Cpu;
-        let second = run_queued(
+        let second = run_queued_create_only_import(
             &mut app,
+            &archive_root,
             second_request,
             Some(DuplicateImportChoice::CreateNew),
         );
@@ -1565,8 +1544,9 @@
 
         let mut replacement_request = unified_import_request(&archive_root, &source_path, 0x51_113);
         replacement_request.config.compute = ComputeChoice::Cpu;
-        let replacement = run_queued(
+        let replacement = run_queued_create_only_import(
             &mut app,
+            &archive_root,
             replacement_request,
             Some(DuplicateImportChoice::ReplaceLatest),
         );
@@ -1996,6 +1976,76 @@
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    fn run_queued_create_only_import(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        archive_root: &Path,
+        request: ImportRequest,
+        confirmation: Option<DuplicateImportChoice>,
+    ) -> whisper_core::ports::UnifiedParakeetSessionView {
+        let requested_job = request.job_id;
+        app.dispatch(AppCommand::EnqueueImport { request })
+            .expect("enqueue create-only or reprocessing import");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut confirmation = confirmation;
+        let queued = loop {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh import admission and queue");
+            if let Some(prompt) = view.duplicate_import_prompt.clone() {
+                assert_eq!(prompt.request.job_id, requested_job);
+                let choice = confirmation
+                    .take()
+                    .expect("only repeated source imports require a choice");
+                app.dispatch(AppCommand::ResolveDuplicateImport {
+                    prompt: Box::new(prompt),
+                    choice,
+                })
+                .expect("confirm duplicate or reprocessing choice");
+                continue;
+            }
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                entry.request.job_id == requested_job
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
+            }) {
+                break entry.request.clone();
+            }
+            assert!(
+                Instant::now() < deadline,
+                "import did not enter the durable queue: view={view:?}"
+            );
+            thread::sleep(Duration::from_millis(2));
+        };
+        let identity = (queued.job_id, queued.generation);
+        app.dispatch(AppCommand::ProcessQueued { request: queued })
+            .expect("ProcessQueued must use the real reprocessing route");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            let view = app
+                .dispatch(AppCommand::Refresh)
+                .expect("refresh reprocessing session");
+            let last_message = view.message.clone();
+            if let Some(session) = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| (session.job_id, session.generation) == identity)
+            {
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
+                    panic!("reprocessing import failed: {session:?}; {last_message:?}");
+                }
+                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
+                    assert_app_view_internal_publication(session, archive_root);
+                    return session.clone();
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "reprocessing import did not complete: {last_message:?}; view={:?}",
+                app.view()
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
     #[test]
     #[cfg_attr(
         not(feature = "native-tests"),
@@ -2031,15 +2081,8 @@
                 crate::queue_store::QueueStatus::Interrupted,
             )
             .unwrap();
-        let settings_root = root.join("settings");
-        drop(crate::source_binding::SourceBinding::acquire(&previous, &settings_root).unwrap());
-        let resumed_generation = previous.generation.next().unwrap();
-        let mut conflicting_resumed = previous.clone();
-        conflicting_resumed.generation = resumed_generation;
-        drop(
-            crate::source_binding::SourceBinding::acquire(&conflicting_resumed, &settings_root)
-                .unwrap(),
-        );
+        let (settings_root, resumed_generation) =
+            establish_conflicting_resume_binding(&previous, &root);
 
         let (observer, source_binding_events) = NativeQualificationObserver::channel();
         let runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
@@ -2089,49 +2132,14 @@
             observed_recoverable,
             "resume conflict must become terminal and visible: {observed_message:?}"
         );
-        let source_binding_maps = source_binding_map_events(&source_binding_events);
-        assert!(
-            source_binding_maps.iter().any(|(operation, bindings)| {
-                *operation == "resume-transfer"
-                    && bindings.contains(&(previous.job_id, previous.generation.get()))
-                    && bindings.contains(&(previous.job_id, resumed_generation.get()))
-            }),
-            "conflict must retain both in-memory identities: {source_binding_maps:?}"
-        );
-        let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
-        assert!(queue.entries().iter().any(|entry| {
-            (entry.request.job_id, entry.request.generation)
-                == (previous.job_id, previous.generation)
-                && entry.status == crate::queue_store::QueueStatus::Interrupted
-        }));
-        let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
-            previous.generation,
-        )
-        .unwrap()
-        .expect("failed resume must keep the original durable binding");
-        assert_eq!(old_binding.source_sha256(), previous.source_sha256.unwrap());
-        drop(old_binding);
-        let conflicting_binding = crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
-            Path::new(&previous.destination),
-            previous.job_id,
+        assert_failed_resume_preserved_bindings(
+            &previous,
             resumed_generation,
-        )
-        .unwrap()
-        .expect("an ambiguous resumed binding must not be silently removed");
-        assert_eq!(
-            conflicting_binding.source_sha256(),
-            previous.source_sha256.unwrap()
-        );
-        drop(conflicting_binding);
-        assert_eq!(hex_sha256(&source_path), source_sha);
-        assert!(
-            observed_message
-                .as_deref()
-                .is_some_and(|message| message.contains("SourceSnapshotMismatch"))
+            &settings_root,
+            &source_path,
+            source_sha,
+            &observed_message,
+            &source_binding_events,
         );
         drop(app);
         let retained = crate::source_binding::SourceBinding::reopen_for_identity(
@@ -2143,8 +2151,92 @@
         .unwrap()
         .expect("the original binding remains available after the refusal");
         retained.retire().unwrap();
+        retire_conflicting_resume_binding(&previous, &settings_root, resumed_generation);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn assert_failed_resume_preserved_bindings(
+        previous: &ImportRequest,
+        resumed_generation: Generation,
+        settings_root: &Path,
+        source_path: &Path,
+        source_sha: [u8; 32],
+        observed_message: &Option<String>,
+        source_binding_events: &Receiver<NativeQualificationEvent>,
+    ) {
+        let source_binding_maps = source_binding_map_events(source_binding_events);
+        assert!(
+            source_binding_maps.iter().any(|(operation, bindings)| {
+                *operation == "resume-transfer"
+                    && bindings.contains(&(previous.job_id, previous.generation.get()))
+                    && bindings.contains(&(previous.job_id, resumed_generation.get()))
+            }),
+            "conflict must retain both in-memory identities: {source_binding_maps:?}"
+        );
+        assert_interrupted_resume_remains_queued(previous);
+        let old_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+            settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            previous.generation,
+        )
+        .unwrap()
+        .expect("failed resume must keep the original durable binding");
+        assert_eq!(old_binding.source_sha256(), previous.source_sha256.unwrap());
+        drop(old_binding);
+        let conflicting_binding = crate::source_binding::SourceBinding::reopen_for_identity(
+            settings_root,
+            Path::new(&previous.destination),
+            previous.job_id,
+            resumed_generation,
+        )
+        .unwrap()
+        .expect("an ambiguous resumed binding must not be silently removed");
+        assert_eq!(
+            conflicting_binding.source_sha256(),
+            previous.source_sha256.unwrap()
+        );
+        drop(conflicting_binding);
+        assert_eq!(hex_sha256(source_path), source_sha);
+        assert!(
+            observed_message
+                .as_deref()
+                .is_some_and(|message| message.contains("SourceSnapshotMismatch"))
+        );
+    }
+
+    fn establish_conflicting_resume_binding(
+        previous: &ImportRequest,
+        root: &Path,
+    ) -> (PathBuf, Generation) {
+        let settings_root = root.join("settings");
+        drop(crate::source_binding::SourceBinding::acquire(previous, &settings_root).unwrap());
+        let resumed_generation = previous.generation.next().unwrap();
+        let mut conflicting_resumed = previous.clone();
+        conflicting_resumed.generation = resumed_generation;
+        drop(
+            crate::source_binding::SourceBinding::acquire(&conflicting_resumed, &settings_root)
+                .unwrap(),
+        );
+        (settings_root, resumed_generation)
+    }
+
+    fn assert_interrupted_resume_remains_queued(previous: &ImportRequest) {
+        let queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
+        assert!(queue.entries().iter().any(|entry| {
+            (entry.request.job_id, entry.request.generation)
+                == (previous.job_id, previous.generation)
+                && entry.status == crate::queue_store::QueueStatus::Interrupted
+        }));
+    }
+
+    fn retire_conflicting_resume_binding(
+        previous: &ImportRequest,
+        settings_root: &Path,
+        resumed_generation: Generation,
+    ) {
         crate::source_binding::SourceBinding::reopen_for_identity(
-            &settings_root,
+            settings_root,
             Path::new(&previous.destination),
             previous.job_id,
             resumed_generation,
@@ -2153,7 +2245,6 @@
         .expect("conflicting resumed binding remains available for explicit recovery")
         .retire()
         .unwrap();
-        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

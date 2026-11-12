@@ -27,11 +27,7 @@ fn r11_mp3_content_identity_is_independent_of_filename_and_destination() {
             .unwrap()
             .as_nanos()
     ));
-    std::fs::create_dir_all(&root).unwrap();
-    let first = root.join("original.mp3");
-    let renamed = root.join("renamed.mp3");
-    std::fs::copy(&fixture, &first).unwrap();
-    std::fs::copy(&fixture, &renamed).unwrap();
+    let (first, renamed) = copy_mp3_test_sources(&fixture, &root);
     assert_eq!(sha256_file(&first).unwrap(), sha256_file(&renamed).unwrap());
     let destination_a = root.join("destination-a");
     let destination_b = root.join("destination-b");
@@ -120,6 +116,15 @@ fn r11_mp3_content_identity_is_independent_of_filename_and_destination() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+fn copy_mp3_test_sources(fixture: &std::path::Path, root: &std::path::Path) -> (PathBuf, PathBuf) {
+    std::fs::create_dir_all(root).unwrap();
+    let first = root.join("original.mp3");
+    let renamed = root.join("renamed.mp3");
+    std::fs::copy(fixture, &first).unwrap();
+    std::fs::copy(fixture, &renamed).unwrap();
+    (first, renamed)
+}
+
 fn r11_mp3_request(
     serial: u128,
     source: &std::path::Path,
@@ -128,7 +133,7 @@ fn r11_mp3_request(
 ) -> ImportRequest {
     ImportRequest {
         strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-        job_id: JobId(((std::process::id() as u128) << 64) | serial),
+        job_id: r11_mp3_job_id(serial),
         generation: Generation::first(),
         source_path: source.to_string_lossy().into_owned(),
         source_sha256: None,
@@ -145,6 +150,10 @@ fn r11_mp3_request(
             compute: ComputeChoice::Cpu,
         },
     }
+}
+
+fn r11_mp3_job_id(serial: u128) -> JobId {
+    JobId(((std::process::id() as u128) << 64) | serial)
 }
 
 fn wait_r11_mp3_prompt(
@@ -409,26 +418,8 @@ fn real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive() {
         worker.display()
     );
     let mut app = ImportApplication::new(AsyncImportIo::start(worker));
-    let job_id = JobId(((std::process::id() as u128) << 64) | 2);
-    let request = ImportRequest {
-        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-        job_id,
-        generation: Generation::first(),
-        source_path: source.to_string_lossy().into_owned(),
-        source_sha256: None,
-        source_samples: None,
-        model_path: model.to_string_lossy().into_owned(),
-        model_sha256: [
-            0x1f, 0xc7, 0x0f, 0x77, 0x4d, 0x38, 0xeb, 0x16, 0x99, 0x93, 0xac, 0x39, 0x1e, 0xea,
-            0x35, 0x7e, 0xf4, 0x7c, 0x88, 0x75, 0x7e, 0xf7, 0x2e, 0xe5, 0x94, 0x38, 0x79, 0xb7,
-            0xe8, 0xe2, 0xbc, 0x69,
-        ],
-        destination: destination.to_string_lossy().into_owned(),
-        config: JobConfig {
-            language: LanguageChoice::Manual("fr".into()),
-            compute: ComputeChoice::Cpu,
-        },
-    };
+    let job_id = r11_mp3_job_id(2);
+    let request = r11_mp3_request(2, &source, &destination, &model);
     app.dispatch(AppCommand::EnqueueImport { request }).unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
     let queued = loop {

@@ -59,15 +59,7 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
         };
         let session = root.join("session");
         let mut process = spawn(&paths, &session).expect("personal worker must start");
-        let deadline = Instant::now() + Duration::from_secs(15);
-        loop {
-            match process.poll().expect("worker IPC") {
-                Some(whisper_core::parakeet_ipc::Event::Stopped) => break,
-                Some(other) => panic!("unexpected fixture event: {other:?}"),
-                None if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
-                None => panic!("fixture worker did not send IPC event"),
-            }
-        }
+        wait_until_stopped(&mut process);
         let observation = std::fs::read_to_string(root.join("observation.txt")).unwrap();
         for (index, key) in HISTORICAL.into_iter().enumerate() {
             let expected = if backend == "historical" {
@@ -148,6 +140,24 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
         String::from_utf8_lossy(&compiled.stderr)
     );
     let test_name = thread::current().name().expect("test name").to_owned();
+    let base_path = run_isolated_scenarios(&base, &test_name, &fake_exe);
+    drop(base);
+    assert!(!base_path.exists(), "test directory was not cleaned up");
+}
+
+fn wait_until_stopped(process: &mut ParakeetProcess) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        match process.poll().expect("worker IPC") {
+            Some(whisper_core::parakeet_ipc::Event::Stopped) => break,
+            Some(other) => panic!("unexpected fixture event: {other:?}"),
+            None if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
+            None => panic!("fixture worker did not send IPC event"),
+        }
+    }
+}
+
+fn run_isolated_scenarios(base: &TestTempDir, test_name: &str, fake_exe: &Path) -> PathBuf {
     for (backend, pollution) in [
         ("cpu", "clean"),
         ("cpu", "l3c"),
@@ -215,7 +225,5 @@ fn run_matrix(spawn: impl Fn(&ParakeetWorkerPaths, &Path) -> Result<ParakeetProc
             "{backend}/{pollution}: worker did not produce an observation"
         );
     }
-    let base_path = base.path().to_path_buf();
-    drop(base);
-    assert!(!base_path.exists(), "test directory was not cleaned up");
+    base.path().to_path_buf()
 }

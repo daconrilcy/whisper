@@ -613,40 +613,17 @@ fn main() {
                 request: request.clone(),
             })
             .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(10);
-            let queued = loop {
-                let view = app.dispatch(AppCommand::Refresh).unwrap();
-                if let Some(entry) = view.queue.iter().find(|entry| {
-                    (entry.request.job_id, entry.request.generation) == identity
-                        && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
-                }) {
-                    break entry.request.clone();
-                }
-                assert!(Instant::now() < deadline, "Enqueue did not become durable");
-                thread::sleep(Duration::from_millis(2));
-            };
+            let queued = wait_for_queued_import(&mut app, identity);
             assert_eq!(queued.source_sha256, Some(source_sha));
 
             app.dispatch(AppCommand::ProcessQueued { request: queued })
                 .unwrap();
-            let deadline = Instant::now() + Duration::from_secs(10);
             let expected = if stale_proof {
                 "BackendMismatch: selected GPU identity belongs to a stale generation"
             } else {
                 "BackendMismatch: selected GPU has no current runtime identity proof"
             };
-            let mut refusal = None;
-            while Instant::now() < deadline {
-                let view = app.dispatch(AppCommand::Refresh).unwrap();
-                if view.unified_parakeet_sessions.iter().any(|session| {
-                    (session.job_id, session.generation) == identity
-                        && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
-                }) {
-                    refusal = view.message;
-                    break;
-                }
-                thread::sleep(Duration::from_millis(2));
-            }
+            let refusal = wait_for_gpu_refusal_message(&mut app, identity);
             assert!(
                 refusal
                     .as_deref()
@@ -667,24 +644,74 @@ fn main() {
                 )),
                 "stale or absent GPU proof must be rejected before route preparation"
             );
-            assert!(
-                !destination
-                    .join("transcriptions")
-                    .join(format!("{:032x}", request.job_id.0))
-                    .join(request.generation.get().to_string())
-                    .join("pending.json")
-                    .exists()
+            assert_queued_gpu_refusal_preserved(
+                &destination,
+                &request,
+                &source_path,
+                source_sha,
             );
-            let queue = crate::queue_store::QueueStore::open(&destination).unwrap();
-            assert_eq!(queue.entries().len(), 1);
-            assert_eq!(
-                queue.entries()[0].status,
-                crate::queue_store::QueueStatus::Queued
-            );
-            assert_eq!(hex_sha256(&source_path), source_sha);
             drop(app);
             std::fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    fn assert_queued_gpu_refusal_preserved(
+        destination: &Path,
+        request: &ImportRequest,
+        source_path: &Path,
+        source_sha: [u8; 32],
+    ) {
+        assert!(
+            !destination
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("pending.json")
+                .exists()
+        );
+        let queue = crate::queue_store::QueueStore::open(destination).unwrap();
+        assert_eq!(queue.entries().len(), 1);
+        assert_eq!(
+            queue.entries()[0].status,
+            crate::queue_store::QueueStatus::Queued
+        );
+        assert_eq!(hex_sha256(source_path), source_sha);
+    }
+
+    fn wait_for_queued_import(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        identity: (JobId, Generation),
+    ) -> ImportRequest {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
+            }) {
+                return entry.request.clone();
+            }
+            assert!(Instant::now() < deadline, "Enqueue did not become durable");
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn wait_for_gpu_refusal_message(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        identity: (JobId, Generation),
+    ) -> Option<String> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if view.unified_parakeet_sessions.iter().any(|session| {
+                (session.job_id, session.generation) == identity
+                    && session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
+            }) {
+                return view.message;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        None
     }
 
     #[test]
@@ -763,27 +790,7 @@ fn main() {
             }),
             "non-candidate refusal should remain visible: {refused:?}"
         );
-        let mut observed_native_events = Vec::new();
-        native_event_drain(&native_events, &mut observed_native_events);
-        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
-        assert!(
-            !observed_native_events.iter().any(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::PreparedRoute { session, .. }
-                    if session.job_id == identity.0 && session.generation == identity.1
-            )),
-            "non-candidate admission must not prepare a native route"
-        );
-        assert!(
-            !observed_native_events.iter().any(|event| matches!(
-                &event.kind,
-                NativeQualificationEventKind::Starting { .. }
-                    | NativeQualificationEventKind::Spawned { .. }
-                    | NativeQualificationEventKind::Ready { .. }
-                    | NativeQualificationEventKind::RequestSent { .. }
-            )),
-            "non-candidate refusal must not start a native worker"
-        );
+        assert_non_candidate_route_not_started(&native_events, &native_observer, identity);
         assert!(
             !destination
                 .join("transcriptions")
@@ -857,21 +864,7 @@ fn main() {
             request: request.clone(),
         })
         .unwrap();
-        let enqueue_deadline = Instant::now() + Duration::from_secs(10);
-        let queued = loop {
-            let view = app.dispatch(AppCommand::Refresh).unwrap();
-            if let Some(entry) = view.queue.iter().find(|entry| {
-                (entry.request.job_id, entry.request.generation) == identity
-                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
-            }) {
-                break entry.request.clone();
-            }
-            assert!(
-                Instant::now() < enqueue_deadline,
-                "Enqueue did not become durable"
-            );
-            thread::sleep(Duration::from_millis(2));
-        };
+        let queued = wait_for_capacity_queued_import(&mut app, identity);
         app.dispatch(AppCommand::ProcessQueued { request: queued })
             .unwrap();
 
@@ -894,8 +887,36 @@ fn main() {
                 .is_some_and(|message| message.contains("SchedulerCapacity")),
             "capacity refusal should remain visible: {message:?}"
         );
+        assert_capacity_refusal_kept_existing_routes(
+            &native_events,
+            &native_observer,
+            identity,
+        );
+        let pending = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("pending.json");
+        assert!(!pending.exists());
+        assert_eq!(
+            crate::queue_store::QueueStore::open(&destination)
+                .unwrap()
+                .entries()[0]
+                .status,
+            crate::queue_store::QueueStatus::Queued
+        );
+        assert_eq!(hex_sha256(&source_path), source_sha);
+        drop(app);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    fn assert_capacity_refusal_kept_existing_routes(
+        native_events: &Receiver<NativeQualificationEvent>,
+        native_observer: &NativeQualificationObserver,
+        identity: (JobId, Generation),
+    ) {
         let mut observed_native_events = Vec::new();
-        native_event_drain(&native_events, &mut observed_native_events);
+        native_event_drain(native_events, &mut observed_native_events);
         assert!(!native_observer.overflowed.load(Ordering::Relaxed));
         let prepared_sessions = observed_native_events
             .iter()
@@ -921,22 +942,27 @@ fn main() {
             }),
             "third refused import must not prepare a route"
         );
-        let pending = destination
-            .join("transcriptions")
-            .join(format!("{:032x}", request.job_id.0))
-            .join(request.generation.get().to_string())
-            .join("pending.json");
-        assert!(!pending.exists());
-        assert_eq!(
-            crate::queue_store::QueueStore::open(&destination)
-                .unwrap()
-                .entries()[0]
-                .status,
-            crate::queue_store::QueueStatus::Queued
-        );
-        assert_eq!(hex_sha256(&source_path), source_sha);
-        drop(app);
-        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    fn wait_for_capacity_queued_import(
+        app: &mut ImportApplication<RuntimeImportPort>,
+        identity: (JobId, Generation),
+    ) -> ImportRequest {
+        let enqueue_deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let view = app.dispatch(AppCommand::Refresh).unwrap();
+            if let Some(entry) = view.queue.iter().find(|entry| {
+                (entry.request.job_id, entry.request.generation) == identity
+                    && matches!(entry.status, whisper_core::ports::ImportQueueStatus::Queued)
+            }) {
+                return entry.request.clone();
+            }
+            assert!(
+                Instant::now() < enqueue_deadline,
+                "Enqueue did not become durable"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
     }
 
     #[cfg(all(feature = "l3-gpu-qualification", feature = "recette-hooks"))]
@@ -1237,6 +1263,16 @@ fn main() {
             },
             &mut events,
         );
+        assert_resumed_checkpoint_identity(&events, &model, &request, &resumed, &destination);
+    }
+
+    fn assert_resumed_checkpoint_identity(
+        events: &VecDeque<ImportEvent>,
+        model: &std::path::Path,
+        request: &whisper_core::ports::ImportRequest,
+        resumed: &whisper_core::ports::ImportRequest,
+        destination: &std::path::Path,
+    ) {
         let checkpoint = events.iter().find_map(|event| match event {
             ImportEvent::ResumeCheckpoint {
                 confirmed_segments,
@@ -1254,7 +1290,7 @@ fn main() {
             })
             .expect("verified resume emits a worker request");
         assert_eq!(
-            PathBuf::from(&prepared.model_path).canonicalize().unwrap(),
+            std::path::PathBuf::from(&prepared.model_path).canonicalize().unwrap(),
             model.canonicalize().unwrap()
         );
         assert_eq!(prepared.generation, resumed.generation);
@@ -1266,8 +1302,36 @@ fn main() {
             .join(resumed.generation.get().to_string())
             .join("pending.json");
         let pending: serde_json::Value =
-            serde_json::from_slice(&fs::read(pending_path).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(pending_path).unwrap()).unwrap();
         assert_eq!(pending["model_path"], request.model_path);
+    }
+
+    fn assert_non_candidate_route_not_started(
+        native_events: &Receiver<NativeQualificationEvent>,
+        native_observer: &NativeQualificationObserver,
+        identity: (JobId, Generation),
+    ) {
+        let mut observed_native_events = Vec::new();
+        native_event_drain(native_events, &mut observed_native_events);
+        assert!(!native_observer.overflowed.load(Ordering::Relaxed));
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::PreparedRoute { session, .. }
+                    if session.job_id == identity.0 && session.generation == identity.1
+            )),
+            "non-candidate admission must not prepare a native route"
+        );
+        assert!(
+            !observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::Starting { .. }
+                    | NativeQualificationEventKind::Spawned { .. }
+                    | NativeQualificationEventKind::Ready { .. }
+                    | NativeQualificationEventKind::RequestSent { .. }
+            )),
+            "non-candidate refusal must not start a native worker"
+        );
     }
 
     fn hex_sha256(path: &std::path::Path) -> [u8; 32] {
@@ -1300,21 +1364,7 @@ fn main() {
         let job_id = JobId(88);
         let generation = Generation::first();
         app.dispatch(AppCommand::StartImport {
-            request: ImportRequest {
-                strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-                job_id,
-                generation,
-                source_path: "fixture.wav".into(),
-                source_sha256: None,
-                source_samples: None,
-                model_path: "model.bin".into(),
-                model_sha256: [0; 32],
-                destination: "archive".into(),
-                config: JobConfig {
-                    language: LanguageChoice::Manual("fr".into()),
-                    compute: ComputeChoice::Cpu,
-                },
-            },
+            request: blocked_commit_import_request(job_id, generation),
         })
         .unwrap();
         assert!(matches!(effects.try_recv(), Ok(ImportEffect::Prepare(_))));
@@ -1398,4 +1448,22 @@ fn main() {
         ui.join().unwrap();
         fs::remove_file(current_pointer).unwrap();
         fs::remove_dir(commit_directory).unwrap();
+    }
+
+    fn blocked_commit_import_request(job_id: JobId, generation: Generation) -> ImportRequest {
+        ImportRequest {
+            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            job_id,
+            generation,
+            source_path: "fixture.wav".into(),
+            source_sha256: None,
+            source_samples: None,
+            model_path: "model.bin".into(),
+            model_sha256: [0; 32],
+            destination: "archive".into(),
+            config: JobConfig {
+                language: LanguageChoice::Manual("fr".into()),
+                compute: ComputeChoice::Cpu,
+            },
+        }
     }

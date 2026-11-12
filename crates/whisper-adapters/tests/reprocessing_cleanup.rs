@@ -363,37 +363,7 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
         .unwrap()
         .to_path_buf();
     let model_path = repository.join("models/ggml-large-v3-turbo.bin");
-    let catalog = LocalModelCatalog::new(repository.join("models")).inspect(1);
-    let model_sha: [u8; 32] = catalog
-        .entries
-        .iter()
-        .find(|entry| entry.id == whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo)
-        .and_then(|entry| entry.observed_sha256.as_ref())
-        .expect("local Turbo model")
-        .as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-    let worker = compile_worker(&root);
-    let io = whisper_adapters::worker_ipc::AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
-        whisper_adapters::supervisor::WorkerPaths {
-            cpu: worker.clone(),
-            gpu: worker,
-        },
-        repository.join("models"),
-        fs::canonicalize(&model_path)
-            .unwrap()
-            .to_string_lossy()
-            .into_owned(),
-        None,
-        None,
-        Some(snapshot_registry(&root)),
-    );
-    let mut app = ImportApplication::new(io);
+    let (mut app, model_sha) = failed_cleanup_import_app(&root, &repository, &model_path);
     let mut incoming = request(&destination, &source, successor_job.0);
     incoming.model_path = fs::canonicalize(&model_path)
         .unwrap()
@@ -403,18 +373,7 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
     app.dispatch(AppCommand::EnqueueImport { request: incoming })
         .unwrap();
 
-    let deadline = std::time::Instant::now() + Duration::from_secs(20);
-    let prompt = loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if let Some(prompt) = view.duplicate_import_prompt {
-            break prompt;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "duplicate prompt missing for {name}: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    };
+    let prompt = wait_for_cleanup_duplicate_prompt(&mut app, name);
     assert_eq!(prompt.publications.len(), 1);
     app.dispatch(AppCommand::ResolveDuplicateImport {
         prompt: Box::new(prompt),
@@ -422,22 +381,7 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
     })
     .unwrap();
 
-    let deadline = std::time::Instant::now() + Duration::from_secs(20);
-    let queued = loop {
-        let view = app.dispatch(AppCommand::Refresh).unwrap();
-        if let Some(entry) = view
-            .queue
-            .iter()
-            .find(|entry| entry.request.job_id == successor_job)
-        {
-            break entry.request.clone();
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "replacement not queued for {name}: {view:?}"
-        );
-        thread::sleep(Duration::from_millis(10));
-    };
+    let queued = wait_for_cleanup_replacement(&mut app, name, successor_job);
 
     let old_container = destination
         .join("transcriptions")
@@ -502,6 +446,88 @@ fn create_failed_cleanup_fixture(name: &str, mutation: ContainerMutation) -> Fai
         old_container,
         held_container,
         cleanup_id: cleanup.cleanup_id,
+    }
+}
+
+fn failed_cleanup_import_app(
+    root: &std::path::Path,
+    repository: &std::path::Path,
+    model_path: &std::path::Path,
+) -> (
+    ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    [u8; 32],
+) {
+    let catalog = LocalModelCatalog::new(repository.join("models")).inspect(1);
+    let model_sha: [u8; 32] = catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo)
+        .and_then(|entry| entry.observed_sha256.as_ref())
+        .expect("local Turbo model")
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    let worker = compile_worker(root);
+    let io = whisper_adapters::worker_ipc::AsyncImportIo::start_with_model_catalog_and_parakeet_routes_and_snapshot_registry(
+        whisper_adapters::supervisor::WorkerPaths {
+            cpu: worker.clone(),
+            gpu: worker,
+        },
+        repository.join("models"),
+        fs::canonicalize(model_path)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        None,
+        None,
+        Some(snapshot_registry(root)),
+    );
+    (ImportApplication::new(io), model_sha)
+}
+
+fn wait_for_cleanup_duplicate_prompt(
+    app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    name: &str,
+) -> whisper_core::ports::DuplicateImportPrompt {
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(prompt) = view.duplicate_import_prompt {
+            return prompt;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "duplicate prompt missing for {name}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_cleanup_replacement(
+    app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
+    name: &str,
+    successor_job: JobId,
+) -> ImportRequest {
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap();
+        if let Some(entry) = view
+            .queue
+            .iter()
+            .find(|entry| entry.request.job_id == successor_job)
+        {
+            return entry.request.clone();
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "replacement not queued for {name}: {view:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
     }
 }
 

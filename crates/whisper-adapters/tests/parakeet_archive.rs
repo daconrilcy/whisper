@@ -1,7 +1,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     thread,
     time::{Duration, Instant},
@@ -63,52 +63,59 @@ fn required_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("{name} is required")))
 }
 
+fn configured_l3_archive_root(canonical_archive: &Path) -> Option<PathBuf> {
+    let l3a = configured_archive_root(
+        "PARAKEET_L3A_EXEC_ROOT",
+        "../../target/parakeet-tests/l3/l3a",
+        "canonical L3a runtime root exists",
+        canonical_archive,
+    );
+    let l3b = configured_archive_root(
+        "PARAKEET_L3B_EXEC_ROOT",
+        "../../target/parakeet-tests/l3/l3b",
+        "canonical L3b runtime root exists",
+        canonical_archive,
+    );
+    let l3c = configured_archive_root(
+        "PARAKEET_L3C_EXEC_ROOT",
+        "../../target/parakeet-tests/l3/l3c",
+        "canonical L3c runtime root exists",
+        canonical_archive,
+    );
+    let l3d = configured_archive_root(
+        "PARAKEET_L3D_EXEC_ROOT",
+        "../../target/parakeet-tests/l3/l3d",
+        "canonical L3d runtime root exists",
+        canonical_archive,
+    );
+    l3d.or(l3c).or(l3b).or(l3a)
+}
+
+fn configured_archive_root(
+    variable: &str,
+    relative: &str,
+    expected_message: &str,
+    canonical_archive: &Path,
+) -> Option<PathBuf> {
+    std::env::var_os(variable)
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok())
+        .filter(|path| {
+            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join(relative)
+                .canonicalize()
+                .expect(expected_message);
+            path == &expected && canonical_archive.starts_with(path)
+        })
+}
+
 fn archive_root() -> PathBuf {
     let root = required_path("PARAKEET_L2_ARCHIVE_ROOT");
     let canonical = root.canonicalize().expect("archive root exists");
     let runtime = required_path("PARAKEET_L2_RUNTIME_ROOT")
         .canonicalize()
         .expect("runtime root exists");
-    let l3a = std::env::var_os("PARAKEET_L3A_EXEC_ROOT")
-        .map(PathBuf::from)
-        .and_then(|path| path.canonicalize().ok())
-        .filter(|path| {
-            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target/parakeet-tests/l3/l3a")
-                .canonicalize()
-                .expect("canonical L3a runtime root exists");
-            path == &expected && canonical.starts_with(path)
-        });
-    let l3b = std::env::var_os("PARAKEET_L3B_EXEC_ROOT")
-        .map(PathBuf::from)
-        .and_then(|path| path.canonicalize().ok())
-        .filter(|path| {
-            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target/parakeet-tests/l3/l3b")
-                .canonicalize()
-                .expect("canonical L3b runtime root exists");
-            path == &expected && canonical.starts_with(path)
-        });
-    let l3c = std::env::var_os("PARAKEET_L3C_EXEC_ROOT")
-        .map(PathBuf::from)
-        .and_then(|path| path.canonicalize().ok())
-        .filter(|path| {
-            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target/parakeet-tests/l3/l3c")
-                .canonicalize()
-                .expect("canonical L3c runtime root exists");
-            path == &expected && canonical.starts_with(path)
-        });
-    let l3d = std::env::var_os("PARAKEET_L3D_EXEC_ROOT")
-        .map(PathBuf::from)
-        .and_then(|path| path.canonicalize().ok())
-        .filter(|path| {
-            let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target/parakeet-tests/l3/l3d")
-                .canonicalize()
-                .expect("canonical L3d runtime root exists");
-            path == &expected && canonical.starts_with(path)
-        });
+    let l3 = configured_l3_archive_root(&canonical);
     let l6p = std::env::var_os("PARAKEET_L6P_EXEC_ROOT")
         .map(PathBuf::from)
         .and_then(|path| path.canonicalize().ok())
@@ -168,10 +175,7 @@ fn archive_root() -> PathBuf {
     let allowed = l6p
         .or(r11)
         .or(r10)
-        .or(l3d)
-        .or(l3c)
-        .or(l3b)
-        .or(l3a)
+        .or(l3)
         .or(r9)
         .or(r8)
         .or(r7)
@@ -519,16 +523,49 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
         .join(format!("{:032x}", prepared.job_id.0))
         .join(prepared.generation.get().to_string())
         .join("pending.json");
+    verify_tampered_pending_resume_is_refused(&root, &prepared, &pending_path, &source, source_sha);
+
+    let gpu_root = archive_root().join("parakeet-gpu-key-scan");
+    let mut gpu_request = make_request(&gpu_root, 0x1ae);
+    gpu_request.config.compute = ComputeChoice::Gpu;
+    assert_qualified_gpu_pending_scan(&gpu_root, gpu_request);
+}
+
+fn assert_qualified_gpu_pending_scan(gpu_root: &Path, gpu_request: ImportRequest) {
+    let _ = fs::remove_dir_all(gpu_root);
+    let gpu_prepared = ArchiveStore::new(gpu_root)
+        .prepare_with_qualification(
+            gpu_request,
+            None,
+            Some(ArchiveQualificationKey::parakeet_gpu_test()),
+        )
+        .unwrap();
+    let gpu_scan = ArchiveStore::scan(gpu_root).unwrap();
+    assert!(
+        gpu_scan.iter().any(|entry| {
+            entry.job_id == gpu_prepared.job_id && entry.diagnostic.is_none() && !entry.complete
+        }),
+        "the exact qualified GPU key must remain valid when scanning its pending archive"
+    );
+}
+
+fn verify_tampered_pending_resume_is_refused(
+    root: &Path,
+    prepared: &ImportRequest,
+    pending_path: &Path,
+    source: &Path,
+    source_sha: [u8; 32],
+) {
     let mut pending: serde_json::Value =
-        serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(pending_path).unwrap()).unwrap();
     pending["qualification"]["runtime_build"] =
         serde_json::json!("d5a2cc8ef441dd5934972adae00f997241bea17a7bc5977a8c7f0122aaa958ff");
     pending["qualification"]["worker_build"] =
         serde_json::json!("aa8dfdf317649eabbfe670c5109df46c70d3f1908064bee61d26fe7aa059bf31");
     let pending_bytes = serde_json::to_vec(&pending).unwrap();
-    fs::write(&pending_path, &pending_bytes).unwrap();
+    fs::write(pending_path, &pending_bytes).unwrap();
 
-    let scan = ArchiveStore::scan(&root).unwrap();
+    let scan = ArchiveStore::scan(root).unwrap();
     assert!(scan.iter().any(|entry| {
         entry.job_id == prepared.job_id
             && entry
@@ -536,17 +573,17 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
                 .as_deref()
                 .is_some_and(|message| message.contains("pending identity/schema"))
     }));
-    assert_eq!(fs::read(&pending_path).unwrap(), pending_bytes);
+    assert_eq!(fs::read(pending_path).unwrap(), pending_bytes);
     assert_eq!(
-        whisper_adapters::archive::sha256_file(&source).unwrap(),
+        whisper_adapters::archive::sha256_file(source).unwrap(),
         source_sha
     );
     let mut resumed = prepared.clone();
     resumed.generation = prepared.generation.next().unwrap();
     assert!(
-        ArchiveStore::new(&root)
+        ArchiveStore::new(root)
             .resume_from_with_qualification(
-                &prepared,
+                prepared,
                 resumed,
                 Some(&prepared.model_path),
                 Some(qualified_key()),
@@ -562,29 +599,10 @@ fn pending_scan_and_resume_require_the_exact_qualified_test_key() {
         pending_path.exists(),
         "refused resume must preserve the old pending record"
     );
-    assert_eq!(fs::read(&pending_path).unwrap(), pending_bytes);
+    assert_eq!(fs::read(pending_path).unwrap(), pending_bytes);
     assert_eq!(
-        whisper_adapters::archive::sha256_file(&source).unwrap(),
+        whisper_adapters::archive::sha256_file(source).unwrap(),
         source_sha
-    );
-
-    let gpu_root = archive_root().join("parakeet-gpu-key-scan");
-    let _ = fs::remove_dir_all(&gpu_root);
-    let mut gpu_request = make_request(&gpu_root, 0x1ae);
-    gpu_request.config.compute = ComputeChoice::Gpu;
-    let gpu_prepared = ArchiveStore::new(&gpu_root)
-        .prepare_with_qualification(
-            gpu_request,
-            None,
-            Some(ArchiveQualificationKey::parakeet_gpu_test()),
-        )
-        .unwrap();
-    let gpu_scan = ArchiveStore::scan(&gpu_root).unwrap();
-    assert!(
-        gpu_scan.iter().any(|entry| {
-            entry.job_id == gpu_prepared.job_id && entry.diagnostic.is_none() && !entry.complete
-        }),
-        "the exact qualified GPU key must remain valid when scanning its pending archive"
     );
 }
 
@@ -1073,12 +1091,21 @@ fn parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix() {
         .collect();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["text"], "Confirmed prefix.");
+    resume_queue_entry(&mut queue, &destination, prepared, resumed);
+}
+
+fn resume_queue_entry(
+    queue: &mut QueueStore,
+    destination: &Path,
+    prepared: ImportRequest,
+    resumed: ImportRequest,
+) {
     let entry = queue
         .resume_interrupted(prepared.job_id, prepared.generation, resumed)
         .expect("queue status advances to resumed generation");
     assert_eq!(entry.status, QueueStatus::Running);
     assert_eq!(
-        QueueStore::open(&destination).unwrap().entries()[0].status,
+        QueueStore::open(destination).unwrap().entries()[0].status,
         QueueStatus::Running
     );
 }
@@ -1305,123 +1332,147 @@ fn r5_2_a4_product_route_publishes_french_and_english_txt_srt() {
         ("en15", "PARAKEET_L2_EN_WAV", JobId(0x1a6)),
     ];
     for (name, variable, job_id) in fixtures {
-        let source = required_path(variable);
-        let destination = archive_root().join("a4").join(name);
-        let _ = fs::remove_dir_all(&destination);
-        let turbo_worker = runtime.join("worker/not-used-turbo.exe");
-        let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
-        let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
-            WorkerPaths {
-                cpu: turbo_worker.clone(),
-                gpu: turbo_worker,
-            },
-            model_path.parent().unwrap().to_path_buf(),
-            historical_turbo.to_string_lossy().into_owned(),
-            Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-                executable: worker.clone(),
-                native_dir: native.clone(),
-                model: model_path.clone(),
-                runtime_root: runtime.clone(),
-            }),
-        );
-        let snapshot = whisper_core::model_registry::engine_snapshot(
-            1,
-            |_| whisper_core::model_catalog::ModelAvailability::Ready,
-            vec![],
-        );
-        let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
-            snapshot,
-            1,
-            [
-                (
-                    ModelId::ParakeetTdt06BV3,
-                    model_path.to_string_lossy().into_owned(),
-                ),
-                (
-                    ModelId::WhisperLargeV3Turbo,
-                    historical_turbo.to_string_lossy().into_owned(),
-                ),
-            ],
-        );
-        let mut app = ImportApplication::new(io).with_model_guard(guard);
-        let request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        run_a4_fixture(
+            &runtime,
+            &model_path,
+            &worker,
+            &native,
+            name,
+            variable,
             job_id,
-            generation: Generation::first(),
-            source_path: source.to_string_lossy().into_owned(),
-            source_sha256: None,
-            source_samples: None,
-            model_path: model_path.to_string_lossy().into_owned(),
-            model_sha256: decode_sha256(model(ModelId::ParakeetTdt06BV3).artifact.sha256),
-            destination: destination.to_string_lossy().into_owned(),
-            config: JobConfig {
-                language: LanguageChoice::Automatic,
-                compute: ComputeChoice::Cpu,
-            },
-        };
-        app.dispatch(AppCommand::StartImport { request }).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(300);
-        loop {
-            let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
-                panic!(
-                    "refresh failed for {name}: {error:?}; view={:?}",
-                    app.view()
-                )
-            });
-            if view.last_result.is_some() {
-                break;
-            }
-            if let Some((_, state)) = view.active_job {
-                assert_ne!(
-                    state,
-                    whisper_core::JobState::Recoverable,
-                    "A4 {name} failed: {view:?}"
-                );
-                assert_ne!(
-                    state,
-                    whisper_core::JobState::Interrupted,
-                    "A4 {name} interrupted: {view:?}"
-                );
-            }
-            assert!(Instant::now() < deadline, "A4 {name} timed out: {view:?}");
-            thread::sleep(Duration::from_millis(20));
+        );
+    }
+}
+
+fn run_a4_fixture(
+    runtime: &Path,
+    model_path: &Path,
+    worker: &Path,
+    native: &Path,
+    name: &str,
+    variable: &str,
+    job_id: JobId,
+) {
+    let source = required_path(variable);
+    let destination = archive_root().join("a4").join(name);
+    let _ = fs::remove_dir_all(&destination);
+    let turbo_worker = runtime.join("worker/not-used-turbo.exe");
+    let historical_turbo = runtime.join("historical/ggml-large-v3-turbo.bin");
+    let io = AsyncImportIo::start_with_model_catalog_and_parakeet(
+        WorkerPaths {
+            cpu: turbo_worker.clone(),
+            gpu: turbo_worker,
+        },
+        model_path.parent().unwrap().to_path_buf(),
+        historical_turbo.to_string_lossy().into_owned(),
+        Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+            executable: worker.to_path_buf(),
+            native_dir: native.to_path_buf(),
+            model: model_path.to_path_buf(),
+            runtime_root: runtime.to_path_buf(),
+        }),
+    );
+    let snapshot = whisper_core::model_registry::engine_snapshot(
+        1,
+        |_| whisper_core::model_catalog::ModelAvailability::Ready,
+        vec![],
+    );
+    let guard = whisper_core::model_selection_app::ModelCommandGuard::new_with_model_paths(
+        snapshot,
+        1,
+        [
+            (
+                ModelId::ParakeetTdt06BV3,
+                model_path.to_string_lossy().into_owned(),
+            ),
+            (
+                ModelId::WhisperLargeV3Turbo,
+                historical_turbo.to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    let mut app = ImportApplication::new(io).with_model_guard(guard);
+    let request = ImportRequest {
+        strategy: whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+        job_id,
+        generation: Generation::first(),
+        source_path: source.to_string_lossy().into_owned(),
+        source_sha256: None,
+        source_samples: None,
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(model(ModelId::ParakeetTdt06BV3).artifact.sha256),
+        destination: destination.to_string_lossy().into_owned(),
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    app.dispatch(AppCommand::StartImport { request }).unwrap();
+    wait_for_a4_result(&mut app, name);
+    let passage = destination
+        .join("transcriptions")
+        .join(format!("{:032x}", job_id.0))
+        .join("1");
+    let txt = fs::read_to_string(passage.join("transcript.txt")).unwrap();
+    let srt = fs::read_to_string(passage.join("transcript.srt")).unwrap();
+    assert!(!txt.is_empty(), "A4 {name} TXT is empty");
+    assert!(!srt.is_empty(), "A4 {name} SRT is empty");
+    assert!(!txt.contains('\u{fffd}'), "A4 {name} emitted U+FFFD");
+    assert!(!srt.contains('\u{fffd}'), "A4 {name} SRT emitted U+FFFD");
+    if name == "fr87" {
+        let normalized = txt.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(normalized.contains("faire? Je"), "A4 FR87 boundary: {txt}");
+    }
+    if name == "fr27" {
+        let last_word = txt
+            .split_whitespace()
+            .last()
+            .expect("French TXT has a last word");
+        assert!(
+            last_word.chars().any(char::is_alphabetic),
+            "A4 FR27 final token is not French text: {last_word:?}"
+        );
+    }
+    let entries = ArchiveStore::scan(&destination).expect("scan A4 archive");
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.job_id == job_id && entry.complete)
+    );
+    eprintln!(
+        "R5_2_A4 fixture={name} job={job_id:?} TXT={} SRT={} destination={}",
+        passage.join("transcript.txt").display(),
+        passage.join("transcript.srt").display(),
+        destination.display()
+    );
+}
+
+fn wait_for_a4_result(app: &mut ImportApplication<AsyncImportIo>, name: &str) {
+    let deadline = Instant::now() + Duration::from_secs(300);
+    loop {
+        let view = app.dispatch(AppCommand::Refresh).unwrap_or_else(|error| {
+            panic!(
+                "refresh failed for {name}: {error:?}; view={:?}",
+                app.view()
+            )
+        });
+        if view.last_result.is_some() {
+            break;
         }
-        let passage = destination
-            .join("transcriptions")
-            .join(format!("{:032x}", job_id.0))
-            .join("1");
-        let txt = fs::read_to_string(passage.join("transcript.txt")).unwrap();
-        let srt = fs::read_to_string(passage.join("transcript.srt")).unwrap();
-        assert!(!txt.is_empty(), "A4 {name} TXT is empty");
-        assert!(!srt.is_empty(), "A4 {name} SRT is empty");
-        assert!(!txt.contains('\u{fffd}'), "A4 {name} emitted U+FFFD");
-        assert!(!srt.contains('\u{fffd}'), "A4 {name} SRT emitted U+FFFD");
-        if name == "fr87" {
-            let normalized = txt.split_whitespace().collect::<Vec<_>>().join(" ");
-            assert!(normalized.contains("faire? Je"), "A4 FR87 boundary: {txt}");
-        }
-        if name == "fr27" {
-            let last_word = txt
-                .split_whitespace()
-                .last()
-                .expect("French TXT has a last word");
-            assert!(
-                last_word.chars().any(char::is_alphabetic),
-                "A4 FR27 final token is not French text: {last_word:?}"
+        if let Some((_, state)) = view.active_job {
+            assert_ne!(
+                state,
+                whisper_core::JobState::Recoverable,
+                "A4 {name} failed: {view:?}"
+            );
+            assert_ne!(
+                state,
+                whisper_core::JobState::Interrupted,
+                "A4 {name} interrupted: {view:?}"
             );
         }
-        let entries = ArchiveStore::scan(&destination).expect("scan A4 archive");
-        assert!(
-            entries
-                .iter()
-                .any(|entry| entry.job_id == job_id && entry.complete)
-        );
-        eprintln!(
-            "R5_2_A4 fixture={name} job={job_id:?} TXT={} SRT={} destination={}",
-            passage.join("transcript.txt").display(),
-            passage.join("transcript.srt").display(),
-            destination.display()
-        );
+        assert!(Instant::now() < deadline, "A4 {name} timed out: {view:?}");
+        thread::sleep(Duration::from_millis(20));
     }
 }
 

@@ -261,12 +261,14 @@ fn run_native_import(
     let result = run_native_import_from_path_timed(
         &source,
         case,
-        compute,
-        gpu_candidate,
-        minimum_samples,
-        require_nonempty_text,
-        false,
-        false,
+        NativeImportOptions {
+            compute,
+            gpu_candidate,
+            minimum_samples,
+            require_nonempty_text,
+            require_gpu_for_auto: false,
+            use_personal_settings: false,
+        },
         timing.as_mut(),
     );
     if let Some(trace) = timing.as_mut() {
@@ -278,40 +280,33 @@ fn run_native_import(
     result
 }
 
-fn run_native_import_from_path(
-    source: &Path,
-    case: &str,
+struct NativeImportOptions {
     compute: ComputeChoice,
     gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     minimum_samples: Option<u64>,
     require_nonempty_text: bool,
     require_gpu_for_auto: bool,
     use_personal_settings: bool,
+}
+
+fn run_native_import_from_options(source: &Path, case: &str, options: NativeImportOptions) -> u64 {
+    run_native_import_from_path_timed(source, case, options, None)
+}
+
+fn run_native_import_from_path_timed(
+    source: &Path,
+    case: &str,
+    options: NativeImportOptions,
+    timing: Option<&mut native_import_timing::NativeImportTiming>,
 ) -> u64 {
-    run_native_import_from_path_timed(
-        source,
-        case,
+    let NativeImportOptions {
         compute,
         gpu_candidate,
         minimum_samples,
         require_nonempty_text,
         require_gpu_for_auto,
         use_personal_settings,
-        None,
-    )
-}
-
-fn run_native_import_from_path_timed(
-    source: &Path,
-    case: &str,
-    compute: ComputeChoice,
-    gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
-    minimum_samples: Option<u64>,
-    require_nonempty_text: bool,
-    require_gpu_for_auto: bool,
-    use_personal_settings: bool,
-    timing: Option<&mut native_import_timing::NativeImportTiming>,
-) -> u64 {
+    } = options;
     let mut timing = timing;
     let body_started = Instant::now();
     if let Some(trace) = timing.as_deref_mut() {
@@ -837,7 +832,90 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     assert_eq!(annotation.language, language);
     assert_eq!(annotation.sample_rate_hz, 16_000);
     assert_eq!(annotation.channels, 1);
-    let repository_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let source_bytes = std::fs::metadata(&source)
+        .expect("stat long-session WAV")
+        .len();
+    assert!(source_bytes >= 44);
+    let mut wav = std::fs::File::open(&source).expect("open long-session WAV");
+    let mut header = [0_u8; 44];
+    std::io::Read::read_exact(&mut wav, &mut header).expect("read long-session WAV header");
+    assert_eq!(&header[0..4], b"RIFF");
+    assert_eq!(&header[8..12], b"WAVE");
+    assert_eq!(&header[36..40], b"data");
+    assert_eq!(u16::from_le_bytes(header[20..22].try_into().unwrap()), 1);
+    assert_eq!(u16::from_le_bytes(header[22..24].try_into().unwrap()), 1);
+    assert_eq!(
+        u32::from_le_bytes(header[24..28].try_into().unwrap()),
+        16_000
+    );
+    assert_eq!(u16::from_le_bytes(header[34..36].try_into().unwrap()), 16);
+    let data_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
+    assert_eq!(source_bytes, 44 + u64::from(data_bytes));
+    assert_eq!(data_bytes % 2, 0);
+    let actual_samples = u64::from(data_bytes / 2);
+    assert!(actual_samples >= minimum_samples);
+    assert_eq!(annotation.source_samples, actual_samples);
+    assert!(
+        sha256_file(&source)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+            .eq_ignore_ascii_case(&annotation.source_sha256),
+        "the source hash must match its annotation"
+    );
+    verify_long_corpus_annotation(
+        &annotation,
+        corpus_name,
+        tsv_name,
+        corpus_language,
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(".."),
+        actual_samples,
+    );
+
+    run_long_native_import(
+        source_variable,
+        language,
+        compute,
+        minimum_samples,
+        actual_samples,
+    );
+}
+
+#[cfg(windows)]
+fn run_long_native_import(
+    source_variable: &str,
+    language: &str,
+    compute: ComputeChoice,
+    minimum_samples: u64,
+    actual_samples: u64,
+) {
+    let gpu_candidate = match compute {
+        ComputeChoice::Cpu => None,
+        ComputeChoice::Gpu | ComputeChoice::Auto => Some(personal_gpu_candidate()),
+    };
+    let imported_samples = run_native_import(
+        source_variable,
+        &format!("native-{compute:?}-long-{language}"),
+        compute,
+        gpu_candidate,
+        Some(minimum_samples),
+        true,
+    );
+    assert_eq!(
+        imported_samples, actual_samples,
+        "published logical parts must cover the exact decoded long-session source"
+    );
+}
+
+#[cfg(windows)]
+fn verify_long_corpus_annotation(
+    annotation: &LongCorpusAnnotation,
+    corpus_name: &str,
+    tsv_name: &str,
+    corpus_language: &str,
+    repository_root: &Path,
+    actual_samples: u64,
+) {
     let corpus_root = repository_root.join("sound example").join(corpus_name);
     let corpus_tsv = std::fs::read_to_string(corpus_root.join(tsv_name))
         .expect("read source corpus to verify annotation provenance");
@@ -877,37 +955,6 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
         }
     }
 
-    let source_bytes = std::fs::metadata(&source)
-        .expect("stat long-session WAV")
-        .len();
-    assert!(source_bytes >= 44);
-    let mut wav = std::fs::File::open(&source).expect("open long-session WAV");
-    let mut header = [0_u8; 44];
-    std::io::Read::read_exact(&mut wav, &mut header).expect("read long-session WAV header");
-    assert_eq!(&header[0..4], b"RIFF");
-    assert_eq!(&header[8..12], b"WAVE");
-    assert_eq!(&header[36..40], b"data");
-    assert_eq!(u16::from_le_bytes(header[20..22].try_into().unwrap()), 1);
-    assert_eq!(u16::from_le_bytes(header[22..24].try_into().unwrap()), 1);
-    assert_eq!(
-        u32::from_le_bytes(header[24..28].try_into().unwrap()),
-        16_000
-    );
-    assert_eq!(u16::from_le_bytes(header[34..36].try_into().unwrap()), 16);
-    let data_bytes = u32::from_le_bytes(header[40..44].try_into().unwrap());
-    assert_eq!(source_bytes, 44 + u64::from(data_bytes));
-    assert_eq!(data_bytes % 2, 0);
-    let actual_samples = u64::from(data_bytes / 2);
-    assert!(actual_samples >= minimum_samples);
-    assert_eq!(annotation.source_samples, actual_samples);
-    assert!(
-        sha256_file(&source)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
-            .eq_ignore_ascii_case(&annotation.source_sha256),
-        "the source hash must match its annotation"
-    );
     let mut next_sample = 0_u64;
     for segment in &annotation.segments {
         assert_eq!(
@@ -930,23 +977,6 @@ fn run_native_long_case(language: &str, compute: ComputeChoice, minimum_samples:
     assert_eq!(
         next_sample, actual_samples,
         "annotation must cover the entire WAV"
-    );
-
-    let gpu_candidate = match compute {
-        ComputeChoice::Cpu => None,
-        ComputeChoice::Gpu | ComputeChoice::Auto => Some(personal_gpu_candidate()),
-    };
-    let imported_samples = run_native_import(
-        source_variable,
-        &format!("native-{compute:?}-long-{language}"),
-        compute,
-        gpu_candidate,
-        Some(minimum_samples),
-        true,
-    );
-    assert_eq!(
-        imported_samples, actual_samples,
-        "published logical parts must cover the exact decoded long-session source"
     );
 }
 
@@ -1000,6 +1030,55 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
         fixtures.join(format!("{language}-long-build-{nonce}.annotations.json"));
     let mut writer = whisper_adapters::parakeet_audio::PcmPartWriter::create(&staging_wav)
         .expect("create staged long-session WAV under guarded lot");
+    let (segments, covered_samples) = build_long_fixture_segments(
+        &tsv,
+        &repository_root,
+        corpus_name,
+        expected_language,
+        minimum_samples,
+        &mut writer,
+    );
+    assert!(
+        covered_samples >= minimum_samples,
+        "voted corpus clips cover {covered_samples} samples; expected at least {minimum_samples}"
+    );
+    assert_eq!(
+        writer.finish().expect("finish staged long-session WAV"),
+        covered_samples
+    );
+    let annotation = LongCorpusAnnotation {
+        schema: "pu-l4-corpus-v1".into(),
+        language: language.into(),
+        sample_rate_hz: 16_000,
+        channels: 1,
+        source_samples: covered_samples,
+        source_sha256: sha256_file(&staging_wav)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+        segments,
+    };
+    std::fs::write(
+        &staging_annotation,
+        serde_json::to_vec_pretty(&annotation).expect("serialize staged corpus annotation"),
+    )
+    .expect("write staged annotation under guarded lot");
+    std::fs::rename(&staging_wav, &wav_path).expect("publish built long-session WAV in lot");
+    std::fs::rename(&staging_index, wav_path.with_extension("parts.idx"))
+        .expect("publish built WAV index in lot");
+    std::fs::rename(&staging_annotation, &annotation_path)
+        .expect("publish built long-session annotation in lot");
+}
+
+#[cfg(windows)]
+fn build_long_fixture_segments(
+    tsv: &str,
+    repository_root: &Path,
+    corpus_name: &str,
+    expected_language: &str,
+    minimum_samples: u64,
+    writer: &mut whisper_adapters::parakeet_audio::PcmPartWriter,
+) -> (Vec<LongCorpusSegment>, u64) {
     let mut segments = Vec::new();
     let mut covered_samples = 0_u64;
     for (row_number, line) in tsv.lines().skip(1).enumerate() {
@@ -1046,13 +1125,14 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
             clip_path.display()
         );
         let start_sample = writer.written_samples();
-        whisper_adapters::parakeet_audio::decode_file_to_parts(&clip_path, &mut writer)
-            .unwrap_or_else(|error| {
+        whisper_adapters::parakeet_audio::decode_file_to_parts(&clip_path, writer).unwrap_or_else(
+            |error| {
                 panic!(
                     "decode approved corpus clip {}: {error}",
                     clip_path.display()
                 )
-            });
+            },
+        );
         let end_sample = writer.written_samples();
         assert!(
             end_sample > start_sample,
@@ -1070,36 +1150,7 @@ fn build_long_fixture(language: &str, minimum_samples: u64) {
             break;
         }
     }
-    assert!(
-        covered_samples >= minimum_samples,
-        "voted corpus clips cover {covered_samples} samples; expected at least {minimum_samples}"
-    );
-    assert_eq!(
-        writer.finish().expect("finish staged long-session WAV"),
-        covered_samples
-    );
-    let annotation = LongCorpusAnnotation {
-        schema: "pu-l4-corpus-v1".into(),
-        language: language.into(),
-        sample_rate_hz: 16_000,
-        channels: 1,
-        source_samples: covered_samples,
-        source_sha256: sha256_file(&staging_wav)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect(),
-        segments,
-    };
-    std::fs::write(
-        &staging_annotation,
-        serde_json::to_vec_pretty(&annotation).expect("serialize staged corpus annotation"),
-    )
-    .expect("write staged annotation under guarded lot");
-    std::fs::rename(&staging_wav, &wav_path).expect("publish built long-session WAV in lot");
-    std::fs::rename(&staging_index, wav_path.with_extension("parts.idx"))
-        .expect("publish built WAV index in lot");
-    std::fs::rename(&staging_annotation, &annotation_path)
-        .expect("publish built long-session annotation in lot");
+    (segments, covered_samples)
 }
 
 #[test]
