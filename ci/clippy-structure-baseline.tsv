@@ -100,7 +100,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/s
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/service/mod.rs|fn submit	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn live_slow_automatic_final_failure_does_not_block_another_capture_wav	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/microphone_and_finalization.rs|fn microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs|fn native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call	1
