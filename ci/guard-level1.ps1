@@ -59,6 +59,43 @@ $script:packageSetPolicies = @{
         'whisper-worker-parakeet-cpu'
     )
 }
+$resumeImportProfiles = [Collections.Generic.List[string]]::new()
+$resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]@('fmt','--check')) -Compress))
+$resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress))
+foreach ($filter in @(
+    'resume_validation_rejects_later_fifo_row_without_advancing_any_generation',
+    'interrupted_',
+    'injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume',
+    'cancelling_duplicate_import_releases_only_the_new_source_snapshot',
+    'stale_duplicate_dialog_response_cannot_submit_a_replacement',
+    'r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision',
+    'resumed_prefix_copy_retries_after_pending_creation_without_duplication',
+    'unified_poll_resumed_prefix_emits_only_new_segments'
+)) {
+    $resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]@('test',$filter)) -Compress))
+}
+foreach ($worker in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+    $workerProfiles = [Collections.Generic.List[object]]::new()
+    $workerProfiles.Add([string[]]@('test','-p',$worker))
+    $workerProfiles.Add([string[]]@('test','--no-run','-p',$worker))
+    $workerProfiles.Add([string[]]@('test','-p',$worker,'--','--list'))
+    foreach ($profile in $workerProfiles) {
+        $resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]$profile) -Compress))
+    }
+}
+$clippyProfile = [Collections.Generic.List[string]]::new()
+$clippyProfile.Add('clippy')
+foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+    $clippyProfile.Add('-p')
+    $clippyProfile.Add($package)
+}
+foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) {
+    $clippyProfile.Add($argument)
+}
+$resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]$clippyProfile.ToArray()) -Compress))
+$script:cargoInvocationPolicies = @{
+    'target/parakeet-tests/refacto-reprise-import' = [string[]]$resumeImportProfiles.ToArray()
+}
 
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
@@ -368,9 +405,35 @@ function Get-PackagePolicyKey([string]$Root) {
     return $relative.ToLowerInvariant()
 }
 
+function Get-CargoInvocationPolicySignature([string[]]$Arguments) {
+    $normalized = [Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $Arguments.Count; $i++) {
+        $argument = $Arguments[$i]
+        if ($argument -in @('--offline','--locked')) { continue }
+        if ($argument -cmatch '^-p(.+)$') {
+            $normalized.Add('-p')
+            $normalized.Add($Matches[1])
+        } else {
+            $normalized.Add($argument)
+        }
+    }
+    return ConvertTo-Json -InputObject ([string[]]$normalized.ToArray()) -Compress
+}
+
+function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
+    $policyKey = Get-PackagePolicyKey $Root
+    if (-not $script:cargoInvocationPolicies.ContainsKey($policyKey)) { return $false }
+    $signature = Get-CargoInvocationPolicySignature $Arguments
+    foreach ($profile in $script:cargoInvocationPolicies[$policyKey]) {
+        if ($signature -ceq $profile) { return $true }
+    }
+    throw "Cargo invocation does not match a versioned profile for lot root '$policyKey'; Cargo not launched. Arguments: $signature"
+}
+
 function Assert-CargoPackagePolicy([string[]]$Arguments, [string]$Root) {
     $scope = Get-CargoPackageScope $Arguments
     $policyKey = Get-PackagePolicyKey $Root
+    if ($script:cargoInvocationPolicies.ContainsKey($policyKey)) { return $null }
     $isProtectedLot = $script:packageSetPolicies.ContainsKey($policyKey)
     if (-not $isProtectedLot -and $scope.Packages.Count -eq 0 -and -not $scope.Workspace) { return $null }
     if (-not $isProtectedLot) {
@@ -398,6 +461,7 @@ function Assert-CargoPackagePolicy([string[]]$Arguments, [string]$Root) {
 
 function Invoke-GuardedCargoPreflight([string[]]$CommandTokens, [string]$Root, [scriptblock]$CargoMetadataAction) {
     $prechecked = Test-CargoArguments $CommandTokens @() -SkipMemberValidation
+    [void](Assert-CargoInvocationPolicy $prechecked.Args $Root)
     [void](Assert-CargoPackagePolicy $prechecked.Args $Root)
     $metadata = & $CargoMetadataAction $prechecked
     return [pscustomobject]@{ Prechecked=$prechecked; Metadata=$metadata }
@@ -811,6 +875,117 @@ function Invoke-PackagePolicySelfTests {
     return [pscustomobject]@{ Positive=$positive; Negative=$negative }
 }
 
+function Invoke-CargoInvocationPolicySelfTests {
+    $policyRoot = Join-Path $repo 'target/parakeet-tests/refacto-reprise-import'
+    $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu','whisper-desktop','whisper-bootstrap')
+    $expectedProfiles = [Collections.Generic.List[object]]::new()
+    $expectedProfiles.Add([string[]]@('fmt','--check'))
+    $expectedProfiles.Add([string[]]@('test','--no-fail-fast'))
+    foreach ($filter in @(
+        'resume_validation_rejects_later_fifo_row_without_advancing_any_generation',
+        'interrupted_',
+        'injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume',
+        'cancelling_duplicate_import_releases_only_the_new_source_snapshot',
+        'stale_duplicate_dialog_response_cannot_submit_a_replacement',
+        'r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision',
+        'resumed_prefix_copy_retries_after_pending_creation_without_duplication',
+        'unified_poll_resumed_prefix_emits_only_new_segments'
+    )) { $expectedProfiles.Add([string[]]@('test',$filter)) }
+    foreach ($worker in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+        $expectedProfiles.Add([string[]]@('test','-p',$worker))
+        $expectedProfiles.Add([string[]]@('test','--no-run','-p',$worker))
+        $expectedProfiles.Add([string[]]@('test','-p',$worker,'--','--list'))
+    }
+    $clippyProfile = [Collections.Generic.List[string]]::new()
+    $clippyProfile.Add('clippy')
+    foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+        $clippyProfile.Add('-p')
+        $clippyProfile.Add($package)
+    }
+    foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) {
+        $clippyProfile.Add($argument)
+    }
+    $expectedProfiles.Add([string[]]$clippyProfile.ToArray())
+    if ($expectedProfiles.Count -ne 20) { throw "Invocation policy SelfTest expected 20 profiles, found $($expectedProfiles.Count)." }
+
+    $beforeProcesses = $script:cargoProcessLaunchCount
+    $script:invocationPolicyCallbackCalls = 0
+    $metadataProbe = { param($checked) $script:invocationPolicyCallbackCalls++; return [pscustomobject]@{ Args=$checked.Args } }
+    $positive = 0
+    foreach ($profile in $expectedProfiles) {
+        $inputVariants = [Collections.Generic.List[object]]::new()
+        $inputVariants.Add([string[]]$profile)
+        $compact = [Collections.Generic.List[string]]::new()
+        for ($i = 0; $i -lt $profile.Count; $i++) {
+            if ($profile[$i] -ceq '-p' -and ($i + 1) -lt $profile.Count) {
+                $i++
+                $compact.Add('-p' + $profile[$i])
+            } else {
+                $compact.Add($profile[$i])
+            }
+        }
+        if ((Get-CargoPackageScope $profile).Packages.Count -gt 0) { $inputVariants.Add([string[]]$compact.ToArray()) }
+        foreach ($tokens in $inputVariants) {
+            $checked = Test-CargoArguments ([string[]]$tokens) $members -SkipMemberValidation
+            if ($tokens[0] -ceq 'fmt') {
+                if (-not (Assert-CargoInvocationPolicy $checked.Args $policyRoot)) { throw 'Invocation policy SelfTest rejected fmt --check.' }
+            } else {
+                [void](Invoke-GuardedCargoPreflight ([string[]]$tokens) $policyRoot $metadataProbe)
+            }
+            $json = ConvertTo-Json -InputObject ([string[]]$tokens) -Compress
+            $jsonTokens = Convert-CargoArgsJson $json
+            $jsonChecked = Test-CargoArguments $jsonTokens $members -SkipMemberValidation
+            if ($tokens[0] -ceq 'fmt') {
+                if (-not (Assert-CargoInvocationPolicy $jsonChecked.Args $policyRoot)) { throw 'Invocation policy JSON SelfTest rejected fmt --check.' }
+            } else {
+                [void](Invoke-GuardedCargoPreflight $jsonTokens $policyRoot $metadataProbe)
+            }
+            $positive += 2
+        }
+    }
+    $expectedCallbacks = $positive - 2
+    if ($script:invocationPolicyCallbackCalls -ne $expectedCallbacks) { throw "Invocation policy SelfTest reached the metadata boundary $($script:invocationPolicyCallbackCalls) times; expected $expectedCallbacks." }
+
+    $negative = 0
+    $badProfiles = @(
+        @{ Args=@('fetch','--locked'); Match='versioned profile' },
+        @{ Args=@('test','--no-fail-fast','--release'); Match='versioned profile' },
+        @{ Args=@('test','--workspace'); Match='versioned profile' },
+        @{ Args=@('test','--manifest-path','crates/whisper-worker-cpu/Cargo.toml'); Match='versioned profile' },
+        @{ Args=@('test','-p','whisper-worker-cpu','-p','whisper-worker-common'); Match='versioned profile' },
+        @{ Args=@('test','-p','whisper-worker-gpu','--','--list'); Match='versioned profile' },
+        @{ Args=@('test','-p','whisper-worker-cpu','--no-run'); Match='versioned profile' },
+        @{ Args=@('test','interrupted_model_not_in_the_plan'); Match='versioned profile' },
+        @{ Args=@('clippy','-p','whisper-core','-p','whisper-adapters','-p','whisper-worker-cpu','-p','whisper-bootstrap','-p','whisper-worker-common','-p','whisper-worker-parakeet-cpu','--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity'); Match='versioned profile' }
+    )
+    foreach ($case in $badProfiles) {
+        foreach ($useJson in @($false,$true)) {
+            $tokens = [string[]]$case.Args
+            if ($useJson) { $tokens = Convert-CargoArgsJson (ConvertTo-Json -InputObject $tokens -Compress) }
+            $rejected = $false
+            try { [void](Invoke-GuardedCargoPreflight $tokens $policyRoot $metadataProbe) }
+            catch { $rejected = $_.Exception.Message.Contains($case.Match) -and $_.Exception.Message.Contains('Cargo not launched') }
+            if (-not $rejected) { throw "Invocation policy SelfTest did not reject: $($case.Args -join ' ')" }
+            $negative++
+        }
+    }
+    foreach ($otherRoot in @(
+        (Join-Path $repo 'target/parakeet-tests/refacto-reprise-import-sibling'),
+        (Join-Path $policyRoot 'child'),
+        (Join-Path $repo 'target/parakeet-tests/unregistered-package-policy')
+    )) {
+        $rejected = $false
+        try { [void](Invoke-GuardedCargoPreflight @('test','-p','whisper-worker-cpu') $otherRoot $metadataProbe) }
+        catch { $rejected = $_.Exception.Message.Contains('No versioned package policy') -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "Invocation policy SelfTest accepted worker selection at '$otherRoot'." }
+        $negative++
+    }
+    if ($script:invocationPolicyCallbackCalls -ne $expectedCallbacks) { throw 'Invocation policy rejection SelfTest reached the metadata boundary.' }
+    if ($script:cargoProcessLaunchCount -ne $beforeProcesses) { throw 'Invocation policy SelfTest launched a Cargo process.' }
+    $summary = "CARGO_INVOCATION_POLICY_SELFTEST profiles=$($expectedProfiles.Count) positive=$positive negative=$negative cargo_processes=$($script:cargoProcessLaunchCount - $beforeProcesses) metadata_callbacks=$($script:invocationPolicyCallbackCalls)"
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative; Summary=$summary }
+}
+
 function Invoke-SelfTests {
     $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
@@ -891,6 +1066,10 @@ function Invoke-SelfTests {
     $policyTests = Invoke-PackagePolicySelfTests
     $pCount = 1 + $policyTests.Positive
     $nCount = $policyTests.Negative
+    $invocationPolicyTests = Invoke-CargoInvocationPolicySelfTests
+    $invocationPolicyTests.Summary
+    $pCount += $invocationPolicyTests.Positive
+    $nCount += $invocationPolicyTests.Negative
     $fetch = Test-CargoArguments @('fetch','--locked') $members
     if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
     $pCount++
@@ -1195,10 +1374,12 @@ if ($Mode -eq 'Structure') { Invoke-Structure; exit 0 }
 $members = @()
 if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $checked = Test-CargoArguments $CargoArgs $members
+    [void](Assert-CargoInvocationPolicy $checked.Args $lotRoot)
     if ($FreshTarget -or $ExistingTarget) { throw 'Fetch does not accept a compilation target selection.' }
     if (-not $DryRun) { Initialize-Directory $cargoHome 'persistent Cargo cache' }
 } elseif ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fmt') {
     $checked = Test-CargoArguments $CargoArgs $members
+    [void](Assert-CargoInvocationPolicy $checked.Args $lotRoot)
 } else {
     $preflight = Invoke-GuardedCargoPreflight $CargoArgs $lotRoot {
         param($prechecked)
