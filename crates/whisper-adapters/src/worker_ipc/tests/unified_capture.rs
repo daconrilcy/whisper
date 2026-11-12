@@ -1147,50 +1147,8 @@
         );
 
         let destination = root.join("archive");
-        let entries = ArchiveStore::scan(&destination).unwrap();
-        let entry = entries
-            .iter()
-            .find(|entry| entry.job_id == job_id && entry.generation == request.generation)
-            .unwrap_or_else(|| panic!("MP3 import has no archive entry: {entries:?}"));
-        assert!(entry.complete, "MP3 archive entry is incomplete: {entry:?}");
-        assert_eq!(
-            entry.strategy,
-            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-        );
-        assert_eq!(
-            ArchiveStore::published_imports_for_strategy(
-                &destination,
-                &entry.source_sha256,
-                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-            )
-            .unwrap()
-            .len(),
-            1
-        );
-        assert!(
-            ArchiveStore::published_imports_for_strategy(
-                &destination,
-                &entry.source_sha256,
-                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            )
-            .unwrap()
-            .is_empty()
-        );
-
-        let generation = destination
-            .join("transcriptions")
-            .join(format!("{:032x}", job_id.0))
-            .join(request.generation.get().to_string());
-        assert!(generation.join("CURRENT").is_file());
-        let decoded_samples = crate::parakeet_audio::PcmPartStore::open(
-            generation.join("parakeet-unified/source.wav"),
-        )
-        .total_samples()
-        .unwrap();
-        let pending: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(generation.join("pending.json")).unwrap())
-                .unwrap();
-        assert_eq!(pending["source_samples"].as_u64(), Some(decoded_samples));
+        let (export_basename, generation, decoded_samples) =
+            assert_mp3_archive_entry_and_source(&destination, job_id, &request);
 
         let coverage: Vec<whisper_core::ports::ParakeetWindowCoverage> =
             std::fs::read_to_string(generation.join("parakeet-unified/document/coverage.jsonl"))
@@ -1198,23 +1156,12 @@
                 .lines()
                 .map(|line| serde_json::from_str(line).unwrap())
                 .collect();
-        assert!(
-            !coverage.is_empty(),
-            "MP3 coverage must include decoded audio"
-        );
-        assert_eq!(coverage[0].range.start_sample, 0);
-        assert!(
-            coverage
-                .windows(2)
-                .all(|pair| { pair[0].range.end_sample == pair[1].range.start_sample })
-        );
-        assert_eq!(coverage.last().unwrap().range.end_sample, decoded_samples);
+        assert_full_mp3_coverage(&coverage, decoded_samples);
 
         let internal_txt = std::fs::read(generation.join("transcript.txt")).unwrap();
         let internal_srt = std::fs::read(generation.join("transcript.srt")).unwrap();
         assert!(!internal_txt.is_empty());
         assert!(!internal_srt.is_empty());
-        let export_basename = entry.export_basename.as_ref().unwrap();
         assert_eq!(
             std::fs::read(
                 destination
@@ -1241,6 +1188,79 @@
             "the original MP3 source must remain unchanged"
         );
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    fn assert_mp3_archive_entry_and_source(
+        destination: &std::path::Path,
+        job_id: JobId,
+        request: &whisper_core::ports::ImportRequest,
+    ) -> (String, PathBuf, u64) {
+        let entries = ArchiveStore::scan(destination).unwrap();
+        let entry = entries
+            .iter()
+            .find(|entry| entry.job_id == job_id && entry.generation == request.generation)
+            .unwrap_or_else(|| panic!("MP3 import has no archive entry: {entries:?}"));
+        assert!(entry.complete, "MP3 archive entry is incomplete: {entry:?}");
+        assert_eq!(
+            entry.strategy,
+            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+        );
+        assert_eq!(
+            ArchiveStore::published_imports_for_strategy(
+                destination,
+                &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            )
+            .unwrap()
+            .len(),
+            1
+        );
+        assert!(
+            ArchiveStore::published_imports_for_strategy(
+                destination,
+                &entry.source_sha256,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            )
+            .unwrap()
+            .is_empty()
+        );
+
+        let generation = destination
+            .join("transcriptions")
+            .join(format!("{:032x}", job_id.0))
+            .join(request.generation.get().to_string());
+        assert!(generation.join("CURRENT").is_file());
+        let decoded_samples = crate::parakeet_audio::PcmPartStore::open(
+            generation.join("parakeet-unified/source.wav"),
+        )
+        .total_samples()
+        .unwrap();
+        let pending: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(generation.join("pending.json")).unwrap())
+                .unwrap();
+        assert_eq!(pending["source_samples"].as_u64(), Some(decoded_samples));
+        (
+            entry.export_basename.clone().unwrap(),
+            generation,
+            decoded_samples,
+        )
+    }
+
+    fn assert_full_mp3_coverage(
+        coverage: &[whisper_core::ports::ParakeetWindowCoverage],
+        decoded_samples: u64,
+    ) {
+        assert!(
+            !coverage.is_empty(),
+            "MP3 coverage must include decoded audio"
+        );
+        assert_eq!(coverage[0].range.start_sample, 0);
+        assert!(
+            coverage
+                .windows(2)
+                .all(|pair| { pair[0].range.end_sample == pair[1].range.start_sample })
+        );
+        assert_eq!(coverage.last().unwrap().range.end_sample, decoded_samples);
     }
 
     #[test]
@@ -1501,49 +1521,7 @@
         .with_controlled_transcriber(Box::new(FailedUnifiedWorker))
         .with_unrecycled_child_mutant(Arc::clone(&child_observations));
 
-        for attempt in 0..3_u128 {
-            let source_path = root.join(format!("source-{attempt}.wav"));
-            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
-            writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
-            writer.finish().unwrap();
-            let request =
-                unified_import_request(&root.join("archive"), &source_path, 9_440 + attempt);
-            runtime.start_controlled_unified_import(&request).unwrap();
-
-            let failure_deadline = Instant::now() + Duration::from_secs(5);
-            let mut failed = false;
-            while Instant::now() < failure_deadline {
-                if let Some(Err((job_id, generation, message))) = runtime.poll() {
-                    assert_eq!((job_id, generation), (request.job_id, request.generation));
-                    let expected_failure = if attempt < 2 {
-                        "controlled worker failure"
-                    } else {
-                        "ChildSessionCapacity"
-                    };
-                    assert!(message.contains(expected_failure));
-                    failed = true;
-                    break;
-                }
-                thread::sleep(Duration::from_millis(2));
-            }
-            assert!(
-                failed,
-                "mutant attempt {attempt} did not terminate in the parent"
-            );
-            assert!(runtime.unified_sessions.is_empty());
-            assert!(runtime.unified_archives.is_empty());
-            assert!(runtime.document_drains.is_empty());
-            assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
-            let work_source = PathBuf::from(&request.destination)
-                .join("transcriptions")
-                .join(format!("{:032x}", request.job_id.0))
-                .join(request.generation.get().to_string())
-                .join("parakeet-unified/source.wav");
-            assert!(
-                work_source.is_file(),
-                "mutant removed recoverable source audio"
-            );
-        }
+        run_unrecycled_child_attempts(&root, &mut runtime);
 
         let observations = child_observations.lock().unwrap().clone();
         let accepted = observations
@@ -1597,6 +1575,52 @@
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    fn run_unrecycled_child_attempts(root: &std::path::Path, runtime: &mut ImportRuntime) {
+        for attempt in 0..3_u128 {
+            let source_path = root.join(format!("source-{attempt}.wav"));
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
+            writer.finish().unwrap();
+            let request =
+                unified_import_request(&root.join("archive"), &source_path, 9_440 + attempt);
+            runtime.start_controlled_unified_import(&request).unwrap();
+
+            let failure_deadline = Instant::now() + Duration::from_secs(5);
+            let mut failed = false;
+            while Instant::now() < failure_deadline {
+                if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                    assert_eq!((job_id, generation), (request.job_id, request.generation));
+                    let expected_failure = if attempt < 2 {
+                        "controlled worker failure"
+                    } else {
+                        "ChildSessionCapacity"
+                    };
+                    assert!(message.contains(expected_failure));
+                    failed = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                failed,
+                "mutant attempt {attempt} did not terminate in the parent"
+            );
+            assert!(runtime.unified_sessions.is_empty());
+            assert!(runtime.unified_archives.is_empty());
+            assert!(runtime.document_drains.is_empty());
+            assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+            let work_source = PathBuf::from(&request.destination)
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("parakeet-unified/source.wav");
+            assert!(
+                work_source.is_file(),
+                "mutant removed recoverable source audio"
+            );
+        }
+    }
+
     #[test]
     #[cfg_attr(
         not(feature = "native-tests"),
@@ -1643,36 +1667,11 @@
             )
             .unwrap();
 
-        let deadline = Instant::now() + Duration::from_secs(20);
-        let mut terminal_error = None;
-        while Instant::now() < deadline {
-            if let Some(Err((job_id, generation, message))) = runtime.poll() {
-                assert_eq!((job_id, generation), (request.job_id, request.generation));
-                terminal_error = Some(message);
-                break;
-            }
-            thread::sleep(Duration::from_millis(2));
-        }
-        assert!(
-            terminal_error
-                .as_deref()
-                .is_some_and(|message| message.contains("injected document finalization failure"))
-        );
-        assert!(
-            runtime.poll().is_none(),
-            "finalization failure is emitted once"
-        );
-        assert!(!runtime.unified_sessions.contains_key(&session));
-        assert!(!runtime.unified_archives.contains_key(&session));
-        assert!(runtime.document_drains.is_empty());
-        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
-        assert!(
-            archive_root
-                .join("transcriptions")
-                .join(format!("{:032x}", request.job_id.0))
-                .join(request.generation.get().to_string())
-                .join("parakeet-unified/source.wav")
-                .is_file()
+        assert_unified_finalization_failure_releases_runtime(
+            &mut runtime,
+            &request,
+            &session,
+            &archive_root,
         );
 
         let replacement = unified_live_request(&archive_root, JOB_ID + 1);
@@ -1720,6 +1719,45 @@
         assert!(!runtime.unified_sessions.contains_key(&replacement_session));
         assert!(runtime.document_drains.is_empty());
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn assert_unified_finalization_failure_releases_runtime(
+        runtime: &mut ImportRuntime,
+        request: &LiveRequest,
+        session: &whisper_core::parakeet_scheduler::SchedulerSession,
+        archive_root: &std::path::Path,
+    ) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut terminal_error = None;
+        while Instant::now() < deadline {
+            if let Some(Err((job_id, generation, message))) = runtime.poll() {
+                assert_eq!((job_id, generation), (request.job_id, request.generation));
+                terminal_error = Some(message);
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            terminal_error
+                .as_deref()
+                .is_some_and(|message| message.contains("injected document finalization failure"))
+        );
+        assert!(
+            runtime.poll().is_none(),
+            "finalization failure is emitted once"
+        );
+        assert!(!runtime.unified_sessions.contains_key(session));
+        assert!(!runtime.unified_archives.contains_key(session));
+        assert!(runtime.document_drains.is_empty());
+        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
+        assert!(
+            archive_root
+                .join("transcriptions")
+                .join(format!("{:032x}", request.job_id.0))
+                .join(request.generation.get().to_string())
+                .join("parakeet-unified/source.wav")
+                .is_file()
+        );
     }
 
     #[test]
@@ -1845,27 +1883,7 @@
         })
         .unwrap();
 
-        let capture_deadline = Instant::now() + Duration::from_secs(20);
-        let mut pre_stop_progress = None;
-        while Instant::now() < capture_deadline {
-            app.dispatch(AppCommand::Refresh).unwrap();
-            let view = app.view();
-            pre_stop_progress = view
-                .unified_parakeet_sessions
-                .iter()
-                .find(|session| {
-                    session.job_id == request.job_id && session.generation == request.generation
-                })
-                .map(|session| (session.captured_samples, session.durable_samples));
-            if pre_stop_progress.is_some_and(|(captured, durable)| captured > 0 && durable > 0) {
-                break;
-            }
-            thread::sleep(Duration::from_millis(2));
-        }
-        let (pre_stop_captured, pre_stop_durable) = pre_stop_progress
-            .expect("capture must expose written and durable progress before Stop");
-        assert!(pre_stop_captured > 0 && pre_stop_durable > 0);
-        assert!(pre_stop_captured <= CAPTURE_SAMPLES && pre_stop_durable <= CAPTURE_SAMPLES);
+        assert_capture_progress_before_stop(&mut app, &request, CAPTURE_SAMPLES);
         app.dispatch(AppCommand::StopUnifiedLive {
             job_id: request.job_id,
             generation: request.generation,
@@ -1922,7 +1940,51 @@
         assert_eq!(completed_session.total_samples, Some(CAPTURE_SAMPLES));
         assert_eq!(completed_session.captured_samples, CAPTURE_SAMPLES);
         assert_eq!(completed_session.durable_samples, CAPTURE_SAMPLES);
-        let archive_complete = ArchiveStore::scan(&archive_root)
+        assert_empty_registry_capture_published_source(
+            &archive_root,
+            &request,
+            CAPTURE_SAMPLES,
+            &settings_root,
+        );
+        drop(app);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn assert_capture_progress_before_stop<P: whisper_core::ports::ImportIoPort>(
+        app: &mut ImportApplication<P>,
+        request: &LiveRequest,
+        capture_samples: u64,
+    ) {
+        let capture_deadline = Instant::now() + Duration::from_secs(20);
+        let mut pre_stop_progress = None;
+        while Instant::now() < capture_deadline {
+            app.dispatch(AppCommand::Refresh).unwrap();
+            let view = app.view();
+            pre_stop_progress = view
+                .unified_parakeet_sessions
+                .iter()
+                .find(|session| {
+                    session.job_id == request.job_id && session.generation == request.generation
+                })
+                .map(|session| (session.captured_samples, session.durable_samples));
+            if pre_stop_progress.is_some_and(|(captured, durable)| captured > 0 && durable > 0) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+        let (pre_stop_captured, pre_stop_durable) = pre_stop_progress
+            .expect("capture must expose written and durable progress before Stop");
+        assert!(pre_stop_captured > 0 && pre_stop_durable > 0);
+        assert!(pre_stop_captured <= capture_samples && pre_stop_durable <= capture_samples);
+    }
+
+    fn assert_empty_registry_capture_published_source(
+        archive_root: &std::path::Path,
+        request: &LiveRequest,
+        capture_samples: u64,
+        settings_root: &std::path::Path,
+    ) {
+        let archive_complete = ArchiveStore::scan(archive_root)
             .unwrap()
             .iter()
             .any(|entry| entry.job_id == request.job_id && entry.complete);
@@ -1931,7 +1993,7 @@
             "capture must reach a real Complete archive"
         );
         let files = ArchiveStore::published_unified_files(
-            &archive_root,
+            archive_root,
             request.job_id,
             request.generation,
         )
@@ -1945,10 +2007,10 @@
             "manifest.json\n"
         );
         let source = crate::parakeet_audio::PcmPartStore::open(&files.wav_path);
-        assert_eq!(source.total_samples().unwrap(), CAPTURE_SAMPLES);
+        assert_eq!(source.total_samples().unwrap(), capture_samples);
         assert_eq!(
-            source.read_window(0..CAPTURE_SAMPLES).unwrap().len() as u64,
-            CAPTURE_SAMPLES,
+            source.read_window(0..capture_samples).unwrap().len() as u64,
+            capture_samples,
             "the published PCM source must be readable through its final sample"
         );
         let source_manifest: serde_json::Value = serde_json::from_slice(
@@ -1957,13 +2019,11 @@
         .unwrap();
         assert_eq!(
             source_manifest["source_samples"].as_u64(),
-            Some(CAPTURE_SAMPLES)
+            Some(capture_samples)
         );
         assert!(!settings_root.join("reprocessing-snapshots.lock").exists());
         assert!(!settings_root.join("reprocessing-snapshots.json").exists());
-        assert_eq!(std::fs::read_dir(&settings_root).unwrap().count(), 0);
-        drop(app);
-        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(std::fs::read_dir(settings_root).unwrap().count(), 0);
     }
 
     #[test]
@@ -2893,34 +2953,7 @@
         assert_eq!(app.view().microphone_gain_revision, 1);
         assert_eq!(app.view().microphone_gain_applied_first_frame, Some(16_000));
 
-        app.dispatch(AppCommand::SetMicrophoneGain {
-            job_id: request.job_id,
-            generation: request.generation,
-            target_identity: "test:wrong-source".into(),
-            expected_revision: 1,
-            gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
-        })
-        .unwrap();
-        assert!(matches!(
-            app.dispatch(AppCommand::SetMicrophoneGain {
-                job_id: request.job_id,
-                generation: request.generation,
-                target_identity: "test:unified-gain".into(),
-                expected_revision: 0,
-                gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
-            }),
-            Err(whisper_core::application::ApplicationError::InvalidCommand)
-        ));
-        app.dispatch(AppCommand::Refresh).unwrap();
-        assert!(
-            app.view()
-                .message
-                .as_deref()
-                .is_some_and(|message| message.contains("source active différente"))
-        );
-        assert_eq!(app.view().microphone_gain_revision, 1);
-        assert_eq!(app.view().microphone_gain_requested_revision, 1);
-        assert_eq!(app.view().microphone_gain_requested_db, 6);
+        assert_wrong_unified_gain_target_keeps_request(&mut app, &request);
         app.dispatch(AppCommand::SetMicrophoneGain {
             job_id: request.job_id,
             generation: request.generation,
@@ -2956,9 +2989,52 @@
             }
             thread::sleep(Duration::from_millis(2));
         }
+        assert_unified_gain_source_windows(&archive_root, JOB_ID, &request);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn assert_wrong_unified_gain_target_keeps_request<P: whisper_core::ports::ImportIoPort>(
+        app: &mut ImportApplication<P>,
+        request: &LiveRequest,
+    ) {
+        app.dispatch(AppCommand::SetMicrophoneGain {
+            job_id: request.job_id,
+            generation: request.generation,
+            target_identity: "test:wrong-source".into(),
+            expected_revision: 1,
+            gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+        })
+        .unwrap();
+        assert!(matches!(
+            app.dispatch(AppCommand::SetMicrophoneGain {
+                job_id: request.job_id,
+                generation: request.generation,
+                target_identity: "test:unified-gain".into(),
+                expected_revision: 0,
+                gain: whisper_core::microphone_level::GainDb::new(0).unwrap(),
+            }),
+            Err(whisper_core::application::ApplicationError::InvalidCommand)
+        ));
+        app.dispatch(AppCommand::Refresh).unwrap();
+        assert!(
+            app.view()
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("source active différente"))
+        );
+        assert_eq!(app.view().microphone_gain_revision, 1);
+        assert_eq!(app.view().microphone_gain_requested_revision, 1);
+        assert_eq!(app.view().microphone_gain_requested_db, 6);
+    }
+
+    fn assert_unified_gain_source_windows(
+        archive_root: &std::path::Path,
+        job_id: u128,
+        request: &LiveRequest,
+    ) {
         let generation = archive_root
             .join("transcriptions")
-            .join(format!("{:032x}", JOB_ID))
+            .join(format!("{:032x}", job_id))
             .join("1");
         let source = crate::parakeet_audio::PcmPartStore::open(
             generation.join("parakeet-unified/source.wav"),
@@ -2982,12 +3058,11 @@
                 .all(|sample| (3_000..=3_600).contains(sample))
         );
         assert!(
-            ArchiveStore::scan(&archive_root)
+            ArchiveStore::scan(archive_root)
                 .unwrap()
                 .iter()
                 .any(|entry| entry.job_id == request.job_id && entry.complete)
         );
-        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
@@ -3020,17 +3095,7 @@
             if message.contains("ModelNotQualified") && message.contains("controlled worker"))
         );
 
-        let mut gpu_request = unified_import_request(&root, Path::new("missing-gpu.wav"), 776);
-        gpu_request.config.compute = ComputeChoice::Gpu;
-        runtime.effect(ImportEffect::StartWorker(gpu_request), &mut events);
-        assert!(matches!(
-            events.pop_front(),
-            Some(ImportEvent::Failed { message, .. })
-                if message.contains("ModelNotQualified")
-                    && message.contains("controlled worker")
-        ));
-        assert!(runtime.unified_sessions.is_empty());
-        assert!(runtime.unified_executor.is_none());
+        assert_gpu_import_start_refusal(&mut runtime, &root, &mut events);
 
         let live_request = unified_live_request(&root, 778);
         runtime.effect(ImportEffect::StartUnifiedLive(live_request), &mut events);
@@ -3090,4 +3155,22 @@
                         && message.contains("controlled worker injection is required")
                 })
         }));
+    }
+
+    fn assert_gpu_import_start_refusal(
+        runtime: &mut ImportRuntime,
+        root: &std::path::Path,
+        events: &mut VecDeque<ImportEvent>,
+    ) {
+        let mut gpu_request = unified_import_request(root, Path::new("missing-gpu.wav"), 776);
+        gpu_request.config.compute = ComputeChoice::Gpu;
+        runtime.effect(ImportEffect::StartWorker(gpu_request), events);
+        assert!(matches!(
+            events.pop_front(),
+            Some(ImportEvent::Failed { message, .. })
+                if message.contains("ModelNotQualified")
+                    && message.contains("controlled worker")
+        ));
+        assert!(runtime.unified_sessions.is_empty());
+        assert!(runtime.unified_executor.is_none());
     }
