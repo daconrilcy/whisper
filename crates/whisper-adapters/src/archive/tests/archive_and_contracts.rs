@@ -591,15 +591,21 @@
         index.sync_all().unwrap();
         drop(index);
 
+        assert_audio_part_pages(&root, job_id, generation);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn assert_audio_part_pages(root: &Path, job_id: JobId, generation: Generation) {
         let audio_first =
-            ArchiveStore::read_unified_audio_parts_page(&root, job_id, generation, 0, 0, 512)
+            ArchiveStore::read_unified_audio_parts_page(root, job_id, generation, 0, 0, 512)
                 .unwrap();
         assert_eq!(audio_first.entries.len(), 128);
         assert_eq!(audio_first.entries.first().unwrap().number, 1);
         assert_eq!(audio_first.entries.last().unwrap().number, 128);
         assert_eq!(audio_first.next_offset, Some(128));
         let audio_last = ArchiveStore::read_unified_audio_parts_page(
-            &root,
+            root,
             job_id,
             generation,
             audio_first.revision,
@@ -617,8 +623,6 @@
                 .iter()
                 .all(|part| Path::new(&part.path).is_file())
         );
-
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
