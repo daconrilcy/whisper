@@ -269,46 +269,12 @@
                 serde_json::to_vec(&pending).unwrap(),
             )
             .unwrap();
-            let segment = SegmentRecord {
-                sequence: 1,
-                range: SourceRange::new(0, 160, 16_000).unwrap(),
-                text: format!("transcript-{}", job_id.0),
-            };
-            fs::write(
-                directory.join("segments.jsonl"),
-                [serde_json::to_vec(&segment).unwrap(), vec![b'\n']].concat(),
-            )
-            .unwrap();
-            fs::write(directory.join("transcript.txt"), segment.text.as_bytes()).unwrap();
-            fs::write(
-                directory.join("transcript.srt"),
-                b"1\n00:00:00,000 --> 00:00:00,010\ntext\n",
-            )
-            .unwrap();
-            let manifest = CompleteRecord {
-                version: 1,
+            write_legacy_generation_publication(
+                &directory,
+                source_sha256.as_str(),
                 job_id,
                 generation,
-                source_sha256: source_sha256.clone(),
-                segments: 1,
-                text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
-                srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
-            };
-            fs::write(
-                directory.join("manifest.json"),
-                serde_json::to_vec(&manifest).unwrap(),
-            )
-            .unwrap();
-            fs::copy(
-                directory.join("transcript.txt"),
-                directory.join("export.txt.pending"),
-            )
-            .unwrap();
-            fs::copy(
-                directory.join("transcript.srt"),
-                directory.join("export.srt.pending"),
-            )
-            .unwrap();
+            );
             if let Some(intent) = marker {
                 fs::write(
                     directory.join("r11-publication.json"),
@@ -369,6 +335,54 @@
             "explicit activation applies Replace after revalidating the visible legacy set"
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    fn write_legacy_generation_publication(
+        directory: &Path,
+        source_sha256: &str,
+        job_id: JobId,
+        generation: Generation,
+    ) {
+        let segment = SegmentRecord {
+            sequence: 1,
+            range: SourceRange::new(0, 160, 16_000).unwrap(),
+            text: format!("transcript-{}", job_id.0),
+        };
+        fs::write(
+            directory.join("segments.jsonl"),
+            [serde_json::to_vec(&segment).unwrap(), vec![b'\n']].concat(),
+        )
+        .unwrap();
+        fs::write(directory.join("transcript.txt"), segment.text.as_bytes()).unwrap();
+        fs::write(
+            directory.join("transcript.srt"),
+            b"1\n00:00:00,000 --> 00:00:00,010\ntext\n",
+        )
+        .unwrap();
+        let manifest = CompleteRecord {
+            version: 1,
+            job_id,
+            generation,
+            source_sha256: source_sha256.to_owned(),
+            segments: 1,
+            text: verified_artifact(directory, &directory.join("transcript.txt")).unwrap(),
+            srt: verified_artifact(directory, &directory.join("transcript.srt")).unwrap(),
+        };
+        fs::write(
+            directory.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        fs::copy(
+            directory.join("transcript.txt"),
+            directory.join("export.txt.pending"),
+        )
+        .unwrap();
+        fs::copy(
+            directory.join("transcript.srt"),
+            directory.join("export.srt.pending"),
+        )
+        .unwrap();
     }
 
     #[test]

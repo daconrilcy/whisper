@@ -59,7 +59,6 @@ clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/test
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn resumed_prefix_copy_retries_after_pending_creation_without_duplication	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn scan_preserves_healthy_entries_and_reports_each_corrupt_generation	1
-clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/archive/tests/replacement_and_segmented.rs|fn r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/capture.rs|fn start_device_with_buffer	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live.rs|fn start_with_capture	1
 clippy::too_many_lines|whisper-adapters|crates/whisper-adapters/src/direct_live/d2_corpus.rs|fn d2_corpus_real_cpu_turbo_and_parakeet	1
