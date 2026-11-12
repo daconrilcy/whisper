@@ -36,7 +36,7 @@ Les profils s’appliquent seulement à la racine canonique exacte du nouveau lo
    - `r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision`;
    - `resumed_prefix_copy_retries_after_pending_creation_without_duplication`;
    - `unified_poll_resumed_prefix_emits_only_new_segments`.
-4. Pour chacun de `whisper-worker-cpu`, `whisper-worker-parakeet-cpu`, `whisper-worker-common` : `test -p <membre>`, `test -p <membre> --no-run`, `test -p <membre> -- --list`.
+4. Pour chacun de `whisper-worker-cpu`, `whisper-worker-parakeet-cpu`, `whisper-worker-common` : `test -p <membre>`, `test --no-run -p <membre>`, `test -p <membre> -- --list`.
 5. Clippy du plan, avec exactement `whisper-core`, `whisper-adapters`, `whisper-desktop`, `whisper-bootstrap`, `whisper-worker-common`, `whisper-worker-parakeet-cpu`, `--all-targets`, JSON et les quatre lints structurels.
 
 Pour toute autre racine, l’admission et les commandes sans `-p` conservent les règles historiques. Les nouvelles sélections `-p` ne sont pas transférées aux racines voisines/enfants/non inscrites. `fetch`, `--manifest-path`, `--workspace`, les options absentes des profils, les combinaisons étrangères et les sélections GPU sont refusés selon le cadrage.
