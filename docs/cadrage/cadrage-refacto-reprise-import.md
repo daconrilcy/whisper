@@ -27,7 +27,7 @@ Rendre le parcours technique de reprise plus lisible en séparant les étapes de
 - **AC-02 — reconfirmation :** mêmes demandes et réponses de confirmation ; aucune reprise prématurée ; état inchangé des sorties en cas d’attente ou d’annulation.
 - **AC-03 — préparation :** même archive et file, mêmes règles de checkpoint/préfixe, identité durable et chemin d’exécution, même ordre `Queue → ResumeCheckpoint → Prepared`.
 - **AC-04 — échecs :** mêmes voies précoces et tardives, mêmes effets et erreurs ; restauration de liaison uniquement dans les conditions actuelles ; aucune compensation ajoutée à une voie qui n’en a pas.
-- **AC-05 — découpage :** les helpers privés rendent les étapes nommées et testables ; `resume_interrupted` conserve sa responsabilité d’orchestration et passe sous le seuil Clippy de 100 lignes, sans `allow` ni changement de seuil.
+- **AC-05 — découpage :** les helpers privés rendent les étapes nommées et testables ; `resume_interrupted` conserve sa responsabilité d’orchestration. Cible Clippy : au plus 100 lignes si cela reste compatible avec AC-01 à AC-04. Si le découpage fragilise un de ces invariants, conserver et justifier le résiduel mesuré, sans `allow` ni changement de seuil.
 - **AC-06 — non-régression :** tests pertinents, Clippy et revue vérifient les contrats ci-dessus ; les cas non exécutés ou ignorés restent explicitement signalés.
 
 ## Domaine et architecture proposés
