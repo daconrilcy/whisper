@@ -24,7 +24,7 @@ Cette adaptation ne modifie ni le produit, ni `recovery.rs`, ni les manifestes/v
 
 ## Contrat proposé — POL-N1-REPRISE-01
 
-1. Enregistrer la racine canonique exacte `target/parakeet-tests/refacto-reprise-import` et une matrice de profils versionnés. Résoudre la politique après canonicalisation de la racine et avant tout sous-processus Cargo. Une racine voisine ou enfant ne reçoit pas ces droits.
+1. Enregistrer la racine canonique exacte `target/parakeet-tests/refacto-reprise-import` et une matrice de profils versionnés. Résoudre la politique supplémentaire de ce lot après canonicalisation de la racine et avant tout sous-processus Cargo. Une racine voisine ou enfant ne reçoit pas ces nouveaux profils; les règles déjà en vigueur pour cette racine restent inchangées.
 2. Réutiliser le parseur N1 existant et comparer les arguments validés, après les normalisations internes existantes. Une entrée ne devient admissible que si verbe, options, mode, filtres et sélection correspondent à un profil complet ci-dessous; aucune option additionnelle n’est admise.
 3. Profils proposés pour cette seule racine :
    - `fmt --check`;
@@ -38,9 +38,9 @@ Cette adaptation ne modifie ni le produit, ni `recovery.rs`, ni les manifestes/v
 
 ## Critères d’acceptation proposés
 
-- **AC-POL-01 — admission ciblée :** chaque profil ci-dessus est accepté à la seule racine exacte, sous les deux interfaces d’entrée `-CargoArgs` et `-CargoArgsJson`, et avec les formes de sélection déjà reconnues par la garde (`-p nom`, `-pnom`).
-- **AC-POL-02 — refus avant Cargo :** chaque classe de refus (racine sœur/enfant/non inscrite, sélection absente/dupliquée/supplémentaire/croisée, workspace, manifest-path, option ou commande hors profil, GPU) n’appelle ni Cargo ni `metadata`; les diagnostics identifient le motif. Le SelfTest instrumente la frontière d’invocation et prouve zéro lancement réel pour les refus.
-- **AC-POL-03 — non-régression :** les positifs et négatifs de la politique historique restent couverts; les refus globaux de `--workspace`, des sélections non enregistrées et des options existantes sont préservés.
+- **AC-POL-01 — admission ciblée :** chaque profil ci-dessus est accepté à la racine exacte du nouveau lot, sous les deux interfaces d’entrée `-CargoArgs` et `-CargoArgsJson`, et avec les formes de sélection déjà reconnues par la garde (`-p nom`, `-pnom`).
+- **AC-POL-02 — refus avant Cargo :** pour les commandes ciblées par la nouvelle politique, chaque classe de refus (racine sœur/enfant/non inscrite avec sélection explicite `-p`, sélection absente/dupliquée/supplémentaire/croisée à la racine du nouveau lot, workspace, manifest-path, option ou commande hors profil, GPU) n’appelle ni Cargo ni `metadata`; les diagnostics identifient le motif. Le SelfTest instrumente la frontière d’invocation et prouve zéro lancement réel pour les refus.
+- **AC-POL-03 — non-régression :** les positifs et négatifs de la politique historique restent couverts; les refus globaux de `--workspace`, des sélections non enregistrées et des options existantes sont préservés. Le comportement de l’ancienne racine et des commandes hors de cette nouvelle matrice reste inchangé.
 - **AC-POL-04 — gate distincte :** les SelfTests de politique ne sont pas présentés comme preuve d’exécution N1. Les appels positifs à `-DryRun` et le SelfTest complet peuvent atteindre `metadata`; leurs effets et prérequis sont rapportés séparément. Les références T0–T4 restent conditionnées aux autres contrôles du plan.
 
 ## Risque et question qui reste ouverte
