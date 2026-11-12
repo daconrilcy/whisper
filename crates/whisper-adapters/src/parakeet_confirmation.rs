@@ -721,10 +721,7 @@ mod tests {
             ["juste", "contexte"]
         );
         assert!(!state.confirmed().iter().any(|block| block.text == "faux"));
-        for pair in state.confirmed().windows(2) {
-            assert!(pair[0].range.start_sample <= pair[1].range.start_sample);
-            assert!(pair[0].range.end_sample <= pair[1].range.start_sample);
-        }
+        assert_confirmed_ranges_are_ordered(&state);
         assert_eq!(
             state
                 .confirmed()
@@ -733,6 +730,13 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    fn assert_confirmed_ranges_are_ordered(state: &Confirmation) {
+        for pair in state.confirmed().windows(2) {
+            assert!(pair[0].range.start_sample <= pair[1].range.start_sample);
+            assert!(pair[0].range.end_sample <= pair[1].range.start_sample);
+        }
     }
 
     #[test]

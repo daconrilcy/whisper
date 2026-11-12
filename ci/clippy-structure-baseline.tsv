@@ -4,7 +4,6 @@
 # command=cargo clippy --offline --locked --workspace --all-targets --message-format=json -- -W clippy::too_many_lines -W clippy::cognitive_complexity -W clippy::too_many_arguments -W clippy::type_complexity
 key	count
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/archive/tests/recovery.rs|fn r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision	1
-clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_confirmation.rs|fn provisional_revision_needs_two_later_witnesses	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/parakeet_live/lifecycle.rs|fn stop	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/import.rs|fn run_controlled_unified_import	1
 clippy::cognitive_complexity|whisper-adapters|crates/whisper-adapters/src/worker_ipc/runtime/poll/tests/parakeet_poll.rs|fn run_parakeet_window_write_error_child	1
