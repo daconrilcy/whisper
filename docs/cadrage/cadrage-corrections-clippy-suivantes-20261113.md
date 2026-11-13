@@ -11,7 +11,7 @@ Décision : aucun code, changement de baseline, modification de garde ou test na
 
 ## Besoin et périmètre
 
-Préserver les oracles des tests et clarifier une étape sensible du démarrage micro live, en retirant des avertissements Clippy sans modifier les résultats, les transitions, les données audio ni les sorties visibles. Le commit de base contient déjà le découpage des grands scénarios de test ; le présent cadrage traite leur état Clippy après ce changement.
+Préserver la lisibilité et les oracles des tests du démarrage micro, de l’import, de la reprise et de la publication en retirant des avertissements Clippy sans modifier les résultats, transitions, données audio ou sorties observées. Le commit de base contient déjà le découpage des grands scénarios de test ; le présent cadrage traite leur état Clippy après ce changement.
 
 La mesure a produit 237 émissions d’avertissement. Après déduplication par lint, crate, fichier et ligne primaire, elle compte 178 sites : 141 sites structurels et 37 autres diagnostics locaux aux tests. Le cliquet structurel passe à 141 sites contre 168 dans la baseline, sans nouveau site. Les deux workers Turbo ne font pas partie de la mesure. Aucun chiffre ne constitue une preuve de défaut fonctionnel.
 
