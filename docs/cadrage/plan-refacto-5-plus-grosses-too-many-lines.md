@@ -1,0 +1,69 @@
+Avancée : plan proposé en sept tâches pour retirer les cinq plus grandes alertes de longueur.
+Blocage : T0 est fermé tant que la voie gardée Clippy et les sélections workers N1 ne couvrent pas ce lot.
+Décision : après résolution du gate et accord d’implémentation distinct, commencer par le helper d’import natif chronométré.
+
+# Plan — refactor des cinq plus grandes alertes `too_many_lines`
+
+**Design :** [D-WHISPER-CLIPPY-TOP5-20261113](cadrage-refacto-5-plus-grosses-too-many-lines.md), DESIGN READY après revue indépendante CLEAN.
+**Base Rust :** `main@4889e916486bb13cb9998751fe0c47edfe351f2e`.
+**État :** proposition soumise à revue du plan ; le T0 d’implémentation est bloqué sur la voie de validation et l’autorisation future.
+
+## Périmètre et règles du lot
+
+- Limite : les cinq diagnostics `too_many_lines` et les quatre fichiers du cadrage. Aucun code de production, manifeste, lockfile, garde, baseline ou nouveau fichier.
+- Cinq tâches d’extraction privées, une tâche de préflight et une tâche de clôture : **sept tâches** au total.
+- Garder les noms des tests au harnais, attributs `cfg`, feature, raisons `ignore`, prérequis modèles, fixtures, délais et oracles. Les marqueurs `TODO(DEBT-10/11)` restent intacts.
+- Ne pas utiliser `allow`/`expect`, réduire le seuil, retirer ou affaiblir des assertions, exécuter `native-tests`, `--ignored` ou `--include-ignored`, ni bâtir les DLL natives.
+- T1 et T3 partagent `native_execution.rs` et sont séquentielles. Chaque tâche conserve son propre diff afin d’attribuer facilement une régression.
+- L’objectif Clippy est le retrait des cinq diagnostics de longueur, zéro nouvelle clé structurelle et cliquet PASS. Les cinq alertes `cognitive_complexity` associées sont suivies séparément ; aucune refonte globale n’est demandée.
+
+## Tâches
+
+| Tâche | Travail et fichiers | Critère de sortie / dépendance |
+|---|---|---|
+| **T0 — Préflight et accord** | Lire les versions Git du cadrage, du plan et du rapport ; vérifier la base, l’état des quatre chemins, les modifications concurrentes, l’espace libre (≥30 Gio), la racine de campagne, ses reparse points, le cache hors ligne et la cible Cargo unique. Vérifier les voies de garde actuelles et obtenir un accord précis d’implémentation avant tout changement Rust. | **Bloquant actuellement.** La garde n’enregistre pas le profil Clippy complet et les sélections worker pour une racine de ce lot. `test --no-fail-fast` sans sélection peut être accepté par une racine non enregistrée ; cela ne remplace pas le Clippy par membres ni les sélections worker de la matrice N1. Ne pas lancer Cargo, `DryRun` susceptible d’appeler metadata, ni éditer du Rust tant que la voie complète n’est pas autorisée et vérifiée. Aucun changement de garde n’est inclus. T0 débloque T1–T6. |
+| **T4 — Import natif chronométré** | Dans `crates/whisper-adapters/tests/parakeet_unified_native.rs`, découper `run_native_import_from_path_timed` par étapes cohérentes : source/candidat, lancement et attente, moteur/exports, preuves des settings et parcours PCM, clôture de mesure. Conserver les deux voies d’appel, y compris VoxPopuli, sans changer leurs options. | Le site 459/100 n’est plus signalé ; les branches CPU/GPU/Auto, candidat de génération, moteur visible, SHA source, événements et points de mesure, `Complete`, archives et parties PCM sont préservés. Aucun nouveau diagnostic structurel. Premier incrément recommandé après T0. |
+| **T1 — Parcours natif A/B/C** | Dans `crates/whisper-adapters/src/worker_ipc/tests/native_execution.rs`, découper `run_native_personal_ab_c` par phase : préparation, envoi/arrêt/drain de A, admission et chevauchement B, document, publication, recyclage et C. Garder le helper partagé par les appelants CPU et GPU. | Le site 1623/100 est retiré. Préserver A1 → Stop A unique → drain PCM durable → B, ACK B avant le résultat A1, dernier bloc de 160 échantillons, mêmes incarnation/PID pour A1/A2, limites d’inférence, révisions, fichiers par identité et Reaped avant le démarrage de C. |
+| **T3 — Reprise native GPU** | Séquentiellement après T1, dans le même fichier, découper `native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot` en préparation/checkpoint, reprise/observation, attestation/corrélation, archive et libération. | Le site 621/100 est retiré. Garder `JobId`, N puis N+1, source/SHA, préfixe confirmé exactement une fois, document/archive/file/snapshot, route GPU CUDA0 sans repli, attestation courante, couverture contiguë jusqu’au total, exports et absence de liaison résiduelle. |
+| **T2 — Remplacement et nettoyage** | Dans `crates/whisper-adapters/tests/reprocessing_cleanup.rs`, découper le test `replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request` par publication/confirmation, récupérations, refus de corruption/alias, reprises explicites et concurrence. Garder son faux worker et ses prérequis actuels. | Le site 697/100 est retiré. Une confirmation ReplaceAll garde les quatre publications ordinales ; le successeur est publié avant retrait ; SourceChanged interdit la suppression ; les récupérations restent idempotentes ; reprise même `cleanup_id`, progression rejouée sans double disposition, sélection correcte des fichiers et durées de vie des verrous/threads. |
+| **T5 — Tour final réservé** | Dans `crates/whisper-adapters/src/worker_ipc/tests/unified_capture.rs`, découper `unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready` en préparation sous barrière, aperçu B, recyclage, drain/publication et vérifications terminales. | Le site 443/100 est retiré. Garder A final devant B aperçu, zéro inférence avant libération, un seul appel actif, les deux barrières, READY par identité, Reaped avant second Spawn, ordre A→B→A, ACK/publications et archives exactes. |
+| **T6 — Validation, revue et clôture** | Sur le candidat complet, comparer les cinq diagnostics JSON aux symboles/fichiers (pas aux seules lignes), exécuter les vérifications admises au T0, puis confier la revue indépendante à `rust_review_coordinator`. Archiver les petites preuves hors de `target/` et clôturer selon les règles de rétention. | Cinq `too_many_lines` retirées ; cinq complexités cognitives enregistrées comme disparues ou restantes ; cliquet PASS sans changement de baseline ; diff limité aux quatre fichiers de test ; revue CLEAN ou réserves explicites ; compte rendu distingue tests N1 exécutés et corps natifs `NON EXÉCUTÉS`. Au plus deux cycles revue/correction. |
+
+## Carte des scénarios et preuves statiques
+
+| Site | Contrôles à suivre après extraction |
+|---|---|
+| `run_native_import_from_path_timed` | Relire `tests/parakeet_unified_native/voxpopuli.rs` et le support de mesure. Conserver les cas FR/EN courts/longs et Auto/GPU, le candidat courant avant `StartImport`, CPU/CUDA0 ou repli Auto avant audio, SHA source stable, moteur visible, chronologie et durée de vie de l’application. Distinguer le WAV logique de première partie du total de l’index de session. |
+| `run_native_personal_ab_c` | Relire les deux appelants CPU/GPU et `src/worker_ipc/tests.rs`/`tests/unified_support.rs`. Garder la soumission A1 avant l’arrêt idempotent A, le drain durable avant B, ACK B avant réponse A1, même incarnation A1/A2 et maximum une requête en vol. C ne démarre qu’après Reaped ; préserver les exports et les corrélations par identité. |
+| `native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot` | Conserver la source FR contrôlée, `JobId`, génération interrompue N puis N+1, archive/document/file/snapshot, préfixe une fois, suffixe à M+1, couverture contiguë, attestation GPU courante sans repli, READY CUDA0 lié au profil/identité, incarnation et PID, puis nettoyage des liaisons. |
+| `replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request` | Une confirmation ReplaceAll présente quatre publications ordonnées. Conserver le successeur publié avant suppression, refus quand la source change, points de récupération CURRENT/index/preuves, reprise explicite même `cleanup_id`, refus d’alias et de preuves altérées, fichier tardif préservé, replay sans double disposition et concurrence sous verrou. Garder le modèle/catalogue réel requis, `TODO(DEBT-11)` et `ignore`. |
+| `unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready` | Garder A/B (121 s/5 s), route CPU, READY bloqué puis libéré, A final réservé quand B prépare son aperçu, une requête active au plus, recyclage sous seconde barrière, drain/persistance/publication, READY unique par identité, A→B→A, couverture PCM/audio et nettoyage terminal. Garder `TODO(DEBT-10)` et `ignore`. |
+
+Pour chaque tâche, le diff statique doit relier chaque assertion et opération déplacée à son helper cible et à ses valeurs. Garder les messages d’assertion qui identifient le job, la génération ou la phase fautive. Les fonctions extraites restent privées et sous les seuils Clippy ; si une extraction ne peut pas garder les oracles ou créerait une nouvelle alerte, arrêter cette seule tâche et proposer une autre découpe sans masquer le lint.
+
+## Validation future, conditionnée à T0
+
+Les résultats ci-dessous sont des gates requis, **pas une autorisation de les lancer maintenant**. La branche actuelle ne permet pas d’émettre une commande Clippy sélectionnée et toutes les sélections worker pour un nouveau root avec la politique inscrite. Une racine existante n’est pas réutilisable implicitement. Aucun `--workspace` n’est proposé. Tant que T0 n’est pas résolu, ces lignes restent `NON EXÉCUTÉES` et les tâches Rust n’ont pas de GO.
+
+| Vérification future | Commande/attendu après admission d’une voie gardée pour le lot | Limite |
+|---|---|---|
+| SelfTest de la garde et de sa sélection | `ci/guard-level1.ps1 -SelfTest -LotRoot <racine-approuvée>` ; PASS avant Cargo | La création d’une nouvelle racine/profil n’est pas couverte par ce plan et requiert une décision distincte. |
+| Format | `fmt --check` via `ci/guard-level1.ps1 -Mode Run -LotRoot <racine-approuvée> -CargoArgsJson '["fmt","--check"]'` | Vérification statique ; pas de formatage automatique. |
+| Clippy après T4 et à T6 | Six membres du même Clippy de référence : `whisper-core`, `whisper-adapters`, `whisper-desktop`, `whisper-bootstrap`, `whisper-worker-common`, `whisper-worker-parakeet-cpu`; `--all-targets --message-format=json` et les quatre lints du cadrage | La signature exacte devra être admise sous la racine du lot. Code 0, cinq sites absents et cliquet PASS ; JSON comparé par site. |
+| N1 membres par défaut | `cargo test --no-fail-fast` via la garde dans un shell dédié, sans variable enfant `CARGO_TARGET_DIR`; vérifier le `target_directory` effectif et les paramètres N1 | Peut être accepté sans sélection sur une racine générique ; ne remplace pas les worker selections. Paramètres isolés, cache hors ligne, modèle Parakeet validé et ≥30 Gio requis. |
+| N1 workers CPU | Pour chacun de `whisper-worker-cpu`, `whisper-worker-parakeet-cpu`, `whisper-worker-common` : après son contrôle PE, `cargo test --no-run -p <membre>`, puis `cargo test -p <membre> -- --list`, puis `cargo test -p <membre>`, chaque commande via la garde. | Le contrôle PE précède tous les appels pour le harnais (`Cpu`, `ParakeetCpu`, `Cpu`). Les sélections `-p` doivent être permises par la voie de garde établie à T0. |
+| Contrôle du candidat | `git --no-optional-locks diff --check <base>` ; revue du diff et des chemins | Ne prouve pas l’exécution des trois tests ignorés ni des appelants natifs. |
+
+Clippy compile les cibles de test mais n’exécute pas les cinq scénarios. La N1 ne les exécute pas non plus : les trois tests gardent `ignore` sans `native-tests`, et les deux helpers ne sont sollicités que par les appelants natifs ignorés. Ces corps, le GPU niveau 2 et la validation dans la fenêtre Windows restent **NON EXÉCUTÉS**. Toute commande qui atteint les builds natifs suspendus, toute dépendance hors ligne absente, violation de préflight ou nouvelle alerte structurelle arrête le lot selon `AGENTS.md`; pas de relance complète automatique.
+
+## Dépendances, arrêt et retour arrière
+
+```text
+T0 (bloqué) → T4 → T1 → T3 → T2 → T5 → T6
+```
+
+T4 est proposé en premier car son helper et ses appelants sont isolables dans un fichier. T1 précède T3 puisque les deux touchent le même module de test. T2 et T5 viennent après stabilisation de `native_execution.rs`. Après chaque phase, examiner le diff et suspendre les tâches suivantes si l’identité, l’ordre ou les assertions ne sont pas démontrés.
+
+À l’échec d’une tâche, garder les changements en place, enregistrer les diagnostics utiles et attribuer l’écart au candidat. Ne pas faire de reset global ni restaurer un fichier partagé. Une correction limitée revient à l’implémenteur, puis au même reviewer ; maximum deux cycles. La clôture archivera les petites preuves hors de `target/`, contrôlera nombre et SHA-256, puis ne supprimera que les cibles/caches privés au lot admissibles selon AGENTS. Les caches persistants et les livrables restent conservés.
+
+**Autorisation :** la demande courante autorise le cadrage et ce plan. Elle n’autorise pas l’implémentation Rust, une nouvelle racine/politique de garde, l’extension de la garde, les tests `native-tests`, les builds natifs ou le push. Une autorisation précise ultérieure devra nommer le lot, ses chemins et la voie de validation admise.
