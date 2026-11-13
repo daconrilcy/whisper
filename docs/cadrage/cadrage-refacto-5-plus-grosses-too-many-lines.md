@@ -4,8 +4,8 @@ Décision : proposer un refactor test-only en cinq étapes ; aucune modification
 
 # Cadrage — refactor des cinq plus grandes alertes `too_many_lines`
 
-**ID :** D-WHISPER-CLIPPY-TOP5-20261113  
-**État :** proposition soumise à revue indépendante.  
+**ID :** D-WHISPER-CLIPPY-TOP5-20261113
+**État :** proposition soumise à revue indépendante.
 **Base de code :** `main@4889e916486bb13cb9998751fe0c47edfe351f2e`. Les alertes proviennent du Clippy frais du 13 novembre 2026, rapporté dans [rapport-clippy-frais-20261113.md](rapport-clippy-frais-20261113.md). La sélection trie les sites uniques `too_many_lines` du Clippy `--all-targets`, après déduplication par crate, chemin, ligne et lint.
 
 ## Besoin et portée
@@ -48,10 +48,10 @@ Les extractions restent privées dans les mêmes modules de test/intégration. U
 - **R-04 — Dépendance modèle héritée :** `DEBT-10/11` signalent une séparation différée entre scénario synthétique et modèle réel. Cette refactorisation ne résout ni ne contourne ces prérequis.
 - **R-05 — Gate du futur lot :** la garde actuelle exige une sélection `-p` et n’accepte que les racines/profils enregistrés. Le profil de Clippy de six crates est enregistré sous `refacto-reprise-import`, mais cela ne donne pas automatiquement une racine ou une matrice N1 à ce nouveau lot. Le préflight d’implémentation doit établir une voie autorisée avant toute commande Cargo ; aucune modification de garde ou réutilisation implicite d’une racine étrangère n’est proposée ici.
 
-**D-01 — Sélection :** retenir les cinq plus grandes alertes `too_many_lines` parmi les sites uniques du relevé toutes cibles ; elles sont toutes dans du code de test.  
-**D-02 — But :** viser le retrait des cinq alertes et l’absence de nouvelles clés structurelles ; ne pas imposer une réduction globale de toutes les alertes de test.  
-**D-03 — Tests ignorés :** garder les conditions et limites natives actuelles.  
-**D-04 — Implémentation :** non autorisée par le cadrage ni le plan ; un accord précis ultérieur devra nommer le lot et ses chemins.
+- **D-01 — Sélection :** retenir les cinq plus grandes alertes `too_many_lines` parmi les sites uniques du relevé toutes cibles ; elles sont toutes dans du code de test.
+- **D-02 — But :** viser le retrait des cinq alertes et l’absence de nouvelles clés structurelles ; ne pas imposer une réduction globale de toutes les alertes de test.
+- **D-03 — Tests ignorés :** garder les conditions et limites natives actuelles.
+- **D-04 — Implémentation :** non autorisée par le cadrage ni le plan ; un accord précis ultérieur devra nommer le lot et ses chemins.
 
 ## Readiness
 
