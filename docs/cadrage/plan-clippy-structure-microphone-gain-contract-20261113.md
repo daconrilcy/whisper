@@ -2,7 +2,7 @@
 
 Avancée : plan pour un test privé de 118 lignes.
 Blocage : aucun ; le gain demandé/appliqué, les révisions et la capture active sont à préserver.
-Décision : extraire seulement le démarrage de la capture directe en helper de setup.
+Décision : extraire le setup de capture et l’assertion de l’effet initial si nécessaire pour fermer le seuil Clippy.
 
 ## En-tête
 
@@ -23,7 +23,7 @@ Inspection du fichier inclus via `tests.rs`, du faux port `ScanTestIo` et de l�
 
 ## 3. Hypothèses
 
-- Safe : démarrer la capture avec l’identité donnée constitue un helper privé test-only réutilisable par ce scénario.
+- Safe : le démarrage de capture et la vérification de l’effet initial peuvent être de petits helpers privés test-only.
 - Validation needed : `job_id=901`, génération first, source mic:A, CPU/Auto, modèle/archive et gain initial 0 restent identiques.
 - Validation needed : le corps passe sous 100 lignes sans déplacer ou supprimer les assertions de révision/refus/arrêt.
 
@@ -36,7 +36,7 @@ Inspection du fichier inclus via `tests.rs`, du faux port `ScanTestIo` et de l�
 
 ## 5. Séquence recommandée
 
-Extraire le montage initial de la capture dans une fonction privée du même fichier. Le test garde le protocole de gain et ses oracles.
+Extraire le montage initial de capture dans une fonction privée du même fichier. Si le corps dépasse encore 100 lignes, extraire également la vérification détaillée de l’effet initial du gain dans un helper assertion dédié; le reste du protocole de gain demeure dans le scénario.
 
 ### Phase P12 : réduire le setup du test gain micro
 
@@ -47,7 +47,7 @@ Target metrics : ≤100 lignes; au plus 124 sites; aucune nouvelle alerte.
 Metric commands : Clippy six crates et N1 complet.
 Stop conditions : arrêt si request, effet, révisions, événements, effet sur capture ou assertions changent; ou échec d’un gate.
 Dependencies : aucune.
-Expected outcome : helper privé qui prépare la capture active.
+Expected outcome : helper privé qui prépare la capture active et, au besoin, helper qui valide l’effet SetMicrophoneGain initial.
 Tasks : P12-T1.
 
 ## 6. Tâches
@@ -65,11 +65,11 @@ Tasks : P12-T1.
 - Metric commands : Clippy via garde.
 - Stop conditions : voir Phase P12.
 - Dépendances : aucune.
-- Outline : créer un helper privé prenant app, job_id et génération; déplacer exactement le `StartDirectLiveConfigured` initial; remplacer ces lignes par l’appel; laisser toutes demandes et assertions de gain dans le test.
+- Outline : créer un helper privé prenant app, job_id et génération; déplacer exactement le `StartDirectLiveConfigured` initial; remplacer ces lignes par l’appel; si Clippy signale toujours le test au-dessus de 100, déplacer l’assertion détaillée du premier effet `SetMicrophoneGain` en helper privé prenant app/job/generation; conserver les assertions de progression des révisions/refus/Applied/Stopped dans le test.
 - Tests : test existant, aucun nouveau scénario inline.
 - Vérifications : `cargo fmt --check`, Clippy structurel six crates, N1 via `ci/guard-level1.ps1`.
 - Provenance : Observed pour site; Repo docs pour garde et tests core.
-- Acceptation : corps ≤100; effet de démarrage identique; expected revisions 0→1→2 inchangées; refus stale et autre génération; Applied/Rejected ne terminent pas la capture; Set après Stop refusé; N1 PASS; aucun autre fichier touché.
+- Acceptation : corps ≤100 et diagnostic ciblé supprimé; effet de démarrage identique; l’effet initial garde job, génération, identité mic:A, révision attendue 0 et gain 6; expected revisions 0→1→2 inchangées; refus stale et autre génération; Applied/Rejected ne terminent pas la capture; Set après Stop refusé; N1 PASS; aucun autre fichier touché.
 - Retour arrière : annuler le seul déplacement de setup si une valeur diffère.
 - Notes : garder source explicite `mic:A`, gain 0 initial, CPU, destination/modèle de test actuels.
 
@@ -111,4 +111,4 @@ Ne pas modifier les règles de gain du cœur, ports, capture Windows, modèle ou
 
 ## 11. Prompt d’implémentation
 
-Exécute P12-T1 de `docs/cadrage/plan-clippy-structure-microphone-gain-contract-20261113.md` dans `C:/wt/cs`. Préserve P1–P11. Modifie uniquement `tests/selection_and_microphone.rs`; extrais seulement le démarrage direct et garde tous les événements, révisions et assertions du gain. Exécute fmt, Clippy structurel et N1 par la garde; arrête sur tout échec.
+Exécute P12-T1 du plan révisé `docs/cadrage/plan-clippy-structure-microphone-gain-contract-20261113.md` dans `C:/wt/cs`. Préserve P1–P11. Modifie uniquement `tests/selection_and_microphone.rs`; extrais le démarrage direct et, si nécessaire pour franchir 100 lignes, l’assertion détaillée de son effet initial. Garde tous les événements, révisions et assertions de comportement gain. Exécute fmt, Clippy structurel et N1 par la garde.
