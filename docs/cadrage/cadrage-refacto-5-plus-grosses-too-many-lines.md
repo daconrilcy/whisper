@@ -5,7 +5,7 @@ Décision : proposer un refactor test-only en cinq étapes ; aucune modification
 # Cadrage — refactor des cinq plus grandes alertes `too_many_lines`
 
 **ID :** D-WHISPER-CLIPPY-TOP5-20261113
-**État :** proposition soumise à revue indépendante.
+**État :** DESIGN READY ; revue indépendante CLEAN au commit `275d97ed4e6456db3897b844d56cb61bd6faddb2`.
 **Base de code :** `main@4889e916486bb13cb9998751fe0c47edfe351f2e`. Les alertes proviennent du Clippy frais du 13 novembre 2026, rapporté dans [rapport-clippy-frais-20261113.md](rapport-clippy-frais-20261113.md). La sélection trie les sites uniques `too_many_lines` du Clippy `--all-targets`, après déduplication par crate, chemin, ligne et lint.
 
 ## Besoin et portée
