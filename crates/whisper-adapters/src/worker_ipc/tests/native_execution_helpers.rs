@@ -64,7 +64,7 @@ pub(super) struct NativeGpuResumeRuntime {
 
 pub(super) struct NativeGpuResumeRun {
     pub(super) setup: NativeGpuResumeSetup,
-    pub(super) app: ImportApplication<RuntimeImportPort>,
+    pub(super) _app: ImportApplication<RuntimeImportPort>,
     pub(super) complete: whisper_core::ports::UnifiedParakeetSessionView,
     pub(super) observed_native_events: Vec<NativeQualificationEvent>,
     pub(super) expected_profile: &'static str,

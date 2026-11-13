@@ -84,7 +84,7 @@ pub(super) fn prepare_reserved_final_scenario() -> ReservedFinalScenario {
     prepare_and_start_controlled_native_route(&mut runtime, &request_b, native_route);
     runtime.native_unified_candidate_enabled = true;
     let ready_gate = runtime.hold_next_child_ready();
-    let mut ready_labels = HashMap::new();
+    let ready_labels = HashMap::new();
 
     assert!(runtime.poll_unified_sessions().is_none());
     ReservedFinalScenario {
@@ -208,7 +208,7 @@ pub(super) fn hold_reserved_final_until_ready(scenario: &mut ReservedFinalScenar
 
 pub(super) fn admit_peer_preview_after_final(scenario: &mut ReservedFinalScenario) {
     let runtime = &mut scenario.runtime;
-    let (session_a, session_b) = scenario.sessions;
+    let (_, session_b) = scenario.sessions;
     let ready_labels = &mut scenario.ready_labels;
     let calls = &scenario.controls.0;
     let maximum_active = &scenario.controls.1;
@@ -273,7 +273,7 @@ pub(super) fn admit_peer_preview_after_final(scenario: &mut ReservedFinalScenari
 
 pub(super) fn recycle_child_with_final_still_reserved(scenario: &mut ReservedFinalScenario) {
     let runtime = &mut scenario.runtime;
-    let (session_a, session_b) = scenario.sessions;
+    let (session_a, _) = scenario.sessions;
     let child_observations = &scenario.child_observations;
     let ready_labels = &mut scenario.ready_labels;
     let calls = &scenario.controls.0;
@@ -371,7 +371,6 @@ pub(super) fn recycle_child_with_final_still_reserved(scenario: &mut ReservedFin
 pub(super) fn release_recycled_child_and_drain_documents(scenario: &mut ReservedFinalScenario) {
     let runtime = &mut scenario.runtime;
     let (session_a, session_b) = scenario.sessions;
-    let child_observations = &scenario.child_observations;
     let ready_labels = &mut scenario.ready_labels;
     let persisted_sequences = &mut scenario.persisted_sequences;
     let published_sessions = &mut scenario.published_sessions;
@@ -445,15 +444,11 @@ pub(super) fn release_recycled_child_and_drain_documents(scenario: &mut Reserved
 }
 
 pub(super) fn verify_reserved_final_publication_and_reaping(scenario: &mut ReservedFinalScenario) {
-    let runtime = &mut scenario.runtime;
     let (session_a, session_b) = scenario.sessions;
     let root = &scenario.root;
     let archive_root = root.join("archive");
     let child_observations = &scenario.child_observations;
-    let ready_labels = &scenario.ready_labels;
     let call_sources = &scenario.controls.2;
-    let completed_sessions = &scenario.completed_sessions;
-    let published_sessions = &scenario.published_sessions;
     let archives = ArchiveStore::scan(&archive_root).unwrap();
     for (session, expected_samples) in [(session_a, 121 * 16_000_u64), (session_b, 5 * 16_000_u64)]
     {

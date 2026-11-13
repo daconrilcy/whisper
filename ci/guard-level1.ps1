@@ -93,8 +93,27 @@ foreach ($argument in @('--all-targets','--message-format=json','--','-W','clipp
     $clippyProfile.Add($argument)
 }
 $resumeImportProfiles.Add((ConvertTo-Json -InputObject ([string[]]$clippyProfile.ToArray()) -Compress))
+$clippyCorrectionsProfiles = [Collections.Generic.List[object]]::new()
+$clippyCorrectionsProfiles.Add([string[]]@('fmt','--check'))
+$clippyCorrectionsProfiles.Add([string[]]@('test','--no-fail-fast'))
+foreach ($worker in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+    $clippyCorrectionsProfiles.Add([string[]]@('test','--no-run','-p',$worker))
+    $clippyCorrectionsProfiles.Add([string[]]@('test','-p',$worker,'--','--list'))
+    $clippyCorrectionsProfiles.Add([string[]]@('test','-p',$worker))
+}
+$clippyCorrectionsProfile = [Collections.Generic.List[string]]::new()
+$clippyCorrectionsProfile.Add('clippy')
+foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+    $clippyCorrectionsProfile.Add('-p')
+    $clippyCorrectionsProfile.Add($package)
+}
+foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) {
+    $clippyCorrectionsProfile.Add($argument)
+}
+$clippyCorrectionsProfiles.Add([string[]]$clippyCorrectionsProfile.ToArray())
 $script:cargoInvocationPolicies = @{
     'target/parakeet-tests/refacto-reprise-import' = [string[]]$resumeImportProfiles.ToArray()
+    'target/parakeet-tests/clippy-corrections-suivantes-20261113' = [string[]]@($clippyCorrectionsProfiles | ForEach-Object { ConvertTo-Json -InputObject ([string[]]$_) -Compress })
 }
 
 if ($CargoArgsJson) {
@@ -986,6 +1005,65 @@ function Invoke-CargoInvocationPolicySelfTests {
     return [pscustomobject]@{ Positive=$positive; Negative=$negative; Summary=$summary }
 }
 
+function Invoke-ClippyCorrectionsInvocationPolicySelfTests {
+    $policyRoot = Join-Path $repo 'target/parakeet-tests/clippy-corrections-suivantes-20261113'
+    $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu','whisper-desktop','whisper-bootstrap')
+    $profiles = [Collections.Generic.List[object]]::new()
+    $profiles.Add([string[]]@('fmt','--check'))
+    $profiles.Add([string[]]@('test','--no-fail-fast'))
+    foreach ($worker in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+        $profiles.Add([string[]]@('test','--no-run','-p',$worker))
+        $profiles.Add([string[]]@('test','-p',$worker,'--','--list'))
+        $profiles.Add([string[]]@('test','-p',$worker))
+    }
+    $clippy = [Collections.Generic.List[string]]::new()
+    $clippy.Add('clippy')
+    foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+        $clippy.Add('-p'); $clippy.Add($package)
+    }
+    foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) { $clippy.Add($argument) }
+    $profiles.Add([string[]]$clippy.ToArray())
+    $before = $script:cargoProcessLaunchCount
+    $script:clippyCorrectionsPolicyCallbacks = 0
+    $probe = { param($checked) $script:clippyCorrectionsPolicyCallbacks++; return [pscustomobject]@{ Args=$checked.Args } }
+    $positive = 0
+    foreach ($profile in $profiles) {
+        $checked = Test-CargoArguments ([string[]]$profile) $members -SkipMemberValidation
+        if ($profile[0] -ceq 'fmt') { [void](Assert-CargoInvocationPolicy $checked.Args $policyRoot) }
+        else { [void](Invoke-GuardedCargoPreflight ([string[]]$profile) $policyRoot $probe) }
+        $positive++
+    }
+    $badProfiles = @(
+        @('test','--workspace'),
+        @('test','-p','whisper-worker-gpu','--','--list'),
+        @('test','--no-run','-p','whisper-worker-gpu'),
+        @('clippy','-p','whisper-core','-p','whisper-adapters','-p','whisper-desktop','-p','whisper-bootstrap','-p','whisper-worker-common','-p','whisper-worker-parakeet-cpu','-p','whisper-worker-cpu','--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')
+    )
+    $negative = 0
+    foreach ($profile in $badProfiles) {
+        $rejected = $false
+        $failure = $null
+        try { [void](Invoke-GuardedCargoPreflight ([string[]]$profile) $policyRoot $probe) }
+        catch {
+            $failure = $_.Exception.Message
+            $rejected = ($failure.Contains('versioned profile') -and $failure.Contains('Cargo not launched')) -or
+                ($failure.Contains('level 2') -and $profile -contains 'whisper-worker-gpu')
+        }
+        if (-not $rejected) { throw "Clippy corrections policy SelfTest failed for '$($profile -join ' ')': $failure" }
+        $negative++
+    }
+    foreach ($outsideRoot in @((Join-Path $repo 'target/parakeet-tests/clippy-corrections-suivantes-sibling'),(Join-Path $policyRoot 'child'))) {
+        $rejected = $false
+        try { [void](Invoke-GuardedCargoPreflight @('test','-p','whisper-worker-cpu') $outsideRoot $probe) }
+        catch { $rejected = $_.Exception.Message.Contains('No versioned package policy') -and $_.Exception.Message.Contains('Cargo not launched') }
+        if (-not $rejected) { throw "Clippy corrections policy SelfTest accepted unregistered root: $outsideRoot" }
+        $negative++
+    }
+    if ($script:clippyCorrectionsPolicyCallbacks -ne $positive - 1) { throw 'Clippy corrections policy SelfTest reached metadata unexpectedly.' }
+    if ($script:cargoProcessLaunchCount -ne $before) { throw 'Clippy corrections policy SelfTest launched Cargo.' }
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
+}
+
 function Invoke-SelfTests {
     $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
@@ -1322,6 +1400,10 @@ function Invoke-SelfTests {
     $clippySelfTests = Invoke-StructuralClippySelfTests
     $pCount += $clippySelfTests.Positive
     $nCount += $clippySelfTests.Negative
+    $clippyCorrectionsPolicyTests = Invoke-ClippyCorrectionsInvocationPolicySelfTests
+    $pCount += $clippyCorrectionsPolicyTests.Positive
+    $nCount += $clippyCorrectionsPolicyTests.Negative
+    "CLIPPY_CORRECTIONS_POLICY_SELFTEST positive=$($clippyCorrectionsPolicyTests.Positive) negative=$($clippyCorrectionsPolicyTests.Negative)"
     "CARGO_TARGET_DIR_CLEANUP present_before=$script:cargoTargetDirPresentBeforeClean present_after=$script:cargoTargetDirPresentAfterClean"
     'PASS self-test parser and Clippy ratchet cases: positives={0}, negatives={1}.' -f $pCount,$nCount
 }

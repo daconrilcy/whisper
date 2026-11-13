@@ -904,7 +904,6 @@ use reprocessing_cleanup_helpers::*;
 fn resume_replacement_to_partial_cleanup(scenario: &mut ReplacementScenario) {
     let app = &mut scenario.app;
     let destination = &scenario.destination;
-    let cleanup_id = &scenario.cleanup_id;
     let late_unknown_generation_file = &scenario.late_unknown_generation_file;
     let latest_txt = &scenario.latest_txt;
     let latest_srt = &scenario.latest_srt;
@@ -967,8 +966,6 @@ fn resume_replacement_to_partial_cleanup(scenario: &mut ReplacementScenario) {
 fn replay_stale_cleanup_progress(scenario: &mut ReplacementScenario) {
     let app = &mut scenario.app;
     let destination = &scenario.destination;
-    let cleanup_id = &scenario.cleanup_id;
-    let latest_generation = &scenario.latest_generation;
     let plan_path = &scenario.plan_path;
     // Simulate a crash after disposition but before the matching progress
     // write: the old generation is absent while its durable object bit is
@@ -1028,7 +1025,6 @@ fn verify_removed_replacement_targets(scenario: &ReplacementScenario) {
     let third_generation = &scenario.third_generation;
     let legacy_container_file = &scenario.legacy_container_file;
     let late_container_file = &scenario.late_container_file;
-    let late_unknown_generation_file = &scenario.late_unknown_generation_file;
     let queued = &scenario.queued;
     assert!(!latest_generation.exists());
     assert!(!third_generation.exists());
@@ -1088,8 +1084,6 @@ fn verify_removed_replacement_targets(scenario: &ReplacementScenario) {
 fn verify_replacement_cleanup_record(scenario: &ReplacementScenario) {
     let destination = &scenario.destination;
     let source_sha = &scenario.source_sha;
-    let queued = &scenario.queued;
-    let cleanup_id = &scenario.cleanup_id;
     let plan_path = &scenario.plan_path;
     let durable = ArchiveStore::replacement_cleanups(destination).unwrap();
     let durable_cleanup = durable

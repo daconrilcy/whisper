@@ -10,7 +10,7 @@ Décision : commencer par les deux derniers réemprunts d’option, puis corrige
 
 **Base Rust :** `main@9f1b09c8b1977aa96afeccc080e7048c5fc32961`.
 
-**État :** plan proposé ; pas d’autorisation d’implémentation.
+**État :** plan accepté pour le lot après accord utilisateur du 13 novembre 2026 ; implémentation Rust autorisée dans les sept chemins déclarés, sous réserve de T0 et des gates ci-dessous.
 
 ## Périmètre
 
@@ -64,10 +64,20 @@ Le lot n’ajoute ni test ni hook uniquement pour le lint. Toute correction dont
 
 ## Dépendances et autorisations
 
+### Complément accepté — admission de la voie gardée (13 novembre 2026)
+
+L’utilisateur a autorisé l’implémentation et la voie N1 pouvant compiler `whisper-worker-cpu`/`whisper-rs-sys` malgré la suspension native. Pour Q-01, le coordinateur fixe le `LotRoot` exact à `target/parakeet-tests/clippy-corrections-suivantes-20261113` dans le worktree dédié `C:/wt/clippy-corrections-suivantes`.
+
+Le profil de la garde est limité à ce `LotRoot` et aux commandes suivantes, qui sont déjà prévues dans la matrice de T6 : `fmt --check`, `test --no-fail-fast`, pour chacun des workers CPU/Parakeet CPU/common `test --no-run -p <membre>`, `test -p <membre> -- --list` et `test -p <membre>`, ainsi que le Clippy exact à six membres documenté en T6. Les auto-tests refusent tout profil différent, GPU, membre supplémentaire et racine sœur/enfant non enregistrée. Les sélections passent toujours par metadata protégé, la garde et le contrôle PE requis. Aucun changement de baseline, seuil, garde générale, règle de sécurité ou catégorie de commande Cargo n’est permis par ce complément.
+
+Q-02 est résolue par l’autorisation explicite de l’utilisateur ; le risque CMake/`whisper-rs-sys` reste signalé, et les règles de préflight, arrêt sur échec, cache hors ligne, isolation et suspension de toute recette DLL demeurent applicables. Aucun téléchargement, `native-tests`, build DLL, test GPU niveau 2, validation Windows, commit, merge ou push n’est autorisé par cet accord.
+
+La modification de `ci/guard-level1.ps1` et de son SelfTest est limitée à l’enregistrement et à la vérification de ces profils pour cette racine. Elle est un préalable de T0. Le code Rust reste limité aux sept fichiers du plan et à l’implémenteur délégué ; toute divergence de profil ou de préflight arrête le lot.
+
 ```text
-T0 → T1 → T2 → T3 → T4 → T5 → T6
+T0 (admission gardée) → T1 → T2 → T3 → T4 → T5 → T6
 ```
 
-`T3` précède `T4` et `T5` parce que ces tâches se recoupent dans `native_execution.rs`, `unified_capture_helpers.rs` et `reprocessing_cleanup_helpers.rs`. Chaque tâche conserve un diff vérifiable avant la suivante. Le seul `LotRoot` Clippy frais connu appartient à un autre contexte ; la politique actuelle ne vaut pas admission de ce nouveau lot. Q-01 et Q-02 du cadrage doivent être résolues avant les opérations concernées. En l’absence d’autorisation/voie d’exécution native permise par les règles en vigueur, le lot reste bloqué avant tout Cargo susceptible de la déclencher ; la sélection `whisper-worker-cpu` n’est pas une sonde. Si le profil exact est refusé, si l’entrée change, ou si un nouveau diagnostic structurel apparaît, arrêter selon `AGENTS.md` sans modifier garde, baseline ou commande de campagne.
+`T3` précède `T4` et `T5` parce que ces tâches se recoupent dans `native_execution.rs`, `unified_capture_helpers.rs` et `reprocessing_cleanup_helpers.rs`. Chaque tâche conserve un diff vérifiable avant la suivante. Les réserves sur le `LotRoot` non admis et Q-01/Q-02 du texte initial sont résolues uniquement par le complément accepté ci-dessus. La sélection `whisper-worker-cpu` reste un vrai test N1 soumis à l’autorisation accordée, jamais une sonde. Si le profil exact est refusé, si l’entrée change, si le préflight échoue, ou si un nouveau diagnostic structurel apparaît, arrêter selon `AGENTS.md` sans élargir garde, baseline ou commande de campagne.
 
-**Autorisation :** cette demande autorise la rédaction du cadrage et du plan. Elle n’autorise pas l’implémentation Rust, la création/modification d’une politique de garde, les téléchargements, l’exécution `native-tests`, les builds DLL, la validation Windows, les commits de code, le merge ou le push.
+**Accord utilisateur du 13 novembre 2026 :** implémentation des sept tâches Rust et admission de la voie gardée précise définie au complément ci-dessus ; validation N1 susceptible de compiler `whisper-rs-sys` autorisée sous la garde et les protections existantes. Le push, le merge, les téléchargements, `native-tests`, les builds DLL et la validation Windows restent non autorisés.

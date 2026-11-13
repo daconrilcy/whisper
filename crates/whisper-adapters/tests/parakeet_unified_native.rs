@@ -441,7 +441,7 @@ fn prepare_native_import<'a>(
         request: request.clone(),
     })
     .expect("start true ImportApplication route");
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event(
             "start_import_dispatch_end",
             serde_json::json!({"duration_ms":dispatch_started.elapsed().as_secs_f64()*1000.0}),
@@ -490,7 +490,7 @@ fn prepare_native_source(
     let destination_started = Instant::now();
     let destination = execution_root.join("archive");
     std::fs::create_dir_all(&destination).expect("create archive under guarded PU-L4 root");
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event(
             "destination_ready",
             serde_json::json!({"duration_ms":destination_started.elapsed().as_secs_f64()*1000.0,"destination":destination.display().to_string()}),

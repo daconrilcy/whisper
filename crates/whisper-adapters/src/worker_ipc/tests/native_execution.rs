@@ -2128,8 +2128,8 @@
         let document_error = snapshot.document_error;
         let page_summary = snapshot.page_summary;
 
-        if document_error.is_some() {
-            if native_ab_c_handle_document_error(
+        if document_error.is_some()
+            && native_ab_c_handle_document_error(
                 context,
                 state,
                 first_a_request_id,
@@ -2137,9 +2137,9 @@
                 refreshed_revision,
                 &page_summary,
                 &view,
-            ) {
-                return None;
-            }
+            )
+        {
+            return None;
         }
         if refreshed_revision != state.requested_revision.unwrap_or(0) {
             state.requested_revision = None;
@@ -2202,7 +2202,6 @@
     ) -> Option<Instant> {
         let a = context.ids.a;
         let generation = context.ids.generation;
-        let trace_path = context.trace.trace_path.clone();
         context
             .app
             .dispatch(AppCommand::SelectUnifiedSession {
@@ -2295,7 +2294,6 @@
             }
         }
 
-        unreachable!("document polling returns when the first text is observed")
     }
 
     #[cfg(windows)]
@@ -3373,8 +3371,6 @@
             expected_profile,
             expected_gpu_key,
         } = runtime;
-        let job_id = setup.job_id;
-        let resumed_generation = setup.resumed_generation;
         let archive_root = &setup.archive_root;
         let source_path = &setup.source_path;
         let source_sha = &setup.source_sha;
@@ -3400,7 +3396,7 @@
 
         native_execution_helpers::NativeGpuResumeRun {
             setup,
-            app,
+            _app: app,
             complete,
             observed_native_events,
             expected_profile,
@@ -3611,7 +3607,6 @@
         let previous = &setup.previous;
         let source_sha = &setup.source_sha;
         let complete = &run.complete;
-        let expected_samples = setup.expected_samples;
         let job_id = setup.job_id;
         let resumed_generation = setup.resumed_generation;
         let prefix_text = &setup.prefix_text;
@@ -3625,7 +3620,7 @@
         assert_eq!(complete_archive.strategy, previous.strategy);
         assert_eq!(complete_archive.source_sha256, source_sha.as_str());
         let resumed_document = ArchiveStore::read_unified_document_page(
-            &archive_root,
+            archive_root,
             job_id,
             resumed_generation,
             complete.document_revision,

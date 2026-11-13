@@ -43,7 +43,7 @@ pub(super) fn validate_native_terminal(
             "Auto without a candidate must report its actual pre-audio CPU fallback: {backend}"
         ),
     }
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event("effective_backend_assertions_end", serde_json::Value::Null);
         trace.event("terminal_view_assertions_end", serde_json::Value::Null);
     }
@@ -56,7 +56,7 @@ pub(super) fn validate_native_publication(
 ) -> NativeImportArtifacts {
     let entry_complete = validate_native_archive(scenario, terminal, timing.as_deref_mut());
     let exports = validate_native_exports(scenario, timing.as_deref_mut());
-    validate_native_source_and_settings(scenario, timing.as_deref_mut());
+    validate_native_source_and_settings(scenario, timing);
     NativeImportArtifacts {
         wav_path: exports.wav_path,
         transcript_bytes: exports.transcript_bytes,
@@ -82,7 +82,7 @@ fn validate_native_archive(
                 && entry.generation == scenario.request.generation
         })
         .expect("native request must leave a durable archive state");
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event(
             "archive_scan_end",
             serde_json::json!({"duration_ms":archive_scan_started.elapsed().as_secs_f64()*1000.0}),
@@ -174,7 +174,7 @@ fn validate_native_exports(
         );
         assert!(std::fs::metadata(path).unwrap().len() > 0);
     }
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event("published_artifacts_check_end", serde_json::json!({"duration_ms":artifact_check_started.elapsed().as_secs_f64()*1000.0}));
     }
     NativeImportExports {
@@ -216,7 +216,7 @@ fn validate_native_source_and_settings(
             &scenario.previous_personal_gpu_logs,
         );
     }
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event("personal_settings_validation_end", serde_json::Value::Null);
     }
 }
@@ -283,7 +283,7 @@ pub(super) fn validate_native_parts(
             "published logical WAV contains {indexed_samples} samples; expected at least {minimum}"
         );
     }
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event("published_part_index_validation_end", serde_json::json!({"duration_ms":index_validation_started.elapsed().as_secs_f64()*1000.0,"indexed_samples":indexed_samples}));
     }
     (indexed_samples, part_count)
@@ -373,7 +373,7 @@ fn walk_native_parts(
             .checked_add(page.len() as u64)
             .expect("part index offset must not overflow");
     }
-    if let Some(trace) = timing.as_deref_mut() {
+    if let Some(trace) = timing {
         trace.event("published_part_index_walk_end", serde_json::json!({"duration_ms":index_walk_started.elapsed().as_secs_f64()*1000.0,"parts":part_count}));
     }
     (

@@ -1,7 +1,6 @@
 use super::*;
 
 pub(super) struct ReplacementScenario {
-    pub(super) root: PathBuf,
     pub(super) destination: PathBuf,
     pub(super) source: PathBuf,
     pub(super) source_sha: String,
@@ -27,7 +26,6 @@ pub(super) fn start_replacement_import_app(
     root: &Path,
     destination: &Path,
     source: &Path,
-    latest_generation: &Path,
 ) -> ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo> {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -76,7 +74,6 @@ pub(super) fn start_replacement_import_app(
 pub(super) fn confirm_replacement_and_queue(
     app: &mut ImportApplication<whisper_adapters::worker_ipc::AsyncImportIo>,
     destination: &Path,
-    source: &Path,
     latest_generation: &Path,
 ) -> (ImportRequest, PathBuf, PathBuf, PathBuf) {
     let unknown_generation_file = latest_generation.join("user-note.txt");
@@ -258,11 +255,10 @@ pub(super) fn prepare_replacement_scenario() -> ReplacementScenario {
     let third_generation = destination.join("transcriptions/00000000000000000000000000000067/1");
     let unknown_generation_file = latest_generation.join("user-note.txt");
     fs::write(&unknown_generation_file, b"keep this unrelated file").unwrap();
-    let mut app = start_replacement_import_app(&root, &destination, &source, &latest_generation);
+    let mut app = start_replacement_import_app(&root, &destination, &source);
     let (queued, late_unknown_generation_file, late_container_file, legacy_container_file) =
-        confirm_replacement_and_queue(&mut app, &destination, &source, &latest_generation);
+        confirm_replacement_and_queue(&mut app, &destination, &latest_generation);
     ReplacementScenario {
-        root,
         destination,
         source,
         source_sha,
@@ -366,7 +362,6 @@ pub(super) fn publish_replacement_and_check_source_change(scenario: &mut Replace
 pub(super) fn replay_publication_after_crash(scenario: &mut ReplacementScenario) {
     let destination = &scenario.destination;
     let queued = &scenario.queued;
-    let cleanup_id = &scenario.cleanup_id;
     let publication_index = &scenario.publication_index;
     let prepublication_index = &scenario.prepublication_index;
     let source_sha = &scenario.source_sha;
@@ -465,13 +460,11 @@ pub(super) fn replay_publication_after_crash(scenario: &mut ReplacementScenario)
 
 pub(super) fn reject_corrupt_replacement_proofs(scenario: &ReplacementScenario) {
     let destination = &scenario.destination;
-    let cleanup_id = &scenario.cleanup_id;
     let latest_txt = &scenario.latest_txt;
     let latest_srt = &scenario.latest_srt;
     let older_generation = &scenario.older_generation;
     let third_generation = &scenario.third_generation;
     let queued = &scenario.queued;
-    let plan_path = &scenario.plan_path;
     let publication_index = &scenario.publication_index;
     // A replacement export parent must be rejected before any old artifact is
     // disposed. The test uses a same-root directory rename/substitution so no
