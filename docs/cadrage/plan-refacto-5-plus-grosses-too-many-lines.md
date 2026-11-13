@@ -6,7 +6,7 @@ Décision : après résolution du gate et accord d’implémentation distinct, c
 
 **Design :** [D-WHISPER-CLIPPY-TOP5-20261113](cadrage-refacto-5-plus-grosses-too-many-lines.md), DESIGN READY après revue indépendante CLEAN.
 **Base Rust :** `main@4889e916486bb13cb9998751fe0c47edfe351f2e`.
-**État :** proposition soumise à revue du plan ; le T0 d’implémentation est bloqué sur la voie de validation et l’autorisation future.
+**État :** PLANS READY ; revue indépendante CLEAN au commit `fef39dc8573ff265bc68842953b74871d87f7367`. Le T0 d’implémentation reste bloqué sur la voie de validation et l’autorisation future.
 
 ## Périmètre et règles du lot
 
