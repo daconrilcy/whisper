@@ -196,7 +196,7 @@ pub(crate) fn run(
                     },
                 );
                 match result {
-                    Ok((duration_samples, text, words, actual_sha, native_inference_ms)) => {
+                    Ok(result) => {
                         let gpu_evidence =
                             build_gpu_evidence(&runtime, engine.backend(), gpu_identity.as_ref())?;
                         write_event(&Event::Result {
@@ -205,11 +205,11 @@ pub(crate) fn run(
                             generation,
                             attempt,
                             identity: identity.clone(),
-                            source_sha256: actual_sha,
-                            duration_samples,
-                            text,
-                            words,
-                            native_inference_ms,
+                            source_sha256: result.source_sha256,
+                            duration_samples: result.duration_samples,
+                            text: result.text,
+                            words: result.words,
+                            native_inference_ms: result.native_inference_ms,
                             gpu_evidence,
                         })?
                     }

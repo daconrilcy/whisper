@@ -20,22 +20,21 @@ fn classify_native_error(error: String) -> (&'static str, String) {
     (code, error)
 }
 
+pub(super) struct TranscriptionResult {
+    pub(super) duration_samples: u64,
+    pub(super) text: String,
+    pub(super) words: Vec<whisper_core::parakeet_ipc::Word>,
+    pub(super) source_sha256: String,
+    pub(super) native_inference_ms: u64,
+}
+
 pub(crate) fn transcribe_one(
     engine: &mut native_engine::Engine,
     source: &Path,
     expected_source_sha: &str,
     profile: &str,
     on_native_call_started: impl FnOnce() -> Result<(), String>,
-) -> Result<
-    (
-        u64,
-        String,
-        Vec<whisper_core::parakeet_ipc::Word>,
-        String,
-        u64,
-    ),
-    (&'static str, String),
-> {
+) -> Result<TranscriptionResult, (&'static str, String)> {
     let canonical = source
         .canonicalize()
         .map_err(|e| ("SourceUnavailable", e.to_string()))?;
@@ -78,11 +77,11 @@ pub(crate) fn transcribe_one(
         engine.transcribe_with_start_callback(&decoded, on_native_call_started)
     };
     let (text, words, native_inference_ms) = result.map_err(classify_native_error)?;
-    Ok((
+    Ok(TranscriptionResult {
         duration_samples,
         text,
         words,
-        actual_sha,
+        source_sha256: actual_sha,
         native_inference_ms,
-    ))
+    })
 }
