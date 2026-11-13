@@ -41,8 +41,7 @@
         );
         capture_third.enqueue_test_block(vec![0.1; 3 * 16_000]);
 
-        let (worker, calls, maximum_active, call_sources, held_rx, release_tx) =
-            held_final_a_worker();
+        let (worker, calls, maximum_active, call_sources, held_rx, release_tx) = held_final_a_worker();
         let b_progress = Arc::new(AtomicU64::new(0));
         let stop_submissions = Arc::new(AtomicU64::new(0));
         let runtime = ImportRuntime::new(
@@ -248,14 +247,12 @@
             }
             let basename = entry.export_basename.as_ref().unwrap();
             assert_eq!(
-                std::fs::read(archive_root.join("exports").join(format!("{basename}.txt")))
-                    .unwrap(),
+                std::fs::read(archive_root.join("exports").join(format!("{basename}.txt"))).unwrap(),
                 std::fs::read(generation.join("transcript.txt")).unwrap(),
                 "capture {label} TXT export must belong to its published generation"
             );
             assert_eq!(
-                std::fs::read(archive_root.join("exports").join(format!("{basename}.srt")))
-                    .unwrap(),
+                std::fs::read(archive_root.join("exports").join(format!("{basename}.srt"))).unwrap(),
                 std::fs::read(generation.join("transcript.srt")).unwrap(),
                 "capture {label} SRT export must belong to its published generation"
             );
@@ -329,15 +326,13 @@
                 start = end;
             }
 
-            let coverage = std::fs::read_to_string(
-                generation.join("parakeet-unified/document/coverage.jsonl"),
-            )
-            .unwrap();
+            let coverage =
+                std::fs::read_to_string(generation.join("parakeet-unified/document/coverage.jsonl"))
+                    .unwrap();
             let windows = coverage
                 .lines()
                 .map(|line| {
-                    serde_json::from_str::<whisper_core::ports::ParakeetWindowCoverage>(line)
-                        .unwrap()
+                    serde_json::from_str::<whisper_core::ports::ParakeetWindowCoverage>(line).unwrap()
                 })
                 .collect::<Vec<_>>();
             assert!(!windows.is_empty());
@@ -937,9 +932,9 @@
         let (preview_start, preview_end) = preview_range.unwrap();
         let observed_windows = observed_windows.lock().unwrap().clone();
         assert!(
-            observed_windows.iter().any(|(start, end, pcm_len)| {
-                *end - *start == 4 * 16_000 && *pcm_len == 4 * 16_000
-            }),
+            observed_windows
+                .iter()
+                .any(|(start, end, pcm_len)| { *end - *start == 4 * 16_000 && *pcm_len == 4 * 16_000 }),
             "controlled worker must receive the 64,000-sample four-second preview PCM window"
         );
         assert!(
@@ -987,8 +982,7 @@
             .join("transcriptions")
             .join(format!("{:032x}", JOB_ID))
             .join("1");
-        let transcript =
-            std::fs::read_to_string(generation_directory.join("transcript.txt")).unwrap();
+        let transcript = std::fs::read_to_string(generation_directory.join("transcript.txt")).unwrap();
         assert!(transcript.contains("terminal-phrase."));
         assert!(generation_directory.join("transcript.srt").is_file());
         let basename = entry.export_basename.unwrap();
@@ -1230,14 +1224,12 @@
             .join(format!("{:032x}", job_id.0))
             .join(request.generation.get().to_string());
         assert!(generation.join("CURRENT").is_file());
-        let decoded_samples = crate::parakeet_audio::PcmPartStore::open(
-            generation.join("parakeet-unified/source.wav"),
-        )
-        .total_samples()
-        .unwrap();
-        let pending: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(generation.join("pending.json")).unwrap())
+        let decoded_samples =
+            crate::parakeet_audio::PcmPartStore::open(generation.join("parakeet-unified/source.wav"))
+                .total_samples()
                 .unwrap();
+        let pending: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(generation.join("pending.json")).unwrap()).unwrap();
         assert_eq!(pending["source_samples"].as_u64(), Some(decoded_samples));
         (
             entry.export_basename.clone().unwrap(),
@@ -1426,8 +1418,7 @@
             let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
             writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
             writer.finish().unwrap();
-            let request =
-                unified_import_request(&root.join("archive"), &source_path, 9_400 + attempt);
+            let request = unified_import_request(&root.join("archive"), &source_path, 9_400 + attempt);
             runtime.controlled_transcriber = Some(Box::new(FailedUnifiedWorker));
             runtime.start_controlled_unified_import(&request).unwrap();
 
@@ -1581,8 +1572,7 @@
             let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
             writer.append(&vec![1_000_i16; 3 * 16_000]).unwrap();
             writer.finish().unwrap();
-            let request =
-                unified_import_request(&root.join("archive"), &source_path, 9_440 + attempt);
+            let request = unified_import_request(&root.join("archive"), &source_path, 9_440 + attempt);
             runtime.start_controlled_unified_import(&request).unwrap();
 
             let failure_deadline = Instant::now() + Duration::from_secs(5);
@@ -1660,11 +1650,7 @@
             .source
             .enqueue_test_block(vec![0.1; 4 * 16_000]);
         runtime
-            .stop_controlled_unified_capture(
-                request.job_id,
-                request.generation,
-                &mut VecDeque::new(),
-            )
+            .stop_controlled_unified_capture(request.job_id, request.generation, &mut VecDeque::new())
             .unwrap();
 
         assert_unified_finalization_failure_releases_runtime(
@@ -1972,8 +1958,8 @@
             }
             thread::sleep(Duration::from_millis(2));
         }
-        let (pre_stop_captured, pre_stop_durable) = pre_stop_progress
-            .expect("capture must expose written and durable progress before Stop");
+        let (pre_stop_captured, pre_stop_durable) =
+            pre_stop_progress.expect("capture must expose written and durable progress before Stop");
         assert!(pre_stop_captured > 0 && pre_stop_durable > 0);
         assert!(pre_stop_captured <= capture_samples && pre_stop_durable <= capture_samples);
     }
@@ -1992,12 +1978,9 @@
             archive_complete,
             "capture must reach a real Complete archive"
         );
-        let files = ArchiveStore::published_unified_files(
-            archive_root,
-            request.job_id,
-            request.generation,
-        )
-        .expect("Complete capture must resolve its CURRENT artifacts");
+        let files =
+            ArchiveStore::published_unified_files(archive_root, request.job_id, request.generation)
+                .expect("Complete capture must resolve its CURRENT artifacts");
         let generation_dir = archive_root
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -2128,6 +2111,9 @@
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[path = "unified_capture_helpers.rs"]
+    mod unified_capture_helpers;
+
     #[test]
     #[cfg_attr(
         not(feature = "native-tests"),
@@ -2135,456 +2121,13 @@
     )]
     // TODO(DEBT-10): extract the synthetic scenario from its real model/catalogue prerequisite.
     fn unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready() {
-        const A_ID: u128 = 9_424;
-        const B_ID: u128 = 9_425;
-        let root = std::env::temp_dir().join(format!(
-            "parakeet-unified-reserved-final-preview-{}",
-            std::process::id()
-        ));
-        let archive_root = root.join("archive");
-        std::fs::create_dir_all(&archive_root).unwrap();
-        let source_a = root.join("source-a.wav");
-        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_a).unwrap();
-        writer.append(&vec![10_000_i16; 121 * 16_000]).unwrap();
-        writer.finish().unwrap();
-        let source_b = root.join("source-b.wav");
-        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_b).unwrap();
-        writer.append(&vec![0_i16; 5 * 16_000]).unwrap();
-        writer.finish().unwrap();
-        let request_a = unified_import_request(&archive_root, &source_a, A_ID);
-        let request_b = unified_import_request(&archive_root, &source_b, B_ID);
-        let session_a = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: request_a.job_id,
-            generation: request_a.generation,
-        };
-        let session_b = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: request_b.job_id,
-            generation: request_b.generation,
-        };
-        let (worker, calls, maximum_active, call_sources, held_rx, release_tx) = held_worker(1);
-        let child_observations = Arc::new(Mutex::new(Vec::new()));
-        let native_paths = crate::parakeet_import::ParakeetWorkerPaths {
-            executable: root.join("controlled-native-worker.exe"),
-            native_dir: root.join("controlled-native"),
-            model: root.join("controlled-model.nemo"),
-            runtime_root: root.clone(),
-        };
-        let native_route = NativeUnifiedRoute {
-            paths: native_paths,
-            requested_compute: ComputeChoice::Cpu,
-            compute: ComputeChoice::Cpu,
-            expected_gpu: None,
-            candidate: None,
-            fallback_reason: None,
-        };
-        let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
-            WorkerPaths {
-                cpu: PathBuf::from("unused-cpu"),
-                gpu: PathBuf::from("unused-gpu"),
-            },
-            Arc::new(PublicationGate::default()),
-            None,
-            WorkerRuntimeConfig::default(),
-        )
-        .with_controlled_transcriber(worker)
-        .with_child_observer(Arc::clone(&child_observations));
-        prepare_and_start_controlled_native_route(&mut runtime, &request_a, native_route.clone());
-        prepare_and_start_controlled_native_route(&mut runtime, &request_b, native_route);
-        runtime.native_unified_candidate_enabled = true;
-        let ready_gate = runtime.hold_next_child_ready();
-        let mut ready_labels = HashMap::new();
-
-        assert!(runtime.poll_unified_sessions().is_none());
-        let reserved = runtime.parakeet_scheduler.in_flight().unwrap();
-        assert_eq!(reserved.session, session_a);
-        assert!(matches!(
-            reserved.work,
-            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. }
-        ));
-        assert_eq!(calls.load(Ordering::Relaxed), 0);
-        let retained_final = runtime.unified_sessions[&session_a]
-            .pending_prepared
-            .clone()
-            .expect("the reserved final clip is prepared before READY");
-        assert_eq!(retained_final.0, reserved);
-        assert!(retained_final.3);
-        assert!(
-            !child_observations
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|item| item.event == "Ready")
-        );
-
-        runtime
-            .parakeet_scheduler
-            .queue_preview(session_b, 5 * 16_000)
-            .unwrap();
-        assert!(runtime.poll_unified_sessions().is_none());
-        assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
-        assert!(
-            runtime.unified_sessions[&session_a]
-                .pending_prepared
-                .is_some()
-        );
-        assert_eq!(calls.load(Ordering::Relaxed), 0);
-        let (ready_released, ready_changed) = &*ready_gate;
-        *ready_released.lock().unwrap() = true;
-        ready_changed.notify_all();
-        let ready_deadline = Instant::now() + Duration::from_secs(5);
-        let mut ready_seen = false;
-        let mut a_ready_events = 0;
-        let mut held_source = None;
-        while Instant::now() < ready_deadline && held_source.is_none() {
-            match runtime.poll_unified_sessions() {
-                Some(Err((job_id, generation, message))) => panic!(
-                    "reserved turn failed after READY release for {job_id:?}/{generation:?}: {message}"
-                ),
-                Some(Ok(ImportEvent::Ready {
-                    job_id,
-                    generation,
-                    backend,
-                })) if (job_id, generation) == (session_a.job_id, session_a.generation) => {
-                    a_ready_events += 1;
-                    ready_labels
-                        .entry((job_id, generation))
-                        .or_insert_with(Vec::new)
-                        .push(backend);
-                    assert_eq!(
-                        runtime.unified_sessions[&session_a].pending_prepared,
-                        Some(retained_final.clone()),
-                        "READY must retain the exact prepared final clip"
-                    );
-                }
-                _ => {}
-            }
-            ready_seen |= child_observations
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|item| item.event == "Ready");
-            match held_rx.try_recv() {
-                Ok(source) => held_source = Some(source),
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    thread::sleep(Duration::from_millis(2));
-                }
-                Err(error) => panic!("held worker exited after READY release: {error}"),
-            }
-        }
-        assert!(
-            ready_seen,
-            "controlled child READY was not observed after release"
-        );
-        assert_eq!(
-            a_ready_events, 1,
-            "backend READY is reported exactly once per session"
-        );
-        assert_eq!(held_source.as_deref(), Some("A"));
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
-        assert!(
-            runtime.unified_sessions[&session_a]
-                .pending_prepared
-                .is_none()
-        );
-        assert!(runtime.poll_unified_sessions().is_none());
-        assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(reserved));
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
-
-        release_tx.send(()).unwrap();
-        let peer_preview_deadline = Instant::now() + Duration::from_secs(10);
-        let mut b_preview_ready_events = 0;
-        let mut retained_preview = None;
-        while Instant::now() < peer_preview_deadline && calls.load(Ordering::Relaxed) < 2 {
-            match runtime.poll_unified_sessions() {
-                Some(Err((job_id, generation, message))) => panic!(
-                    "peer preview failed after final A for {job_id:?}/{generation:?}: {message}"
-                ),
-                Some(Ok(ImportEvent::Ready {
-                    job_id,
-                    generation,
-                    backend,
-                })) if (job_id, generation) == (session_b.job_id, session_b.generation) => {
-                    b_preview_ready_events += 1;
-                    ready_labels
-                        .entry((job_id, generation))
-                        .or_insert_with(Vec::new)
-                        .push(backend);
-                    let prepared = runtime.unified_sessions[&session_b]
-                        .pending_prepared
-                        .clone()
-                        .expect("READY must retain the prepared peer preview");
-                    assert!(!prepared.3, "the retained peer clip must remain a preview");
-                    assert!(matches!(
-                        prepared.0.work,
-                        whisper_core::parakeet_scheduler::ScheduledWork::Preview { .. }
-                    ));
-                    assert_eq!(runtime.parakeet_scheduler.in_flight(), Some(prepared.0));
-                    retained_preview = Some(prepared);
-                }
-                _ => {}
-            }
-            thread::sleep(Duration::from_millis(2));
-        }
-        assert_eq!(
-            b_preview_ready_events, 1,
-            "peer backend READY is reported exactly once"
-        );
-        let retained_preview = retained_preview.expect("the prepared preview survives READY");
-        assert_eq!(
-            runtime.parakeet_scheduler.in_flight(),
-            Some(retained_preview.0)
-        );
-        assert!(
-            runtime.unified_sessions[&session_b]
-                .pending_prepared
-                .is_none()
-        );
-        let call_log = call_sources.lock().unwrap();
-        assert!(call_log.len() >= 2);
-        assert_eq!(call_log[0], "A:final");
-        assert_eq!(call_log[1], "B:preview");
-        assert_eq!(maximum_active.load(Ordering::Relaxed), 1);
-        drop(call_log);
-
-        let mut persisted_sequences = HashMap::new();
-        let mut published_sessions = HashSet::new();
-        let mut completed_sessions = HashSet::new();
-        let recycled_ready_gate = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
-        runtime.controlled_ready_gate = Some(Arc::clone(&recycled_ready_gate));
-        let ready_deadline = Instant::now() + Duration::from_secs(10);
-        while Instant::now() < ready_deadline {
-            match runtime.poll_unified_sessions() {
-                Some(Err((job_id, generation, message))) => {
-                    panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
-                }
-                Some(Ok(ImportEvent::Ready {
-                    job_id,
-                    generation,
-                    backend,
-                })) => {
-                    ready_labels
-                        .entry((job_id, generation))
-                        .or_insert_with(Vec::new)
-                        .push(backend);
-                }
-                _ => {}
-            }
-            let observations = child_observations.lock().unwrap();
-            let recycled_spawned = observations
-                .iter()
-                .filter(|item| item.event == "Spawn")
-                .count()
-                >= 2;
-            drop(observations);
-            if recycled_spawned
-                && runtime
-                    .unified_sessions
-                    .get(&session_a)
-                    .is_some_and(|state| state.pending_prepared.is_some())
-            {
-                break;
-            }
-            if let Some(event) = runtime.poll_unified_document() {
-                match event {
-                    Ok(event) => {
-                        if let ImportEvent::End {
-                            job_id, generation, ..
-                        } = &event
-                        {
-                            completed_sessions.insert((*job_id, *generation));
-                        }
-                        persist_and_publish_controlled_document_event(
-                            &mut runtime,
-                            event,
-                            &mut persisted_sequences,
-                            &mut published_sessions,
-                            &mut ready_labels,
-                        );
-                    }
-                    Err((job_id, generation, message)) => {
-                        panic!("document drain failed for {job_id:?}/{generation:?}: {message}")
-                    }
-                }
-            }
-            thread::sleep(Duration::from_millis(2));
-        }
-        let reserved_after_recycle = runtime.parakeet_scheduler.in_flight().unwrap();
-        assert_eq!(reserved_after_recycle.session, session_a);
-        assert!(matches!(
-            reserved_after_recycle.work,
-            whisper_core::parakeet_scheduler::ScheduledWork::Final { .. }
-        ));
-        assert!(
-            runtime.unified_sessions[&session_a]
-                .pending_prepared
-                .is_some()
-        );
-        assert_eq!(calls.load(Ordering::Relaxed), 3);
-        {
-            let observations = child_observations.lock().unwrap();
-            let second_incarnation = observations
-                .iter()
-                .filter(|item| item.event == "Spawn")
-                .nth(1)
-                .expect("recycled child spawned")
-                .incarnation;
-            assert!(
-                !observations.iter().any(|item| {
-                    item.event == "Ready" && item.incarnation == second_incarnation
-                })
-            );
-        }
-        {
-            let (released, changed) = &*recycled_ready_gate;
-            *released.lock().unwrap() = true;
-            changed.notify_all();
-        }
-
-        let drain_deadline = Instant::now() + Duration::from_secs(20);
-        while Instant::now() < drain_deadline
-            && (!runtime.unified_sessions.is_empty() || !runtime.document_drains.is_empty())
-        {
-            match runtime.poll_unified_sessions() {
-                Some(Err((job_id, generation, message))) => {
-                    panic!("reserved turn session {job_id:?}/{generation:?} failed: {message}");
-                }
-                Some(Ok(ImportEvent::Ready {
-                    job_id,
-                    generation,
-                    backend,
-                })) => {
-                    ready_labels
-                        .entry((job_id, generation))
-                        .or_insert_with(Vec::new)
-                        .push(backend);
-                }
-                _ => {}
-            }
-            if let Some(event) = runtime.poll_unified_document() {
-                match event {
-                    Ok(event) => {
-                        if let ImportEvent::End {
-                            job_id, generation, ..
-                        } = &event
-                        {
-                            completed_sessions.insert((*job_id, *generation));
-                        }
-                        persist_and_publish_controlled_document_event(
-                            &mut runtime,
-                            event,
-                            &mut persisted_sequences,
-                            &mut published_sessions,
-                            &mut ready_labels,
-                        );
-                    }
-                    Err((job_id, generation, message)) => {
-                        panic!("document drain failed for {job_id:?}/{generation:?}: {message}")
-                    }
-                }
-            }
-            thread::sleep(Duration::from_millis(2));
-        }
-        assert!(runtime.unified_sessions.is_empty());
-        assert!(runtime.document_drains.is_empty());
-        assert_eq!(runtime.parakeet_scheduler.active_sessions(), 0);
-        assert!(completed_sessions.contains(&(session_a.job_id, session_a.generation)));
-        assert!(completed_sessions.contains(&(session_b.job_id, session_b.generation)));
-        assert!(published_sessions.contains(&(session_a.job_id, session_a.generation)));
-        assert!(published_sessions.contains(&(session_b.job_id, session_b.generation)));
-        assert_eq!(ready_labels.len(), 2, "no other session may receive READY");
-        for session in [session_a, session_b] {
-            assert_eq!(
-                ready_labels.get(&(session.job_id, session.generation)),
-                Some(&vec!["CPU".to_owned()]),
-                "each synthetic native CPU route reports one truthful READY through publication"
-            );
-        }
-        let archives = ArchiveStore::scan(&archive_root).unwrap();
-        for (session, expected_samples) in
-            [(session_a, 121 * 16_000_u64), (session_b, 5 * 16_000_u64)]
-        {
-            let archive = archives
-                .iter()
-                .find(|entry| {
-                    entry.job_id == session.job_id && entry.generation == session.generation
-                })
-                .expect("completed controlled session must remain in archive history");
-            assert!(
-                archive.complete,
-                "document completion must publish a complete archive"
-            );
-            let files = ArchiveStore::published_unified_files(
-                &archive_root,
-                session.job_id,
-                session.generation,
-            )
-            .expect("Published must resolve the generation-bound CURRENT artifacts");
-            for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
-                assert!(
-                    Path::new(path).is_file(),
-                    "published artifact missing: {path}"
-                );
-            }
-            let source_path = archive_root
-                .join("transcriptions")
-                .join(format!("{:032x}", session.job_id.0))
-                .join(session.generation.get().to_string())
-                .join("parakeet-unified/source.wav");
-            assert_eq!(
-                crate::parakeet_audio::PcmPartStore::open(&source_path)
-                    .total_samples()
-                    .unwrap(),
-                expected_samples,
-                "completed coverage must include the whole source"
-            );
-        }
-        let observations = child_observations.lock().unwrap();
-        controlled_child_job_bound(&observations).unwrap();
-        let spawns = observations
-            .iter()
-            .filter(|item| item.event == "Spawn")
-            .map(|item| item.incarnation)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            spawns.len(),
-            2,
-            "terminal B must be reaped before A resumes"
-        );
-        for incarnation in &spawns {
-            let events = observations
-                .iter()
-                .filter(|item| item.incarnation == *incarnation)
-                .map(|item| item.event)
-                .collect::<Vec<_>>();
-            assert_eq!(events.first(), Some(&"Spawn"));
-            assert_eq!(events.get(1), Some(&"Ready"));
-            assert!(events.iter().position(|event| *event == "Reaped").is_some());
-        }
-        let reaped_first = observations
-            .iter()
-            .position(|item| item.event == "Reaped" && item.incarnation == spawns[0])
-            .unwrap();
-        let spawned_second = observations
-            .iter()
-            .position(|item| item.event == "Spawn" && item.incarnation == spawns[1])
-            .unwrap();
-        assert!(reaped_first < spawned_second);
-        drop(observations);
-        let final_order = call_sources
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|entry| entry.ends_with(":final"))
-            .cloned()
-            .collect::<Vec<_>>();
-        assert_eq!(
-            final_order,
-            ["A:final", "B:final", "A:final"],
-            "final turns must retain their order across child recycle"
-        );
-        std::fs::remove_dir_all(&root).unwrap();
+        let mut scenario = unified_capture_helpers::prepare_reserved_final_scenario();
+        unified_capture_helpers::hold_reserved_final_until_ready(&mut scenario);
+        unified_capture_helpers::admit_peer_preview_after_final(&mut scenario);
+        unified_capture_helpers::recycle_child_with_final_still_reserved(&mut scenario);
+        unified_capture_helpers::release_recycled_child_and_drain_documents(&mut scenario);
+        unified_capture_helpers::verify_reserved_final_publication_and_reaping(&mut scenario);
     }
-
     #[test]
     fn unified_child_retains_only_two_job_ids_until_real_worker_recycle() {
         use whisper_core::parakeet_scheduler::{ScheduledCall, ScheduledWork, SchedulerSession};
@@ -2835,8 +2378,7 @@
         let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_b).unwrap();
         writer.append(&vec![0_i16; 3 * 16_000]).unwrap();
         writer.finish().unwrap();
-        let request_b =
-            unified_import_request(&root.join("archive"), &source_b, session_b.job_id.0);
+        let request_b = unified_import_request(&root.join("archive"), &source_b, session_b.job_id.0);
         runtime.start_controlled_unified_import(&request_a).unwrap();
         runtime.start_controlled_unified_import(&request_b).unwrap();
 
@@ -3036,9 +2578,8 @@
             .join("transcriptions")
             .join(format!("{:032x}", job_id))
             .join("1");
-        let source = crate::parakeet_audio::PcmPartStore::open(
-            generation.join("parakeet-unified/source.wav"),
-        );
+        let source =
+            crate::parakeet_audio::PcmPartStore::open(generation.join("parakeet-unified/source.wav"));
         let before_gain = source.read_window(2_000..14_000).unwrap();
         let after_gain = source.read_window(18_000..30_000).unwrap();
         let after_recovery = source.read_window(34_000..46_000).unwrap();
@@ -3083,7 +2624,7 @@
         runtime.effect(ImportEffect::Prepare(request.clone()), &mut events);
         assert!(
             matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified") && message.contains("controlled worker"))
+                if message.contains("ModelNotQualified") && message.contains("controlled worker"))
         );
         assert!(
             !root.exists(),
@@ -3092,7 +2633,7 @@
         runtime.effect(ImportEffect::StartWorker(request), &mut events);
         assert!(
             matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified") && message.contains("controlled worker"))
+                if message.contains("ModelNotQualified") && message.contains("controlled worker"))
         );
 
         assert_gpu_import_start_refusal(&mut runtime, &root, &mut events);
@@ -3101,8 +2642,8 @@
         runtime.effect(ImportEffect::StartUnifiedLive(live_request), &mut events);
         assert!(
             matches!(events.pop_front(), Some(ImportEvent::Failed { message, .. })
-            if message.contains("ModelNotQualified")
-                && message.contains("controlled worker injection is required")),
+                if message.contains("ModelNotQualified")
+                    && message.contains("controlled worker injection is required")),
             "native capture must be refused before opening a microphone"
         );
         assert!(

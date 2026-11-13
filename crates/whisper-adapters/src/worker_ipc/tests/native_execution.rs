@@ -12,11 +12,9 @@
         assert!(
             validate_native_window_pcm(
                 whisper_core::parakeet_session::AudioWindow {
-                    native_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES
-                        as u64
+                    native_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
                         + 1,
-                    central_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES
-                        as u64
+                    central_end_sample: whisper_core::parakeet_ipc::PARAKEET_MAX_AUDIO_SAMPLES as u64
                         + 1,
                     ..valid
                 },
@@ -205,10 +203,8 @@
         let mut initial_durable_samples = 0;
         while initial_written_samples == 0 {
             for acknowledgement in manual_source.pump().unwrap() {
-                initial_written_samples =
-                    initial_written_samples.max(acknowledgement.written_samples);
-                initial_durable_samples =
-                    initial_durable_samples.max(acknowledgement.flushed_samples);
+                initial_written_samples = initial_written_samples.max(acknowledgement.written_samples);
+                initial_durable_samples = initial_durable_samples.max(acknowledgement.flushed_samples);
             }
             assert!(
                 Instant::now() < initial_ack_deadline,
@@ -451,8 +447,7 @@
             .unwrap()
             .into_iter()
             .find(|entry| {
-                entry.job_id == manual_session.job_id
-                    && entry.generation == manual_session.generation
+                entry.job_id == manual_session.job_id && entry.generation == manual_session.generation
             })
             .expect("failed manual GPU peer keeps its recoverable archive entry");
         assert!(!manual_archive_entry.complete);
@@ -812,9 +807,7 @@
                         identity.pnp_instance_id
                             == whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
                     })
-                    .expect(
-                        "registered personal GPU must be observed by the real inventory worker",
-                    );
+                    .expect("registered personal GPU must be observed by the real inventory worker");
             }
             assert!(
                 Instant::now() < deadline,
@@ -1080,7 +1073,7 @@
         let (observer, native_events) = NativeQualificationObserver::channel();
         let native_observer = Arc::clone(&observer);
         let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
-            workers,
+            workers.clone(),
             Arc::new(PublicationGate::default()),
             model_catalog,
             WorkerRuntimeConfig {
@@ -1122,9 +1115,7 @@
         let expected_backend_message = format!("Moteur actif : {expected_backend}");
         let expected_gpu_key = (expected_effective_compute == ComputeChoice::Gpu).then(|| {
             gpu_paths
-                .gpu_qualification_key(
-                    whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS,
-                )
+                .gpu_qualification_key(whisper_core::parakeet_ipc::PARAKEET_PROFILE_IMPORT_SINGLE_PASS)
                 .expect("effective GPU route must have a qualification key")
         });
         if let Some(candidate) = candidate.as_ref() {
@@ -1224,17 +1215,17 @@
             "native event observer overflowed its fixed capacity"
         );
         let complete = complete_view.unwrap_or_else(|| {
-            panic!(
-                "native queued import did not complete within its bounded wait: phase={observed_phase}, message={observed_message:?}"
-            )
-        });
+                panic!(
+                    "native queued import did not complete within its bounded wait: phase={observed_phase}, message={observed_message:?}"
+                )
+            });
         assert_eq!(complete.total_samples, Some(expected_samples));
         assert_eq!(complete.captured_samples, expected_samples);
         assert_eq!(complete.durable_samples, expected_samples);
         assert_app_view_internal_publication(&complete, &archive_root);
         assert_eq!(
             crate::parakeet_import::sha256_file(&source_path).unwrap(),
-            source_sha
+            source_sha.as_str()
         );
 
         let ready = observed_native_events
@@ -1271,11 +1262,9 @@
         );
         assert_eq!(
             ready[0].2,
-            whisper_core::model_registry::model(
-                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
-            )
-            .artifact
-            .sha256
+            whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+                .artifact
+                .sha256
         );
         if let Some(key) = expected_gpu_key.as_ref() {
             assert_eq!(ready[0].3, key.runtime_build);
@@ -1343,11 +1332,14 @@
             expected_effective_compute == ComputeChoice::Gpu
         );
         assert_eq!(route_evidence[0].4, expected_fallback);
-        assert!(observed_native_events.iter().any(|event| matches!(
-            &event.kind,
-            NativeQualificationEventKind::RequestSent { session, generation: sent_generation, .. }
-                if session.job_id == job_id && *sent_generation == generation
-        )), "the composed route must issue a correlated native transcription request");
+        assert!(
+            observed_native_events.iter().any(|event| matches!(
+                &event.kind,
+                NativeQualificationEventKind::RequestSent { session, generation: sent_generation, .. }
+                    if session.job_id == job_id && *sent_generation == generation
+            )),
+            "the composed route must issue a correlated native transcription request"
+        );
 
         let entry = ArchiveStore::scan(&archive_root)
             .expect("scan queued native archive")
@@ -1434,10 +1426,7 @@
     }
 
     #[cfg(windows)]
-    fn assert_native_long_annotation_coverage(
-        annotation: &NativeLongAnnotation,
-        sample_count: u64,
-    ) {
+    fn assert_native_long_annotation_coverage(annotation: &NativeLongAnnotation, sample_count: u64) {
         let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
@@ -1492,341 +1481,103 @@
         );
     }
 
+    #[derive(Clone, Copy)]
+    #[cfg(windows)]
+    struct NativeAbcIds {
+        a: JobId,
+        b: JobId,
+        c: JobId,
+        generation: Generation,
+    }
+
+    #[derive(Default)]
+    #[cfg(windows)]
+    struct NativeAbcTimes {
+        a_audio_drained_at: Option<Instant>,
+        a_finalizing_at: Option<Instant>,
+        a_publishing_at: Option<Instant>,
+        a_published_at: Option<Instant>,
+        b_audio_drained_at: Option<Instant>,
+        b_finalizing_at: Option<Instant>,
+        b_publishing_at: Option<Instant>,
+        b_published_at: Option<Instant>,
+    }
+
+    #[cfg(windows)]
+    struct NativeAbcDocumentState {
+        deadline: Instant,
+        requested_revision: Option<u64>,
+        stale_wait_revision: Option<u64>,
+        last_stale_document_error: Option<String>,
+        document_request_id: u64,
+    }
+
+    #[cfg(windows)]
+    #[path = "native_execution_helpers.rs"]
+    mod native_execution_helpers;
+
+    #[cfg(windows)]
+    #[path = "native_execution_resume_helpers.rs"]
+    mod native_execution_resume_helpers;
+
     #[cfg(windows)]
     fn run_native_personal_ab_c(
         compute: ComputeChoice,
         gpu_candidate: Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     ) {
-        let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
-            .map(PathBuf::from)
-            .expect("guarded PU-L4 execution root is required")
-            .canonicalize()
-            .expect("guarded execution root must exist");
-        let local_app_data = std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
-            .expect("isolated LOCALAPPDATA is required")
-            .canonicalize()
-            .expect("isolated LOCALAPPDATA must exist");
-        let whisper = local_app_data.join("Whisper");
-        let app_root = whisper.join("app");
-        let models_root = whisper.join("models");
-        let cpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
-            executable: whisper.join("worker/whisper-worker-parakeet-cpu.exe"),
-            native_dir: whisper.join("native/cpu"),
-            model: models_root.join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
-            runtime_root: whisper.clone(),
-        };
-        let gpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
-            executable: whisper.join("worker/whisper-worker-parakeet-gpu.exe"),
-            native_dir: whisper.join("native/gpu"),
-            model: cpu_paths.model.clone(),
-            runtime_root: whisper.clone(),
-        };
-        let workers = WorkerPaths {
-            cpu: app_root.join("whisper-worker-cpu.exe"),
-            gpu: app_root.join("whisper-worker-gpu.exe"),
-        };
-        let turbo_model = models_root.join("ggml-large-v3-turbo.bin");
-        for path in [
-            &workers.cpu,
-            &workers.gpu,
-            &cpu_paths.executable,
-            &cpu_paths.model,
-            &turbo_model,
-        ] {
-            assert!(
-                path.is_file(),
-                "required personal asset missing: {}",
-                path.display()
-            );
-        }
-        assert!(cpu_paths.validate().is_ok());
-        if compute == ComputeChoice::Gpu {
-            assert!(gpu_paths.executable.is_file());
-            assert!(gpu_paths.validate().is_ok());
-            assert!(
-                gpu_candidate.is_some(),
-                "GPU route requires a real inventory identity"
-            );
-        } else {
-            assert!(
-                gpu_candidate.is_none(),
-                "CPU case must not imply GPU inventory evidence"
-            );
-        }
+        let mut context = native_execution_helpers::prepare_native_ab_c_context(compute, gpu_candidate);
+        native_ab_c_phase_a(&mut context);
+        native_ab_c_phase_b(&mut context);
+        native_ab_c_publish_ab(&mut context);
+        native_ab_c_phase_c(&mut context);
+    }
 
-        let spoken = native_spoken_prefix(&execution_root);
-        let a_samples = spoken.len();
-        let expected_a_samples =
-            u64::try_from(a_samples).expect("spoken prefix sample count fits u64");
-        let expected_a_tail = {
-            let mut reference_capture = crate::capture::CaptureStream::empty_test_capture(
-                16_000,
-                1,
-                "test:pu-l4-native-a-reference",
-            );
-            for block in spoken.chunks(80_000) {
-                reference_capture.enqueue_test_block(block.to_vec());
-            }
-            let mut converter = crate::capture::Pcm16Converter::new(16_000, 1)
-                .expect("create capture-compatible PCM reference converter");
-            let mut tail = VecDeque::with_capacity(160);
-            while let Some(block) = reference_capture.try_next_block() {
-                for sample in converter
-                    .push(&block)
-                    .expect("convert bounded spoken reference block")
-                {
-                    if tail.len() == 160 {
-                        tail.pop_front();
-                    }
-                    tail.push_back(sample);
-                }
-                reference_capture
-                    .recycle_block(block)
-                    .expect("recycle bounded spoken reference block");
-            }
-            for sample in converter
-                .finish()
-                .expect("drain capture-compatible reference converter at EOF")
-            {
-                if tail.len() == 160 {
-                    tail.pop_front();
-                }
-                tail.push_back(sample);
-            }
-            let tail = tail.into_iter().collect::<Vec<_>>();
-            assert_eq!(
-                tail.len(),
-                160,
-                "reference converter must produce the full tail"
-            );
-            tail
-        };
-        let a = JobId((u128::from(std::process::id()) << 96) | 0x4e415449564541);
-        let b = JobId(a.0 + 1);
-        let c = JobId(a.0 + 2);
-        let generation = Generation::first();
-        let backend_case = if compute == ComputeChoice::Cpu {
-            "cpu"
-        } else {
-            "gpu"
-        };
-        let archive_root = execution_root.join(format!("native-ab-c-{backend_case}"));
-        fs::create_dir_all(&archive_root).expect("create archive root under guarded lot");
-        let model_catalog = Some(RuntimeModelCatalog {
-            catalog: crate::model_catalog::LocalModelCatalog::new(models_root.clone()),
-            known_historical_turbo_path: turbo_model.to_string_lossy().into_owned(),
-            parakeet_paths: Some(cpu_paths.clone()),
-            gpu_parakeet_paths: Some(gpu_paths.clone()),
-        });
-        let snapshot_registry_root = execution_root.join("settings");
-        assert!(
-            !snapshot_registry_root.exists()
-                && !snapshot_registry_root
-                    .join("reprocessing-snapshots.lock")
-                    .exists(),
-            "capture-only qualification must begin without a source snapshot registry"
-        );
-        let (observer, native_events) = NativeQualificationObserver::channel();
-        let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
-            workers.clone(),
-            Arc::new(PublicationGate::default()),
-            model_catalog,
-            WorkerRuntimeConfig {
-                parakeet_paths: Some(cpu_paths.clone()),
-                gpu_parakeet_paths: Some(gpu_paths),
-                snapshot_registry_root: Some(snapshot_registry_root.clone()),
-                require_snapshot_registry: true,
-                native_unified_candidate_enabled: true,
-            },
-        )
-        .with_native_harness_observer(Arc::clone(&observer))
-        .with_controlled_capture(
-            CaptureStream::empty_test_capture(16_000, 1, "test:pu-l4-native-a"),
-            None,
-        )
-        .with_controlled_capture(
-            CaptureStream::empty_test_capture(16_000, 1, "test:pu-l4-native-b"),
-            None,
-        )
-        .with_controlled_capture(
-            CaptureStream::empty_test_capture(16_000, 1, "test:pu-l4-native-c"),
-            None,
-        );
-        if let Some(candidate) = &gpu_candidate {
-            assert_eq!(candidate.generation, generation.get());
-            for job_id in [a, b, c] {
-                runtime
-                    .gpu_candidates
-                    .insert((job_id, generation.get()), Some(candidate.clone()));
-            }
-        }
-        let blocks = Arc::new(Mutex::new(VecDeque::new()));
-        let stop_submissions = Arc::new(AtomicU64::new(0));
-        for chunk in spoken.chunks(80_000) {
-            blocks
-                .lock()
-                .unwrap()
-                .push_back((a, generation, chunk.to_vec()));
-        }
-        let requests = [a, b, c].map(|job_id| {
-            let mut request = unified_live_request(&archive_root, job_id.0);
-            request.model_path = cpu_paths.model.to_string_lossy().into_owned();
-            request.microphone = whisper_core::MicrophoneChoice::Device(format!(
-                "test:pu-l4-native-{}",
-                if job_id == a {
-                    "a"
-                } else if job_id == b {
-                    "b"
-                } else {
-                    "c"
-                }
-            ));
-            request.config.compute = compute;
-            request
-        });
-        let port = RuntimeImportPort {
-            runtime,
-            events: VecDeque::new(),
-            capture_progress: None,
-            document_revision: None,
-            unified_stop_submissions: Some(Arc::clone(&stop_submissions)),
-            controlled_capture_blocks: Some(Arc::clone(&blocks)),
-        };
-        let mut app = ImportApplication::new(port);
-        let run_started = Instant::now();
-        let mut observations = Vec::with_capacity(256);
-        let trace_path = archive_root.join("ab-c-progress.log");
-        let mut trace_lines = VecDeque::with_capacity(128);
-        let document_page_trace = Arc::new(Mutex::new("not requested".to_owned()));
-        let page_trace_for_checkpoint = Arc::clone(&document_page_trace);
-        let mut trace_checkpoint =
-            |stage: &str,
-             app: &ImportApplication<RuntimeImportPort>,
-             request_id: Option<u64>,
-             observations: &[NativeQualificationEvent]| {
-                let view = app.view();
-                let session_state = |job_id| {
-                    view.unified_parakeet_sessions
-                        .iter()
-                        .find(|session| {
-                            session.job_id == job_id && session.generation == generation
-                        })
-                        .map(|session| {
-                            format!(
-                                "phase={:?},captured={},durable={},total={:?},revision={}",
-                                session.phase,
-                                session.captured_samples,
-                                session.durable_samples,
-                                session.total_samples,
-                                session.document_revision
-                            )
-                        })
-                        .unwrap_or_else(|| "absent".to_owned())
-                };
-                let last_event = observations
-                    .last()
-                    .map(|event| {
-                        format!("{:?}@{:?}", event.kind, event.at)
-                            .chars()
-                            .take(512)
-                            .collect::<String>()
-                    })
-                    .unwrap_or_else(|| "none".to_owned());
-                let page_state = page_trace_for_checkpoint
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .clone();
-                let line = format!(
-                    "elapsed_ms={} stage={} A={:?}/{:?}[{}] B={:?}/{:?}[{}] request_id={:?} active={:?} message={:?} document_page={} events={} last={}",
-                    run_started.elapsed().as_millis(),
-                    stage,
-                    a,
-                    generation,
-                    session_state(a),
-                    b,
-                    generation,
-                    session_state(b),
-                    request_id,
-                    view.active_job,
-                    view.message
-                        .as_deref()
-                        .map(|message| message.chars().take(240).collect::<String>()),
-                    page_state.chars().take(512).collect::<String>(),
-                    observations.len(),
-                    last_event
-                );
-                if trace_lines.len() == 128 {
-                    trace_lines.pop_front();
-                }
-                trace_lines.push_back(line);
-                let mut file = fs::File::create(&trace_path).unwrap_or_else(|error| {
-                    panic!(
-                        "create bounded A/B/C progress trace {}: {error}",
-                        trace_path.display()
-                    )
-                });
-                for line in &trace_lines {
-                    writeln!(file, "{line}").unwrap_or_else(|error| {
-                        panic!("write bounded A/B/C progress trace: {error}")
-                    });
-                }
-                file.flush()
-                    .unwrap_or_else(|error| panic!("flush bounded A/B/C progress trace: {error}"));
-            };
-        let mut other_wait_trace_at = Instant::now();
-        macro_rules! trace_wait_before_refresh {
-            ($stage:literal, $request_id:expr) => {{
-                if other_wait_trace_at.elapsed() >= Duration::from_secs(5) {
-                    trace_checkpoint(
-                        concat!($stage, "-before-Refresh"),
-                        &app,
-                        $request_id,
-                        &observations,
-                    );
-                    other_wait_trace_at = Instant::now();
-                    true
-                } else {
-                    false
-                }
-            }};
-        }
-        trace_checkpoint("before-Start-A", &app, None, &observations);
-        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
-            request: requests[0].clone(),
-        })
-        .expect("admit spoken capture A through ImportApplication");
-        trace_checkpoint("after-Start-A", &app, None, &observations);
+    #[cfg(windows)]
+    fn native_ab_c_phase_a(context: &mut native_execution_helpers::NativeAbcContext) {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        context.checkpoint("before-Start-A", None);
+        context
+            .app
+            .dispatch(AppCommand::StartUnifiedLiveConfigured {
+                request: context.requests[0].clone(),
+            })
+            .expect("admit spoken capture A through ImportApplication");
+        context.checkpoint("after-Start-A", None);
         let first_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut first_send_trace_at = Instant::now();
         let (first_a_request_id, first_a_send) = loop {
             let trace_refresh = first_send_trace_at.elapsed() >= Duration::from_secs(5);
             if trace_refresh {
-                trace_checkpoint("wait-A1-before-Refresh", &app, None, &observations);
+                context.checkpoint("wait-A1-before-Refresh", None);
             }
-            app.dispatch(AppCommand::Refresh).expect("poll capture A");
-            native_event_drain(&native_events, &mut observations);
-            observer.assert_healthy();
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
+                .expect("poll capture A");
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint("wait-A1-after-Refresh", &app, None, &observations);
+                context.checkpoint("wait-A1-after-Refresh", None);
                 first_send_trace_at = Instant::now();
             }
-            if let Some(event) = observations.iter().find(|event| {
-                matches!(
-                    &event.kind,
-                    NativeQualificationEventKind::RequestSent {
-                        session,
-                        work: NativeQualificationWork::Final(1),
-                        ..
-                    } if session.job_id == a
-                )
-            }) {
-                let request_id = match &event.kind {
-                    NativeQualificationEventKind::RequestSent { request_id, .. } => *request_id,
-                    _ => unreachable!("matched A1 RequestSent"),
-                };
-                trace_checkpoint("A1-RequestSent", &app, Some(request_id), &observations);
-                break (request_id, event.at);
+            if let Some((request_id, sent_at)) =
+                context
+                    .observations
+                    .iter()
+                    .find_map(|event| match &event.kind {
+                        NativeQualificationEventKind::RequestSent {
+                            session,
+                            work: NativeQualificationWork::Final(1),
+                            request_id,
+                            ..
+                        } if session.job_id == a => Some((*request_id, event.at)),
+                        _ => None,
+                    })
+            {
+                context.checkpoint("A1-RequestSent", Some(request_id));
+                break (request_id, sent_at);
             }
             assert!(
                 Instant::now() < first_send_deadline,
@@ -1837,113 +1588,176 @@
         };
 
         let a_stop = Instant::now();
-        trace_checkpoint(
-            "before-Stop-A",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        app.dispatch(AppCommand::StopUnifiedLive {
-            job_id: a,
-            generation,
-        })
-        .expect("stop capture A through ImportApplication while A1 remains in flight");
-        trace_checkpoint(
-            "after-Stop-A",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
+        context.checkpoint("before-Stop-A", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::StopUnifiedLive {
+                job_id: a,
+                generation,
+            })
+            .expect("stop capture A through ImportApplication while A1 remains in flight");
+        context.checkpoint("after-Stop-A", Some(first_a_request_id));
         assert_eq!(
-            stop_submissions.load(Ordering::Relaxed),
+            context.stop_submissions.load(Ordering::Relaxed),
             1,
             "the initial A stop must reach the runtime exactly once"
         );
-        trace_checkpoint(
+        context.checkpoint(
             "before-duplicate-Stop-A-during-drain",
-            &app,
             Some(first_a_request_id),
-            &observations,
         );
-        app.dispatch(AppCommand::StopUnifiedLive {
-            job_id: a,
-            generation,
-        })
-        .expect("duplicate Stop A remains idempotent while its capture admission is retained");
-        trace_checkpoint(
+        context
+            .app
+            .dispatch(AppCommand::StopUnifiedLive {
+                job_id: a,
+                generation,
+            })
+            .expect("duplicate Stop A remains idempotent while its capture admission is retained");
+        context.checkpoint(
             "after-duplicate-Stop-A-during-drain",
-            &app,
             Some(first_a_request_id),
-            &observations,
         );
         assert_eq!(
-            stop_submissions.load(Ordering::Relaxed),
+            context.stop_submissions.load(Ordering::Relaxed),
             1,
             "duplicate Stop A during drain must not resubmit the runtime stop"
         );
-        let mut a_audio_drained_at = None;
-        let mut a_finalizing_at = None;
-        let mut a_publishing_at = None;
-        let mut a_published_at = None;
-        macro_rules! record_a_phase_observation {
-            () => {{
-                let observed_at = Instant::now();
-                let observed_view = app.view();
-                if let Some(session) = observed_view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .find(|session| session.job_id == a && session.generation == generation)
-                {
-                    if a_audio_drained_at.is_none()
-                        && session.total_samples.is_some_and(|total| {
-                            session.captured_samples == total && session.durable_samples == total
-                        })
-                    {
-                        a_audio_drained_at = Some(observed_at);
-                    }
-                    match session.phase {
-                        whisper_core::ports::UnifiedSessionPhase::Finalizing => {
-                            a_finalizing_at.get_or_insert(observed_at);
-                        }
-                        whisper_core::ports::UnifiedSessionPhase::Publishing => {
-                            a_publishing_at.get_or_insert(observed_at);
-                        }
-                        whisper_core::ports::UnifiedSessionPhase::Complete => {
-                            a_published_at.get_or_insert(observed_at);
-                        }
-                        _ => {}
-                    }
-                }
-            }};
+
+        context.first_a_request_id = Some(first_a_request_id);
+        context.a_drain_completed = Some(native_ab_c_drain_a(context));
+        context.first_a_send = Some(first_a_send);
+        context.a_stop = Some(a_stop);
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_verify_source(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        a_view: &whisper_core::ports::UnifiedParakeetSessionView,
+    ) -> bool {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let first_a_request_id = context
+            .first_a_request_id
+            .expect("A1 request identity is available after send");
+        let expected_a_samples = context.audio.expected_a_samples;
+        let expected_a_tail = &context.audio.expected_a_tail;
+        let trace_path = context.trace.trace_path.clone();
+
+        let source = crate::parakeet_audio::PcmPartStore::open(&a_view.source_path);
+        let indexed_samples = source.total_samples().unwrap_or_else(|error| {
+                        panic!(
+                            "Stop A exposed final source bounds but its PCM index is unreadable: {error}; source={}, trace={}",
+                            a_view.source_path,
+                            trace_path.display()
+                        )
+                    });
+        assert_eq!(
+            indexed_samples, expected_a_samples,
+            "Stop A's durable PCM index must cover the complete source"
+        );
+        let tail_start = expected_a_samples
+            .checked_sub(160)
+            .expect("native spoken source contains at least the converter tail");
+        let tail = source
+            .read_window(tail_start..expected_a_samples)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "Stop A's final PCM tail is not readable: {error}; source={}, trace={}",
+                    a_view.source_path,
+                    trace_path.display()
+                )
+            });
+        assert_eq!(tail.len(), 160, "Stop A must retain its final PCM tail");
+        assert!(
+            tail.iter()
+                .zip(expected_a_tail)
+                .all(|(actual, expected)| actual.abs_diff(*expected) <= 2),
+            "Stop A's final written PCM samples differ from the sequential converter reference"
+        );
+        let manifest_path = context
+            .archive_root
+            .join("transcriptions")
+            .join(format!("{:032x}", a.0))
+            .join(generation.get().to_string())
+            .join("captured-source-parts.json");
+        let manifest_bytes = fs::read(&manifest_path).unwrap_or_else(|error| {
+            panic!(
+                "Stop A did not persist its captured-parts manifest: {error}; path={}, trace={}",
+                manifest_path.display(),
+                trace_path.display()
+            )
+        });
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&manifest_bytes).unwrap_or_else(|error| {
+                panic!(
+                    "Stop A captured-parts manifest is invalid: {error}; path={}, trace={}",
+                    manifest_path.display(),
+                    trace_path.display()
+                )
+            });
+        assert_eq!(
+            manifest["source_samples"].as_u64(),
+            Some(expected_a_samples),
+            "Stop A manifest must bind the complete source length"
+        );
+        assert!(
+            manifest["source_sha256"]
+                .as_str()
+                .is_some_and(|sha| sha.len() == 64),
+            "Stop A manifest must retain the logical source hash"
+        );
+        let parts = manifest["parts"]
+            .as_array()
+            .expect("Stop A manifest contains indexed PCM parts");
+        let mut covered_samples = 0_u64;
+        for part in parts {
+            assert_eq!(part["start_sample"].as_u64(), Some(covered_samples));
+            covered_samples = part["end_sample"]
+                .as_u64()
+                .expect("Stop A part has a final sample bound");
+            assert!(
+                Path::new(
+                    part["path"]
+                        .as_str()
+                        .expect("Stop A part path is persisted")
+                )
+                .is_file()
+            );
         }
-        let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
+        assert_eq!(covered_samples, expected_a_samples);
+        context.checkpoint("A-final-Stop-source-verified", Some(first_a_request_id));
+        true
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_drain_a(context: &mut native_execution_helpers::NativeAbcContext) -> Instant {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let first_a_request_id = context
+            .first_a_request_id
+            .expect("A1 request identity was captured before draining A");
+        let expected_a_samples = context.audio.expected_a_samples;
+        let trace_path = context.trace.trace_path.clone();
         let mut a_drain_trace_at = Instant::now();
+        let a_drain_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut a_source_flush_verified = false;
-        let a_drain_completed = loop {
+        loop {
             let trace_refresh = a_drain_trace_at.elapsed() >= Duration::from_secs(5);
             if trace_refresh {
-                trace_checkpoint(
-                    "A-drain-before-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                context.checkpoint("A-drain-before-Refresh", Some(first_a_request_id));
             }
-            app.dispatch(AppCommand::Refresh)
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("close and drain capture A while A1 continues");
-            native_event_drain(&native_events, &mut observations);
-            record_a_phase_observation!();
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.record_a_phase_observation();
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint(
-                    "A-drain-after-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                context.checkpoint("A-drain-after-Refresh", Some(first_a_request_id));
                 a_drain_trace_at = Instant::now();
             }
-            let view = app.view();
+            let view = context.app.view();
             let Some(a_view) = view
                 .unified_parakeet_sessions
                 .iter()
@@ -1970,7 +1784,8 @@
                     trace_path.display()
                 );
             }
-            let acknowledged = observations
+            let acknowledged = context
+                .observations
                 .iter()
                 .rev()
                 .find_map(|event| match &event.kind {
@@ -1982,94 +1797,7 @@
                     _ => None,
                 });
             if a_view.total_samples == Some(expected_a_samples) && !a_source_flush_verified {
-                let source = crate::parakeet_audio::PcmPartStore::open(&a_view.source_path);
-                let indexed_samples = source.total_samples().unwrap_or_else(|error| {
-                    panic!(
-                        "Stop A exposed final source bounds but its PCM index is unreadable: {error}; source={}, trace={}",
-                        a_view.source_path,
-                        trace_path.display()
-                    )
-                });
-                assert_eq!(
-                    indexed_samples, expected_a_samples,
-                    "Stop A's durable PCM index must cover the complete source"
-                );
-                let tail_start = expected_a_samples
-                    .checked_sub(160)
-                    .expect("native spoken source contains at least the converter tail");
-                let tail = source
-                    .read_window(tail_start..expected_a_samples)
-                    .unwrap_or_else(|error| {
-                        panic!(
-                            "Stop A's final PCM tail is not readable: {error}; source={}, trace={}",
-                            a_view.source_path,
-                            trace_path.display()
-                        )
-                    });
-                assert_eq!(tail.len(), 160, "Stop A must retain its final PCM tail");
-                assert!(
-                    tail.iter()
-                        .zip(&expected_a_tail)
-                        .all(|(actual, expected)| actual.abs_diff(*expected) <= 2),
-                    "Stop A's final written PCM samples differ from the sequential converter reference"
-                );
-                let manifest_path = archive_root
-                    .join("transcriptions")
-                    .join(format!("{:032x}", a.0))
-                    .join(generation.get().to_string())
-                    .join("captured-source-parts.json");
-                let manifest_bytes = fs::read(&manifest_path).unwrap_or_else(|error| {
-                    panic!(
-                        "Stop A did not persist its captured-parts manifest: {error}; path={}, trace={}",
-                        manifest_path.display(),
-                        trace_path.display()
-                    )
-                });
-                let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
-                    .unwrap_or_else(|error| {
-                        panic!(
-                            "Stop A captured-parts manifest is invalid: {error}; path={}, trace={}",
-                            manifest_path.display(),
-                            trace_path.display()
-                        )
-                    });
-                assert_eq!(
-                    manifest["source_samples"].as_u64(),
-                    Some(expected_a_samples),
-                    "Stop A manifest must bind the complete source length"
-                );
-                assert!(
-                    manifest["source_sha256"]
-                        .as_str()
-                        .is_some_and(|sha| sha.len() == 64),
-                    "Stop A manifest must retain the logical source hash"
-                );
-                let parts = manifest["parts"]
-                    .as_array()
-                    .expect("Stop A manifest contains indexed PCM parts");
-                let mut covered_samples = 0_u64;
-                for part in parts {
-                    assert_eq!(part["start_sample"].as_u64(), Some(covered_samples));
-                    covered_samples = part["end_sample"]
-                        .as_u64()
-                        .expect("Stop A part has a final sample bound");
-                    assert!(
-                        Path::new(
-                            part["path"]
-                                .as_str()
-                                .expect("Stop A part path is persisted")
-                        )
-                        .is_file()
-                    );
-                }
-                assert_eq!(covered_samples, expected_a_samples);
-                a_source_flush_verified = true;
-                trace_checkpoint(
-                    "A-final-Stop-source-verified",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                a_source_flush_verified = native_ab_c_verify_source(context, &a_view);
             }
             let has_prior_capture_ack = acknowledged.is_some();
             let observed_ack_is_bounded = acknowledged.is_none_or(|(written, durable)| {
@@ -2083,13 +1811,8 @@
                 && has_prior_capture_ack
                 && observed_ack_is_bounded
             {
-                trace_checkpoint(
-                    "A-drain-complete",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
-                break Instant::now();
+                context.checkpoint("A-drain-complete", Some(first_a_request_id));
+                return Instant::now();
             }
             assert!(
                 Instant::now() < a_drain_deadline,
@@ -2097,133 +1820,81 @@
                 trace_path.display()
             );
             thread::sleep(Duration::from_millis(5));
-        };
+        }
+    }
 
-        blocks
-            .lock()
-            .unwrap()
-            .push_back((b, generation, spoken[..5 * 16_000].to_vec()));
-        let b_start = Instant::now();
-        trace_checkpoint(
-            "before-Start-B",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
-            request: requests[1].clone(),
-        })
-        .expect("admit spoken capture B after stopped A drained, while A1 remains in flight");
-        trace_checkpoint(
-            "after-Start-B",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        let require_b_session =
-            |app: &ImportApplication<RuntimeImportPort>,
-             stage: &str,
-             observations: &[NativeQualificationEvent]| {
-                let view = app.view();
-                let Some(session) = view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .find(|session| session.job_id == b && session.generation == generation)
-                    .cloned()
-                else {
-                    let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
-                    panic!(
-                        "{stage}: B session {b:?}/{generation:?} disappeared; active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}, trace={}",
-                        view.active_job,
-                        view.message,
-                        trace_path.display()
-                    );
-                };
-                let recoverable_active_job = view
-                    .active_job
-                    .as_ref()
-                    .is_some_and(|(job_id, state)| *job_id == b && *state == JobState::Recoverable);
-                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable
-                    || recoverable_active_job
-                {
-                    let recent_events = observations.iter().rev().take(12).collect::<Vec<_>>();
-                    panic!(
-                        "{stage}: B became Recoverable; session={session:?}, active_job={:?}, app_message={:?}, recent_native_events={recent_events:?}, trace={}",
-                        view.active_job,
-                        view.message,
-                        trace_path.display()
-                    );
-                }
-                session
-            };
-        assert!(
-            require_b_session(&app, "after Start B", &observations).microphone_capture,
-            "the controlled B capture stream must be available after A closes; trace={}",
-            trace_path.display()
-        );
+    #[cfg(windows)]
+    fn native_ab_c_wait_b_ack(
+        context: &mut native_execution_helpers::NativeAbcContext,
+    ) -> (Instant, (Instant, u64, u64)) {
+        let a = context.ids.a;
+        let b = context.ids.b;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        let first_a_request_id = context
+            .first_a_request_id
+            .expect("A1 request identity was captured before B admission");
         let first_a_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let mut b_ack_trace_at = Instant::now();
         let (first_a_result, b_audio_ack) = loop {
             let trace_refresh = b_ack_trace_at.elapsed() >= Duration::from_secs(5);
             if trace_refresh {
-                trace_checkpoint(
-                    "A1-B-ACK-before-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                context.checkpoint("A1-B-ACK-before-Refresh", Some(first_a_request_id));
             }
-            app.dispatch(AppCommand::Refresh)
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("poll A/B native runtime");
-            native_event_drain(&native_events, &mut observations);
-            record_a_phase_observation!();
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.record_a_phase_observation();
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint(
-                    "A1-B-ACK-after-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                context.checkpoint("A1-B-ACK-after-Refresh", Some(first_a_request_id));
                 b_ack_trace_at = Instant::now();
             }
-            let b_view = require_b_session(&app, "waiting for B audio ACK", &observations);
-            let result = observations.iter().find_map(|event| match &event.kind {
-                NativeQualificationEventKind::Result {
-                    session,
-                    request_id,
-                    work: NativeQualificationWork::Final(1),
-                    ..
-                } if session.job_id == a && *request_id == first_a_request_id => Some(event.at),
-                _ => None,
-            });
-            let ack = observations.iter().find_map(|event| match &event.kind {
-                NativeQualificationEventKind::CaptureAcknowledged {
-                    session,
-                    written_samples,
-                    durable_samples,
-                } if session.job_id == b && *written_samples > 0 && *durable_samples > 0 => {
-                    Some((event.at, *written_samples, *durable_samples))
-                }
-                _ => None,
-            });
+            let b_view = context.require_b_session("waiting for B audio ACK");
+            let result = context
+                .observations
+                .iter()
+                .find_map(|event| match &event.kind {
+                    NativeQualificationEventKind::Result {
+                        session,
+                        request_id,
+                        work: NativeQualificationWork::Final(1),
+                        ..
+                    } if session.job_id == a && *request_id == first_a_request_id => Some(event.at),
+                    _ => None,
+                });
+            let ack = context
+                .observations
+                .iter()
+                .find_map(|event| match &event.kind {
+                    NativeQualificationEventKind::CaptureAcknowledged {
+                        session,
+                        written_samples,
+                        durable_samples,
+                    } if session.job_id == b && *written_samples > 0 && *durable_samples > 0 => {
+                        Some((event.at, *written_samples, *durable_samples))
+                    }
+                    _ => None,
+                });
             if let Some(result_at) = result {
                 if let Some(ack) = ack.filter(|ack| ack.0 < result_at) {
-                    trace_checkpoint(
-                        "B-ACK-before-A1-Result",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
+                    context.checkpoint("B-ACK-before-A1-Result", Some(first_a_request_id));
                     break (result_at, ack);
                 }
-                let view = app.view();
+                let view = context.app.view();
                 let a_view = view
                     .unified_parakeet_sessions
                     .iter()
                     .find(|session| session.job_id == a && session.generation == generation)
                     .cloned();
-                let recent_events = observations.iter().rev().take(16).collect::<Vec<_>>();
+                let recent_events = context
+                    .observations
+                    .iter()
+                    .rev()
+                    .take(16)
+                    .collect::<Vec<_>>();
                 panic!(
                     "A1 returned before B had a prior written-and-durable PCM ACK; result_at={result_at:?}, A={a_view:?}, B={b_view:?}, active_job={:?}, app_message={:?}, B_ack={ack:?}, recent_native_events={recent_events:?}, trace={}",
                     view.active_job,
@@ -2238,28 +1909,316 @@
             );
             thread::sleep(Duration::from_millis(5));
         };
-        assert!(
-            first_a_send < a_stop
-                && a_stop < a_drain_completed
-                && a_drain_completed < b_start
-                && b_start < b_audio_ack.0
-                && b_audio_ack.0 < first_a_result,
-            "A1 must be sent, A stopped/drained, B admitted/written, then A1 returned in that order"
-        );
+        (first_a_result, b_audio_ack)
+    }
 
-        app.dispatch(AppCommand::SelectUnifiedSession {
-            job_id: a,
-            generation,
-        })
-        .expect("select A to read its real application document");
-        let first_text_available;
-        let document_deadline = Instant::now() + Duration::from_secs(60 * 60);
-        let mut requested_revision = None;
-        let mut stale_wait_revision = None;
-        let mut last_stale_document_error = None;
-        let mut document_request_id = 0_u64;
+    #[cfg(windows)]
+    fn native_ab_c_wait_document_revision(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        first_a_request_id: u64,
+        state: &NativeAbcDocumentState,
+    ) {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+
+        *context
+            .trace
+            .document_page_trace
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+            "selected={a:?}/{generation:?},requested_revision=None,current_revision=0,page_revision=None,page_entries=0,document_error=None,request_id=None,result=waiting-for-revision"
+        );
+        let trace_refresh =
+            context.trace_wait_before_refresh("A-document-revision", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::Refresh)
+            .expect("wait for A final document revision");
+        native_event_drain(&context.native_events, &mut context.observations);
+        context.record_a_phase_observation();
+        context.observer.assert_healthy();
+        if trace_refresh {
+            context.checkpoint(
+                "A-document-revision-after-Refresh",
+                Some(first_a_request_id),
+            );
+        }
+        context.require_b_session("waiting for A document revision");
+        assert!(
+            Instant::now() < state.deadline,
+            "A final document revision was not exposed to the application"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_wait_after_stale_page(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        first_a_request_id: u64,
+        current_revision: u64,
+        state: &mut NativeAbcDocumentState,
+    ) {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        let document_request_id = state.document_request_id;
+        let stale_wait_revision = state.stale_wait_revision;
+        let last_stale_document_error = state.last_stale_document_error.clone();
+
+        *context
+            .trace
+            .document_page_trace
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+            "selected={a:?}/{generation:?},requested_revision={stale_wait_revision:?},current_revision={current_revision},page_revision=None,document_error={:?},request_id={document_request_id},result=waiting-for-revision-update",
+            state.last_stale_document_error
+        );
+        let trace_refresh =
+            context.trace_wait_before_refresh("A-document-stale-wait", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::Refresh)
+            .expect("refresh after stale A document page");
+        native_event_drain(&context.native_events, &mut context.observations);
+        context.record_a_phase_observation();
+        context.observer.assert_healthy();
+        if trace_refresh {
+            context.checkpoint(
+                "A-document-stale-wait-after-Refresh",
+                Some(first_a_request_id),
+            );
+        }
+        context.require_b_session("waiting for A document revision after stale page");
+        let refreshed_view = context.app.view();
+        let refreshed_session = refreshed_view
+            .unified_parakeet_sessions
+            .iter()
+            .find(|session| session.job_id == a && session.generation == generation);
+        let refreshed_revision = refreshed_session.map_or(0, |session| session.document_revision);
+        let refreshed_phase = refreshed_session.map(|session| session.phase);
+        if refreshed_revision == current_revision
+            && refreshed_phase.is_some_and(|phase| {
+                matches!(
+                    phase,
+                    whisper_core::ports::UnifiedSessionPhase::Complete
+                        | whisper_core::ports::UnifiedSessionPhase::Recoverable
+                )
+            })
+        {
+            let phase = refreshed_phase.expect("terminal phase was checked");
+            let current_document_error = refreshed_view
+                .selected_unified_session
+                .as_ref()
+                .filter(|selection| selection.job_id == a && selection.generation == generation)
+                .and_then(|selection| selection.document_error.as_deref());
+            *context
+                .trace
+                .document_page_trace
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},phase={phase:?},document_error={:?},request_id={document_request_id},result=stale-at-terminal",
+                state.last_stale_document_error
+            );
+            context.checkpoint("A-document-stale-at-terminal", Some(first_a_request_id));
+            panic!(
+                "A document page request {document_request_id} returned stale and the AppView revision {refreshed_revision} did not advance before A became terminal; requested_revision={current_revision}, phase={phase:?}, stale_document_error={last_stale_document_error:?}, current_document_error={current_document_error:?}, trace={}",
+                trace_path.display()
+            );
+        }
+        if refreshed_revision != current_revision {
+            state.stale_wait_revision = None;
+            state.requested_revision = None;
+            state.last_stale_document_error = None;
+        }
+        assert!(
+            Instant::now() < state.deadline,
+            "A document response was stale and the application revision did not advance"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_refresh_document_view(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        first_a_request_id: u64,
+    ) -> whisper_core::AppView {
+        let trace_refresh =
+            context.trace_wait_before_refresh("A-document-page", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::Refresh)
+            .expect("read A document page");
+        native_event_drain(&context.native_events, &mut context.observations);
+        context.record_a_phase_observation();
+        context.observer.assert_healthy();
+        if trace_refresh {
+            context.checkpoint("A-document-page-after-Refresh", Some(first_a_request_id));
+        }
+        context.require_b_session("waiting for A document page");
+        context.app.view()
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_handle_document_error(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        state: &mut NativeAbcDocumentState,
+        first_a_request_id: u64,
+        current_revision: u64,
+        refreshed_revision: u64,
+        page_summary: &str,
+        view: &whisper_core::AppView,
+    ) -> bool {
+        let message = view
+            .selected_unified_session
+            .as_ref()
+            .and_then(|selection| selection.document_error.as_deref())
+            .expect("document error was observed before handling");
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+
+        if message.starts_with("StaleResponse:") {
+            let stale_revision = state.requested_revision.unwrap_or(current_revision);
+            state.last_stale_document_error = Some(message.to_owned());
+            state.stale_wait_revision =
+                (refreshed_revision == stale_revision).then_some(stale_revision);
+            context
+                .app
+                .dispatch(AppCommand::SelectUnifiedSession {
+                    job_id: a,
+                    generation,
+                })
+                .expect("clear the consumed stale page response before retrying");
+            state.requested_revision = None;
+            *context
+                .trace
+                .document_page_trace
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page={page_summary},document_error={:?},request_id={},result=stale",
+                message.chars().take(240).collect::<String>(),
+                state.document_request_id
+            );
+            context.checkpoint("A-document-page-stale", Some(first_a_request_id));
+            return true;
+        }
+        panic!(
+            "A document page request {} failed non-stale for revision {current_revision}: {message}; selected={:?}, current_revision={refreshed_revision}, trace={}",
+            state.document_request_id,
+            view.selected_unified_session,
+            trace_path.display()
+        );
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_process_document_view(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        state: &mut NativeAbcDocumentState,
+        first_a_request_id: u64,
+        current_revision: u64,
+        view: whisper_core::AppView,
+    ) -> Option<Instant> {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        let snapshot =
+            native_execution_resume_helpers::native_ab_c_document_view_snapshot(context, state, &view);
+        let refreshed_revision = snapshot.refreshed_revision;
+        let page = snapshot.page;
+        let document_error = snapshot.document_error;
+        let page_summary = snapshot.page_summary;
+
+        if document_error.is_some() {
+            if native_ab_c_handle_document_error(
+                context,
+                state,
+                first_a_request_id,
+                current_revision,
+                refreshed_revision,
+                &page_summary,
+                &view,
+            ) {
+                return None;
+            }
+        }
+        if refreshed_revision != state.requested_revision.unwrap_or(0) {
+            state.requested_revision = None;
+            state.stale_wait_revision = None;
+            context.checkpoint("A-document-revision-changed", Some(first_a_request_id));
+            assert!(
+                Instant::now() < state.deadline,
+                "A final document revision changed repeatedly before a current page became readable"
+            );
+            return None;
+        }
+        if let Some(page) = page.filter(|page| page.revision == refreshed_revision) {
+            let first_sequence = page.entries.first().map(|entry| entry.segment.segment_id.0);
+            assert_eq!(
+                first_sequence,
+                Some(1),
+                "first bounded A page must preserve sequence 1"
+            );
+            if page
+                .entries
+                .iter()
+                .any(|entry| !entry.segment.text.trim().is_empty())
+            {
+                let first_text_available = Some(Instant::now());
+                *context
+                    .trace
+                    .document_page_trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                    "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page_revision={},page_entries={},document_error=None,request_id={},first_sequence=1,limit=128,result=current-nonempty-text",
+                    page.revision,
+                    page.entries.len(),
+                    state.document_request_id
+                );
+                context.checkpoint("A-document-page-current-nonempty", Some(first_a_request_id));
+                return first_text_available;
+            }
+            panic!(
+                "A current document page {} has no nonempty text at revision {refreshed_revision}; trace={}",
+                state.document_request_id,
+                trace_path.display()
+            );
+        }
+        assert!(
+            Instant::now() < state.deadline,
+            "A final text was not readable from the selected application page: selected={:?}, requested_revision={:?}, current_revision={refreshed_revision}, page={page_summary}, document_error={document_error:?}, request_id={}, trace={}",
+            view.selected_unified_session,
+            state.requested_revision,
+            state.document_request_id,
+            trace_path.display()
+        );
+        thread::sleep(Duration::from_millis(5));
+        None
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_read_a_document(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        first_a_request_id: u64,
+    ) -> Option<Instant> {
+        let a = context.ids.a;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        context
+            .app
+            .dispatch(AppCommand::SelectUnifiedSession {
+                job_id: a,
+                generation,
+            })
+            .expect("select A to read its real application document");
+        let mut state = NativeAbcDocumentState {
+            deadline: Instant::now() + Duration::from_secs(60 * 60),
+            requested_revision: None,
+            stale_wait_revision: None,
+            last_stale_document_error: None,
+            document_request_id: 0,
+        };
         loop {
-            let before_request = app.view();
+            let before_request = context.app.view();
             let current_revision = before_request
                 .unified_parakeet_sessions
                 .iter()
@@ -2267,316 +2226,103 @@
                 .map(|session| session.document_revision)
                 .unwrap_or(0);
             if current_revision == 0 {
-                *document_page_trace
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                    "selected={a:?}/{generation:?},requested_revision=None,current_revision=0,page_revision=None,page_entries=0,document_error=None,request_id=None,result=waiting-for-revision"
-                );
-                let trace_refresh =
-                    trace_wait_before_refresh!("A-document-revision", Some(first_a_request_id));
-                app.dispatch(AppCommand::Refresh)
-                    .expect("wait for A final document revision");
-                native_event_drain(&native_events, &mut observations);
-                record_a_phase_observation!();
-                observer.assert_healthy();
-                if trace_refresh {
-                    trace_checkpoint(
-                        "A-document-revision-after-Refresh",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
-                }
-                require_b_session(&app, "waiting for A document revision", &observations);
-                assert!(
-                    Instant::now() < document_deadline,
-                    "A final document revision was not exposed to the application"
-                );
-                thread::sleep(Duration::from_millis(5));
+                native_ab_c_wait_document_revision(context, first_a_request_id, &state);
                 continue;
             }
 
-            if requested_revision.is_some_and(|requested| requested != current_revision) {
-                app.dispatch(AppCommand::SelectUnifiedSession {
-                    job_id: a,
-                    generation,
-                })
-                .expect("reselect A before reading its newer document revision");
-                requested_revision = None;
-                stale_wait_revision = None;
-                last_stale_document_error = None;
-            }
-
-            if stale_wait_revision == Some(current_revision) {
-                *document_page_trace
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                    "selected={a:?}/{generation:?},requested_revision={stale_wait_revision:?},current_revision={current_revision},page_revision=None,document_error={:?},request_id={document_request_id},result=waiting-for-revision-update",
-                    last_stale_document_error
-                );
-                let trace_refresh =
-                    trace_wait_before_refresh!("A-document-stale-wait", Some(first_a_request_id));
-                app.dispatch(AppCommand::Refresh)
-                    .expect("refresh after stale A document page");
-                native_event_drain(&native_events, &mut observations);
-                record_a_phase_observation!();
-                observer.assert_healthy();
-                if trace_refresh {
-                    trace_checkpoint(
-                        "A-document-stale-wait-after-Refresh",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
-                }
-                require_b_session(
-                    &app,
-                    "waiting for A document revision after stale page",
-                    &observations,
-                );
-                let refreshed_view = app.view();
-                let refreshed_session = refreshed_view
-                    .unified_parakeet_sessions
-                    .iter()
-                    .find(|session| session.job_id == a && session.generation == generation);
-                let refreshed_revision =
-                    refreshed_session.map_or(0, |session| session.document_revision);
-                let refreshed_phase = refreshed_session.map(|session| session.phase);
-                if refreshed_revision == current_revision
-                    && refreshed_phase.is_some_and(|phase| {
-                        matches!(
-                            phase,
-                            whisper_core::ports::UnifiedSessionPhase::Complete
-                                | whisper_core::ports::UnifiedSessionPhase::Recoverable
-                        )
-                    })
-                {
-                    let phase = refreshed_phase.expect("terminal phase was checked");
-                    let current_document_error = refreshed_view
-                        .selected_unified_session
-                        .as_ref()
-                        .filter(|selection| {
-                            selection.job_id == a && selection.generation == generation
-                        })
-                        .and_then(|selection| selection.document_error.as_deref());
-                    *document_page_trace
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},phase={phase:?},document_error={:?},request_id={document_request_id},result=stale-at-terminal",
-                        last_stale_document_error
-                    );
-                    trace_checkpoint(
-                        "A-document-stale-at-terminal",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
-                    panic!(
-                        "A document page request {document_request_id} returned stale and the AppView revision {refreshed_revision} did not advance before A became terminal; requested_revision={current_revision}, phase={phase:?}, stale_document_error={last_stale_document_error:?}, current_document_error={current_document_error:?}, trace={}",
-                        trace_path.display()
-                    );
-                }
-                if refreshed_revision != current_revision {
-                    stale_wait_revision = None;
-                    requested_revision = None;
-                    last_stale_document_error = None;
-                }
-                assert!(
-                    Instant::now() < document_deadline,
-                    "A document response was stale and the application revision did not advance"
-                );
-                thread::sleep(Duration::from_millis(5));
-                continue;
-            }
-            stale_wait_revision = None;
-
-            if requested_revision != Some(current_revision) {
-                document_request_id = document_request_id
-                    .checked_add(1)
-                    .expect("bounded document request ID remains representable");
-                app.dispatch(AppCommand::ReadUnifiedDocumentPage {
-                    job_id: a,
-                    generation,
-                    expected_revision: current_revision,
-                    first_sequence: 1,
-                })
-                .expect("request A's bounded page through ImportApplication");
-                requested_revision = Some(current_revision);
-                *document_page_trace
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                    "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={current_revision},page_revision=None,page_entries=0,document_error=None,request_id={document_request_id},first_sequence=1,limit=128,result=pending"
-                );
-                trace_checkpoint(
-                    "A-document-page-request",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
-            }
-
-            let trace_refresh =
-                trace_wait_before_refresh!("A-document-page", Some(first_a_request_id));
-            app.dispatch(AppCommand::Refresh)
-                .expect("read A document page");
-            native_event_drain(&native_events, &mut observations);
-            record_a_phase_observation!();
-            observer.assert_healthy();
-            if trace_refresh {
-                trace_checkpoint(
-                    "A-document-page-after-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
-            }
-            require_b_session(&app, "waiting for A document page", &observations);
-            let view = app.view();
-            let refreshed_revision = view
-                .unified_parakeet_sessions
-                .iter()
-                .find(|session| session.job_id == a && session.generation == generation)
-                .map(|session| session.document_revision)
-                .unwrap_or(0);
-            let selection = view
-                .selected_unified_session
-                .as_ref()
-                .filter(|selection| selection.job_id == a && selection.generation == generation);
-            let page = selection.and_then(|selection| selection.document_page.as_ref());
-            let document_error =
-                selection.and_then(|selection| selection.document_error.as_deref());
-            let page_summary = page.map_or_else(
-                || "none".to_owned(),
-                |page| {
-                    let first_sequence =
-                        page.entries.first().map(|entry| entry.segment.segment_id.0);
-                    let text = page
-                        .entries
-                        .iter()
-                        .find(|entry| !entry.segment.text.trim().is_empty())
-                        .map(|entry| entry.segment.text.chars().take(96).collect::<String>());
-                    format!(
-                        "revision={},entries={},first_sequence={first_sequence:?},text={text:?}",
-                        page.revision,
-                        page.entries.len()
-                    )
-                },
-            );
-            *document_page_trace
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                "selected={a:?}/{generation:?},requested_revision={requested_revision:?},current_revision={refreshed_revision},page={page_summary},document_error={:?},request_id={document_request_id},result=refreshed",
-                document_error.map(|message| message.chars().take(240).collect::<String>()),
-            );
-
-            if let Some(message) = document_error {
-                if message.starts_with("StaleResponse:") {
-                    let stale_revision = requested_revision.unwrap_or(current_revision);
-                    last_stale_document_error = Some(message.to_owned());
-                    stale_wait_revision =
-                        (refreshed_revision == stale_revision).then_some(stale_revision);
-                    app.dispatch(AppCommand::SelectUnifiedSession {
+            if state
+                .requested_revision
+                .is_some_and(|requested| requested != current_revision)
+            {
+                context
+                    .app
+                    .dispatch(AppCommand::SelectUnifiedSession {
                         job_id: a,
                         generation,
                     })
-                    .expect("clear the consumed stale page response before retrying");
-                    requested_revision = None;
-                    *document_page_trace
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page={page_summary},document_error={:?},request_id={document_request_id},result=stale",
-                        message.chars().take(240).collect::<String>()
-                    );
-                    trace_checkpoint(
-                        "A-document-page-stale",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
-                    continue;
-                }
-                panic!(
-                    "A document page request {document_request_id} failed non-stale for revision {current_revision}: {message}; selected={:?}, current_revision={refreshed_revision}, trace={}",
-                    view.selected_unified_session,
-                    trace_path.display()
-                );
+                    .expect("reselect A before reading its newer document revision");
+                state.requested_revision = None;
+                state.stale_wait_revision = None;
+                state.last_stale_document_error = None;
             }
-            if refreshed_revision != requested_revision.unwrap_or(0) {
-                requested_revision = None;
-                stale_wait_revision = None;
-                trace_checkpoint(
-                    "A-document-revision-changed",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
-                assert!(
-                    Instant::now() < document_deadline,
-                    "A final document revision changed repeatedly before a current page became readable"
+
+            if state.stale_wait_revision == Some(current_revision) {
+                native_ab_c_wait_after_stale_page(
+                    context,
+                    first_a_request_id,
+                    current_revision,
+                    &mut state,
                 );
                 continue;
             }
-            if let Some(page) = page.filter(|page| page.revision == refreshed_revision) {
-                let first_sequence = page.entries.first().map(|entry| entry.segment.segment_id.0);
-                assert_eq!(
-                    first_sequence,
-                    Some(1),
-                    "first bounded A page must preserve sequence 1"
+            state.stale_wait_revision = None;
+
+            if state.requested_revision != Some(current_revision) {
+                state.document_request_id = state
+                    .document_request_id
+                    .checked_add(1)
+                    .expect("bounded document request ID remains representable");
+                context
+                    .app
+                    .dispatch(AppCommand::ReadUnifiedDocumentPage {
+                        job_id: a,
+                        generation,
+                        expected_revision: current_revision,
+                        first_sequence: 1,
+                    })
+                    .expect("request A's bounded page through ImportApplication");
+                state.requested_revision = Some(current_revision);
+                *context
+                    .trace
+                    .document_page_trace
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
+                    "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={current_revision},page_revision=None,page_entries=0,document_error=None,request_id={},first_sequence=1,limit=128,result=pending",
+                    state.document_request_id
                 );
-                if page
-                    .entries
-                    .iter()
-                    .any(|entry| !entry.segment.text.trim().is_empty())
-                {
-                    first_text_available = Some(Instant::now());
-                    *document_page_trace
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner) = format!(
-                        "selected={a:?}/{generation:?},requested_revision={current_revision},current_revision={refreshed_revision},page_revision={},page_entries={},document_error=None,request_id={document_request_id},first_sequence=1,limit=128,result=current-nonempty-text",
-                        page.revision,
-                        page.entries.len()
-                    );
-                    trace_checkpoint(
-                        "A-document-page-current-nonempty",
-                        &app,
-                        Some(first_a_request_id),
-                        &observations,
-                    );
-                    break;
-                }
-                panic!(
-                    "A current document page {document_request_id} has no nonempty text at revision {refreshed_revision}; trace={}",
-                    trace_path.display()
-                );
+                context.checkpoint("A-document-page-request", Some(first_a_request_id));
             }
-            assert!(
-                Instant::now() < document_deadline,
-                "A final text was not readable from the selected application page: selected={:?}, requested_revision={requested_revision:?}, current_revision={refreshed_revision}, page={page_summary}, document_error={document_error:?}, request_id={document_request_id}, trace={}",
-                view.selected_unified_session,
-                trace_path.display()
-            );
-            thread::sleep(Duration::from_millis(5));
+
+            let view = native_ab_c_refresh_document_view(context, first_a_request_id);
+            if let Some(first_text) = native_ab_c_process_document_view(
+                context,
+                &mut state,
+                first_a_request_id,
+                current_revision,
+                view,
+            ) {
+                return Some(first_text);
+            }
         }
 
+        unreachable!("document polling returns when the first text is observed")
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_wait_second_final(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        first_a_request_id: u64,
+    ) {
+        let a = context.ids.a;
         let a_second_send_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
             let trace_refresh =
-                trace_wait_before_refresh!("A-second-window-send", Some(first_a_request_id));
-            app.dispatch(AppCommand::Refresh)
+                context.trace_wait_before_refresh("A-second-window-send", Some(first_a_request_id));
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("progress A/B windows");
-            native_event_drain(&native_events, &mut observations);
-            record_a_phase_observation!();
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.record_a_phase_observation();
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint(
+                context.checkpoint(
                     "A-second-window-send-after-Refresh",
-                    &app,
                     Some(first_a_request_id),
-                    &observations,
                 );
             }
-            require_b_session(&app, "waiting for A's second final request", &observations);
-            if observations.iter().any(|event| {
+            context.require_b_session("waiting for A's second final request");
+            if context.observations.iter().any(|event| {
                 matches!(
                     &event.kind,
                     NativeQualificationEventKind::RequestSent {
@@ -2597,32 +2343,35 @@
         let a_second_result_deadline = Instant::now() + Duration::from_secs(60 * 60);
         loop {
             let trace_refresh =
-                trace_wait_before_refresh!("A-second-window-result", Some(first_a_request_id));
-            app.dispatch(AppCommand::Refresh)
+                context.trace_wait_before_refresh("A-second-window-result", Some(first_a_request_id));
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("complete A second window");
-            native_event_drain(&native_events, &mut observations);
-            record_a_phase_observation!();
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.record_a_phase_observation();
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint(
+                context.checkpoint(
                     "A-second-window-result-after-Refresh",
-                    &app,
                     Some(first_a_request_id),
-                    &observations,
                 );
             }
-            require_b_session(&app, "waiting for A's second final result", &observations);
-            let second_request = observations.iter().find_map(|event| match &event.kind {
-                NativeQualificationEventKind::RequestSent {
-                    session,
-                    work: NativeQualificationWork::Final(2),
-                    request_id,
-                    ..
-                } if session.job_id == a => Some(*request_id),
-                _ => None,
-            });
+            context.require_b_session("waiting for A's second final result");
+            let second_request = context
+                .observations
+                .iter()
+                .find_map(|event| match &event.kind {
+                    NativeQualificationEventKind::RequestSent {
+                        session,
+                        work: NativeQualificationWork::Final(2),
+                        request_id,
+                        ..
+                    } if session.job_id == a => Some(*request_id),
+                    _ => None,
+                });
             if let Some(request_id) = second_request
-                && observations.iter().any(|event| {
+                && context.observations.iter().any(|event| {
                     matches!(
                         &event.kind,
                         NativeQualificationEventKind::Result {
@@ -2641,62 +2390,102 @@
             );
             thread::sleep(Duration::from_millis(5));
         }
+    }
 
-        let b_stop = Instant::now();
-        trace_checkpoint(
-            "before-Stop-B",
-            &app,
-            Some(first_a_request_id),
-            &observations,
-        );
-        app.dispatch(AppCommand::StopUnifiedLive {
-            job_id: b,
+    #[cfg(windows)]
+    fn native_ab_c_phase_b(context: &mut native_execution_helpers::NativeAbcContext) {
+        let b = context.ids.b;
+        let generation = context.ids.generation;
+        let trace_path = context.trace.trace_path.clone();
+        let first_a_request_id = context
+            .first_a_request_id
+            .expect("A1 request identity was captured before B admission");
+        let first_a_send = context
+            .first_a_send
+            .expect("A1 send time was captured before B admission");
+        let a_stop = context
+            .a_stop
+            .expect("A stop time was captured before B admission");
+        let a_drain_completed = context
+            .a_drain_completed
+            .expect("A drain completed before B admission");
+        context.blocks.lock().unwrap().push_back((
+            b,
             generation,
-        })
-        .expect("stop B through ImportApplication");
-        trace_checkpoint(
-            "after-Stop-B",
-            &app,
-            Some(first_a_request_id),
-            &observations,
+            context.audio.spoken[..5 * 16_000].to_vec(),
+        ));
+        let b_start = Instant::now();
+        context.checkpoint("before-Start-B", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::StartUnifiedLiveConfigured {
+                request: context.requests[1].clone(),
+            })
+            .expect("admit spoken capture B after stopped A drained, while A1 remains in flight");
+        context.checkpoint("after-Start-B", Some(first_a_request_id));
+        assert!(
+            context
+                .require_b_session("after Start B")
+                .microphone_capture,
+            "the controlled B capture stream must be available after A closes; trace={}",
+            trace_path.display()
         );
-        assert_eq!(stop_submissions.load(Ordering::Relaxed), 2);
+        let (first_a_result, b_audio_ack) = native_ab_c_wait_b_ack(context);
+        assert!(
+            first_a_send < a_stop
+                && a_stop < a_drain_completed
+                && a_drain_completed < b_start
+                && b_start < b_audio_ack.0
+                && b_audio_ack.0 < first_a_result,
+            "A1 must be sent, A stopped/drained, B admitted/written, then A1 returned in that order"
+        );
+
+        let first_text_available = native_ab_c_read_a_document(context, first_a_request_id);
+        native_ab_c_wait_second_final(context, first_a_request_id);
+
+        context.b_start = Some(b_start);
+        context.b_audio_ack = Some(b_audio_ack);
+        context.first_a_result = Some(first_a_result);
+        context.first_text_available = first_text_available;
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_wait_ab_publication(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        a: JobId,
+        b: JobId,
+        generation: Generation,
+        first_a_request_id: u64,
+    ) {
         let publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
-        let mut b_published_at = None;
-        let mut b_audio_drained_at = None;
-        let mut b_finalizing_at = None;
-        let mut b_publishing_at = None;
         loop {
             let trace_refresh =
-                trace_wait_before_refresh!("A-B-publication", Some(first_a_request_id));
-            app.dispatch(AppCommand::Refresh)
+                context.trace_wait_before_refresh("A-B-publication", Some(first_a_request_id));
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("drain A/B publication");
-            native_event_drain(&native_events, &mut observations);
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint(
-                    "A-B-publication-after-Refresh",
-                    &app,
-                    Some(first_a_request_id),
-                    &observations,
-                );
+                context.checkpoint("A-B-publication-after-Refresh", Some(first_a_request_id));
             }
-            let view = app.view();
-            require_b_session(&app, "waiting for A/B publication", &observations);
+            let view = context.app.view();
+            context.require_b_session("waiting for A/B publication");
             let sessions = &view.unified_parakeet_sessions;
             let now = Instant::now();
             for (job_id, drained_at, finalizing_at, publishing_at) in [
                 (
                     a,
-                    &mut a_audio_drained_at,
-                    &mut a_finalizing_at,
-                    &mut a_publishing_at,
+                    &mut context.times.a_audio_drained_at,
+                    &mut context.times.a_finalizing_at,
+                    &mut context.times.a_publishing_at,
                 ),
                 (
                     b,
-                    &mut b_audio_drained_at,
-                    &mut b_finalizing_at,
-                    &mut b_publishing_at,
+                    &mut context.times.b_audio_drained_at,
+                    &mut context.times.b_finalizing_at,
+                    &mut context.times.b_publishing_at,
                 ),
             ] {
                 if let Some(session) = sessions
@@ -2732,11 +2521,11 @@
                     && session.generation == generation
                     && session.phase == whisper_core::ports::UnifiedSessionPhase::Complete
             });
-            if a_complete && a_published_at.is_none() {
-                a_published_at = Some(Instant::now());
+            if a_complete && context.times.a_published_at.is_none() {
+                context.times.a_published_at = Some(Instant::now());
             }
-            if b_complete && b_published_at.is_none() {
-                b_published_at = Some(Instant::now());
+            if b_complete && context.times.b_published_at.is_none() {
+                context.times.b_published_at = Some(Instant::now());
             }
             if a_complete && b_complete {
                 break;
@@ -2744,19 +2533,30 @@
             assert!(
                 Instant::now() < publication_deadline,
                 "A/B native publication did not complete: {:?}",
-                app.view().unified_parakeet_sessions
+                context.app.view().unified_parakeet_sessions
             );
             thread::sleep(Duration::from_millis(10));
         }
+    }
 
-        let a_view = app
+    #[cfg(windows)]
+    fn native_ab_c_verify_ab_artifacts(
+        context: &native_execution_helpers::NativeAbcContext,
+        a: JobId,
+        b: JobId,
+        generation: Generation,
+    ) {
+        let expected_a_samples = context.audio.expected_a_samples;
+        let a_view = context
+            .app
             .view()
             .unified_parakeet_sessions
             .iter()
             .find(|session| session.job_id == a && session.generation == generation)
             .cloned()
             .expect("A card remains after publication");
-        let b_view = app
+        let b_view = context
+            .app
             .view()
             .unified_parakeet_sessions
             .iter()
@@ -2777,15 +2577,17 @@
                     "published A must contain exactly the complete spoken source prefix"
                 );
             }
-            let files = ArchiveStore::published_unified_files(&archive_root, job_id, generation)
-                .expect("native app session must publish its complete artifacts");
+            let files =
+                ArchiveStore::published_unified_files(&context.archive_root, job_id, generation)
+                    .expect("native app session must publish its complete artifacts");
             for path in [&files.wav_path, &files.txt_path, &files.srt_path] {
                 assert!(
                     Path::new(path).is_file(),
                     "published artifact missing: {path}"
                 );
             }
-            let generation_directory = archive_root
+            let generation_directory = context
+                .archive_root
                 .join("transcriptions")
                 .join(format!("{:032x}", job_id.0))
                 .join(generation.get().to_string());
@@ -2825,7 +2627,12 @@
             a_view.srt_path, b_view.srt_path,
             "A/B SRT identities must remain distinct"
         );
-        let first_a_windows = observations
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_verify_warm_a_child(context: &native_execution_helpers::NativeAbcContext, a: JobId) {
+        let first_a_windows = context
+            .observations
             .iter()
             .filter_map(|event| match &event.kind {
                 NativeQualificationEventKind::RequestSent {
@@ -2850,7 +2657,7 @@
         assert_eq!(first_a_windows[0].1, first_a_windows[1].1);
         assert_eq!(first_a_windows[0].2, first_a_windows[1].2);
         assert!(
-            !observations.iter().any(|event| {
+            !context.observations.iter().any(|event| {
                 event.at > first_a_windows[0].4
                     && event.at < first_a_windows[1].4
                     && matches!(
@@ -2862,7 +2669,7 @@
             }),
             "A's first two final windows must share one warm child incarnation"
         );
-        assert!(observations.iter().any(|event| {
+        assert!(context.observations.iter().any(|event| {
             matches!(
                 &event.kind,
                 NativeQualificationEventKind::Result {
@@ -2872,7 +2679,7 @@
                 } if session.job_id == a && *request_id == first_a_windows[0].3
             )
         }));
-        assert!(observations.iter().any(|event| {
+        assert!(context.observations.iter().any(|event| {
             matches!(
                 &event.kind,
                 NativeQualificationEventKind::Result {
@@ -2884,7 +2691,7 @@
         }));
 
         let mut in_flight = HashSet::new();
-        let mut timeline = observations.iter().collect::<Vec<_>>();
+        let mut timeline = context.observations.iter().collect::<Vec<_>>();
         timeline.sort_by_key(|event| event.at);
         let mut maximum_in_flight = 0_usize;
         for event in &timeline {
@@ -2915,8 +2722,14 @@
             maximum_in_flight, 1,
             "one fixed backend may execute at most one native call"
         );
+    }
 
-        let reaped_before_c = observations
+    #[cfg(windows)]
+    fn native_ab_c_reaped_child(
+        context: &native_execution_helpers::NativeAbcContext,
+    ) -> (u64, u32, Instant) {
+        context
+            .observations
             .iter()
             .filter_map(|event| match &event.kind {
                 NativeQualificationEventKind::Reaped { incarnation, pid } => {
@@ -2925,28 +2738,56 @@
                 _ => None,
             })
             .max_by_key(|entry| entry.2)
-            .expect("A/B terminal publications must reap the prior child");
-        blocks
-            .lock()
-            .unwrap()
-            .push_back((c, generation, spoken[..4 * 16_000].to_vec()));
-        trace_checkpoint("before-Start-C", &app, None, &observations);
-        app.dispatch(AppCommand::StartUnifiedLiveConfigured {
-            request: requests[2].clone(),
-        })
-        .expect("admit C through the same application and runtime after A/B publication");
-        trace_checkpoint("after-Start-C", &app, None, &observations);
+            .expect("A/B terminal publications must reap the prior child")
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_publish_ab(context: &mut native_execution_helpers::NativeAbcContext) {
+        let a = context.ids.a;
+        let b = context.ids.b;
+        let generation = context.ids.generation;
+        let first_a_request_id = context
+            .first_a_request_id
+            .expect("A1 request identity was captured before publication");
+        let b_stop = Instant::now();
+        context.checkpoint("before-Stop-B", Some(first_a_request_id));
+        context
+            .app
+            .dispatch(AppCommand::StopUnifiedLive {
+                job_id: b,
+                generation,
+            })
+            .expect("stop B through ImportApplication");
+        context.checkpoint("after-Stop-B", Some(first_a_request_id));
+        assert_eq!(context.stop_submissions.load(Ordering::Relaxed), 2);
+        native_ab_c_wait_ab_publication(context, a, b, generation, first_a_request_id);
+        native_ab_c_verify_ab_artifacts(context, a, b, generation);
+        native_ab_c_verify_warm_a_child(context, a);
+        let reaped_before_c = native_ab_c_reaped_child(context);
+
+        context.b_stop = Some(b_stop);
+        context.reaped_before_c = Some(reaped_before_c);
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_wait_c_ready(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        reaped_before_c: (u64, u32, Instant),
+    ) -> (u64, u32) {
+        let compute = context.compute;
         let c_ready_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let c_ready = loop {
-            let trace_refresh = trace_wait_before_refresh!("C-ready", None);
-            app.dispatch(AppCommand::Refresh)
+            let trace_refresh = context.trace_wait_before_refresh("C-ready", None);
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("start replacement child for C");
-            native_event_drain(&native_events, &mut observations);
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint("C-ready-after-Refresh", &app, None, &observations);
+                context.checkpoint("C-ready-after-Refresh", None);
             }
-            if let Some(event) = observations.iter().find(|event| {
+            if let Some(event) = context.observations.iter().find(|event| {
                 matches!(
                     &event.kind,
                     NativeQualificationEventKind::Ready { incarnation, .. }
@@ -2990,7 +2831,7 @@
             c_incarnation, reaped_before_c.0,
             "C must use a new child incarnation"
         );
-        for event in &observations {
+        for event in &context.observations {
             if let NativeQualificationEventKind::Ready {
                 backend,
                 gpu_attested,
@@ -3008,29 +2849,51 @@
                 assert_eq!(*gpu_attested, compute == ComputeChoice::Gpu);
             }
         }
+        (c_incarnation, c_pid)
+    }
+
+    #[cfg(windows)]
+    type NativeAbcCTiming = (
+        Instant,
+        Option<Instant>,
+        Option<Instant>,
+        Option<Instant>,
+        Option<Instant>,
+    );
+
+    #[cfg(windows)]
+    fn native_ab_c_finish_c(
+        context: &mut native_execution_helpers::NativeAbcContext,
+        c: JobId,
+        generation: Generation,
+    ) -> NativeAbcCTiming {
         let c_stop = Instant::now();
-        trace_checkpoint("before-Stop-C", &app, None, &observations);
-        app.dispatch(AppCommand::StopUnifiedLive {
-            job_id: c,
-            generation,
-        })
-        .expect("stop C through ImportApplication");
-        trace_checkpoint("after-Stop-C", &app, None, &observations);
+        context.checkpoint("before-Stop-C", None);
+        context
+            .app
+            .dispatch(AppCommand::StopUnifiedLive {
+                job_id: c,
+                generation,
+            })
+            .expect("stop C through ImportApplication");
+        context.checkpoint("after-Stop-C", None);
         let c_publication_deadline = Instant::now() + Duration::from_secs(60 * 60);
         let c_published_at;
         let mut c_audio_drained_at = None;
         let mut c_finalizing_at = None;
         let mut c_publishing_at = None;
         loop {
-            let trace_refresh = trace_wait_before_refresh!("C-publication", None);
-            app.dispatch(AppCommand::Refresh)
+            let trace_refresh = context.trace_wait_before_refresh("C-publication", None);
+            context
+                .app
+                .dispatch(AppCommand::Refresh)
                 .expect("publish C through the same runtime");
-            native_event_drain(&native_events, &mut observations);
-            observer.assert_healthy();
+            native_event_drain(&context.native_events, &mut context.observations);
+            context.observer.assert_healthy();
             if trace_refresh {
-                trace_checkpoint("C-publication-after-Refresh", &app, None, &observations);
+                context.checkpoint("C-publication-after-Refresh", None);
             }
-            let view = app.view();
+            let view = context.app.view();
             if let Some(session) = view
                 .unified_parakeet_sessions
                 .iter()
@@ -3065,17 +2928,55 @@
             );
             thread::sleep(Duration::from_millis(10));
         }
-        let c_files = ArchiveStore::published_unified_files(&archive_root, c, generation)
+        let c_files = ArchiveStore::published_unified_files(&context.archive_root, c, generation)
             .expect("C must publish a separate generation-bound result");
         assert!(Path::new(&c_files.wav_path).is_file());
         assert!(Path::new(&c_files.txt_path).is_file());
         assert!(Path::new(&c_files.srt_path).is_file());
         assert!(
-            !snapshot_registry_root.exists(),
+            !context.snapshot_registry_root.exists(),
             "capture-only A/B/C publication must not create a source snapshot registry"
         );
 
-        let startup = observations
+        (
+            c_stop,
+            c_audio_drained_at,
+            c_finalizing_at,
+            c_publishing_at,
+            c_published_at,
+        )
+    }
+
+    #[cfg(windows)]
+    fn native_ab_c_report(
+        context: &native_execution_helpers::NativeAbcContext,
+        c_timing: NativeAbcCTiming,
+        c_incarnation: u64,
+        c_pid: u32,
+    ) {
+        let compute = context.compute;
+        let a_samples = context.audio.a_samples;
+        let first_a_send = context
+            .first_a_send
+            .expect("A1 send time is available for summary");
+        let first_a_result = context
+            .first_a_result
+            .expect("A1 result is available for summary");
+        let b_audio_ack = context
+            .b_audio_ack
+            .expect("B durable ACK is available for summary");
+        let first_text = context
+            .first_text_available
+            .expect("A text is available for summary");
+        let a_stop = context
+            .a_stop
+            .expect("A stop time is available for summary");
+        let b_stop = context
+            .b_stop
+            .expect("B stop time is available for summary");
+        let (c_stop, c_audio_drained_at, c_finalizing_at, c_publishing_at, c_published_at) = c_timing;
+        let startup = context
+            .observations
             .iter()
             .find_map(|event| match &event.kind {
                 NativeQualificationEventKind::Starting { incarnation } if *incarnation == 1 => {
@@ -3084,15 +2985,15 @@
                 _ => None,
             })
             .expect("initial child startup event");
-        let ready = observations
+        let ready = context
+            .observations
             .iter()
             .find_map(|event| match &event.kind {
                 NativeQualificationEventKind::Ready { incarnation: 1, .. } => Some(event.at),
                 _ => None,
             })
             .expect("validated initial READY event");
-        let first_text = first_text_available.expect("A final text must become app-readable");
-        assert!(ready > startup && first_text > run_started);
+        assert!(ready > startup && first_text > context.run_started);
         fn phase_elapsed_or_unobserved(stop: Instant, observed: Option<Instant>) -> String {
             observed.map_or_else(
                 || "non observée".to_owned(),
@@ -3109,21 +3010,29 @@
             ready.duration_since(startup),
             first_a_result.duration_since(first_a_send),
             b_audio_ack.0.duration_since(first_a_send),
-            first_text.duration_since(run_started),
-            a_audio_drained_at
+            first_text.duration_since(context.run_started),
+            context
+                .times
+                .a_audio_drained_at
                 .expect("A final audio ACK time")
                 .duration_since(a_stop),
-            phase_elapsed_or_unobserved(a_stop, a_finalizing_at),
-            phase_elapsed_or_unobserved(a_stop, a_publishing_at),
-            a_published_at
+            phase_elapsed_or_unobserved(a_stop, context.times.a_finalizing_at),
+            phase_elapsed_or_unobserved(a_stop, context.times.a_publishing_at),
+            context
+                .times
+                .a_published_at
                 .expect("A completion time")
                 .duration_since(a_stop),
-            b_audio_drained_at
+            context
+                .times
+                .b_audio_drained_at
                 .expect("B final audio ACK time")
                 .duration_since(b_stop),
-            phase_elapsed_or_unobserved(b_stop, b_finalizing_at),
-            phase_elapsed_or_unobserved(b_stop, b_publishing_at),
-            b_published_at
+            phase_elapsed_or_unobserved(b_stop, context.times.b_finalizing_at),
+            phase_elapsed_or_unobserved(b_stop, context.times.b_publishing_at),
+            context
+                .times
+                .b_published_at
                 .expect("B completion time")
                 .duration_since(b_stop),
             c_audio_drained_at
@@ -3136,12 +3045,39 @@
                 .duration_since(c_stop),
         );
     }
+
+    #[cfg(windows)]
+    fn native_ab_c_phase_c(context: &mut native_execution_helpers::NativeAbcContext) {
+        let c = context.ids.c;
+        let generation = context.ids.generation;
+        let reaped_before_c = context
+            .reaped_before_c
+            .expect("A/B terminal publications must reap the prior child");
+        context.blocks.lock().unwrap().push_back((
+            c,
+            generation,
+            context.audio.spoken[..4 * 16_000].to_vec(),
+        ));
+        context.checkpoint("before-Start-C", None);
+        context
+            .app
+            .dispatch(AppCommand::StartUnifiedLiveConfigured {
+                request: context.requests[2].clone(),
+            })
+            .expect("admit C through the same application and runtime after A/B publication");
+        context.checkpoint("after-Start-C", None);
+        let (c_incarnation, c_pid) = native_ab_c_wait_c_ready(context, reaped_before_c);
+        let c_timing = native_ab_c_finish_c(context, c, generation);
+        native_ab_c_report(context, c_timing, c_incarnation, c_pid);
+    }
+
     #[test]
     #[cfg(windows)]
     #[cfg_attr(
         not(feature = "native-tests"),
         ignore = "requires a separately authorized PU-L4 native CPU campaign and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_personal_cpu_ab_c_recycles_after_reap_with_spoken_burst_capture() {
         run_native_personal_ab_c(ComputeChoice::Cpu, None);
     }
@@ -3152,6 +3088,7 @@
         not(feature = "native-tests"),
         ignore = "requires a separately authorized PU-L4 native GPU campaign, real GPU identity, and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_personal_gpu_ab_c_recycles_after_reap_with_attested_candidate() {
         let local_app_data = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
@@ -3172,6 +3109,7 @@
         not(feature = "native-tests"),
         ignore = "requires a separately authorized PU-L4 native CPU campaign; uses synthetic capture only; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware() {
         let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
             .map(PathBuf::from)
@@ -3266,6 +3204,7 @@
         stop_and_assert_synthetic_capture_published(&mut app, &request, &archive_root);
     }
 
+    #[cfg(windows)]
     fn stop_and_assert_synthetic_capture_published(
         app: &mut ImportApplication<RuntimeImportPort>,
         request: &LiveRequest,
@@ -3325,12 +3264,9 @@
         assert!(session.wav_path.is_some());
         assert!(session.txt_path.is_some());
         assert!(session.srt_path.is_some());
-        let files = ArchiveStore::published_unified_files(
-            archive_root,
-            request.job_id,
-            request.generation,
-        )
-        .expect("native synthetic capture must publish referenced audio and text artifacts");
+        let files =
+            ArchiveStore::published_unified_files(archive_root, request.job_id, request.generation)
+                .expect("native synthetic capture must publish referenced audio and text artifacts");
         for path in [files.wav_path, files.txt_path, files.srt_path] {
             assert!(
                 Path::new(&path).is_file(),
@@ -3355,238 +3291,20 @@
         not(feature = "native-tests"),
         ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_queued_gpu_short_import_uses_current_attestation() {
         run_native_queued_unified_import(ComputeChoice::Gpu, false, true);
     }
 
-    #[test]
     #[cfg(windows)]
-    #[cfg_attr(
-        not(feature = "native-tests"),
-        ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
-    )]
-    fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {
-        let execution_root = std::env::var_os("WHISPER_L04_CAMPAIGN_RUN")
-            .map(PathBuf::from)
-            .expect("guarded PU-L4 execution root is required")
-            .canonicalize()
-            .expect("guarded execution root must exist");
-        let local_app_data = std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
-            .expect("isolated LOCALAPPDATA is required")
-            .canonicalize()
-            .expect("isolated LOCALAPPDATA must exist");
-        let whisper = local_app_data.join("Whisper");
-        let app_root = whisper.join("app");
-        let models_root = whisper.join("models");
-        let cpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
-            executable: whisper.join("worker/whisper-worker-parakeet-cpu.exe"),
-            native_dir: whisper.join("native/cpu"),
-            model: models_root.join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
-            runtime_root: whisper.clone(),
-        };
-        let gpu_paths = crate::parakeet_import::ParakeetWorkerPaths {
-            executable: whisper.join("worker/whisper-worker-parakeet-gpu.exe"),
-            native_dir: whisper.join("native/gpu"),
-            model: cpu_paths.model.clone(),
-            runtime_root: whisper.clone(),
-        };
-        let workers = WorkerPaths {
-            cpu: app_root.join("whisper-worker-cpu.exe"),
-            gpu: app_root.join("whisper-worker-gpu.exe"),
-        };
-        assert!(
-            workers.cpu.is_file(),
-            "personal Turbo CPU worker is missing"
-        );
-        assert!(
-            workers.gpu.is_file(),
-            "personal Turbo GPU worker is missing"
-        );
-        assert!(
-            cpu_paths.validate().is_ok(),
-            "personal Parakeet CPU route is invalid"
-        );
-        assert!(
-            gpu_paths.validate().is_ok(),
-            "personal Parakeet GPU route is invalid"
-        );
-
-        let (source_path, expected_samples, source_sha) =
-            native_queued_import_source(&execution_root, true);
-        let run_id = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock is after the epoch")
-            .as_nanos();
-        let job_id = JobId((u128::from(std::process::id()) << 96) | run_id);
-        let previous_generation = Generation::first();
-        let resumed_generation = previous_generation.next().unwrap();
-        let archive_root = execution_root.join(format!("queued-gpu-resume-{:032x}", job_id.0));
-        assert!(
-            !archive_root.exists(),
-            "native resume archive destination is fresh"
-        );
-
-        let mut previous = unified_import_request(&archive_root, &source_path, job_id.0);
-        previous.job_id = job_id;
-        previous.generation = previous_generation;
-        previous.model_path = cpu_paths.model.to_string_lossy().into_owned();
-        previous.config.compute = ComputeChoice::Gpu;
-        assert_eq!(
-            previous.strategy,
-            whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-        );
-        assert_real_unified_model(&previous);
-        ArchiveStore::identify_source(&mut previous).unwrap();
-        assert_eq!(previous.source_samples, Some(expected_samples));
-        assert_eq!(
-            previous.source_sha256,
-            Some(decode_sha256(&source_sha).expect("native fixture SHA-256 must decode"))
-        );
-
-        let checkpoint_native_samples = whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES
-            + whisper_core::parakeet_windows::MARGIN_SAMPLES;
-        assert!(
-            expected_samples > checkpoint_native_samples,
-            "the long source must exceed one complete native window"
-        );
-        let mut source_file = std::fs::File::open(&source_path)
-            .expect("open the guarded long FR WAV read-only for its first window");
-        let mut wav_header = [0_u8; 44];
-        source_file
-            .read_exact(&mut wav_header)
-            .expect("read guarded FR WAV header");
-        assert_eq!(&wav_header[0..4], b"RIFF");
-        assert_eq!(&wav_header[8..12], b"WAVE");
-        assert_eq!(&wav_header[36..40], b"data");
-        assert_eq!(
-            u16::from_le_bytes(wav_header[20..22].try_into().unwrap()),
-            1
-        );
-        assert_eq!(
-            u16::from_le_bytes(wav_header[22..24].try_into().unwrap()),
-            1
-        );
-        assert_eq!(
-            u32::from_le_bytes(wav_header[24..28].try_into().unwrap()),
-            16_000
-        );
-        assert_eq!(
-            u16::from_le_bytes(wav_header[34..36].try_into().unwrap()),
-            16
-        );
-        let data_bytes = u32::from_le_bytes(wav_header[40..44].try_into().unwrap());
-        assert_eq!(u64::from(data_bytes / 2), expected_samples);
-        assert_eq!(
-            std::fs::metadata(&source_path).unwrap().len(),
-            44 + u64::from(data_bytes)
-        );
-        let first_window_bytes = usize::try_from(checkpoint_native_samples * 2)
-            .expect("first native window byte count fits address space");
-        let mut first_window_pcm_bytes = vec![0_u8; first_window_bytes];
-        source_file
-            .read_exact(&mut first_window_pcm_bytes)
-            .expect("read only the bounded first native window and margin");
-        let first_window_pcm = first_window_pcm_bytes
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
-            .collect::<Vec<_>>();
-        let mut first_window_cursor = whisper_core::parakeet_session::WindowCursor::default();
-        let first_window = first_window_cursor
-            .next_window(0, &first_window_pcm, expected_samples, false)
-            .expect("plan the first window from the guarded source samples")
-            .expect("the long guarded source must produce a first nonterminal window");
-        let checkpoint_samples = first_window.central_end_sample;
-        assert_eq!(first_window.sequence, 1);
-        assert_eq!(first_window.central_start_sample, 0);
-        assert!(
-            (whisper_core::parakeet_windows::WINDOW_MIN_SAMPLES
-                ..=whisper_core::parakeet_windows::WINDOW_MAX_SAMPLES)
-                .contains(&checkpoint_samples),
-            "checkpoint must match the scheduler's reachable first-window boundary"
-        );
-
-        let prefix_text = "prefix checkpointé avant interruption native";
-        let prefix_range = whisper_core::SourceRange::new(
-            checkpoint_samples - 6_400,
-            checkpoint_samples - 3_200,
-            16_000,
-        )
-        .unwrap();
-        let mut archive = ArchiveStore::new(&archive_root);
-        archive
-            .prepare(previous.clone())
-            .expect("create the interrupted generation's real archive checkpoint");
-        archive
-            .persist_segment(&whisper_core::ports::WorkerSegment {
-                job_id,
-                generation: previous_generation,
-                instance_id: 1,
-                segment_id: whisper_core::SegmentId(1),
-                range: prefix_range,
-                text: prefix_text.into(),
-            })
-            .expect("write a real resumable prefix checkpoint");
-        drop(archive);
-        let previous_document_directory = archive_root
-            .join("transcriptions")
-            .join(format!("{:032x}", job_id.0))
-            .join(previous_generation.get().to_string())
-            .join("parakeet-unified/document");
-        let mut previous_document = crate::parakeet_document::ParakeetDocumentStore::create(
-            &previous_document_directory,
-            job_id,
-            previous_generation,
-        )
-        .expect("create the interrupted generation's real document checkpoint");
-        previous_document
-            .append_final(whisper_core::ports::WorkerSegment {
-                job_id,
-                generation: previous_generation,
-                instance_id: 1,
-                segment_id: whisper_core::SegmentId(1),
-                range: prefix_range,
-                text: prefix_text.into(),
-            })
-            .expect("write the same confirmed prefix into the old document");
-        previous_document
-            .record_coverage(whisper_core::ports::ParakeetWindowCoverage {
-                sequence: 1,
-                range: whisper_core::SourceRange::new(0, checkpoint_samples, 16_000).unwrap(),
-                last_segment_sequence: 1,
-            })
-            .expect("checkpoint the covered audio prefix in the old document");
-        drop(previous_document);
-        let mut queue = crate::queue_store::QueueStore::open(&previous.destination).unwrap();
-        queue.enqueue(previous.clone()).unwrap();
-        queue
-            .set_status(
-                job_id,
-                previous_generation,
-                crate::queue_store::QueueStatus::Interrupted,
-            )
-            .unwrap();
-        assert!(queue.entries().iter().any(|entry| {
-            (entry.request.job_id, entry.request.generation) == (job_id, previous_generation)
-                && entry.status == crate::queue_store::QueueStatus::Interrupted
-        }));
-        drop(queue);
-
-        let settings_root = execution_root.join("settings");
-        drop(
-            crate::source_binding::SourceBinding::acquire(&previous, &settings_root)
-                .expect("bind the source to the interrupted generation before restart"),
-        );
-        let candidate =
-            native_personal_gpu_candidate_for_generation_harness(&workers, resumed_generation);
-        assert_eq!(candidate.generation, resumed_generation.get());
-        assert_eq!(
-            candidate.pnp_instance_id,
-            whisper_core::model_registry::PARAKEET_PERSONAL_GPU_PNP_INSTANCE_ID
-        );
-
+    fn native_gpu_resume_runtime(
+        setup: native_execution_helpers::NativeGpuResumeSetup,
+    ) -> native_execution_helpers::NativeGpuResumeRuntime {
+        let models_root = &setup.paths.models_root;
+        let cpu_paths = &setup.paths.cpu_paths;
+        let gpu_paths = &setup.paths.gpu_paths;
+        let workers = &setup.paths.workers;
+        let settings_root = setup.paths.execution_root.join("settings");
         let model_catalog = Some(RuntimeModelCatalog {
             catalog: crate::model_catalog::LocalModelCatalog::new(models_root.clone()),
             known_historical_turbo_path: models_root
@@ -3603,11 +3321,11 @@
             .gpu_qualification_key(expected_profile)
             .expect("current personal GPU route must expose its qualification key");
         let mut runtime = ImportRuntime::new_with_workers_and_parakeet_registry(
-            workers,
+            workers.clone(),
             Arc::new(PublicationGate::default()),
             model_catalog,
             WorkerRuntimeConfig {
-                parakeet_paths: Some(cpu_paths),
+                parakeet_paths: Some(cpu_paths.clone()),
                 gpu_parakeet_paths: Some(gpu_paths.clone()),
                 snapshot_registry_root: Some(settings_root.clone()),
                 require_snapshot_registry: true,
@@ -3615,9 +3333,11 @@
             },
         )
         .with_native_harness_observer(observer);
-        runtime
-            .gpu_candidates
-            .insert((job_id, resumed_generation.get()), Some(candidate.clone()));
+        assert_eq!(setup.candidate.generation, setup.resumed_generation.get());
+        runtime.gpu_candidates.insert(
+            (setup.job_id, setup.resumed_generation.get()),
+            Some(setup.candidate.clone()),
+        );
         let mut app = ImportApplication::new(RuntimeImportPort {
             runtime,
             events: VecDeque::new(),
@@ -3627,95 +3347,78 @@
             controlled_capture_blocks: None,
         });
         app.dispatch(AppCommand::ResumeInterrupted {
-            request: previous.clone(),
+            request: setup.previous.clone(),
         })
         .expect("the real app path must resume the interrupted GPU request");
 
-        let identity = (job_id, resumed_generation);
-        let scheduler_session = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id,
-            generation: resumed_generation,
-        };
-        let expected_backend = "CUDA0";
-        let deadline = Instant::now() + Duration::from_secs(3_600);
-        let mut observed_phase = "not visible".to_owned();
-        let mut observed_message = None;
-        let mut complete_view = None;
-        let mut observed_native_events = Vec::with_capacity(128);
-        while Instant::now() < deadline {
-            let view = app
-                .dispatch(AppCommand::Refresh)
-                .expect("refresh native resumed import");
-            native_event_drain(&native_events, &mut observed_native_events);
-            observed_message = view.message.clone();
-            if let Some(session) = view
-                .unified_parakeet_sessions
-                .iter()
-                .find(|session| (session.job_id, session.generation) == identity)
-            {
-                observed_phase = format!("{:?}", session.phase);
-                if session.phase == whisper_core::ports::UnifiedSessionPhase::Recoverable {
-                    panic!(
-                        "native GPU resume became recoverable: phase={observed_phase}, message={observed_message:?}"
-                    );
-                }
-                if session.phase == whisper_core::ports::UnifiedSessionPhase::Complete {
-                    complete_view = Some(session.clone());
-                    break;
-                }
-            }
-            thread::sleep(Duration::from_millis(10));
+        native_execution_helpers::NativeGpuResumeRuntime {
+            setup,
+            app,
+            observer: native_observer,
+            native_events,
+            expected_profile,
+            expected_gpu_key,
         }
-        native_event_drain(&native_events, &mut observed_native_events);
-        assert!(
-            !native_observer.overflowed.load(Ordering::Relaxed),
-            "native event observer overflowed its fixed capacity"
-        );
-        let route_evidence = observed_native_events
-            .iter()
-            .filter_map(|event| match &event.kind {
-                NativeQualificationEventKind::PreparedRoute {
-                    session,
-                    requested_compute,
-                    compute,
-                    has_candidate,
-                    has_expected_gpu,
-                    fallback_reason,
-                } if *session == scheduler_session => Some((
-                    *requested_compute,
-                    *compute,
-                    *has_candidate,
-                    *has_expected_gpu,
-                    fallback_reason.as_deref(),
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(route_evidence.len(), 1, "resume must compose one GPU route");
-        assert_eq!(route_evidence[0].0, ComputeChoice::Gpu);
-        assert_eq!(route_evidence[0].1, ComputeChoice::Gpu);
-        assert!(route_evidence[0].2 && route_evidence[0].3);
-        assert_eq!(route_evidence[0].4, None);
-        let complete = complete_view.unwrap_or_else(|| {
-            panic!(
-                "native GPU resume did not complete: phase={observed_phase}, message={observed_message:?}"
-            )
-        });
-        assert_eq!(complete.total_samples, Some(expected_samples));
-        assert_eq!(complete.captured_samples, expected_samples);
-        assert_eq!(complete.durable_samples, expected_samples);
+    }
+
+    #[cfg(windows)]
+    fn native_gpu_resume_wait(
+        runtime: native_execution_helpers::NativeGpuResumeRuntime,
+    ) -> native_execution_helpers::NativeGpuResumeRun {
+        let native_execution_helpers::NativeGpuResumeRuntime {
+            setup,
+            mut app,
+            observer: native_observer,
+            native_events,
+            expected_profile,
+            expected_gpu_key,
+        } = runtime;
+        let job_id = setup.job_id;
+        let resumed_generation = setup.resumed_generation;
+        let archive_root = &setup.archive_root;
+        let source_path = &setup.source_path;
+        let source_sha = &setup.source_sha;
+        let expected_samples = setup.expected_samples;
+        let (complete, observed_native_events) =
+            native_execution_resume_helpers::wait_for_native_gpu_resume(
+                &mut app,
+                &setup,
+                &native_observer,
+                &native_events,
+            );
         assert_app_view_external_publication(
             &complete,
-            &archive_root,
+            archive_root,
             "fr-long-35m",
-            &source_sha,
+            source_sha,
             expected_samples,
         );
         assert_eq!(
-            crate::parakeet_import::sha256_file(&source_path).unwrap(),
-            source_sha
+            crate::parakeet_import::sha256_file(source_path).unwrap(),
+            source_sha.as_str()
         );
 
+        native_execution_helpers::NativeGpuResumeRun {
+            setup,
+            app,
+            complete,
+            observed_native_events,
+            expected_profile,
+            expected_gpu_key,
+        }
+    }
+
+    #[cfg(windows)]
+    fn native_gpu_resume_verify_ready(
+        run: &native_execution_helpers::NativeGpuResumeRun,
+    ) -> (u64, u32) {
+        let setup = &run.setup;
+        let expected_profile = run.expected_profile;
+        let expected_gpu_key = &run.expected_gpu_key;
+        let candidate = &setup.candidate;
+        let resumed_generation = setup.resumed_generation;
+        let observed_native_events = &run.observed_native_events;
+        let expected_backend = "CUDA0";
         let ready = observed_native_events
             .iter()
             .filter_map(|event| match &event.kind {
@@ -3788,6 +3491,23 @@
             Some(whisper_core::model_registry::PARAKEET_PERSONAL_GPU_UUID)
         );
 
+        (ready_incarnation, ready_pid)
+    }
+
+    #[cfg(windows)]
+    fn native_gpu_resume_verify_calls(
+        run: &native_execution_helpers::NativeGpuResumeRun,
+        ready: (u64, u32),
+    ) {
+        let job_id = run.setup.job_id;
+        let resumed_generation = run.setup.resumed_generation;
+        let observed_native_events = &run.observed_native_events;
+        let ready_incarnation = ready.0;
+        let ready_pid = ready.1;
+        let scheduler_session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id,
+            generation: resumed_generation,
+        };
         let sent_calls = observed_native_events
             .iter()
             .filter_map(|event| match &event.kind {
@@ -3879,14 +3599,31 @@
                 "result must match the READY incarnation, PID, session, request ID, attempt, and work"
             );
         }
+    }
 
-        let entries = ArchiveStore::scan(&archive_root).expect("scan resumed native archive");
+    #[cfg(windows)]
+    fn native_gpu_resume_verify_archive_document(
+        run: &native_execution_helpers::NativeGpuResumeRun,
+    ) -> crate::archive::ArchiveEntry {
+        let setup = &run.setup;
+        let archive_root = &setup.archive_root;
+        let identity = (setup.job_id, setup.resumed_generation);
+        let previous = &setup.previous;
+        let source_sha = &setup.source_sha;
+        let complete = &run.complete;
+        let expected_samples = setup.expected_samples;
+        let job_id = setup.job_id;
+        let resumed_generation = setup.resumed_generation;
+        let prefix_text = &setup.prefix_text;
+        let prefix_range = setup.prefix_range;
+        let entries = ArchiveStore::scan(archive_root).expect("scan resumed native archive");
         let complete_archive = entries
             .iter()
             .find(|entry| (entry.job_id, entry.generation) == identity && entry.complete)
+            .cloned()
             .expect("resumed generation N+1 must publish a complete archive");
         assert_eq!(complete_archive.strategy, previous.strategy);
-        assert_eq!(complete_archive.source_sha256, source_sha);
+        assert_eq!(complete_archive.source_sha256, source_sha.as_str());
         let resumed_document = ArchiveStore::read_unified_document_page(
             &archive_root,
             job_id,
@@ -3905,7 +3642,7 @@
         assert_eq!(prefix.segment_id.0, 1);
         assert_eq!(prefix.range.start_sample, prefix_range.start_sample);
         assert_eq!(prefix.range.end_sample, prefix_range.end_sample);
-        assert_eq!(prefix.text, prefix_text);
+        assert_eq!(prefix.text, prefix_text.as_str());
         assert!(
             resumed_document.entries[1..]
                 .iter()
@@ -3916,9 +3653,20 @@
         assert!(
             resumed_document.entries[1..]
                 .iter()
-                .all(|entry| entry.segment.text != prefix_text),
+                .all(|entry| entry.segment.text != prefix_text.as_str()),
             "the promoted prefix must not be duplicated in the recalculated suffix"
         );
+        complete_archive
+    }
+
+    #[cfg(windows)]
+    fn native_gpu_resume_verify_coverage(run: &native_execution_helpers::NativeGpuResumeRun) {
+        let setup = &run.setup;
+        let archive_root = &setup.archive_root;
+        let job_id = setup.job_id;
+        let resumed_generation = setup.resumed_generation;
+        let expected_samples = setup.expected_samples;
+        let checkpoint_samples = setup.checkpoint_samples;
         let resumed_document_directory = archive_root
             .join("transcriptions")
             .join(format!("{:032x}", job_id.0))
@@ -3961,21 +3709,36 @@
         assert_eq!(first_coverage_end, Some(checkpoint_samples));
         assert_eq!(second_coverage_start, Some(checkpoint_samples));
         assert_eq!(covered_samples, expected_samples);
-        let (txt, srt) = assert_native_generation_text_artifacts(&archive_root, complete_archive);
+    }
+
+    #[cfg(windows)]
+    fn native_gpu_resume_verify_exports_and_release(
+        run: &native_execution_helpers::NativeGpuResumeRun,
+        complete_archive: &crate::archive::ArchiveEntry,
+    ) {
+        let setup = &run.setup;
+        let archive_root = &setup.archive_root;
+        let job_id = setup.job_id;
+        let previous_generation = setup.previous_generation;
+        let resumed_generation = setup.resumed_generation;
+        let settings_root = setup.paths.execution_root.join("settings");
+        let prefix_text = &setup.prefix_text;
+        let source_sha = &setup.source_sha;
+        let (txt, srt) = assert_native_generation_text_artifacts(archive_root, complete_archive);
         assert_eq!(
-            txt.matches(prefix_text).count(),
+            txt.matches(prefix_text.as_str()).count(),
             1,
             "the confirmed prefix must appear exactly once in TXT"
         );
         assert_eq!(
-            srt.matches(prefix_text).count(),
+            srt.matches(prefix_text.as_str()).count(),
             1,
             "the confirmed prefix must appear exactly once in SRT"
         );
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
-                &archive_root,
+                archive_root,
                 job_id,
                 previous_generation,
             )
@@ -3985,20 +3748,40 @@
         assert!(
             crate::source_binding::SourceBinding::reopen_for_identity(
                 &settings_root,
-                &archive_root,
+                archive_root,
                 job_id,
                 resumed_generation,
             )
             .unwrap()
             .is_none()
         );
-
+        assert_eq!(
+            run.complete.phase,
+            whisper_core::ports::UnifiedSessionPhase::Complete
+        );
         println!(
             "PU_L4_NATIVE_RESUME_GPU_COMPLETE job={:032x} previous_generation={} generation={} backend=GPU gpu_attested=true source_sha256={source_sha}",
             job_id.0,
             previous_generation.get(),
             resumed_generation.get(),
         );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[cfg_attr(
+        not(feature = "native-tests"),
+        ignore = "requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
+    )]
+    fn native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot() {
+        let runtime =
+            native_gpu_resume_runtime(native_execution_resume_helpers::native_gpu_resume_setup());
+        let run = native_gpu_resume_wait(runtime);
+        let ready = native_gpu_resume_verify_ready(&run);
+        native_gpu_resume_verify_calls(&run, ready);
+        let complete_archive = native_gpu_resume_verify_archive_document(&run);
+        native_gpu_resume_verify_coverage(&run);
+        native_gpu_resume_verify_exports_and_release(&run, &complete_archive);
     }
 
     #[test]
@@ -4017,6 +3800,7 @@
         not(feature = "native-tests"),
         ignore = "requires the separately authorized PU-L4 native campaign and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_queued_auto_short_import_falls_back_to_cpu_without_candidate() {
         run_native_queued_unified_import(ComputeChoice::Auto, false, false);
     }
@@ -4027,6 +3811,7 @@
         not(feature = "native-tests"),
         ignore = "requires the separately authorized PU-L4 native campaign and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_queued_cpu_long_import_uses_the_durable_application_path() {
         run_native_queued_unified_import(ComputeChoice::Cpu, true, false);
     }
@@ -4037,6 +3822,7 @@
         not(feature = "native-tests"),
         ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_queued_gpu_long_import_uses_current_attestation() {
         run_native_queued_unified_import(ComputeChoice::Gpu, true, true);
     }
@@ -4047,6 +3833,7 @@
         not(feature = "native-tests"),
         ignore = "requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device"
     )]
+    #[cfg(windows)]
     fn native_queued_auto_long_import_prefers_current_gpu_candidate() {
         run_native_queued_unified_import(ComputeChoice::Auto, true, true);
     }
