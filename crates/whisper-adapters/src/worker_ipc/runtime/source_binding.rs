@@ -319,6 +319,146 @@ impl ImportRuntime {
         result
     }
 
+    fn release_unreserved_unified_capture_binding(
+        &self,
+        job_id: JobId,
+        generation: Generation,
+        destination: &Path,
+    ) -> Result<(), String> {
+        let stem = format!("{:032x}-{}", job_id.0, generation.get());
+        let snapshot_dir = destination.join(".whisper-source-snapshots");
+        let has_snapshot_artifact = Self::inspect_capture_snapshot_artifacts(&snapshot_dir, &stem)?;
+        let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
+            return if has_snapshot_artifact {
+                Err("SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but no registry root is configured".into())
+            } else {
+                Ok(())
+            };
+        };
+        match std::fs::symlink_metadata(registry_root) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => {
+                return Err(format!(
+                    "SourceSnapshotRegistryUnavailable: registry root {} is not a directory",
+                    registry_root.display()
+                ));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return if has_snapshot_artifact {
+                    Err(format!(
+                        "SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but registry root {} is absent",
+                        registry_root.display()
+                    ))
+                } else {
+                    Ok(())
+                };
+            }
+            Err(error) => {
+                return Err(format!(
+                    "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                    registry_root.display()
+                ));
+            }
+        }
+        Self::retire_unreserved_unified_capture_binding(
+            registry_root,
+            destination,
+            &snapshot_dir,
+            &stem,
+            job_id,
+            generation,
+            has_snapshot_artifact,
+        )
+    }
+
+    fn inspect_capture_snapshot_artifacts(snapshot_dir: &Path, stem: &str) -> Result<bool, String> {
+        let mut found = false;
+        for suffix in ["json", "snapshot", "snapshot.partial"] {
+            let artifact = snapshot_dir.join(format!("{stem}.{suffix}"));
+            match std::fs::symlink_metadata(&artifact) {
+                Ok(_) => found = true,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(format!(
+                        "SourceSnapshotRegistryUnavailable: inspect capture snapshot artifact {}: {error}",
+                        artifact.display()
+                    ));
+                }
+            }
+        }
+        Ok(found)
+    }
+
+    fn retire_unreserved_unified_capture_binding(
+        registry_root: &Path,
+        destination: &Path,
+        snapshot_dir: &Path,
+        stem: &str,
+        job_id: JobId,
+        generation: Generation,
+        has_snapshot_artifact: bool,
+    ) -> Result<(), String> {
+        let lock_path = registry_root.join("reprocessing-snapshots.lock");
+        let state_path = registry_root.join("reprocessing-snapshots.json");
+        let has_lock_or_state =
+            [lock_path, state_path]
+                .iter()
+                .try_fold(false, |present, path| {
+                    match std::fs::symlink_metadata(path) {
+                        Ok(_) => Ok(true),
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(present),
+                        Err(error) => Err(format!(
+                            "SourceSnapshotRegistryUnavailable: inspect registry file {}: {error}",
+                            path.display()
+                        )),
+                    }
+                })?;
+        if has_lock_or_state {
+            crate::source_binding::SourceBinding::retire_for_identity(
+                registry_root,
+                destination,
+                job_id,
+                generation,
+            )?;
+            if has_snapshot_artifact
+                && Self::inspect_capture_snapshot_artifacts(snapshot_dir, stem)?
+            {
+                return Err(
+                    "SourceSnapshotOrphaned: capture identity has snapshot artifacts without a matching durable registry binding".into(),
+                );
+            }
+            return Ok(());
+        }
+        if has_snapshot_artifact {
+            return Err(
+                "SourceSnapshotOrphaned: capture identity has snapshot artifacts but the registry is uninitialized".into(),
+            );
+        }
+        let mut contents = std::fs::read_dir(registry_root).map_err(|error| {
+            format!(
+                "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                registry_root.display()
+            )
+        })?;
+        if contents
+            .next()
+            .transpose()
+            .map_err(|error| {
+                format!(
+                    "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
+                    registry_root.display()
+                )
+            })?
+            .is_some()
+        {
+            return Err(format!(
+                "SourceSnapshotRegistryUnavailable: uninitialized registry root {} is not empty",
+                registry_root.display()
+            ));
+        }
+        Ok(())
+    }
+
     pub(in crate::worker_ipc) fn release_source_binding_inner(
         &mut self,
         job_id: JobId,
@@ -330,114 +470,11 @@ impl ImportRuntime {
             return binding.retire();
         }
         if self.unified_capture_sessions.contains(&session) {
-            let stem = format!("{:032x}-{}", job_id.0, generation.get());
-            let snapshot_dir = destination.join(".whisper-source-snapshots");
-            let inspect_snapshot_artifacts = || -> Result<bool, String> {
-                let mut found = false;
-                for suffix in ["json", "snapshot", "snapshot.partial"] {
-                    let artifact = snapshot_dir.join(format!("{stem}.{suffix}"));
-                    match std::fs::symlink_metadata(&artifact) {
-                        Ok(_) => found = true,
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                        Err(error) => {
-                            return Err(format!(
-                                "SourceSnapshotRegistryUnavailable: inspect capture snapshot artifact {}: {error}",
-                                artifact.display()
-                            ));
-                        }
-                    }
-                }
-                Ok(found)
-            };
-            let has_snapshot_artifact = inspect_snapshot_artifacts()?;
-            let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
-                return if has_snapshot_artifact {
-                    Err("SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but no registry root is configured".into())
-                } else {
-                    Ok(())
-                };
-            };
-            match std::fs::symlink_metadata(registry_root) {
-                Ok(metadata) if metadata.is_dir() => {}
-                Ok(_) => {
-                    return Err(format!(
-                        "SourceSnapshotRegistryUnavailable: registry root {} is not a directory",
-                        registry_root.display()
-                    ));
-                }
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    return if has_snapshot_artifact {
-                        Err(format!(
-                            "SourceSnapshotRegistryUnavailable: capture identity has durable snapshot artifacts but registry root {} is absent",
-                            registry_root.display()
-                        ))
-                    } else {
-                        Ok(())
-                    };
-                }
-                Err(error) => {
-                    return Err(format!(
-                        "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
-                        registry_root.display()
-                    ));
-                }
-            }
-
-            let lock_path = registry_root.join("reprocessing-snapshots.lock");
-            let state_path = registry_root.join("reprocessing-snapshots.json");
-            let has_lock_or_state = [lock_path, state_path].iter().try_fold(
-                false,
-                |present, path| match std::fs::symlink_metadata(path) {
-                    Ok(_) => Ok(true),
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(present),
-                    Err(error) => Err(format!(
-                        "SourceSnapshotRegistryUnavailable: inspect registry file {}: {error}",
-                        path.display()
-                    )),
-                },
-            )?;
-            if has_lock_or_state {
-                crate::source_binding::SourceBinding::retire_for_identity(
-                    registry_root,
-                    destination,
-                    job_id,
-                    generation,
-                )?;
-                if has_snapshot_artifact && inspect_snapshot_artifacts()? {
-                    return Err(
-                        "SourceSnapshotOrphaned: capture identity has snapshot artifacts without a matching durable registry binding".into(),
-                    );
-                }
-                return Ok(());
-            }
-            if has_snapshot_artifact {
-                return Err(
-                    "SourceSnapshotOrphaned: capture identity has snapshot artifacts but the registry is uninitialized".into(),
-                );
-            }
-            let mut contents = std::fs::read_dir(registry_root).map_err(|error| {
-                format!(
-                    "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
-                    registry_root.display()
-                )
-            })?;
-            if contents
-                .next()
-                .transpose()
-                .map_err(|error| {
-                    format!(
-                        "SourceSnapshotRegistryUnavailable: inspect registry root {}: {error}",
-                        registry_root.display()
-                    )
-                })?
-                .is_some()
-            {
-                return Err(format!(
-                    "SourceSnapshotRegistryUnavailable: uninitialized registry root {} is not empty",
-                    registry_root.display()
-                ));
-            }
-            return Ok(());
+            return self.release_unreserved_unified_capture_binding(
+                job_id,
+                generation,
+                destination,
+            );
         }
         let Some(registry_root) = self.snapshot_registry_root.as_deref() else {
             return Ok(());

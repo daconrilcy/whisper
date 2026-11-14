@@ -675,6 +675,16 @@ impl ProbeAnalyzer {
         if publish_rms {
             self.last_rms_publish_frame = last_frame;
         }
+        self.build_snapshot(&chunk, last_frame, dropped_updates, psd_ready)
+    }
+
+    fn build_snapshot(
+        &mut self,
+        chunk: &ProbeChunk,
+        last_frame: u64,
+        dropped_updates: u64,
+        psd_ready: bool,
+    ) -> Option<ProbeSnapshot> {
         self.sequence = self.sequence.saturating_add(1);
         let rms = self.last_rms;
         Some(ProbeSnapshot {

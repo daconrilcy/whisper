@@ -1,8 +1,8 @@
 #[cfg(windows)]
 use super::super::{
     CleanupAncestor, CleanupObject, CompleteRecord, Digest, InstalledExportOwnership,
-    PendingRecord, SegmentRecord, Sha256, apply_publication_intent, fs, generation_path, hex,
-    installed_export_ownership_path, io, load_or_migrate_publication_index,
+    PendingRecord, PublicationIntent, SegmentRecord, Sha256, apply_publication_intent, fs,
+    generation_path, hex, installed_export_ownership_path, io, load_or_migrate_publication_index,
     load_publication_intent, persisted_file_identity, publication_index_path, sha256_file,
     verify_artifact, write_publication_index,
 };
@@ -375,29 +375,12 @@ pub(in crate::archive) fn capture_successor_files(
 }
 
 #[cfg(windows)]
-pub(in crate::archive) fn recover_published_cleanup_successor(
+fn verify_successor_prepublication_proofs(
     root: &Path,
-    plan: &mut CleanupPlan,
-) -> Result<bool, String> {
+    plan: &CleanupPlan,
+    held: &mut Vec<crate::windows_file_identity::VerifiedFile>,
+) -> Result<(), String> {
     use crate::windows_file_identity::VerifiedFile;
-
-    let canonical_root = root
-        .canonicalize()
-        .map_err(|error| format!("CleanupUnsafePath: destination: {error}"))?;
-    if canonical_root.to_string_lossy() != plan.destination {
-        return Err("CleanupUnsafePath: destination de reprise divergente".into());
-    }
-    let successor_root = Path::new(&plan.destination);
-    let successor_path = generation_path(
-        successor_root,
-        plan.successor.job_id,
-        plan.successor.generation,
-    );
-    if successor_path.canonicalize().ok().as_deref() != Some(successor_path.as_path()) {
-        return Err("CleanupIdentityChanged: le nouveau traitement a été déplacé".into());
-    }
-    let successor_directory = VerifiedFile::open(&successor_path, true)?;
-    successor_directory.verify(&runtime_identity(&plan.successor_directory))?;
 
     const PREPUBLICATION_FILES: [&str; 5] = [
         "manifest.json",
@@ -409,7 +392,6 @@ pub(in crate::archive) fn recover_published_cleanup_successor(
     if plan.successor_files.len() != PREPUBLICATION_FILES.len() {
         return Err("CleanupIdentityChanged: preuves prépublication incomplètes".into());
     }
-    let mut held = Vec::new();
     let mut manifest = None;
     let mut pending = None;
     let mut segments = None;
@@ -477,8 +459,15 @@ pub(in crate::archive) fn recover_published_cleanup_successor(
     {
         return Err("CleanupIdentityChanged: journal segments incohérent".into());
     }
+    Ok(())
+}
 
-    let intent = load_publication_intent(&successor_path)?;
+#[cfg(windows)]
+fn verify_successor_publication_intent(
+    successor_path: &Path,
+    plan: &CleanupPlan,
+) -> Result<PublicationIntent, String> {
+    let intent = load_publication_intent(successor_path)?;
     if intent.cleanup_id.as_deref() != Some(plan.cleanup_id.as_str()) {
         return Err("CleanupIdentityChanged: identifiant d'intention divergent".into());
     }
@@ -488,6 +477,37 @@ pub(in crate::archive) fn recover_published_cleanup_successor(
     if !cleanup_targets_match_intent(&intent.cleanup_targets, &plan.targets) {
         return Err("CleanupIdentityChanged: cibles de l'intention divergentes".into());
     }
+    Ok(intent)
+}
+
+#[cfg(windows)]
+pub(in crate::archive) fn recover_published_cleanup_successor(
+    root: &Path,
+    plan: &mut CleanupPlan,
+) -> Result<bool, String> {
+    use crate::windows_file_identity::VerifiedFile;
+
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("CleanupUnsafePath: destination: {error}"))?;
+    if canonical_root.to_string_lossy() != plan.destination {
+        return Err("CleanupUnsafePath: destination de reprise divergente".into());
+    }
+    let successor_root = Path::new(&plan.destination);
+    let successor_path = generation_path(
+        successor_root,
+        plan.successor.job_id,
+        plan.successor.generation,
+    );
+    if successor_path.canonicalize().ok().as_deref() != Some(successor_path.as_path()) {
+        return Err("CleanupIdentityChanged: le nouveau traitement a été déplacé".into());
+    }
+    let successor_directory = VerifiedFile::open(&successor_path, true)?;
+    successor_directory.verify(&runtime_identity(&plan.successor_directory))?;
+
+    let mut held = Vec::new();
+    verify_successor_prepublication_proofs(root, plan, &mut held)?;
+    let intent = verify_successor_publication_intent(&successor_path, plan)?;
 
     let current_path =
         generation_path(root, plan.successor.job_id, plan.successor.generation).join("CURRENT");

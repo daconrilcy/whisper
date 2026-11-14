@@ -112,6 +112,16 @@ impl ImportRuntime {
         if live.inference_admission_closed || !live.worker_ready {
             return;
         }
+        if !Self::prepare_live_window(live) {
+            return;
+        }
+        if !Self::submit_pending_live_window(live, self.active.as_ref(), transport) {
+            return;
+        }
+        Self::submit_live_stop_if_drained(live, self.active.as_ref(), transport);
+    }
+
+    fn prepare_live_window(live: &mut LiveCaptureState) -> bool {
         let durable_samples = live.staging.durable_samples();
         if live.pending_window.is_none() {
             let available = durable_samples.saturating_sub(live.inference_cursor);
@@ -137,24 +147,32 @@ impl ImportRuntime {
                         let end = start.saturating_add(sample_count as u64);
                         live.pending_window = Some((live.inference_sequence, start, end, samples));
                     }
-                    Ok(None) => return,
+                    Ok(None) => return false,
                     Err(error) => {
                         live.failure = Some(format!("StorageUnavailable: PCM spool read: {error}"));
                         live.stop_capture();
-                        return;
+                        return false;
                     }
                 }
             }
         }
+        true
+    }
+
+    fn submit_pending_live_window(
+        live: &mut LiveCaptureState,
+        active: Option<&ImportRequestState>,
+        transport: &ChildWorkerTransport,
+    ) -> bool {
         if let Some((sequence, start, end, samples)) = live.pending_window.take() {
-            let Some(active) = self.active.as_ref() else {
+            let Some(active) = active else {
                 live.pending_window = Some((sequence, start, end, samples));
-                return;
+                return false;
             };
             let Some(range) = whisper_core::SourceRange::new(start, end, 16_000) else {
                 live.failure = Some("StorageCorrupt: live inference range is invalid".into());
                 live.stop_capture();
-                return;
+                return false;
             };
             let replay = start < live.replay_until;
             let command = if replay {
@@ -202,22 +220,30 @@ impl ImportRuntime {
                     };
                     live.pending_window =
                         Some((sequence, range.start_sample, range.end_sample, samples));
-                    return;
+                    return false;
                 }
                 Err(EnqueueError::Disconnected) => {
                     live.failure = Some("WorkerExited: stdin dispatcher stopped".into());
                     live.stop_capture();
-                    return;
+                    return false;
                 }
             }
         }
+        true
+    }
+
+    fn submit_live_stop_if_drained(
+        live: &mut LiveCaptureState,
+        active: Option<&ImportRequestState>,
+        transport: &ChildWorkerTransport,
+    ) {
         let durable_samples = live.staging.durable_samples();
         if live.stop_requested
             && live.pending_window.is_none()
             && live.inference_cursor >= durable_samples
             && !live.stop_enqueued
         {
-            let Some(active) = self.active.as_ref() else {
+            let Some(active) = active else {
                 return;
             };
             match transport.try_request_ordered(WorkerCommand::Stop {

@@ -4,6 +4,12 @@ use super::*;
 mod controlled_unified;
 mod worker_start;
 
+type ControlledUnifiedDocument = (
+    crate::parakeet_document::ParakeetDocumentStore,
+    u64,
+    crate::parakeet_pipeline::ParakeetFinalizer,
+);
+
 impl ImportRuntime {
     pub(in crate::worker_ipc) fn prepare(
         &mut self,
@@ -326,6 +332,106 @@ impl ImportRuntime {
         result
     }
 
+    fn commit_prepublication_state(
+        &mut self,
+        job: JobId,
+        generation: Generation,
+        count: u64,
+        events: &mut VecDeque<ImportEvent>,
+        publication_gate: &PublicationGate,
+    ) -> Result<PathBuf, (JobId, Generation, String)> {
+        if let Some(progress) = self.progress.as_mut() {
+            progress.close(ProgressPhase::Draining);
+            progress.close(ProgressPhase::Finalizing);
+        }
+        self.archive
+            .prepare_publish(job, generation, count)
+            .map_err(|error| (job, generation, error))?;
+        acceptance_barrier("publish-before-commit", self.archive.root_path().as_path())
+            .map_err(|error| (job, generation, error))?;
+        publication_gate
+            .commit(|| {
+                self.archive.commit_publish(job, generation)?;
+                acceptance_barrier("publish-after-commit", self.archive.root_path().as_path())
+            })
+            .map_err(|error| (job, generation, error))?;
+        let root = self.archive_root();
+        if root
+            .join("transcriptions")
+            .join(format!("{:032x}", job.0))
+            .join(generation.get().to_string())
+            .join("parakeet-unified/document")
+            .is_dir()
+        {
+            let result = ArchiveStore::published_unified_files(&root, job, generation);
+            events.push_back(ImportEvent::UnifiedPublicationArtifacts {
+                job_id: job,
+                generation,
+                result,
+            });
+        }
+        if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root)
+            && queue.remove(job, generation).is_ok()
+        {
+            events.push_back(ImportEvent::Queue(queue.entries()));
+        }
+        Ok(root)
+    }
+
+    fn verify_published_generation_and_exports(
+        &mut self,
+        job: JobId,
+        generation: Generation,
+        root: &Path,
+    ) -> Result<(), (JobId, Generation, String)> {
+        let first = ArchiveStore::scan(root).map_err(|error| (job, generation, error))?;
+        let second = ArchiveStore::scan(root).map_err(|error| (job, generation, error))?;
+        if first != second
+            || !first.iter().any(|entry| {
+                entry.job_id == job && entry.generation == generation && entry.complete
+            })
+        {
+            return Err((
+                job,
+                generation,
+                "StorageCorrupt: archive scan did not verify stable published generation".into(),
+            ));
+        }
+        self.release_source_binding(job, generation, root)
+            .map_err(|error| (job, generation, error))?;
+        if let Some(automatic) = self.automatic_final_outputs.get(&(job, generation.get())) {
+            let entry = first
+                .iter()
+                .find(|entry| {
+                    entry.job_id == job && entry.generation == generation && entry.complete
+                })
+                .ok_or_else(|| {
+                    (
+                        job,
+                        generation,
+                        "ArchiveEntryMissing: import final introuvable".into(),
+                    )
+                })?;
+            let basename = entry.export_basename.as_deref().ok_or_else(|| {
+                (
+                    job,
+                    generation,
+                    "ArchiveExportMissing: export final absent".into(),
+                )
+            })?;
+            let archive_exports = root.join("exports");
+            publish_automatic_final_exports(
+                &archive_exports.join(format!("{basename}.txt")),
+                &archive_exports.join(format!("{basename}.srt")),
+                automatic,
+            )
+            .map_err(|error| (job, generation, error))?;
+            self.automatic_final_outputs
+                .remove(&(job, generation.get()));
+        }
+        Ok(())
+    }
+
     pub(in crate::worker_ipc) fn publish_inner(
         &mut self,
         job: JobId,
@@ -334,88 +440,10 @@ impl ImportRuntime {
         events: &mut VecDeque<ImportEvent>,
         publication_gate: &PublicationGate,
     ) -> Result<(), (JobId, Generation, String)> {
-        let result = (|| {
-            if let Some(progress) = self.progress.as_mut() {
-                progress.close(ProgressPhase::Draining);
-                progress.close(ProgressPhase::Finalizing);
-            }
-            self.archive
-                .prepare_publish(job, generation, count)
-                .map_err(|e| (job, generation, e))?;
-            acceptance_barrier("publish-before-commit", self.archive.root_path().as_path())
-                .map_err(|error| (job, generation, error))?;
-            publication_gate
-                .commit(|| {
-                    self.archive.commit_publish(job, generation)?;
-                    acceptance_barrier("publish-after-commit", self.archive.root_path().as_path())
-                })
-                .map_err(|e| (job, generation, e))?;
-            let root = self.archive_root();
-            if root
-                .join("transcriptions")
-                .join(format!("{:032x}", job.0))
-                .join(generation.get().to_string())
-                .join("parakeet-unified/document")
-                .is_dir()
-            {
-                let result = ArchiveStore::published_unified_files(&root, job, generation);
-                events.push_back(ImportEvent::UnifiedPublicationArtifacts {
-                    job_id: job,
-                    generation,
-                    result,
-                });
-            }
-            if let Ok(mut queue) = crate::queue_store::QueueStore::open(&root)
-                && queue.remove(job, generation).is_ok()
-            {
-                events.push_back(ImportEvent::Queue(queue.entries()));
-            }
-            let first = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
-            let second = ArchiveStore::scan(&root).map_err(|e| (job, generation, e))?;
-            if first != second
-                || !first.iter().any(|entry| {
-                    entry.job_id == job && entry.generation == generation && entry.complete
-                })
-            {
-                return Err((
-                    job,
-                    generation,
-                    "StorageCorrupt: archive scan did not verify stable published generation"
-                        .into(),
-                ));
-            }
-            self.release_source_binding(job, generation, &root)
-                .map_err(|error| (job, generation, error))?;
-            if let Some(automatic) = self.automatic_final_outputs.get(&(job, generation.get())) {
-                let entry = first
-                    .iter()
-                    .find(|entry| {
-                        entry.job_id == job && entry.generation == generation && entry.complete
-                    })
-                    .ok_or_else(|| {
-                        (
-                            job,
-                            generation,
-                            "ArchiveEntryMissing: import final introuvable".into(),
-                        )
-                    })?;
-                let basename = entry.export_basename.as_deref().ok_or_else(|| {
-                    (
-                        job,
-                        generation,
-                        "ArchiveExportMissing: export final absent".into(),
-                    )
-                })?;
-                let archive_exports = root.join("exports");
-                publish_automatic_final_exports(
-                    &archive_exports.join(format!("{basename}.txt")),
-                    &archive_exports.join(format!("{basename}.srt")),
-                    automatic,
-                )
-                .map_err(|error| (job, generation, error))?;
-                self.automatic_final_outputs
-                    .remove(&(job, generation.get()));
-            }
+        let result: Result<(), (JobId, Generation, String)> = (|| {
+            let root =
+                self.commit_prepublication_state(job, generation, count, events, publication_gate)?;
+            self.verify_published_generation_and_exports(job, generation, &root)?;
             events.push_back(ImportEvent::Published {
                 job_id: job,
                 generation,
@@ -436,7 +464,6 @@ impl ImportRuntime {
             events.push_back(ImportEvent::ReplacementCleanups(cleanups));
             Ok(())
         })();
-
         match result {
             Ok(()) => {
                 if let Some(mut worker) = self.pending_idle_worker.take() {
@@ -919,6 +946,73 @@ impl ImportRuntime {
             .map_err(|error| (id.0, id.1, error))
         })
     }
+
+    fn stop_active_parakeet_worker(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        active_request: Option<ImportRequest>,
+        mut worker: crate::parakeet_import::ParakeetProcess,
+        events: &mut VecDeque<ImportEvent>,
+    ) -> Result<(), (JobId, Generation, String)> {
+        let termination = worker.terminate();
+        // The child has been detached from this runtime. Settle its
+        // in-memory identity before any fallible queue journal I/O.
+        self.active = None;
+        self.parakeet_events.clear();
+        self.parakeet_end = None;
+        self.parakeet_stopped_ack = false;
+        if let Some(mut run) = self.parakeet_vad.take()
+            && let Some(path) = run.current_path.take()
+        {
+            let _ = fs::remove_file(path);
+        }
+        self.progress = None;
+        match termination {
+            Ok(_status) => {
+                let queue_update = if let Some(request) = active_request {
+                    let queue_journal = Path::new(&request.destination)
+                        .join("transcriptions")
+                        .join("queue.jsonl");
+                    if queue_journal.is_file() {
+                        crate::queue_store::QueueStore::open(&request.destination)
+                            .and_then(|mut queue| {
+                                if queue.entries().iter().any(|entry| {
+                                    entry.request.job_id == job_id
+                                        && entry.request.generation == generation
+                                }) {
+                                    queue.set_status(
+                                        job_id,
+                                        generation,
+                                        crate::queue_store::QueueStatus::Interrupted,
+                                    )?;
+                                    Ok(Some(queue.entries()))
+                                } else {
+                                    Ok(None)
+                                }
+                            })
+                            .map_err(|error| (job_id, generation, error))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    Ok(None)
+                };
+                match queue_update {
+                    Err(error) => Err(error),
+                    Ok(queue) => {
+                        if let Some(entries) = queue {
+                            events.push_back(ImportEvent::Queue(entries));
+                        }
+                        events.push_back(ImportEvent::Stopped { job_id, generation });
+                        Ok(())
+                    }
+                }
+            }
+            Err(error) => Err((job_id, generation, error)),
+        }
+    }
+
     pub(in crate::worker_ipc) fn stop_effect(
         &mut self,
         job_id: JobId,
@@ -952,64 +1046,9 @@ impl ImportRuntime {
                     .flatten()
             });
             if active_request.is_some()
-                && let Some(mut worker) = self.parakeet.take()
+                && let Some(worker) = self.parakeet.take()
             {
-                let termination = worker.terminate();
-                // The child has been detached from this runtime. Settle its
-                // in-memory identity before any fallible queue journal I/O.
-                self.active = None;
-                self.parakeet_events.clear();
-                self.parakeet_end = None;
-                self.parakeet_stopped_ack = false;
-                if let Some(mut run) = self.parakeet_vad.take()
-                    && let Some(path) = run.current_path.take()
-                {
-                    let _ = fs::remove_file(path);
-                }
-                self.progress = None;
-                match termination {
-                    Ok(_status) => {
-                        let queue_update = if let Some(request) = active_request {
-                            let queue_journal = Path::new(&request.destination)
-                                .join("transcriptions")
-                                .join("queue.jsonl");
-                            if queue_journal.is_file() {
-                                crate::queue_store::QueueStore::open(&request.destination)
-                                    .and_then(|mut queue| {
-                                        if queue.entries().iter().any(|entry| {
-                                            entry.request.job_id == job_id
-                                                && entry.request.generation == generation
-                                        }) {
-                                            queue.set_status(
-                                                job_id,
-                                                generation,
-                                                crate::queue_store::QueueStatus::Interrupted,
-                                            )?;
-                                            Ok(Some(queue.entries()))
-                                        } else {
-                                            Ok(None)
-                                        }
-                                    })
-                                    .map_err(|error| (job_id, generation, error))
-                            } else {
-                                Ok(None)
-                            }
-                        } else {
-                            Ok(None)
-                        };
-                        match queue_update {
-                            Err(error) => Err(error),
-                            Ok(queue) => {
-                                if let Some(entries) = queue {
-                                    events.push_back(ImportEvent::Queue(entries));
-                                }
-                                events.push_back(ImportEvent::Stopped { job_id, generation });
-                                Ok(())
-                            }
-                        }
-                    }
-                    Err(error) => Err((job_id, generation, error)),
-                }
+                self.stop_active_parakeet_worker(job_id, generation, active_request, worker, events)
             } else if let Some(direct) = self.direct_live.as_mut() {
                 if direct.identity() != (job_id, generation) {
                     Err((job_id, generation, "Arrêt micro périmé".into()))
@@ -1172,14 +1211,10 @@ impl ImportRuntime {
         });
     }
 
-    pub(in crate::worker_ipc) fn start_controlled_unified_import(
+    fn validate_controlled_unified_route(
         &mut self,
-        request: &ImportRequest,
-    ) -> Result<(), String> {
-        let session = whisper_core::parakeet_scheduler::SchedulerSession {
-            job_id: request.job_id,
-            generation: request.generation,
-        };
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+    ) -> Result<Option<NativeUnifiedRoute>, String> {
         if self.unified_admission_full_for(session) {
             return Err("SchedulerCapacity: two unified sessions are already admitted".into());
         }
@@ -1225,24 +1260,16 @@ impl ImportRuntime {
                 "NativeRouteBusy: admitted sessions must share one fixed backend candidate".into(),
             );
         }
-        let work = PathBuf::from(&request.destination)
-            .join("transcriptions")
-            .join(format!("{:032x}", request.job_id.0))
-            .join(request.generation.get().to_string())
-            .join("parakeet-unified");
-        fs::create_dir_all(&work)
-            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
-        let source_path = work.join("source.wav");
-        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
-            .map_err(|error| format!("AudioSource: {error}"))?;
-        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
-        writer
-            .finish()
-            .map_err(|error| format!("AudioSource: {error}"))?;
-        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
-        let available_samples = source
-            .total_samples()
-            .map_err(|error| format!("AudioSource: {error}"))?;
+        Ok(native_route)
+    }
+
+    fn prepare_controlled_unified_document(
+        &self,
+        request: &ImportRequest,
+        session: whisper_core::parakeet_scheduler::SchedulerSession,
+        work: &Path,
+        available_samples: u64,
+    ) -> Result<ControlledUnifiedDocument, String> {
         let document = crate::parakeet_document::ParakeetDocumentStore::create(
             work.join("document"),
             request.job_id,
@@ -1275,6 +1302,38 @@ impl ImportRuntime {
                 crate::parakeet_pipeline::ParakeetFinalizer::new(request.job_id, request.generation)
             }
         };
+        Ok((document, document_drain_start_sequence, finalizer))
+    }
+
+    pub(in crate::worker_ipc) fn start_controlled_unified_import(
+        &mut self,
+        request: &ImportRequest,
+    ) -> Result<(), String> {
+        let session = whisper_core::parakeet_scheduler::SchedulerSession {
+            job_id: request.job_id,
+            generation: request.generation,
+        };
+        let native_route = self.validate_controlled_unified_route(session)?;
+        let work = PathBuf::from(&request.destination)
+            .join("transcriptions")
+            .join(format!("{:032x}", request.job_id.0))
+            .join(request.generation.get().to_string())
+            .join("parakeet-unified");
+        fs::create_dir_all(&work)
+            .map_err(|error| format!("StorageUnavailable: unified workspace: {error}"))?;
+        let source_path = work.join("source.wav");
+        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path)
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        crate::parakeet_audio::decode_file_to_parts(&request.source_path, &mut writer)?;
+        writer
+            .finish()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let source = crate::parakeet_audio::PcmPartStore::open(&source_path);
+        let available_samples = source
+            .total_samples()
+            .map_err(|error| format!("AudioSource: {error}"))?;
+        let (document, document_drain_start_sequence, finalizer) =
+            self.prepare_controlled_unified_document(request, session, &work, available_samples)?;
         self.parakeet_scheduler
             .admit(session)
             .map_err(|error| format!("SchedulerAdmission: {error:?}"))?;

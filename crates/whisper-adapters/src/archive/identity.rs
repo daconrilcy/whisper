@@ -381,107 +381,13 @@ impl ArchiveStore {
         .map_err(|error| format!("StorageCorrupt: unified export intent: {error}"))?;
         let wav_path = directory.join("parakeet-unified/source.wav");
         let (wav_path, txt_path, srt_path) = if intent.internal_only {
-            let canonical_directory = canonical_generation_directory(root, &directory)?;
-            validate_internal_publication_intent(
-                root,
-                job_id,
-                generation,
-                &intent,
-                &manifest.source_sha256,
-            )?;
-            let txt_path = verify_internal_unified_artifact(
-                &directory,
-                &canonical_directory,
-                &manifest.text,
-                "transcript.txt",
-            )?;
-            let srt_path = verify_internal_unified_artifact(
-                &directory,
-                &canonical_directory,
-                &manifest.srt,
-                "transcript.srt",
-            )?;
-            let wav_path = canonical_internal_unified_path(
-                &wav_path,
-                &canonical_directory,
-                "parakeet-unified/source.wav",
-            )?;
-            let index_path = canonical_internal_unified_path(
-                &wav_path.with_extension("parts.idx"),
-                &canonical_directory,
-                "parakeet-unified/source.parts.idx",
-            )?;
-            let index_before = sha256_file(&index_path)
-                .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
-            let audio = crate::parakeet_audio::PcmPartStore::open(&wav_path);
-            let total_samples = audio
-                .total_samples()
-                .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
-            if total_samples == 0 || total_samples != intent.source_samples {
-                return Err(
-                    "StorageCorrupt: internal audio index total does not match publication".into(),
-                );
-            }
-            let mut offset = 0_u64;
-            let mut covered = 0_u64;
-            let mut expected_number = 1_u64;
-            let mut first_page = true;
-            loop {
-                let page =
-                    Self::read_unified_audio_parts_page(root, job_id, generation, 0, offset, 128)?;
-                if page.entries.is_empty() {
-                    break;
-                }
-                for part in &page.entries {
-                    if part.number != expected_number
-                        || part.start_sample != covered
-                        || part.end_sample <= part.start_sample
-                        || part.end_sample > total_samples
-                    {
-                        return Err(
-                            "StorageCorrupt: internal audio parts are not contiguous".into()
-                        );
-                    }
-                    let part_path = canonical_internal_unified_path(
-                        Path::new(&part.path),
-                        &canonical_directory,
-                        if expected_number == 1 {
-                            "parakeet-unified/source.wav"
-                        } else {
-                            "parakeet-unified/source part"
-                        },
-                    )?;
-                    if first_page && expected_number == 1 && part_path != wav_path {
-                        return Err(
-                            "StorageCorrupt: first internal audio part is not source.wav".into(),
-                        );
-                    }
-                    first_page = false;
-                    covered = part.end_sample;
-                    expected_number = expected_number.saturating_add(1);
-                }
-                offset = offset
-                    .checked_add(page.entries.len() as u64)
-                    .ok_or_else(|| {
-                        "StorageCorrupt: internal audio page offset overflow".to_owned()
-                    })?;
-                if page.next_offset.is_none() {
-                    break;
-                }
-            }
-            if covered != total_samples || sha256_file(&index_path)? != index_before {
-                return Err(
-                    "SourceChanged: internal audio index changed during publication read".into(),
-                );
-            }
-            (wav_path, txt_path, srt_path)
+            Self::published_internal_unified_files(
+                root, &directory, job_id, generation, &intent, &manifest, wav_path,
+            )?
         } else {
-            let txt_path = root
-                .join("exports")
-                .join(format!("{}.txt", intent.export_basename));
-            let srt_path = root
-                .join("exports")
-                .join(format!("{}.srt", intent.export_basename));
+            let exports = root.join("exports");
+            let txt_path = exports.join(format!("{}.txt", intent.export_basename));
+            let srt_path = exports.join(format!("{}.srt", intent.export_basename));
             verify_artifact(&directory, &manifest.text)?;
             verify_artifact(&directory, &manifest.srt)?;
             if !wav_path.with_extension("parts.idx").is_file()
@@ -499,6 +405,123 @@ impl ArchiveStore {
             txt_path: txt_path.to_string_lossy().into_owned(),
             srt_path: srt_path.to_string_lossy().into_owned(),
         })
+    }
+
+    fn published_internal_unified_files(
+        root: &Path,
+        directory: &Path,
+        job_id: JobId,
+        generation: Generation,
+        intent: &PublicationIntent,
+        manifest: &CompleteRecord,
+        wav_path: PathBuf,
+    ) -> Result<(PathBuf, PathBuf, PathBuf), String> {
+        let canonical_directory = canonical_generation_directory(root, directory)?;
+        validate_internal_publication_intent(
+            root,
+            job_id,
+            generation,
+            intent,
+            &manifest.source_sha256,
+        )?;
+        let txt_path = verify_internal_unified_artifact(
+            directory,
+            &canonical_directory,
+            &manifest.text,
+            "transcript.txt",
+        )?;
+        let srt_path = verify_internal_unified_artifact(
+            directory,
+            &canonical_directory,
+            &manifest.srt,
+            "transcript.srt",
+        )?;
+        let wav_path = canonical_internal_unified_path(
+            &wav_path,
+            &canonical_directory,
+            "parakeet-unified/source.wav",
+        )?;
+        Self::verify_internal_audio_parts(
+            root,
+            job_id,
+            generation,
+            &canonical_directory,
+            &wav_path,
+            intent.source_samples,
+        )?;
+        Ok((wav_path, txt_path, srt_path))
+    }
+
+    fn verify_internal_audio_parts(
+        root: &Path,
+        job_id: JobId,
+        generation: Generation,
+        canonical_directory: &Path,
+        wav_path: &Path,
+        expected_samples: u64,
+    ) -> Result<(), String> {
+        let index_path = canonical_internal_unified_path(
+            &wav_path.with_extension("parts.idx"),
+            canonical_directory,
+            "parakeet-unified/source.parts.idx",
+        )?;
+        let index_before =
+            sha256_file(&index_path).map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+        let total_samples = crate::parakeet_audio::PcmPartStore::open(wav_path)
+            .total_samples()
+            .map_err(|error| format!("AudioPartsUnavailable: {error}"))?;
+        if total_samples == 0 || total_samples != expected_samples {
+            return Err(
+                "StorageCorrupt: internal audio index total does not match publication".into(),
+            );
+        }
+        let mut offset = 0_u64;
+        let mut covered = 0_u64;
+        let mut expected_number = 1_u64;
+        loop {
+            let page =
+                Self::read_unified_audio_parts_page(root, job_id, generation, 0, offset, 128)?;
+            if page.entries.is_empty() {
+                break;
+            }
+            for part in &page.entries {
+                if part.number != expected_number
+                    || part.start_sample != covered
+                    || part.end_sample <= part.start_sample
+                    || part.end_sample > total_samples
+                {
+                    return Err("StorageCorrupt: internal audio parts are not contiguous".into());
+                }
+                let part_path = canonical_internal_unified_path(
+                    Path::new(&part.path),
+                    canonical_directory,
+                    if expected_number == 1 {
+                        "parakeet-unified/source.wav"
+                    } else {
+                        "parakeet-unified/source part"
+                    },
+                )?;
+                if expected_number == 1 && part_path.as_path() != wav_path {
+                    return Err(
+                        "StorageCorrupt: first internal audio part is not source.wav".into(),
+                    );
+                }
+                covered = part.end_sample;
+                expected_number = expected_number.saturating_add(1);
+            }
+            offset = offset
+                .checked_add(page.entries.len() as u64)
+                .ok_or_else(|| "StorageCorrupt: internal audio page offset overflow".to_owned())?;
+            if page.next_offset.is_none() {
+                break;
+            }
+        }
+        if covered != total_samples || sha256_file(&index_path)? != index_before {
+            return Err(
+                "SourceChanged: internal audio index changed during publication read".into(),
+            );
+        }
+        Ok(())
     }
 }
 

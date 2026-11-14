@@ -139,6 +139,10 @@ fn drain_d2_events_after_playback<E>(
     Ok(())
 }
 
+type D2ReplayContext = (PathBuf, PathBuf, ParakeetWorkerPaths);
+type D2CorpusData<'a> = (&'a str, &'a str, &'a str, &'a str, u32, u16, &'a [i16]);
+type D2Engine<'a> = (&'static str, &'a Path, ModelId, &'a Path);
+
 #[test]
 #[cfg_attr(
     not(feature = "native-tests"),
@@ -180,109 +184,126 @@ fn d2_corpus_real_cpu_turbo_and_parakeet() {
             ModelId::ParakeetTdt06BV3,
         ),
     ];
+    let context = (root, checkpoint, parakeet);
     for (engine, model_path, model_id) in engines
         .into_iter()
         .filter(|(engine, _, _)| *engine == engine_filter.as_str())
     {
-        for (corpus, wav_rel, ref_rel, wav_hash, ref_hash) in INPUTS {
-            let input = repo.join(wav_rel);
+        for input in INPUTS {
+            let (corpus, wav_rel, ref_rel, wav_hash, ref_hash) = input;
+            let wav = repo.join(wav_rel);
+            assert_eq!(hash(&wav), wav_hash, "approved WAV hash changed: {corpus}");
             let reference_path = repo.join(ref_rel);
-            assert_eq!(
-                hash(&input),
-                wav_hash,
-                "approved WAV hash changed: {corpus}"
-            );
             assert_eq!(
                 hash(&reference_path),
                 ref_hash,
                 "approved reference hash changed: {corpus}"
             );
             let reference = fs::read_to_string(reference_path).unwrap();
-            let (rate, channels, samples) = read_wav16(&input);
+            let (rate, channels, samples) = read_wav16(&wav);
             assert_eq!(
                 (rate, channels),
                 (16_000, 1),
                 "approved corpus WAV format changed"
             );
-            for (condition, initial, transition) in CONDITIONS {
-                let ordinal = CASE_ID.fetch_add(1, Ordering::Relaxed);
-                let case_root = root.join(format!("{ordinal:02}-{engine}-{corpus}-{condition}"));
-                fs::create_dir_all(&case_root).unwrap();
-                record(
-                    &checkpoint,
-                    serde_json::json!({"event":"case-start","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,"input_frames":samples.len()}),
+            let data: D2CorpusData = (
+                corpus, wav_hash, ref_hash, &reference, rate, channels, &samples,
+            );
+            for condition in CONDITIONS {
+                let engine_context = (
+                    engine,
+                    model_path.as_path(),
+                    model_id,
+                    turbo_worker.as_path(),
                 );
-                let req = LiveRequest {
-                    job_id: JobId(((std::process::id() as u128) << 64) | u128::from(ordinal)),
-                    generation: Generation::first(),
-                    model_path: model_path.to_string_lossy().into_owned(),
-                    model_sha256: decode_sha256(
-                        whisper_core::model_registry::model(model_id)
-                            .artifact
-                            .sha256,
-                    ),
-                    destination: case_root.to_string_lossy().into_owned(),
-                    group_offset_samples: 0,
-                    auto_stop_after_speech_samples: None,
-                    microphone: whisper_core::MicrophoneChoice::Device("d2:approved-wav".into()),
-                    microphone_gain_db: initial,
-                    config: JobConfig {
-                        language: LanguageChoice::Automatic,
-                        compute: ComputeChoice::Cpu,
-                    },
-                };
-                let capture = CaptureStream::empty_test_capture_with_gain(
-                    rate,
-                    channels,
-                    "d2:approved-wav",
-                    GainDb::new(initial).unwrap(),
-                );
-                let start = Instant::now();
-                let (wav, txt, srt, frames, transcript, gain_frames) = if engine == "turbo-cpu" {
-                    turbo_case(req, capture, &turbo_worker, &samples, transition)
-                } else {
-                    parakeet_case(req, capture, &parakeet, &samples, transition)
-                };
-                assert!(
-                    Path::new(&wav).is_file()
-                        && Path::new(&txt).is_file()
-                        && Path::new(&srt).is_file()
-                );
-                assert_eq!(
-                    frames,
-                    samples.len() as u64,
-                    "output frame continuity mismatch"
-                );
-                assert_eq!(
-                    gain_frames.len(),
-                    if transition.is_some() { 2 } else { 1 },
-                    "gain application acknowledgements"
-                );
-                assert_eq!(gain_frames[0]["gain_db"], initial);
-                assert_eq!(gain_frames[0]["revision"], 0);
-                assert_eq!(gain_frames[0]["first_frame"], 0);
-                if let Some(gain) = transition {
-                    assert_eq!(gain_frames[1]["gain_db"], gain);
-                    assert_eq!(gain_frames[1]["revision"], 1);
-                    assert_eq!(gain_frames[1]["first_frame"], samples.len() / 2);
-                }
-                record(
-                    &checkpoint,
-                    serde_json::json!({
-                        "event":"case-complete","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,
-                        "input_wav_sha256":wav_hash,"reference_sha256":ref_hash,"output_wav_sha256":hash(Path::new(&wav)),"input_frames":samples.len(),"output_frames":frames,
-                        "wav":wav,"txt":txt,"srt":srt,"elapsed_ms":start.elapsed().as_millis(),
-                        "approved_reference":reference,"transcript":transcript,"gain_frame_revisions":gain_frames,"comparison":"descriptive only; no WER threshold"
-                    }),
-                );
-                eprintln!("D2_CASE_DONE {ordinal}/16 {engine} {corpus} {condition}");
+                run_d2_corpus_case(&context, engine_context, data, condition);
             }
         }
     }
+    let (_, checkpoint, _) = &context;
     record(
-        &checkpoint,
+        checkpoint,
         serde_json::json!({"event":"campaign-complete","engine_filter":engine_filter,"cases":16}),
     );
+}
+
+fn run_d2_corpus_case(
+    context: &D2ReplayContext,
+    engine: D2Engine<'_>,
+    input: D2CorpusData<'_>,
+    condition: (&str, i8, Option<i8>),
+) {
+    let (root, checkpoint, parakeet) = context;
+    let (engine, model_path, model_id, turbo_worker) = engine;
+    let (corpus, wav_hash, ref_hash, reference, _rate, _channels, samples) = input;
+    let (condition, initial, transition) = condition;
+    let ordinal = CASE_ID.fetch_add(1, Ordering::Relaxed);
+    let case_root = root.join(format!("{ordinal:02}-{engine}-{corpus}-{condition}"));
+    fs::create_dir_all(&case_root).unwrap();
+    record(
+        checkpoint,
+        serde_json::json!({"event":"case-start","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,"input_frames":samples.len()}),
+    );
+    let req = LiveRequest {
+        job_id: JobId(((std::process::id() as u128) << 64) | u128::from(ordinal)),
+        generation: Generation::first(),
+        model_path: model_path.to_string_lossy().into_owned(),
+        model_sha256: decode_sha256(
+            whisper_core::model_registry::model(model_id)
+                .artifact
+                .sha256,
+        ),
+        destination: case_root.to_string_lossy().into_owned(),
+        group_offset_samples: 0,
+        auto_stop_after_speech_samples: None,
+        microphone: whisper_core::MicrophoneChoice::Device("d2:approved-wav".into()),
+        microphone_gain_db: initial,
+        config: JobConfig {
+            language: LanguageChoice::Automatic,
+            compute: ComputeChoice::Cpu,
+        },
+    };
+    let capture = CaptureStream::empty_test_capture_with_gain(
+        _rate,
+        _channels,
+        "d2:approved-wav",
+        GainDb::new(initial).unwrap(),
+    );
+    let start = Instant::now();
+    let (wav, txt, srt, frames, transcript, gain_frames) = if engine == "turbo-cpu" {
+        turbo_case(req, capture, turbo_worker, samples, transition)
+    } else {
+        parakeet_case(req, capture, parakeet, samples, transition)
+    };
+    assert!(Path::new(&wav).is_file() && Path::new(&txt).is_file() && Path::new(&srt).is_file());
+    assert_eq!(
+        frames,
+        samples.len() as u64,
+        "output frame continuity mismatch"
+    );
+    assert_eq!(
+        gain_frames.len(),
+        if transition.is_some() { 2 } else { 1 },
+        "gain application acknowledgements"
+    );
+    assert_eq!(gain_frames[0]["gain_db"], initial);
+    assert_eq!(gain_frames[0]["revision"], 0);
+    assert_eq!(gain_frames[0]["first_frame"], 0);
+    if let Some(gain) = transition {
+        assert_eq!(gain_frames[1]["gain_db"], gain);
+        assert_eq!(gain_frames[1]["revision"], 1);
+        assert_eq!(gain_frames[1]["first_frame"], samples.len() / 2);
+    }
+    record(
+        checkpoint,
+        serde_json::json!({
+            "event":"case-complete","ordinal":ordinal,"engine":engine,"corpus":corpus,"condition":condition,
+        "input_wav_sha256":wav_hash,"reference_sha256":ref_hash,"output_wav_sha256":hash(Path::new(&wav)),"input_frames":samples.len(),"output_frames":frames,
+            "wav":wav,"txt":txt,"srt":srt,"elapsed_ms":start.elapsed().as_millis(),
+            "approved_reference":reference,"transcript":transcript,"gain_frame_revisions":gain_frames,"comparison":"descriptive only; no WER threshold"
+        }),
+    );
+    eprintln!("D2_CASE_DONE {ordinal}/16 {engine} {corpus} {condition}");
 }
 
 fn turbo_case(

@@ -101,6 +101,14 @@ fn normalize_words(
     native_words: &[crate::native_ffi::NativeWord],
     duration_ms: u64,
 ) -> Result<Vec<Word>, String> {
+    let lexical = build_lexical_words(native_words, duration_ms)?;
+    normalize_lexical_intervals(lexical)
+}
+
+fn build_lexical_words(
+    native_words: &[crate::native_ffi::NativeWord],
+    duration_ms: u64,
+) -> Result<Vec<LexicalWord>, String> {
     let mut lexical: Vec<LexicalWord> = Vec::with_capacity(native_words.len());
     for (index, word) in native_words.iter().enumerate() {
         let text = word.text.trim();
@@ -153,76 +161,20 @@ fn normalize_words(
             end_ms,
         });
     }
+    Ok(lexical)
+}
 
+fn normalize_lexical_intervals(mut lexical: Vec<LexicalWord>) -> Result<Vec<Word>, String> {
     let mut words: Vec<Word> = Vec::with_capacity(lexical.len());
     let mut index = 0;
     while index < lexical.len() {
         let current = lexical[index].clone();
-        let mut start_ms = current.start_ms;
+        let Some(start_ms) = normalize_word_overlap(&mut lexical, &mut words, index, &current)?
+        else {
+            index += 1;
+            continue;
+        };
         let end_ms = current.end_ms;
-        if let Some(previous) = words.last_mut() {
-            if start_ms < previous.start_ms {
-                let overlap_ms = previous.end_ms.saturating_sub(start_ms);
-                if overlap_ms > TDT_FRAME_MS {
-                    return Err(raw_overlap_error(&lexical[index - 1], &current, overlap_ms));
-                }
-            }
-            if start_ms < previous.end_ms {
-                let overlap_ms = previous.end_ms - start_ms;
-                if overlap_ms > TDT_FRAME_MS {
-                    return Err(raw_overlap_error(&lexical[index - 1], &current, overlap_ms));
-                }
-                if previous.end_ms < end_ms {
-                    start_ms = previous.end_ms;
-                    // The next lexical overlap is evaluated against the interval
-                    // that survived normalization, while raw_* stays diagnostic.
-                    lexical[index].start_ms = start_ms;
-                } else if previous.start_ms < start_ms {
-                    previous.end_ms = start_ms;
-                    lexical[index - 1].end_ms = start_ms;
-                } else {
-                    let run_start = overlapping_run_start(&lexical, index);
-                    let share_start = (run_start..index).find(|candidate| {
-                        shareable_interval(&lexical[*candidate..=index]).is_some()
-                    });
-                    let Some(share_start) = share_start else {
-                        let shared = &lexical[run_start..=index];
-                        let (common_start, common_end) = common_interval(shared);
-                        return Err(format!(
-                            "InvalidTimestamp: common interval {common_start}..{common_end} ms cannot give {} words positive integer-millisecond durations; raw words: {}",
-                            shared.len(),
-                            raw_word_list(shared)
-                        ));
-                    };
-                    let shared = &lexical[share_start..=index];
-                    let (common_start, common_end) =
-                        shareable_interval(shared).expect("selected interval must be shareable");
-                    let duration = common_end - common_start;
-                    words.truncate(share_start);
-                    let base = duration / shared.len() as u32;
-                    let remainder = duration % shared.len() as u32;
-                    let mut cursor = common_start;
-                    for (part, native) in shared.iter().enumerate() {
-                        let part_duration = base + u32::from((part as u32) < remainder);
-                        let part_end = cursor + part_duration;
-                        words.push(Word {
-                            text: native.text.clone(),
-                            start_ms: cursor,
-                            end_ms: part_end,
-                        });
-                        cursor = part_end;
-                    }
-                    index += 1;
-                    continue;
-                }
-            }
-            if previous.start_ms >= previous.end_ms {
-                return Err(format!(
-                    "InvalidTimestamp: normalization removed word duration; raw words: {}",
-                    raw_word_list(&lexical[index - 1..=index])
-                ));
-            }
-        }
         if start_ms >= end_ms {
             return Err(format!(
                 "InvalidTimestamp: word {} text={:?} normalization removed duration; raw={}..{}",
@@ -237,6 +189,89 @@ fn normalize_words(
         index += 1;
     }
     Ok(words)
+}
+
+fn normalize_word_overlap(
+    lexical: &mut [LexicalWord],
+    words: &mut Vec<Word>,
+    index: usize,
+    current: &LexicalWord,
+) -> Result<Option<u32>, String> {
+    let start_ms = current.start_ms;
+    if let Some(previous_index) = words.len().checked_sub(1) {
+        let mut normalized_start = start_ms;
+        let previous_start = words[previous_index].start_ms;
+        let previous_end = words[previous_index].end_ms;
+        if start_ms < previous_start {
+            let overlap_ms = previous_end.saturating_sub(start_ms);
+            if overlap_ms > TDT_FRAME_MS {
+                return Err(raw_overlap_error(&lexical[index - 1], current, overlap_ms));
+            }
+        }
+        if start_ms < previous_end {
+            let overlap_ms = previous_end - start_ms;
+            if overlap_ms > TDT_FRAME_MS {
+                return Err(raw_overlap_error(&lexical[index - 1], current, overlap_ms));
+            }
+            if previous_end < current.end_ms {
+                // The next lexical overlap uses the surviving interval; raw_* stays diagnostic.
+                normalized_start = previous_end;
+                lexical[index].start_ms = normalized_start;
+            } else if previous_start < start_ms {
+                words[previous_index].end_ms = start_ms;
+                lexical[index - 1].end_ms = start_ms;
+            } else {
+                share_overlapping_words(lexical, words, index)?;
+                return Ok(None);
+            }
+        }
+        if words[previous_index].start_ms >= words[previous_index].end_ms {
+            return Err(format!(
+                "InvalidTimestamp: normalization removed word duration; raw words: {}",
+                raw_word_list(&lexical[index - 1..=index])
+            ));
+        }
+        return Ok(Some(normalized_start));
+    }
+    Ok(Some(start_ms))
+}
+
+fn share_overlapping_words(
+    lexical: &[LexicalWord],
+    words: &mut Vec<Word>,
+    index: usize,
+) -> Result<(), String> {
+    let run_start = overlapping_run_start(lexical, index);
+    let share_start = (run_start..index)
+        .find(|candidate| shareable_interval(&lexical[*candidate..=index]).is_some());
+    let Some(share_start) = share_start else {
+        let shared = &lexical[run_start..=index];
+        let (common_start, common_end) = common_interval(shared);
+        return Err(format!(
+            "InvalidTimestamp: common interval {common_start}..{common_end} ms cannot give {} words positive integer-millisecond durations; raw words: {}",
+            shared.len(),
+            raw_word_list(shared)
+        ));
+    };
+    let shared = &lexical[share_start..=index];
+    let (common_start, common_end) =
+        shareable_interval(shared).expect("selected interval must be shareable");
+    let duration = common_end - common_start;
+    words.truncate(share_start);
+    let base = duration / shared.len() as u32;
+    let remainder = duration % shared.len() as u32;
+    let mut cursor = common_start;
+    for (part, native) in shared.iter().enumerate() {
+        let part_duration = base + u32::from((part as u32) < remainder);
+        let part_end = cursor + part_duration;
+        words.push(Word {
+            text: native.text.clone(),
+            start_ms: cursor,
+            end_ms: part_end,
+        });
+        cursor = part_end;
+    }
+    Ok(())
 }
 
 #[derive(Clone)]

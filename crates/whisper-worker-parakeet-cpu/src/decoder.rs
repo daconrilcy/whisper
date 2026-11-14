@@ -22,7 +22,15 @@ pub struct DecodedAudio {
     pub codec: String,
 }
 
-pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
+struct OpenedAudioTrack {
+    format: Box<dyn symphonia::core::formats::FormatReader>,
+    track_id: u32,
+    params: symphonia::core::codecs::CodecParameters,
+    source_rate: u32,
+    channels: usize,
+}
+
+fn open_audio_track(path: &Path) -> Result<OpenedAudioTrack, String> {
     let file = File::open(path).map_err(|e| format!("SourceOpen: {e}"))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
     let probed = symphonia::default::get_probe()
@@ -36,7 +44,7 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
             &MetadataOptions::default(),
         )
         .map_err(|e| format!("UnsupportedFormat: {e}"))?;
-    let mut format = probed.format;
+    let format = probed.format;
     let track = format
         .default_track()
         .ok_or_else(|| "UnsupportedFormat: no default audio track".to_owned())?;
@@ -65,6 +73,24 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
             return Err("UnsupportedFormat: MP3 profile or duration metadata outside Q-07".into());
         }
     }
+    Ok(OpenedAudioTrack {
+        format,
+        track_id,
+        params,
+        source_rate,
+        channels,
+    })
+}
+
+pub fn decode_file(path: &Path) -> Result<DecodedAudio, String> {
+    let OpenedAudioTrack {
+        mut format,
+        track_id,
+        params,
+        source_rate,
+        channels,
+    } = open_audio_track(path)?;
+    let codec = params.codec;
     let mut decoder = symphonia::default::get_codecs()
         .make(&params, &DecoderOptions::default())
         .map_err(|e| format!("DecoderInit: {e}"))?;

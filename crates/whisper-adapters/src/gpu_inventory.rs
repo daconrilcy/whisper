@@ -1,6 +1,6 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -20,6 +20,10 @@ type RuntimeInventoryResult = (
     Result<Vec<whisper_core::gpu_inventory::GpuRuntimeIdentity>, String>,
 );
 type RuntimeInventoryReceiver = Receiver<RuntimeInventoryResult>;
+type InventoryQualificationOutcome = (
+    Result<GpuQualifiedCollection, String>,
+    Result<Vec<whisper_core::gpu_inventory::GpuRuntimeIdentity>, String>,
+);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DxgiLogEntry {
@@ -112,114 +116,14 @@ impl GpuInventoryPort for WindowsGpuInventoryPort {
         std::thread::Builder::new()
             .name("whisper-gpu-inventory".into())
             .spawn(move || {
-                let result = collect_windows();
-                let _ = sender.send((generation, result.clone()));
-                let (qualified, runtime) = match result {
-                    Err(error) => {
-                        log_inventory(generation, &[], &[], &[], None, Some(&error), None);
-                        (Err(error.clone()), Err(error))
-                    }
-                    Ok(collection) => {
-                        #[cfg(windows)]
-                        let (joined, dxgi_log) = match windows_native::enumerate_dxgi() {
-                            Ok(adapters) => {
-                                let mut joined = Vec::new();
-                                let mut dxgi_log = Vec::with_capacity(adapters.len());
-                                for adapter in adapters {
-                                    let identity =
-                                        windows_native::adapter_instance_id(adapter.luid);
-                                    dxgi_log.push(DxgiLogEntry {
-                                        identity: identity.as_ref().ok().cloned(),
-                                        windows_rank: adapter.ordinal,
-                                        luid: windows_native::luid_u64(adapter.luid),
-                                        identity_error: identity.as_ref().err().cloned(),
-                                    });
-                                    if let Ok(identity) = identity {
-                                        joined.push((identity.to_ascii_uppercase(), adapter));
-                                    }
-                                }
-                                (joined, dxgi_log)
-                            }
-                            Err(error) => {
-                                let message = error.clone();
-                                log_inventory(
-                                    generation,
-                                    &collection.observations,
-                                    &[],
-                                    &[],
-                                    None,
-                                    Some(&message),
-                                    None,
-                                );
-                                let qualified = unqualified_collection(collection, error);
-                                let _ = qualified_sender.send((generation, Ok(qualified)));
-                                let _ = runtime_sender.send((generation, Err(message)));
-                                collecting.store(false, Ordering::Release);
-                                return;
-                            }
-                        };
-                        #[cfg(not(windows))]
-                        let joined: Vec<(String, ())> = Vec::new();
-                        #[cfg(not(windows))]
-                        let dxgi_log: Vec<DxgiLogEntry> = Vec::new();
-                        let targets = collection
-                            .observations
-                            .iter()
-                            .map(|item| {
-                                #[cfg(windows)]
-                                let matches = joined
-                                    .iter()
-                                    .filter(|(id, _)| id == &item.identity.to_ascii_uppercase())
-                                    .collect::<Vec<_>>();
-                                #[cfg(not(windows))]
-                                let matches: Vec<&(String, ())> = Vec::new();
-                                let adapter = unique_adapter(&matches);
-                                whisper_core::ipc::GpuQualificationTarget {
-                                    generation,
-                                    identity: item.identity.clone(),
-                                    name: item.name.clone(),
-                                    state: Some(format!("{:?}", item.state)),
-                                    presence: format!("{:?}", item.presence),
-                                    windows_rank: adapter.map(|device| device.ordinal),
-                                    #[cfg(windows)]
-                                    luid: adapter
-                                        .map(|device| windows_native::luid_u64(device.luid)),
-                                    #[cfg(not(windows))]
-                                    luid: None,
-                                    pci_id: None,
-                                }
-                            })
-                            .collect::<Vec<_>>();
-                        let response = crate::worker_ipc::qualify_gpu_worker(
-                            &worker,
-                            generation,
-                            targets.clone(),
-                        );
-                        log_inventory(
-                            generation,
-                            &collection.observations,
-                            &dxgi_log,
-                            &targets,
-                            response
-                                .as_ref()
-                                .ok()
-                                .map(|(_, results)| results.as_slice()),
-                            collection.error.as_deref(),
-                            response.as_ref().err().map(String::as_str),
-                        );
-                        let runtime = response
-                            .as_ref()
-                            .map(|(_, results)| runtime_identities(&targets, results))
-                            .map_err(Clone::clone);
-                        (
-                            Ok(qualified_collection(collection, &targets, response)),
-                            runtime,
-                        )
-                    }
-                };
-                let _ = qualified_sender.send((generation, qualified));
-                let _ = runtime_sender.send((generation, runtime));
-                collecting.store(false, Ordering::Release);
+                run_gpu_inventory_collection(
+                    generation,
+                    worker,
+                    sender,
+                    qualified_sender,
+                    runtime_sender,
+                    collecting,
+                );
             })
             .map_err(|error| {
                 self.collecting.store(false, Ordering::Release);
@@ -288,6 +192,132 @@ impl GpuInventoryPort for WindowsGpuInventoryPort {
             }
         }
     }
+}
+
+fn run_gpu_inventory_collection(
+    generation: u64,
+    worker: PathBuf,
+    sender: mpsc::Sender<(u64, Result<GpuCollection, String>)>,
+    qualified_sender: mpsc::Sender<(u64, Result<GpuQualifiedCollection, String>)>,
+    runtime_sender: mpsc::Sender<RuntimeInventoryResult>,
+    collecting: Arc<AtomicBool>,
+) {
+    let result = collect_windows();
+    let _ = sender.send((generation, result.clone()));
+    let (qualified, runtime) = match result {
+        Err(error) => {
+            log_inventory(generation, &[], &[], &[], None, Some(&error), None);
+            (Err(error.clone()), Err(error))
+        }
+        Ok(collection) => qualify_collected_gpu_inventory(generation, &worker, collection),
+    };
+    let _ = qualified_sender.send((generation, qualified));
+    let _ = runtime_sender.send((generation, runtime));
+    collecting.store(false, Ordering::Release);
+}
+
+fn qualify_collected_gpu_inventory(
+    generation: u64,
+    worker: &Path,
+    collection: GpuCollection,
+) -> InventoryQualificationOutcome {
+    #[cfg(windows)]
+    let (joined, dxgi_log) = match windows_native::enumerate_dxgi() {
+        Ok(adapters) => {
+            let mut joined = Vec::new();
+            let mut dxgi_log = Vec::with_capacity(adapters.len());
+            for adapter in adapters {
+                let identity = windows_native::adapter_instance_id(adapter.luid);
+                let luid = windows_native::luid_u64(adapter.luid);
+                dxgi_log.push(DxgiLogEntry {
+                    identity: identity.as_ref().ok().cloned(),
+                    windows_rank: adapter.ordinal,
+                    luid,
+                    identity_error: identity.as_ref().err().cloned(),
+                });
+                if let Ok(identity) = identity {
+                    joined.push((identity.to_ascii_uppercase(), (adapter.ordinal, Some(luid))));
+                }
+            }
+            (joined, dxgi_log)
+        }
+        Err(error) => {
+            let message = error.clone();
+            log_inventory(
+                generation,
+                &collection.observations,
+                &[],
+                &[],
+                None,
+                Some(&message),
+                None,
+            );
+            let qualified = unqualified_collection(collection, error);
+            return (Ok(qualified), Err(message));
+        }
+    };
+    #[cfg(not(windows))]
+    let (joined, dxgi_log): (Vec<(String, (u32, Option<u64>))>, Vec<DxgiLogEntry>) =
+        (Vec::new(), Vec::new());
+    qualify_gpu_collection(generation, worker, collection, &joined, &dxgi_log)
+}
+
+fn qualify_gpu_collection(
+    generation: u64,
+    worker: &Path,
+    collection: GpuCollection,
+    joined: &[(String, (u32, Option<u64>))],
+    dxgi_log: &[DxgiLogEntry],
+) -> InventoryQualificationOutcome {
+    let targets = gpu_qualification_targets(generation, &collection.observations, joined);
+    let response = crate::worker_ipc::qualify_gpu_worker(worker, generation, targets.clone());
+    log_inventory(
+        generation,
+        &collection.observations,
+        dxgi_log,
+        &targets,
+        response
+            .as_ref()
+            .ok()
+            .map(|(_, results)| results.as_slice()),
+        collection.error.as_deref(),
+        response.as_ref().err().map(String::as_str),
+    );
+    let runtime = response
+        .as_ref()
+        .map(|(_, results)| runtime_identities(&targets, results))
+        .map_err(Clone::clone);
+    (
+        Ok(qualified_collection(collection, &targets, response)),
+        runtime,
+    )
+}
+
+fn gpu_qualification_targets(
+    generation: u64,
+    observations: &[GpuObservation],
+    joined: &[(String, (u32, Option<u64>))],
+) -> Vec<whisper_core::ipc::GpuQualificationTarget> {
+    observations
+        .iter()
+        .map(|item| {
+            let matches = joined
+                .iter()
+                .filter(|(id, _)| id == &item.identity.to_ascii_uppercase())
+                .collect::<Vec<_>>();
+            let adapter = unique_adapter(&matches);
+            whisper_core::ipc::GpuQualificationTarget {
+                generation,
+                identity: item.identity.clone(),
+                name: item.name.clone(),
+                state: Some(format!("{:?}", item.state)),
+                presence: format!("{:?}", item.presence),
+                windows_rank: adapter.map(|device| device.0),
+                luid: adapter.and_then(|device| device.1),
+                pci_id: None,
+            }
+        })
+        .collect()
 }
 
 fn log_inventory(

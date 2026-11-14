@@ -5,189 +5,10 @@
         let b = (JobId(994), Generation::first());
         app.add_unified_session_card(a.0, a.1, "archive".into(), "a.wav".into(), false);
         app.add_unified_session_card(b.0, b.1, "archive".into(), "b.wav".into(), false);
-
-        app.dispatch(AppCommand::SelectUnifiedSession {
-            job_id: a.0,
-            generation: a.1,
-        })
-        .unwrap();
-        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
-            job_id: a.0,
-            generation: a.1,
-            expected_revision: 0,
-            first_sequence: 1,
-        })
-        .unwrap();
-        let a_doc_old = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedDocumentPage {
-                request_id, limit, ..
-            } => {
-                assert_eq!(*limit, 128);
-                *request_id
-            }
-            other => panic!("unexpected effect: {other:?}"),
-        };
-        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
-            job_id: a.0,
-            generation: a.1,
-            expected_revision: 0,
-            offset: 0,
-        })
-        .unwrap();
-        let a_audio_old = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedAudioPartsPage {
-                request_id, limit, ..
-            } => {
-                assert_eq!(*limit, 128);
-                *request_id
-            }
-            other => panic!("unexpected effect: {other:?}"),
-        };
-
-        app.dispatch(AppCommand::SelectUnifiedSession {
-            job_id: b.0,
-            generation: b.1,
-        })
-        .unwrap();
-        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
-            job_id: b.0,
-            generation: b.1,
-            expected_revision: 0,
-            first_sequence: 1,
-        })
-        .unwrap();
-        let b_doc = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedDocumentPage { request_id, .. } => *request_id,
-            other => panic!("unexpected effect: {other:?}"),
-        };
-        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
-            job_id: b.0,
-            generation: b.1,
-            expected_revision: 0,
-            offset: 0,
-        })
-        .unwrap();
-        let b_audio = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
-            other => panic!("unexpected effect: {other:?}"),
-        };
-
-        app.dispatch(AppCommand::SelectUnifiedSession {
-            job_id: a.0,
-            generation: a.1,
-        })
-        .unwrap();
-        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
-            job_id: a.0,
-            generation: a.1,
-            expected_revision: 0,
-            first_sequence: 1,
-        })
-        .unwrap();
-        let a_doc_new = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedDocumentPage { request_id, .. } => *request_id,
-            other => panic!("unexpected effect: {other:?}"),
-        };
-        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
-            job_id: a.0,
-            generation: a.1,
-            expected_revision: 0,
-            offset: 0,
-        })
-        .unwrap();
-        let a_audio_new = match app.io.effects.last().unwrap() {
-            ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
-            other => panic!("unexpected effect: {other:?}"),
-        };
-
-        let page = |text: &str| crate::ports::ParakeetDocumentPage {
-            revision: 0,
-            entries: vec![crate::ports::ParakeetDocumentEntry {
-                segment: crate::ports::WorkerSegment {
-                    job_id: a.0,
-                    generation: a.1,
-                    instance_id: 1,
-                    segment_id: crate::domain::SegmentId(1),
-                    range: crate::domain::SourceRange::new(0, 16_000, 16_000).unwrap(),
-                    text: text.into(),
-                },
-                revision: 0,
-            }],
-            next_sequence: None,
-        };
-        let audio_page = |path: &str| crate::ports::UnifiedAudioPartPage {
-            revision: 7,
-            offset: 0,
-            entries: vec![crate::ports::UnifiedAudioPart {
-                number: 1,
-                start_sample: 0,
-                end_sample: 16_000,
-                path: path.into(),
-            }],
-            next_offset: None,
-        };
-        app.io.events.extend([
-            ImportEvent::UnifiedDocumentPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_doc_old,
-                result: Err("stale A document error".into()),
-            },
-            ImportEvent::UnifiedDocumentPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_doc_old,
-                result: Ok(page("stale A document success")),
-            },
-            ImportEvent::UnifiedAudioPartsPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_audio_old,
-                result: Err("stale A audio error".into()),
-            },
-            ImportEvent::UnifiedAudioPartsPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_audio_old,
-                result: Ok(audio_page("stale-a.wav")),
-            },
-            ImportEvent::UnifiedDocumentPage {
-                job_id: b.0,
-                generation: b.1,
-                request_id: b_doc,
-                result: Ok(page("stale B")),
-            },
-            ImportEvent::UnifiedDocumentPage {
-                job_id: b.0,
-                generation: b.1,
-                request_id: b_doc,
-                result: Err("stale B document error".into()),
-            },
-            ImportEvent::UnifiedAudioPartsPage {
-                job_id: b.0,
-                generation: b.1,
-                request_id: b_audio,
-                result: Ok(audio_page("stale-b.wav")),
-            },
-            ImportEvent::UnifiedAudioPartsPage {
-                job_id: b.0,
-                generation: b.1,
-                request_id: b_audio,
-                result: Err("stale B audio error".into()),
-            },
-            ImportEvent::UnifiedDocumentPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_doc_new,
-                result: Ok(page("current A")),
-            },
-            ImportEvent::UnifiedAudioPartsPage {
-                job_id: a.0,
-                generation: a.1,
-                request_id: a_audio_new,
-                result: Ok(audio_page("current-a.wav")),
-            },
-        ]);
+        let a_old = select_and_request_unified_pages(&mut app, a, true);
+        let b_requests = select_and_request_unified_pages(&mut app, b, false);
+        let a_current = select_and_request_unified_pages(&mut app, a, false);
+        enqueue_unified_page_responses(&mut app, a, b, a_old, b_requests, a_current);
         let max_refreshes = app.io.events.len().div_ceil(MAX_EVENTS_PER_REFRESH);
         for _ in 0..max_refreshes {
             app.dispatch(AppCommand::Refresh).unwrap();
@@ -213,6 +34,168 @@
         );
         assert_eq!(selected.document_error, None);
         assert_eq!(selected.audio_parts_error, None);
+    }
+
+    fn select_and_request_unified_pages(
+        app: &mut ImportApplication<ScanTestIo>,
+        session: (JobId, Generation),
+        assert_limit: bool,
+    ) -> (u64, u64) {
+        app.dispatch(AppCommand::SelectUnifiedSession {
+            job_id: session.0,
+            generation: session.1,
+        })
+        .unwrap();
+        app.dispatch(AppCommand::ReadUnifiedDocumentPage {
+            job_id: session.0,
+            generation: session.1,
+            expected_revision: 0,
+            first_sequence: 1,
+        })
+        .unwrap();
+        let document_request = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedDocumentPage {
+                request_id, limit, ..
+            } => {
+                if assert_limit {
+                    assert_eq!(*limit, 128);
+                }
+                *request_id
+            }
+            other => panic!("unexpected effect: {other:?}"),
+        };
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: session.0,
+            generation: session.1,
+            expected_revision: 0,
+            offset: 0,
+        })
+        .unwrap();
+        let audio_request = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage {
+                request_id, limit, ..
+            } => {
+                if assert_limit {
+                    assert_eq!(*limit, 128);
+                }
+                *request_id
+            }
+            other => panic!("unexpected effect: {other:?}"),
+        };
+        (document_request, audio_request)
+    }
+
+    fn unified_document_page_for_selection_test(
+        session: (JobId, Generation),
+        text: &str,
+    ) -> crate::ports::ParakeetDocumentPage {
+        crate::ports::ParakeetDocumentPage {
+            revision: 0,
+            entries: vec![crate::ports::ParakeetDocumentEntry {
+                segment: crate::ports::WorkerSegment {
+                    job_id: session.0,
+                    generation: session.1,
+                    instance_id: 1,
+                    segment_id: crate::domain::SegmentId(1),
+                    range: crate::domain::SourceRange::new(0, 16_000, 16_000).unwrap(),
+                    text: text.into(),
+                },
+                revision: 0,
+            }],
+            next_sequence: None,
+        }
+    }
+
+    fn unified_audio_page_for_selection_test(path: &str) -> crate::ports::UnifiedAudioPartPage {
+        crate::ports::UnifiedAudioPartPage {
+            revision: 7,
+            offset: 0,
+            entries: vec![crate::ports::UnifiedAudioPart {
+                number: 1,
+                start_sample: 0,
+                end_sample: 16_000,
+                path: path.into(),
+            }],
+            next_offset: None,
+        }
+    }
+
+    fn enqueue_unified_page_responses(
+        app: &mut ImportApplication<ScanTestIo>,
+        a: (JobId, Generation),
+        b: (JobId, Generation),
+        a_old: (u64, u64),
+        b_requests: (u64, u64),
+        a_current: (u64, u64),
+    ) {
+        let (a_doc_old, a_audio_old) = a_old;
+        let (b_doc, b_audio) = b_requests;
+        let (a_doc_new, a_audio_new) = a_current;
+        app.io.events.extend([
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_old,
+                result: Err("stale A document error".into()),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_old,
+                result: Ok(unified_document_page_for_selection_test(
+                    a,
+                    "stale A document success",
+                )),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_old,
+                result: Err("stale A audio error".into()),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_old,
+                result: Ok(unified_audio_page_for_selection_test("stale-a.wav")),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_doc,
+                result: Ok(unified_document_page_for_selection_test(a, "stale B")),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_doc,
+                result: Err("stale B document error".into()),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_audio,
+                result: Ok(unified_audio_page_for_selection_test("stale-b.wav")),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: b.0,
+                generation: b.1,
+                request_id: b_audio,
+                result: Err("stale B audio error".into()),
+            },
+            ImportEvent::UnifiedDocumentPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_doc_new,
+                result: Ok(unified_document_page_for_selection_test(a, "current A")),
+            },
+            ImportEvent::UnifiedAudioPartsPage {
+                job_id: a.0,
+                generation: a.1,
+                request_id: a_audio_new,
+                result: Ok(unified_audio_page_for_selection_test("current-a.wav")),
+            },
+        ]);
     }
 
     #[test]
@@ -247,24 +230,7 @@
         let mut app = ImportApplication::new(ScanTestIo::default());
         let job_id = JobId(901);
         let generation = Generation::first();
-        app.dispatch(AppCommand::StartDirectLiveConfigured {
-            request: LiveRequest {
-                job_id,
-                generation,
-                model_path: "model.nmodel".into(),
-                model_sha256: [1; 32],
-                destination: "archive".into(),
-                group_offset_samples: 0,
-                auto_stop_after_speech_samples: None,
-                microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
-                microphone_gain_db: 0,
-                config: JobConfig {
-                    language: LanguageChoice::Automatic,
-                    compute: ComputeChoice::Cpu,
-                },
-            },
-        })
-        .unwrap();
+        start_direct_capture_for_gain_test(&mut app, job_id, generation);
 
         app.dispatch(AppCommand::SetMicrophoneGain {
             job_id,
@@ -274,19 +240,7 @@
             gain: crate::microphone_level::GainDb::new(6).unwrap(),
         })
         .unwrap();
-        assert!(matches!(
-            app.io.effects.last(),
-            Some(ImportEffect::SetMicrophoneGain {
-                job_id: actual_job,
-                generation: actual_generation,
-                target_identity,
-                expected_revision: 0,
-                gain_db,
-            }) if *actual_job == job_id
-                && *actual_generation == generation
-                && target_identity == "mic:A"
-                && *gain_db == 6
-        ));
+        assert_initial_microphone_gain_effect(&app, job_id, generation);
         assert_eq!(app.view.microphone_gain_requested_db, 6);
         assert_eq!(app.view.microphone_gain_requested_revision, 1);
         assert_eq!(
@@ -363,6 +317,51 @@
             }),
             Err(ApplicationError::InvalidCommand)
         );
+    }
+
+    fn start_direct_capture_for_gain_test(
+        app: &mut ImportApplication<ScanTestIo>,
+        job_id: JobId,
+        generation: Generation,
+    ) {
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: LiveRequest {
+                job_id,
+                generation,
+                model_path: "model.nmodel".into(),
+                model_sha256: [1; 32],
+                destination: "archive".into(),
+                group_offset_samples: 0,
+                auto_stop_after_speech_samples: None,
+                microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+                microphone_gain_db: 0,
+                config: JobConfig {
+                    language: LanguageChoice::Automatic,
+                    compute: ComputeChoice::Cpu,
+                },
+            },
+        })
+        .unwrap();
+    }
+
+    fn assert_initial_microphone_gain_effect(
+        app: &ImportApplication<ScanTestIo>,
+        job_id: JobId,
+        generation: Generation,
+    ) {
+        assert!(matches!(
+            app.io.effects.last(),
+            Some(ImportEffect::SetMicrophoneGain {
+                job_id: actual_job,
+                generation: actual_generation,
+                target_identity,
+                expected_revision: 0,
+                gain_db,
+            }) if *actual_job == job_id
+                && *actual_generation == generation
+                && target_identity == "mic:A"
+                && *gain_db == 6
+        ));
     }
 
     #[test]
@@ -452,6 +451,24 @@
         let mut app = ImportApplication::new(ScanTestIo::default());
         let job_id = JobId(902);
         let generation = Generation::first();
+        let request = complete_microphone_test_before_live_restart(&mut app, job_id, generation);
+
+        let next_generation = generation.next().unwrap();
+        let spectrum = start_live_and_assert_spectrum_source_binding(&mut app, request);
+        assert_retry_barrier_and_stop_cleanup(
+            &mut app,
+            job_id,
+            next_generation,
+            generation,
+            spectrum,
+        );
+    }
+
+    fn complete_microphone_test_before_live_restart(
+        app: &mut ImportApplication<ScanTestIo>,
+        job_id: JobId,
+        generation: Generation,
+    ) -> LiveRequest {
         app.dispatch(AppCommand::StartMicrophoneTest {
             job_id,
             generation,
@@ -465,23 +482,24 @@
                 if *actual == job_id
         ));
         let effect_count = app.io.effects.len();
+        let live_request = LiveRequest {
+            job_id,
+            generation: generation.next().unwrap(),
+            model_path: "model.nmodel".into(),
+            model_sha256: [1; 32],
+            destination: "archive".into(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
+            microphone_gain_db: 6,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
         assert_eq!(
             app.dispatch(AppCommand::StartDirectLiveConfigured {
-                request: LiveRequest {
-                    job_id,
-                    generation: generation.next().unwrap(),
-                    model_path: "model.nmodel".into(),
-                    model_sha256: [1; 32],
-                    destination: "archive".into(),
-                    group_offset_samples: 0,
-                    auto_stop_after_speech_samples: None,
-                    microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
-                    microphone_gain_db: 6,
-                    config: JobConfig {
-                        language: LanguageChoice::Automatic,
-                        compute: ComputeChoice::Cpu,
-                    },
-                },
+                request: live_request.clone(),
             }),
             Err(ApplicationError::InvalidCommand)
         );
@@ -490,7 +508,6 @@
             effect_count,
             "test owns the only capture"
         );
-
         app.io.events.push_back(ImportEvent::MicrophoneTestStarted {
             job_id,
             generation,
@@ -504,7 +521,6 @@
             Some("mic:A")
         );
         assert_eq!(app.view.microphone_gain_db, 6);
-
         app.dispatch(AppCommand::StopMicrophoneTest { job_id, generation })
             .unwrap();
         assert!(app.view.microphone_meter.is_none());
@@ -518,24 +534,17 @@
         app.dispatch(AppCommand::Refresh).unwrap();
         assert!(!app.view.microphone_test_active);
         assert!(app.view.microphone_source_identity.is_none());
+        live_request
+    }
 
-        let next_generation = generation.next().unwrap();
+    fn start_live_and_assert_spectrum_source_binding(
+        app: &mut ImportApplication<ScanTestIo>,
+        request: LiveRequest,
+    ) -> crate::microphone_level::MicrophoneSpectrum {
+        let job_id = request.job_id;
+        let next_generation = request.generation;
         app.dispatch(AppCommand::StartLiveConfigured {
-            request: LiveRequest {
-                job_id,
-                generation: next_generation,
-                model_path: "model.nmodel".into(),
-                model_sha256: [1; 32],
-                destination: "archive".into(),
-                group_offset_samples: 0,
-                auto_stop_after_speech_samples: None,
-                microphone: crate::microphone::MicrophoneChoice::Device("mic:A".into()),
-                microphone_gain_db: 6,
-                config: JobConfig {
-                    language: LanguageChoice::Automatic,
-                    compute: ComputeChoice::Cpu,
-                },
-            },
+            request,
         })
         .unwrap();
         assert_eq!(app.view.direct_capture_phase, None);
@@ -584,10 +593,20 @@
             app.view.microphone_spectrum.is_some(),
             "the actual source can bind even while direct capture phase is None"
         );
+        spectrum
+    }
+
+    fn assert_retry_barrier_and_stop_cleanup(
+        app: &mut ImportApplication<ScanTestIo>,
+        job_id: JobId,
+        generation: Generation,
+        old_generation: Generation,
+        spectrum: crate::microphone_level::MicrophoneSpectrum,
+    ) {
         let retry_barrier = crate::microphone_level::monotonic_millis();
         app.io.events.push_back(ImportEvent::LiveRetryingOnCpu {
             job_id,
-            generation: next_generation,
+            generation,
             spectrum_min_epoch: 1,
             spectrum_not_before_monotonic_ms: retry_barrier,
         });
@@ -606,7 +625,7 @@
         app.io.stop_committing = true;
         app.dispatch(AppCommand::Stop {
             job_id,
-            generation: next_generation,
+            generation,
         })
         .unwrap();
         assert_eq!(app.view.active_job, Some((job_id, JobState::Finalizing)));
@@ -626,7 +645,7 @@
         app.io.events.push_back(ImportEvent::MicrophoneMeter(
             crate::microphone_level::MicrophoneMeter {
                 job_id,
-                generation,
+                generation: old_generation,
                 source_identity: "mic:A".into(),
                 sequence: 1,
                 first_frame: 0,
@@ -1011,9 +1030,16 @@
             })
             .unwrap();
             app.view.unified_parakeet_sessions[0].audio_parts_revision = 41;
-        app.view.selected_unified_session.as_mut().unwrap().audio_parts_page = Some(crate::ports::UnifiedAudioPartPage {
-            revision: 41, offset: 0, entries: vec![], next_offset: None,
-        });
+            app.view
+                .selected_unified_session
+                .as_mut()
+                .unwrap()
+                .audio_parts_page = Some(crate::ports::UnifiedAudioPartPage {
+                    revision: 41,
+                    offset: 0,
+                    entries: vec![],
+                    next_offset: None,
+                });
             app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
                 job_id: key.0,
                 generation: key.1,
@@ -1025,122 +1051,120 @@
                 ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
                 other => panic!("unexpected effect {other:?}"),
             };
-            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                request_id: request_id + 1,
-                result: Err(stale.into()),
-            })
-            .unwrap();
-            assert_eq!(
-                app.view.unified_parakeet_sessions[0].audio_parts_revision,
-                41
-            );
-            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                request_id,
-                result: Err(stale.into()),
-            })
-            .unwrap();
-            assert_eq!(
-                app.view.unified_parakeet_sessions[0].audio_parts_revision,
-                0
-            );
-            assert_eq!(
-                app.view
-                    .selected_unified_session
-                    .as_ref()
-                    .unwrap()
-                    .audio_parts_error
-                    .as_deref(),
-                Some(stale)
-            );
-            assert_eq!(app.view.selected_unified_session.as_ref().unwrap().audio_parts_page.as_ref().unwrap().revision, 41);
-        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                expected_revision: 0,
-                offset: 0,
-            })
-            .unwrap();
-            let fresh_id = match app.io.effects.last().unwrap() {
-                ImportEffect::ReadUnifiedAudioPartsPage {
-                    request_id,
-                    expected_revision: 0,
-                    ..
-                } => *request_id,
-                other => panic!("fresh revision request missing: {other:?}"),
-            };
-            assert_eq!(
-                app.view
-                    .selected_unified_session
-                    .as_ref()
-                    .unwrap()
-                    .audio_parts_error,
-                None
-            );
-            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                request_id: fresh_id,
-                result: Ok(crate::ports::UnifiedAudioPartPage {
-                    revision: 72,
-                    offset: 0,
-                    entries: vec![],
-                    next_offset: None,
-                }),
-            })
-            .unwrap();
-            assert_eq!(
-                app.view.unified_parakeet_sessions[0].audio_parts_revision,
-                72
-            );
-            assert_eq!(
-                app.view
-                    .selected_unified_session
-                    .as_ref()
-                    .unwrap()
-                    .audio_parts_page
-                    .as_ref()
-                    .unwrap()
-                    .revision,
-                72
-            );
-            app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                expected_revision: 72,
-                offset: 0,
-            })
-            .unwrap();
-            let corrupt_id = match app.io.effects.last().unwrap() {
-                ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
-                _ => unreachable!(),
-            };
-            app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
-                job_id: key.0,
-                generation: key.1,
-                request_id: corrupt_id,
-                result: Err("StorageCorrupt: damaged index".into()),
-            })
-            .unwrap();
-            app.handle_unified_capture_event(ImportEvent::ParakeetCaptureProgress {
-                job_id: key.0,
-                generation: key.1,
-                session_id: 1,
-                captured_samples: 100,
-                audio_durable_samples: 100,
-            })
-            .unwrap();
-            assert_eq!(
-                app.view
-                    .selected_unified_session
-                    .as_ref()
-                    .unwrap()
-                    .audio_parts_error
-                    .as_deref(),
-                Some("StorageCorrupt: damaged index")
-            );
+            assert_stale_audio_page_response(&mut app, key, request_id, stale);
+            assert_fresh_audio_page_response(&mut app, key);
+            assert_real_audio_page_error_survives_progress(&mut app, key);
         }
+    }
+
+    fn assert_stale_audio_page_response(
+        app: &mut ImportApplication<ScanTestIo>,
+        key: (JobId, Generation),
+        request_id: u64,
+        stale: &str,
+    ) {
+        app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            request_id: request_id + 1,
+            result: Err(stale.into()),
+        })
+        .unwrap();
+        assert_eq!(
+            app.view.unified_parakeet_sessions[0].audio_parts_revision,
+            41
+        );
+        app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            request_id,
+            result: Err(stale.into()),
+        })
+        .unwrap();
+        assert_eq!(
+            app.view.unified_parakeet_sessions[0].audio_parts_revision,
+            0
+        );
+        let selected = app.view.selected_unified_session.as_ref().unwrap();
+        assert_eq!(selected.audio_parts_error.as_deref(), Some(stale));
+        assert_eq!(selected.audio_parts_page.as_ref().unwrap().revision, 41);
+    }
+
+    fn assert_fresh_audio_page_response(
+        app: &mut ImportApplication<ScanTestIo>,
+        key: (JobId, Generation),
+    ) {
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            expected_revision: 0,
+            offset: 0,
+        })
+        .unwrap();
+        let fresh_id = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage {
+                request_id,
+                expected_revision: 0,
+                ..
+            } => *request_id,
+            other => panic!("fresh revision request missing: {other:?}"),
+        };
+        let selected = app.view.selected_unified_session.as_ref().unwrap();
+        assert_eq!(selected.audio_parts_error, None);
+        app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            request_id: fresh_id,
+            result: Ok(crate::ports::UnifiedAudioPartPage {
+                revision: 72,
+                offset: 0,
+                entries: vec![],
+                next_offset: None,
+            }),
+        })
+        .unwrap();
+        assert_eq!(app.view.unified_parakeet_sessions[0].audio_parts_revision, 72);
+        let selected = app.view.selected_unified_session.as_ref().unwrap();
+        assert_eq!(selected.audio_parts_page.as_ref().unwrap().revision, 72);
+    }
+
+    fn assert_real_audio_page_error_survives_progress(
+        app: &mut ImportApplication<ScanTestIo>,
+        key: (JobId, Generation),
+    ) {
+        app.dispatch(AppCommand::ReadUnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            expected_revision: 72,
+            offset: 0,
+        })
+        .unwrap();
+        let corrupt_id = match app.io.effects.last().unwrap() {
+            ImportEffect::ReadUnifiedAudioPartsPage { request_id, .. } => *request_id,
+            _ => unreachable!(),
+        };
+        app.handle_unified_capture_event(ImportEvent::UnifiedAudioPartsPage {
+            job_id: key.0,
+            generation: key.1,
+            request_id: corrupt_id,
+            result: Err("StorageCorrupt: damaged index".into()),
+        })
+        .unwrap();
+        app.handle_unified_capture_event(ImportEvent::ParakeetCaptureProgress {
+            job_id: key.0,
+            generation: key.1,
+            session_id: 1,
+            captured_samples: 100,
+            audio_durable_samples: 100,
+        })
+        .unwrap();
+        assert_eq!(
+            app.view
+                .selected_unified_session
+                .as_ref()
+                .unwrap()
+                .audio_parts_error
+                .as_deref(),
+            Some("StorageCorrupt: damaged index")
+        );
     }

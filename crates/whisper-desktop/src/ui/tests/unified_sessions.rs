@@ -364,25 +364,109 @@ fn rejected_quit_admission_does_not_latch_pending_close() {
     assert_eq!(app.view.message.as_deref(), Some("quit admission rejected"));
 }
 
+use whisper_core::application::{DirectCapturePhase, DirectEnginePhase};
+use whisper_core::ports::{ImportEvent, ImportIoPort, PortError};
+use whisper_core::{ImportApplication, JobState};
+
+#[derive(Clone, Default)]
+struct LifecycleIo(Rc<RefCell<VecDeque<ImportEvent>>>);
+
+impl ImportIoPort for LifecycleIo {
+    fn submit(&mut self, _effect: ImportEffect) -> Result<(), PortError> { Ok(()) }
+
+    fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+        Ok(self.0.borrow_mut().pop_front())
+    }
+}
+
+fn complete_turbo_capture_and_start_unified_parakeet(
+    context: &egui::Context,
+    app: &mut DesktopApp<MicrophoneCycleApplication>,
+    core: &mut ImportApplication<LifecycleIo>,
+    application: &MicrophoneCycleApplication,
+    io: &LifecycleIo,
+    job_id: JobId,
+    generation: Generation,
+) {
+    let stop = app
+        .live_stop_button_rect
+        .expect("active Turbo stop rendered")
+        .center();
+    click_ui_button(context, app, stop);
+    assert!(
+        application
+            .commands
+            .borrow()
+            .iter()
+            .any(|command| matches!(command,
+        AppCommand::Stop { job_id: actual, generation: actual_generation }
+            if *actual == job_id && *actual_generation == generation))
+    );
+    let draining = core
+        .dispatch(AppCommand::Stop { job_id, generation })
+        .unwrap();
+    assert_eq!(draining.active_job, Some((job_id, JobState::Draining)));
+    app.selection.model = Some(ModelId::ParakeetTdt06BV3);
+    *application.view.borrow_mut() = draining;
+    run_ui_frame(context, app, Vec::new());
+    assert_eq!(
+        app.live_start_button_enabled,
+        Some(false),
+        "Turbo drain blocks admission"
+    );
+    io.0.borrow_mut()
+        .push_back(ImportEvent::Ready {
+            job_id,
+            generation,
+            backend: "CPU".into(),
+        });
+    core.dispatch(AppCommand::Refresh).unwrap();
+    io.0.borrow_mut()
+        .push_back(ImportEvent::DirectPublished {
+            job_id,
+            generation,
+            txt_path: "a.txt".into(),
+            srt_path: "a.srt".into(),
+            wav_path: "a.wav".into(),
+        });
+    let completed = core.dispatch(AppCommand::Refresh).unwrap();
+    assert_eq!(
+        completed.active_job,
+        Some((job_id, JobState::Complete))
+    );
+    assert_eq!(
+        completed.direct_capture_phase,
+        Some(DirectCapturePhase::Stopped)
+    );
+    assert_eq!(
+        completed.direct_engine_phase,
+        Some(DirectEnginePhase::Released)
+    );
+    *application.view.borrow_mut() = completed;
+    app.selection.manual_language = Some("fr".into());
+    run_ui_frame(context, app, Vec::new());
+    assert_eq!(
+        app.live_start_button_enabled,
+        Some(false),
+        "Parakeet requires automatic language"
+    );
+    app.selection.manual_language = None;
+    run_ui_frame(context, app, Vec::new());
+    assert_eq!(app.live_start_button_enabled, Some(true));
+    let start = app.live_start_button_rect.unwrap().center();
+    click_ui_button(context, app, start);
+    assert!(
+        application
+            .commands
+            .borrow()
+            .iter()
+            .any(|command| matches!(command, AppCommand::StartUnifiedLiveConfigured { .. })),
+        "enabled button dispatches unified Parakeet start"
+    );
+}
+
 #[test]
 fn turbo_completed_capture_allows_unified_parakeet_button_and_dispatch() {
-    use whisper_core::{
-        ImportApplication, JobState,
-        application::{DirectCapturePhase, DirectEnginePhase},
-        ports::{ImportEvent, ImportIoPort, PortError},
-    };
-
-    #[derive(Clone, Default)]
-    struct LifecycleIo(Rc<RefCell<VecDeque<ImportEvent>>>);
-    impl ImportIoPort for LifecycleIo {
-        fn submit(&mut self, _effect: ImportEffect) -> Result<(), PortError> {
-            Ok(())
-        }
-        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
-            Ok(self.0.borrow_mut().pop_front())
-        }
-    }
-
     let io = LifecycleIo::default();
     let mut core = ImportApplication::new(io.clone());
     let application = MicrophoneCycleApplication::default();
@@ -439,75 +523,14 @@ fn turbo_completed_capture_allows_unified_parakeet_button_and_dispatch() {
     );
     *application.view.borrow_mut() = active;
     run_ui_frame(&context, &mut app, Vec::new());
-    let stop = app
-        .live_stop_button_rect
-        .expect("active Turbo stop rendered")
-        .center();
-    click_ui_button(&context, &mut app, stop);
-    assert!(
-        application
-            .commands
-            .borrow()
-            .iter()
-            .any(|command| matches!(command,
-        AppCommand::Stop { job_id: actual, generation: actual_generation }
-            if *actual == job_id && *actual_generation == generation))
-    );
-    let draining = core
-        .dispatch(AppCommand::Stop { job_id, generation })
-        .unwrap();
-    assert_eq!(draining.active_job, Some((job_id, JobState::Draining)));
-    app.selection.model = Some(ModelId::ParakeetTdt06BV3);
-    *application.view.borrow_mut() = draining;
-    run_ui_frame(&context, &mut app, Vec::new());
-    assert_eq!(
-        app.live_start_button_enabled,
-        Some(false),
-        "Turbo drain blocks admission"
-    );
-    io.0.borrow_mut().push_back(ImportEvent::Ready {
+    complete_turbo_capture_and_start_unified_parakeet(
+        &context,
+        &mut app,
+        &mut core,
+        &application,
+        &io,
         job_id,
         generation,
-        backend: "CPU".into(),
-    });
-    core.dispatch(AppCommand::Refresh).unwrap();
-    io.0.borrow_mut().push_back(ImportEvent::DirectPublished {
-        job_id,
-        generation,
-        txt_path: "a.txt".into(),
-        srt_path: "a.srt".into(),
-        wav_path: "a.wav".into(),
-    });
-    let completed = core.dispatch(AppCommand::Refresh).unwrap();
-    assert_eq!(completed.active_job, Some((job_id, JobState::Complete)));
-    assert_eq!(
-        completed.direct_capture_phase,
-        Some(DirectCapturePhase::Stopped)
-    );
-    assert_eq!(
-        completed.direct_engine_phase,
-        Some(DirectEnginePhase::Released)
-    );
-    *application.view.borrow_mut() = completed;
-    app.selection.manual_language = Some("fr".into());
-    run_ui_frame(&context, &mut app, Vec::new());
-    assert_eq!(
-        app.live_start_button_enabled,
-        Some(false),
-        "Parakeet requires automatic language"
-    );
-    app.selection.manual_language = None;
-    run_ui_frame(&context, &mut app, Vec::new());
-    assert_eq!(app.live_start_button_enabled, Some(true));
-    let start = app.live_start_button_rect.unwrap().center();
-    click_ui_button(&context, &mut app, start);
-    assert!(
-        application
-            .commands
-            .borrow()
-            .iter()
-            .any(|command| matches!(command, AppCommand::StartUnifiedLiveConfigured { .. })),
-        "enabled button dispatches unified Parakeet start"
     );
 }
 
@@ -559,95 +582,30 @@ fn unified_admission_keeps_direct_capture_and_other_busy_guards() {
 
 #[test]
 fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry() {
-    use whisper_core::ports::{
-        UnifiedAudioPartPage, UnifiedParakeetSelectionView, UnifiedParakeetSessionView,
-        UnifiedSessionPhase,
-    };
-    let application = MicrophoneCycleApplication::default();
+    use whisper_core::ports::{UnifiedAudioPartPage, UnifiedSessionPhase};
+
+    let (application, mut app) = stale_audio_page_retry_test_app();
     let job_id = JobId(99281);
     let generation = Generation::first();
-    {
-        let mut view = application.view.borrow_mut();
-        view.unified_parakeet_sessions
-            .push(UnifiedParakeetSessionView {
-                job_id,
-                generation,
-                microphone_capture: true,
-                destination: "output".into(),
-                source_path: String::new(),
-                phase: UnifiedSessionPhase::Capturing,
-                captured_samples: 16_000,
-                durable_samples: 16_000,
-                total_samples: None,
-                document_revision: 0,
-                audio_parts_revision: 0,
-                wav_path: None,
-                txt_path: None,
-                srt_path: None,
-                message: None,
-            });
-        view.selected_unified_session = Some(UnifiedParakeetSelectionView {
-            job_id,
-            generation,
-            document_page: None,
-            preview: None,
-            audio_parts_page: None,
-            document_error: None,
-            audio_parts_error: Some("StaleResponse: unified audio parts changed".into()),
-        });
-    }
-    let paths = whisper_core::path_settings::PathSettingsApp::new(
-        whisper_core::path_settings::PathDefaults {
-            audio_directory: String::new(),
-            model_path: "model".into(),
-            destination: "output".into(),
-        },
-        Box::new(whisper_core::path_settings::NullPathPort),
-    );
-    let mut app = DesktopApp::with_microphones(
-        application.clone(),
-        ComputeChoice::Cpu,
-        None,
-        paths,
-        Box::new(OneMicrophone),
-    );
     let context = egui::Context::default();
-    let frame = |time: f64, app: &mut DesktopApp<MicrophoneCycleApplication>| {
-        let output = context.run_ui(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1200.0, 3000.0),
-                )),
-                time: Some(time),
-                ..Default::default()
-            },
-            |ui| app.show_ui(ui),
-        );
-        output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text.contains("StorageCorrupt: bad index")))
-    };
-    let count = || {
-        application
-            .commands
-            .borrow()
-            .iter()
-            .filter(|command| matches!(command, AppCommand::ReadUnifiedAudioPartsPage { .. }))
-            .count()
-    };
-    frame(0.0, &mut app);
-    frame(0.1, &mut app);
+    run_unified_audio_frame(&context, &mut app, Some(0.0));
+    run_unified_audio_frame(&context, &mut app, Some(0.1));
     assert_eq!(
-        count(),
+        unified_audio_page_read_count(&application),
         0,
         "a stale response must not trigger an immediate retry"
     );
-    frame(0.3, &mut app);
-    assert_eq!(count(), 1);
+    run_unified_audio_frame(&context, &mut app, Some(0.3));
+    assert_eq!(unified_audio_page_read_count(&application), 1);
     assert!(application.commands.borrow().iter().any(|command| matches!(command,
         AppCommand::ReadUnifiedAudioPartsPage { job_id: actual, generation: actual_generation, expected_revision: 0, .. }
             if *actual == job_id && *actual_generation == generation)));
-    frame(0.4, &mut app);
-    assert_eq!(count(), 1, "unchanged state is coalesced between retries");
+    run_unified_audio_frame(&context, &mut app, Some(0.4));
+    assert_eq!(
+        unified_audio_page_read_count(&application),
+        1,
+        "unchanged state is coalesced between retries"
+    );
     application
         .view
         .borrow_mut()
@@ -655,8 +613,12 @@ fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry() {
         .as_mut()
         .unwrap()
         .audio_parts_error = Some("StaleResponse: unified audio parts changed during read".into());
-    frame(0.6, &mut app);
-    assert_eq!(count(), 2, "a second stale read is retried after the delay");
+    run_unified_audio_frame(&context, &mut app, Some(0.6));
+    assert_eq!(
+        unified_audio_page_read_count(&application),
+        2,
+        "a second stale read is retried after the delay"
+    );
     {
         let mut view = application.view.borrow_mut();
         view.unified_parakeet_sessions[0].phase = UnifiedSessionPhase::Complete;
@@ -670,8 +632,12 @@ fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry() {
             next_offset: None,
         });
     }
-    frame(1.0, &mut app);
-    assert_eq!(count(), 2, "stable fresh page ends retries");
+    run_unified_audio_frame(&context, &mut app, Some(1.0));
+    assert_eq!(
+        unified_audio_page_read_count(&application),
+        2,
+        "stable fresh page ends retries"
+    );
     {
         let mut view = application.view.borrow_mut();
         view.selected_unified_session
@@ -679,115 +645,35 @@ fn stale_audio_page_retries_are_delayed_and_corruption_does_not_retry() {
             .unwrap()
             .audio_parts_error = Some("StorageCorrupt: bad index".into());
     }
-    frame(2.0, &mut app);
+    run_unified_audio_frame(&context, &mut app, Some(2.0));
     assert!(
-        frame(3.0, &mut app),
+        unified_audio_frame_shows_corruption(&run_unified_audio_frame(
+            &context,
+            &mut app,
+            Some(3.0),
+        )),
         "genuine corruption remains visible even with a previous current page"
     );
-    assert_eq!(count(), 2, "genuine corruption is not retried or hidden");
+    assert_eq!(
+        unified_audio_page_read_count(&application),
+        2,
+        "genuine corruption is not retried or hidden"
+    );
 }
 
 #[test]
 fn unified_audio_page_stays_visible_at_same_position_while_progress_refreshes() {
-    use whisper_core::ports::{
-        UnifiedAudioPart, UnifiedAudioPartPage, UnifiedParakeetSelectionView,
-        UnifiedParakeetSessionView, UnifiedSessionPhase,
-    };
-    let application = MicrophoneCycleApplication::default();
-    let job_id = JobId(99391);
-    let generation = Generation::first();
-    {
-        let mut view = application.view.borrow_mut();
-        view.unified_parakeet_sessions
-            .push(UnifiedParakeetSessionView {
-                job_id,
-                generation,
-                microphone_capture: true,
-                destination: "output".into(),
-                source_path: String::new(),
-                phase: UnifiedSessionPhase::Capturing,
-                captured_samples: 16_000,
-                durable_samples: 16_000,
-                total_samples: None,
-                document_revision: 0,
-                audio_parts_revision: 0,
-                wav_path: None,
-                txt_path: None,
-                srt_path: None,
-                message: None,
-            });
-        view.selected_unified_session = Some(UnifiedParakeetSelectionView {
-            job_id,
-            generation,
-            document_page: None,
-            preview: None,
-            audio_parts_page: Some(UnifiedAudioPartPage {
-                revision: 10,
-                offset: 0,
-                entries: vec![UnifiedAudioPart {
-                    number: 1,
-                    start_sample: 0,
-                    end_sample: 16_000,
-                    path: "archive/source.wav".into(),
-                }],
-                next_offset: None,
-            }),
-            document_error: None,
-            audio_parts_error: None,
-        });
-    }
-    let paths = whisper_core::path_settings::PathSettingsApp::new(
-        whisper_core::path_settings::PathDefaults {
-            audio_directory: String::new(),
-            model_path: "model".into(),
-            destination: "output".into(),
-        },
-        Box::new(whisper_core::path_settings::NullPathPort),
-    );
-    let mut app = DesktopApp::with_microphones(
-        application.clone(),
-        ComputeChoice::Cpu,
-        None,
-        paths,
-        Box::new(OneMicrophone),
-    );
+    let (application, mut app) = visible_audio_page_test_app();
     let context = egui::Context::default();
     let mut positions = Vec::new();
     for samples in [16_000, 17_000, 18_000, 19_000] {
-        {
-            let mut view = application.view.borrow_mut();
-            view.unified_parakeet_sessions[0].captured_samples = samples;
-            view.unified_parakeet_sessions[0].durable_samples = samples;
-        }
-        let output = context.run_ui(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1200.0, 3000.0),
-                )),
-                ..Default::default()
-            },
-            |ui| app.show_ui(ui),
+        set_unified_audio_progress(&application, samples);
+        let output = run_unified_audio_frame(&context, &mut app, None);
+        assert!(
+            unified_audio_page_is_updating(&output),
+            "older page must be labelled as updating"
         );
-        let mut part = None;
-        let mut updating = false;
-        for clipped in &output.shapes {
-            if let egui::Shape::Text(text) = &clipped.shape {
-                if text.galley.job.text.contains("Partie 1") {
-                    part = Some(text.pos.y);
-                }
-                if text
-                    .galley
-                    .job
-                    .text
-                    .contains("Actualisation des références audio")
-                {
-                    updating = true;
-                }
-            }
-        }
-        assert!(updating, "older page must be labelled as updating");
-        positions.push(part.expect("the old audio part remains visible"));
+        positions.push(unified_audio_page_part_y(&output).expect("the old audio part remains visible"));
     }
     assert!(
         positions

@@ -29,35 +29,192 @@
     #[test]
     fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports()
      {
-        let root = std::env::temp_dir().join(format!(
-            "whisper-create-only-publication-{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let job_id = JobId(0x51_001);
-        let generation = Generation::first();
-        let directory = generation_path(&root, job_id, generation);
-        let source_path = directory.join("parakeet-unified/source.wav");
-        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
-        let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
-        writer.append(&vec![0_i16; 16_000]).unwrap();
-        assert_eq!(writer.finish().unwrap(), 16_000);
+        let scenario = InternalPublicationScenario::new();
+        scenario.assert_published_internal_artifacts();
+        scenario.assert_untrusted_artifacts_rejected();
+        eprintln!("Preserved internal publication test artifacts at {}", scenario.root.display());
+    }
 
-        let text = b"verified internal transcript";
-        let srt = b"1\n00:00:00,000 --> 00:00:01,000\nverified internal transcript\n";
-        fs::write(directory.join("transcript.txt"), text).unwrap();
-        fs::write(directory.join("transcript.srt"), srt).unwrap();
+    struct InternalPublicationScenario {
+        root: PathBuf,
+        directory: PathBuf,
+        source_path: PathBuf,
+        text: &'static [u8],
+        srt: &'static [u8],
+        manifest: CompleteRecord,
+        intent: PublicationIntent,
+    }
+
+    impl InternalPublicationScenario {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "whisper-create-only-publication-{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            let job_id = JobId(0x51_001);
+            let generation = Generation::first();
+            let directory = generation_path(&root, job_id, generation);
+            let source_path = directory.join("parakeet-unified/source.wav");
+            fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+            let mut writer = crate::parakeet_audio::PcmPartWriter::create(&source_path).unwrap();
+            writer.append(&vec![0_i16; 16_000]).unwrap();
+            assert_eq!(writer.finish().unwrap(), 16_000);
+            let text = b"verified internal transcript";
+            let srt = b"1\n00:00:00,000 --> 00:00:01,000\nverified internal transcript\n";
+            fs::write(directory.join("transcript.txt"), text).unwrap();
+            fs::write(directory.join("transcript.srt"), srt).unwrap();
+            let (manifest, intent) = persist_internal_publication_records(
+                &directory,
+                &root,
+                &source_path,
+                (job_id, generation),
+            );
+            Self {
+                root,
+                directory,
+                source_path,
+                text,
+                srt,
+                manifest,
+                intent,
+            }
+        }
+
+        fn assert_published_internal_artifacts(&self) {
+            let exports = self.root.join("exports");
+            fs::create_dir_all(&exports).unwrap();
+            let sentinel_txt = b"pre-existing external TXT";
+            let sentinel_srt = b"pre-existing external SRT";
+            fs::write(exports.join("transcript.txt"), sentinel_txt).unwrap();
+            fs::write(exports.join("transcript.srt"), sentinel_srt).unwrap();
+            let reserved_request = ImportRequest {
+                strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                job_id: JobId(self.manifest.job_id.0 + 1),
+                generation: self.manifest.generation,
+                source_path: self.source_path.to_string_lossy().into_owned(),
+                source_sha256: Some([0x52; 32]),
+                source_samples: Some(16_000),
+                model_path: "unused-model".into(),
+                model_sha256: [0; 32],
+                destination: self.root.to_string_lossy().into_owned(),
+                config: whisper_core::JobConfig {
+                    language: whisper_core::LanguageChoice::Automatic,
+                    compute: whisper_core::ComputeChoice::Cpu,
+                },
+            };
+            ArchiveStore::reserve_create_only_new_import(
+                &self.root,
+                &reserved_request,
+                &"52".repeat(32),
+            )
+            .unwrap();
+            let reservation_path = publication_reservation_path(
+                &self.root,
+                reserved_request.job_id,
+                reserved_request.generation,
+            );
+            let reservation_before = fs::read(&reservation_path).unwrap();
+            let index_path = publication_index_path(&self.root);
+            let index_before = fs::read(&index_path).unwrap();
+
+            let files = self.published_files_for(self.manifest.job_id).unwrap();
+            let expected_wav = self.source_path.canonicalize().unwrap();
+            let expected_txt = self.directory.join("transcript.txt").canonicalize().unwrap();
+            let expected_srt = self.directory.join("transcript.srt").canonicalize().unwrap();
+            assert_eq!(Path::new(&files.wav_path), expected_wav.as_path());
+            assert_eq!(Path::new(&files.txt_path), expected_txt.as_path());
+            assert_eq!(Path::new(&files.srt_path), expected_srt.as_path());
+            assert_eq!(fs::read(&files.txt_path).unwrap(), self.text);
+            assert_eq!(fs::read(&files.srt_path).unwrap(), self.srt);
+            assert_eq!(fs::read(exports.join("transcript.txt")).unwrap(), sentinel_txt);
+            assert_eq!(fs::read(exports.join("transcript.srt")).unwrap(), sentinel_srt);
+            assert_eq!(fs::read(&reservation_path).unwrap(), reservation_before);
+            assert_eq!(fs::read(&index_path).unwrap(), index_before);
+        }
+
+        fn assert_untrusted_artifacts_rejected(&self) {
+            let intent_path = self.directory.join("r11-publication.json");
+            let valid_intent = fs::read(&intent_path).unwrap();
+            let mut altered_intent = self.intent.clone();
+            altered_intent.operation_id = format!(
+                "untrusted-prefix-{:032x}-{}",
+                self.manifest.job_id.0,
+                self.manifest.generation.get()
+            );
+            fs::write(&intent_path, serde_json::to_vec(&altered_intent).unwrap()).unwrap();
+            self.assert_rejected_containing(
+                "StaleResponse",
+                "an arbitrary operation prefix must not authorize internal artifacts",
+            );
+            fs::write(&intent_path, valid_intent).unwrap();
+
+            let mut corrupt_manifest = self.manifest.clone();
+            corrupt_manifest.text.path = "../exports/transcript.txt".into();
+            write_publication_manifest(&self.directory, &corrupt_manifest);
+            self.assert_rejected_containing("unexpected internal publication path", "expected internal path validation rejection");
+
+            write_publication_manifest(&self.directory, &self.manifest);
+            fs::write(self.directory.join("transcript.txt"), b"altered transcript").unwrap();
+            self.assert_rejected_containing("artifact verification failed", "expected altered transcript rejection");
+            fs::write(self.directory.join("transcript.txt"), self.text).unwrap();
+
+            fs::remove_file(self.directory.join("transcript.srt")).unwrap();
+            assert!(
+                self.published_files_for(self.manifest.job_id).is_err(),
+                "a missing internal SRT must remain unavailable"
+            );
+            fs::write(self.directory.join("transcript.srt"), self.srt).unwrap();
+
+            let mut mismatched_manifest = self.manifest.clone();
+            mismatched_manifest.job_id = JobId(self.manifest.job_id.0 + 2);
+            write_publication_manifest(&self.directory, &mismatched_manifest);
+            self.assert_rejected_containing("StaleResponse", "expected stale response rejection");
+            write_publication_manifest(&self.directory, &self.manifest);
+
+            let index = self.source_path.with_extension("parts.idx");
+            let valid_index = fs::read(&index).unwrap();
+            fs::write(&index, [valid_index.as_slice(), b"x"].concat()).unwrap();
+            assert!(self.published_files_for(self.manifest.job_id).is_err());
+            fs::write(&index, valid_index).unwrap();
+            assert!(self.published_files_for(JobId(self.manifest.job_id.0 + 3)).is_err());
+        }
+
+        fn published_files_for(
+            &self,
+            job_id: JobId,
+        ) -> Result<whisper_core::ports::UnifiedPublicationFiles, String> {
+            ArchiveStore::published_unified_files(&self.root, job_id, self.manifest.generation)
+        }
+
+        fn assert_rejected_containing(&self, diagnostic: &str, message: &str) {
+            assert!(
+                self.published_files_for(self.manifest.job_id)
+                    .unwrap_err()
+                    .contains(diagnostic),
+                "{message}"
+            );
+        }
+    }
+
+    fn persist_internal_publication_records(
+        directory: &Path,
+        root: &Path,
+        source_path: &Path,
+        identity: (JobId, Generation),
+    ) -> (CompleteRecord, PublicationIntent) {
+        let (job_id, generation) = identity;
         let manifest = CompleteRecord {
             version: 1,
             job_id,
             generation,
             source_sha256: "51".repeat(32),
             segments: 1,
-            text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
-            srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
+            text: verified_artifact(directory, &directory.join("transcript.txt")).unwrap(),
+            srt: verified_artifact(directory, &directory.join("transcript.srt")).unwrap(),
         };
         let pending = PendingRecord {
             version: 4,
@@ -77,11 +234,7 @@
             serde_json::to_vec(&pending).unwrap(),
         )
         .unwrap();
-        fs::write(
-            directory.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
-        )
-        .unwrap();
+        write_publication_manifest(directory, &manifest);
         let intent = PublicationIntent {
             version: 1,
             operation_id: format!("{:032x}-{}", job_id.0, generation.get()),
@@ -101,7 +254,7 @@
         .unwrap();
         fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
         write_publication_index(
-            &root,
+            root,
             &PublicationIndex {
                 version: 1,
                 records: vec![PublicationRecord {
@@ -115,139 +268,12 @@
             },
         )
         .unwrap();
-
-        let exports = root.join("exports");
-        fs::create_dir_all(&exports).unwrap();
-        let sentinel_txt = b"pre-existing external TXT";
-        let sentinel_srt = b"pre-existing external SRT";
-        fs::write(exports.join("transcript.txt"), sentinel_txt).unwrap();
-        fs::write(exports.join("transcript.srt"), sentinel_srt).unwrap();
-
-        let reserved_request = ImportRequest {
-            strategy: whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-            job_id: JobId(job_id.0 + 1),
-            generation,
-            source_path: source_path.to_string_lossy().into_owned(),
-            source_sha256: Some([0x52; 32]),
-            source_samples: Some(16_000),
-            model_path: "unused-model".into(),
-            model_sha256: [0; 32],
-            destination: root.to_string_lossy().into_owned(),
-            config: whisper_core::JobConfig {
-                language: whisper_core::LanguageChoice::Automatic,
-                compute: whisper_core::ComputeChoice::Cpu,
-            },
-        };
-        ArchiveStore::reserve_create_only_new_import(&root, &reserved_request, &"52".repeat(32))
-            .unwrap();
-        let reservation_path = publication_reservation_path(
-            &root,
-            reserved_request.job_id,
-            reserved_request.generation,
-        );
-        let reservation_before = fs::read(&reservation_path).unwrap();
-        let index_path = publication_index_path(&root);
-        let index_before = fs::read(&index_path).unwrap();
-
-        let files = ArchiveStore::published_unified_files(&root, job_id, generation).unwrap();
-        let expected_wav = source_path.canonicalize().unwrap();
-        let expected_txt = directory.join("transcript.txt").canonicalize().unwrap();
-        let expected_srt = directory.join("transcript.srt").canonicalize().unwrap();
-        assert_eq!(Path::new(&files.wav_path), expected_wav.as_path());
-        assert_eq!(Path::new(&files.txt_path), expected_txt.as_path());
-        assert_eq!(Path::new(&files.srt_path), expected_srt.as_path());
-        assert_eq!(fs::read(&files.txt_path).unwrap(), text);
-        assert_eq!(fs::read(&files.srt_path).unwrap(), srt);
-        assert_eq!(
-            fs::read(exports.join("transcript.txt")).unwrap(),
-            sentinel_txt
-        );
-        assert_eq!(
-            fs::read(exports.join("transcript.srt")).unwrap(),
-            sentinel_srt
-        );
-        assert_eq!(fs::read(&reservation_path).unwrap(), reservation_before);
-        assert_eq!(fs::read(&index_path).unwrap(), index_before);
-
-        let intent_path = directory.join("r11-publication.json");
-        let valid_intent = fs::read(&intent_path).unwrap();
-        let mut altered_intent = intent.clone();
-        altered_intent.operation_id =
-            format!("untrusted-prefix-{:032x}-{}", job_id.0, generation.get());
-        fs::write(&intent_path, serde_json::to_vec(&altered_intent).unwrap()).unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, job_id, generation)
-                .unwrap_err()
-                .contains("StaleResponse"),
-            "an arbitrary operation prefix must not authorize internal artifacts"
-        );
-        fs::write(&intent_path, valid_intent).unwrap();
-
-        let mut corrupt_manifest = manifest.clone();
-        corrupt_manifest.text.path = "../exports/transcript.txt".into();
-        fs::write(
-            directory.join("manifest.json"),
-            serde_json::to_vec(&corrupt_manifest).unwrap(),
-        )
-        .unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, job_id, generation)
-                .unwrap_err()
-                .contains("unexpected internal publication path")
-        );
-
-        fs::write(
-            directory.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
-        )
-        .unwrap();
-        fs::write(directory.join("transcript.txt"), b"altered transcript").unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, job_id, generation)
-                .unwrap_err()
-                .contains("artifact verification failed")
-        );
-        fs::write(directory.join("transcript.txt"), text).unwrap();
-
-        fs::remove_file(directory.join("transcript.srt")).unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, job_id, generation).is_err(),
-            "a missing internal SRT must remain unavailable"
-        );
-        fs::write(directory.join("transcript.srt"), srt).unwrap();
-
-        let mut mismatched_manifest = manifest.clone();
-        mismatched_manifest.job_id = JobId(job_id.0 + 2);
-        fs::write(
-            directory.join("manifest.json"),
-            serde_json::to_vec(&mismatched_manifest).unwrap(),
-        )
-        .unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, job_id, generation)
-                .unwrap_err()
-                .contains("StaleResponse")
-        );
-        fs::write(
-            directory.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
-        )
-        .unwrap();
-
-        let index = source_path.with_extension("parts.idx");
-        let valid_index = fs::read(&index).unwrap();
-        fs::write(&index, [valid_index.as_slice(), b"x"].concat()).unwrap();
-        assert!(ArchiveStore::published_unified_files(&root, job_id, generation).is_err());
-        fs::write(&index, valid_index).unwrap();
-        assert!(
-            ArchiveStore::published_unified_files(&root, JobId(job_id.0 + 3), generation).is_err()
-        );
-        eprintln!(
-            "Preserved internal publication test artifacts at {}",
-            root.display()
-        );
+        (manifest, intent)
     }
 
+    fn write_publication_manifest(directory: &Path, manifest: &CompleteRecord) {
+        fs::write(directory.join("manifest.json"), serde_json::to_vec(manifest).unwrap()).unwrap();
+    }
     #[test]
     #[cfg(windows)]
     fn reprocessing_reservation_tracks_only_current_strategy_publications_for_resume() {
@@ -264,172 +290,32 @@
         fs::write(&source_path, b"test source identity").unwrap();
         let source_sha256 = "ab".repeat(32);
         let generation = Generation::first();
-        let bounded_job = JobId(0x5301);
-        let legacy_job = JobId(0x5302);
-        let mut index_records = Vec::new();
-
-        for (job_id, strategy) in [
-            (
-                bounded_job,
-                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-            ),
-            (
-                legacy_job,
-                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-            ),
-        ] {
-            let directory = generation_path(&root, job_id, generation);
-            fs::create_dir_all(&directory).unwrap();
-            let text = format!("strategy-specific result for {}", job_id.0);
-            let srt = format!("1\n00:00:00,000 --> 00:00:01,000\n{text}\n");
-            fs::write(directory.join("transcript.txt"), text.as_bytes()).unwrap();
-            fs::write(directory.join("transcript.srt"), srt.as_bytes()).unwrap();
-            let mut segments = serde_json::to_vec(&SegmentRecord {
-                sequence: 1,
-                range: SourceRange::new(0, 16_000, 16_000).unwrap(),
-                text: text.clone(),
-            })
-            .unwrap();
-            segments.push(b'\n');
-            fs::write(directory.join("segments.jsonl"), segments).unwrap();
-
-            let model_id = if strategy
-                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-            {
-                whisper_core::model_catalog::ModelId::ParakeetTdt06BV3
-            } else {
-                whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
-            };
-            let model = whisper_core::model_registry::model(model_id).artifact;
-            let pending = PendingRecord {
-                version: if strategy
-                    == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-                {
-                    4
-                } else {
-                    1
-                },
-                job_id,
-                generation,
-                source_path: source_path.to_string_lossy().into_owned(),
-                source_sha256: source_sha256.clone(),
-                source_samples: 16_000,
-                model_path: model.file_name.into(),
-                model_sha256: model.sha256.into(),
-                model_size: model.size_bytes,
-                strategy,
-                qualification: None,
-            };
-            fs::write(
-                directory.join("pending.json"),
-                serde_json::to_vec(&pending).unwrap(),
-            )
-            .unwrap();
-            let manifest = CompleteRecord {
-                version: 1,
-                job_id,
-                generation,
-                source_sha256: source_sha256.clone(),
-                segments: 1,
-                text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
-                srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
-            };
-            fs::write(
-                directory.join("manifest.json"),
-                serde_json::to_vec(&manifest).unwrap(),
-            )
-            .unwrap();
-            fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
-            let success_ordinal = index_records.len() as u64 + 1;
-            index_records.push(PublicationRecord {
-                job_id,
-                generation,
-                source_sha256: source_sha256.clone(),
-                export_basename: Some(format!("result-{}", job_id.0)),
-                active: true,
-                success_ordinal: Some(success_ordinal),
-            });
-        }
-        write_publication_index(
+        let jobs = (JobId(0x5301), JobId(0x5302));
+        write_reprocessing_publications(
             &root,
-            &PublicationIndex {
-                version: 1,
-                records: index_records,
-            },
-        )
-        .unwrap();
+            &source_path,
+            &source_sha256,
+            generation,
+            jobs,
+        );
 
         let catalog = ArchiveStore::reprocessing_catalog(&root, &source_sha256).unwrap();
         assert_eq!(catalog.len(), 2);
         let canonical_destination = root.canonicalize().unwrap().to_string_lossy().into_owned();
-        for (job_id, strategy, request_job) in [
-            (
-                bounded_job,
-                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
-                JobId(0x5303),
-            ),
-            (
-                legacy_job,
-                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
-                JobId(0x5304),
-            ),
-        ] {
-            let selected = TreatmentIdentity {
-                destination: canonical_destination.clone(),
-                job_id,
-                generation,
-            };
-            let request = ImportRequest {
-                strategy,
-                job_id: request_job,
-                generation,
-                source_path: source_path.to_string_lossy().into_owned(),
-                source_sha256: Some([0xab; 32]),
-                source_samples: Some(16_000),
-                model_path: "test-model".into(),
-                model_sha256: [0; 32],
-                destination: canonical_destination.clone(),
-                config: whisper_core::JobConfig {
-                    language: whisper_core::LanguageChoice::Automatic,
-                    compute: whisper_core::ComputeChoice::Cpu,
-                },
-            };
-            ArchiveStore::reserve_reprocessing_import(
-                &root,
-                &request,
-                &source_sha256,
-                16_000,
-                &catalog,
-                std::slice::from_ref(&selected),
-                DuplicateImportChoice::ReplaceLatest,
-            )
-            .unwrap();
-            let intent: PublicationIntent = serde_json::from_slice(
-                &fs::read(publication_reservation_path(&root, request_job, generation)).unwrap(),
-            )
-            .unwrap();
-            let expected = if strategy
-                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
-            {
-                bounded_job
-            } else {
-                legacy_job
-            };
-            assert_eq!(
-                intent.expected_active,
-                vec![PublicationIdentity {
-                    job_id: expected,
-                    generation,
-                }],
-                "reprocessing reservations must snapshot only publications of their strategy"
-            );
-        }
-
+        assert_reprocessing_reservations(
+            &root,
+            &source_path,
+            &source_sha256,
+            generation,
+            &catalog,
+            &canonical_destination,
+            jobs,
+        );
         let mut changed_index = read_publication_index(&root).unwrap();
         changed_index
             .records
             .iter_mut()
-            .find(|record| record.job_id == bounded_job)
+            .find(|record| record.job_id == jobs.0)
             .unwrap()
             .active = false;
         write_publication_index(&root, &changed_index).unwrap();
@@ -457,7 +343,7 @@
                 &catalog,
                 &[TreatmentIdentity {
                     destination: root.canonicalize().unwrap().to_string_lossy().into_owned(),
-                    job_id: bounded_job,
+                    job_id: jobs.0,
                     generation,
                 }],
                 DuplicateImportChoice::ReplaceLatest,
@@ -467,6 +353,175 @@
             "a changed publication catalog must still be refused"
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    fn write_reprocessing_publications(
+        root: &Path,
+        source_path: &Path,
+        source_sha256: &str,
+        generation: Generation,
+        jobs: (JobId, JobId),
+    ) {
+        let mut index_records = Vec::new();
+        for (job_id, strategy) in [
+            (
+                jobs.0,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+            ),
+            (
+                jobs.1,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+            ),
+        ] {
+            let directory = generation_path(root, job_id, generation);
+            fs::create_dir_all(&directory).unwrap();
+            let text = format!("strategy-specific result for {}", job_id.0);
+            let srt = format!("1\n00:00:00,000 --> 00:00:01,000\n{text}\n");
+            fs::write(directory.join("transcript.txt"), text.as_bytes()).unwrap();
+            fs::write(directory.join("transcript.srt"), srt.as_bytes()).unwrap();
+            let mut segments = serde_json::to_vec(&SegmentRecord {
+                sequence: 1,
+                range: SourceRange::new(0, 16_000, 16_000).unwrap(),
+                text: text.clone(),
+            })
+            .unwrap();
+            segments.push(b'\n');
+            fs::write(directory.join("segments.jsonl"), segments).unwrap();
+
+            let bounded = strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1;
+            let (model_id, version) = if bounded {
+                (whisper_core::model_catalog::ModelId::ParakeetTdt06BV3, 4)
+            } else {
+                (whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo, 1)
+            };
+            let model = whisper_core::model_registry::model(model_id).artifact;
+            let pending = PendingRecord {
+                version,
+                job_id,
+                generation,
+                source_path: source_path.to_string_lossy().into_owned(),
+                source_sha256: source_sha256.to_owned(),
+                source_samples: 16_000,
+                model_path: model.file_name.into(),
+                model_sha256: model.sha256.into(),
+                model_size: model.size_bytes,
+                strategy,
+                qualification: None,
+            };
+            fs::write(
+                directory.join("pending.json"),
+                serde_json::to_vec(&pending).unwrap(),
+            )
+            .unwrap();
+            let manifest = CompleteRecord {
+                version: 1,
+                job_id,
+                generation,
+                source_sha256: source_sha256.to_owned(),
+                segments: 1,
+                text: verified_artifact(&directory, &directory.join("transcript.txt")).unwrap(),
+                srt: verified_artifact(&directory, &directory.join("transcript.srt")).unwrap(),
+            };
+            fs::write(
+                directory.join("manifest.json"),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+            fs::write(directory.join("CURRENT"), b"manifest.json\n").unwrap();
+            let success_ordinal = index_records.len() as u64 + 1;
+            index_records.push(PublicationRecord {
+                job_id,
+                generation,
+                source_sha256: source_sha256.to_owned(),
+                export_basename: Some(format!("result-{}", job_id.0)),
+                active: true,
+                success_ordinal: Some(success_ordinal),
+            });
+        }
+        write_publication_index(
+            root,
+            &PublicationIndex {
+                version: 1,
+                records: index_records,
+            },
+        )
+        .unwrap();
+    }
+
+    #[cfg(windows)]
+    fn assert_reprocessing_reservations(
+        root: &Path,
+        source_path: &Path,
+        source_sha256: &str,
+        generation: Generation,
+        catalog: &[PublishedImport],
+        canonical_destination: &str,
+        jobs: (JobId, JobId),
+    ) {
+        for (job_id, strategy, request_job) in [
+            (
+                jobs.0,
+                whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1,
+                JobId(0x5303),
+            ),
+            (
+                jobs.1,
+                whisper_core::parakeet_session::TranscriptionStrategy::LegacyV1,
+                JobId(0x5304),
+            ),
+        ] {
+            let selected = TreatmentIdentity {
+                destination: canonical_destination.to_owned(),
+                job_id,
+                generation,
+            };
+            let request = ImportRequest {
+                strategy,
+                job_id: request_job,
+                generation,
+                source_path: source_path.to_string_lossy().into_owned(),
+                source_sha256: Some([0xab; 32]),
+                source_samples: Some(16_000),
+                model_path: "test-model".into(),
+                model_sha256: [0; 32],
+                destination: canonical_destination.to_owned(),
+                config: whisper_core::JobConfig {
+                    language: whisper_core::LanguageChoice::Automatic,
+                    compute: whisper_core::ComputeChoice::Cpu,
+                },
+            };
+            ArchiveStore::reserve_reprocessing_import(
+                root,
+                &request,
+                source_sha256,
+                16_000,
+                catalog,
+                std::slice::from_ref(&selected),
+                DuplicateImportChoice::ReplaceLatest,
+            )
+            .unwrap();
+            let intent: PublicationIntent = serde_json::from_slice(
+                &fs::read(publication_reservation_path(root, request_job, generation)).unwrap(),
+            )
+            .unwrap();
+            let expected = if strategy
+                == whisper_core::parakeet_session::TranscriptionStrategy::BoundedWindowsV1
+            {
+                jobs.0
+            } else {
+                jobs.1
+            };
+            assert_eq!(
+                intent.expected_active,
+                vec![PublicationIdentity {
+                    job_id: expected,
+                    generation,
+                }],
+                "reprocessing reservations must snapshot only publications of their strategy"
+            );
+        }
     }
 
     #[test]

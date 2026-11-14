@@ -1,5 +1,7 @@
 use super::*;
 
+type CpuLiveRetryReservation = Result<(u64, u64, u64, u64), (JobId, Generation, String)>;
+
 pub(in crate::worker_ipc) const LIVE_CAPTURE_EVENTS_BEFORE_WORKER_POLL: u8 = 2;
 pub(in crate::worker_ipc) fn live_capture_poll_allowed(
     events_since_worker_poll: u8,
@@ -641,6 +643,17 @@ impl MicrophoneTestCapture {
 }
 
 impl ImportRuntime {
+    fn reset_live_start_state(&mut self, destination: &Path) {
+        self.start_diagnostics(destination);
+        self.diagnostic_degraded_reported = false;
+        self.progress = Some(ProgressSupervisor::starting(std::time::Instant::now()));
+        self.live_pending_persistence = 0;
+        self.pending_attempt_reset = None;
+        self.pending_recovery_counters = None;
+        self.deferred_live_stopped = None;
+        self.deferred_live_window_finished = None;
+    }
+
     pub(in crate::worker_ipc) fn start_live(
         &mut self,
         request: LiveRequest,
@@ -685,14 +698,7 @@ impl ImportRuntime {
                 "BackendMismatch: selected GPU has no current identity proof".into(),
             ));
         }
-        self.start_diagnostics(Path::new(&request.destination));
-        self.diagnostic_degraded_reported = false;
-        self.progress = Some(ProgressSupervisor::starting(std::time::Instant::now()));
-        self.live_pending_persistence = 0;
-        self.pending_attempt_reset = None;
-        self.pending_recovery_counters = None;
-        self.deferred_live_stopped = None;
-        self.deferred_live_window_finished = None;
+        self.reset_live_start_state(Path::new(&request.destination));
         let directory = PathBuf::from(&request.destination)
             .join("transcriptions")
             .join(format!("{:032x}", request.job_id.0))
@@ -819,62 +825,35 @@ impl ImportRuntime {
         });
         Ok(())
     }
-    pub(in crate::worker_ipc) fn start_cpu_live_attempt(
+    fn reserve_cpu_live_retry(
         &mut self,
         job_id: JobId,
         generation: Generation,
-    ) -> Result<ImportEvent, (JobId, Generation, String)> {
-        if self.publication_gate.is_cancelled() {
-            return Err((
-                job_id,
-                generation,
-                "Cancelled: CPU retry suppressed by latched Stop/Quit".into(),
-            ));
-        }
-        let request = self
-            .live
-            .as_ref()
-            .filter(|live| (live.request.job_id, live.request.generation) == (job_id, generation))
-            .map(|live| live.request.clone())
-            .ok_or((
-                job_id,
-                generation,
-                "StaleResponse: live passage is unavailable".into(),
-            ))?;
-        let selection = self
-            .workers
-            .select(whisper_core::ComputeChoice::Cpu)
-            .map_err(|error| {
-                (
-                    job_id,
-                    generation,
-                    format!("BackendUnavailable: CPU fallback unavailable ({error:?})"),
-                )
-            })?;
-        let (confirmed_samples, next_segment_sequence, next_window_sequence, attempt_number) = {
-            let archive = self.live_archive.as_mut().ok_or((
-                job_id,
-                generation,
-                "StorageUnavailable: live archive is missing".into(),
-            ))?;
-            archive
-                .discard_unconfirmed_segments()
-                .and_then(|()| archive.restart_mp3_attempt())
-                .map_err(|error| (job_id, generation, error))?;
-            let confirmed_samples = archive.confirmed_samples();
-            let next_segment_sequence = archive.next_segment_sequence();
-            let next_window_sequence = archive.next_window_sequence();
-            let attempt_number = campaign_reserve_attempt(archive, job_id, generation)
-                .map_err(|error| (job_id, generation, error))?;
-            (
-                confirmed_samples,
-                next_segment_sequence,
-                next_window_sequence,
-                attempt_number,
-            )
-        };
-        let (transport, instance_id) = match spawn_live_attempt(&request, &selection, None) {
-            Ok(spawned) => spawned,
+    ) -> CpuLiveRetryReservation {
+        let archive = self.live_archive.as_mut().ok_or((
+            job_id,
+            generation,
+            "StorageUnavailable: live archive is missing".into(),
+        ))?;
+        archive
+            .discard_unconfirmed_segments()
+            .and_then(|()| archive.restart_mp3_attempt())
+            .map_err(|error| (job_id, generation, error))?;
+        Ok((
+            archive.confirmed_samples(),
+            archive.next_segment_sequence(),
+            archive.next_window_sequence(),
+            campaign_reserve_attempt(archive, job_id, generation)
+                .map_err(|error| (job_id, generation, error))?,
+        ))
+    }
+    fn spawn_cpu_live_retry_worker(
+        &mut self,
+        request: &LiveRequest,
+        selection: &crate::supervisor::WorkerSelection,
+    ) -> Result<(ChildWorkerTransport, u64), (JobId, Generation, String)> {
+        match spawn_live_attempt(request, selection, None) {
+            Ok(spawned) => Ok(spawned),
             Err(error) => {
                 if let Some(live) = self.live.as_mut() {
                     live.stop_capture();
@@ -884,31 +863,18 @@ impl ImportRuntime {
                 self.live_archive = None;
                 self.active = None;
                 self.transport = None;
-                return Err(error);
+                Err(error)
             }
-        };
-        self.live_archive
-            .as_mut()
-            .ok_or((
-                job_id,
-                generation,
-                "StorageUnavailable: live archive disappeared after CPU spawn".into(),
-            ))?
-            .mark_attempt_started(attempt_number)
-            .map_err(|error| (job_id, generation, error))?;
-        self.active = Some(ImportRequestState {
-            job_id,
-            generation,
-            instance_id,
-            backend: BackendKind::Cpu,
-            attempt_number,
-            import_request: None,
-            recovery: LiveRecoveryState::None,
-            startup_ready: false,
-            gpu_candidate: None,
-            gpu_attested: false,
-        });
-        self.transport = Some(transport);
+        }
+    }
+    fn reset_cpu_live_retry_state(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+        confirmed_samples: u64,
+        next_segment_sequence: u64,
+        next_window_sequence: u64,
+    ) -> Result<(), (JobId, Generation, String)> {
         let live = self.live.as_mut().ok_or((
             job_id,
             generation,
@@ -943,6 +909,73 @@ impl ImportRuntime {
             confirmed_samples,
             next_segment_sequence,
         });
+        Ok(())
+    }
+
+    pub(in crate::worker_ipc) fn start_cpu_live_attempt(
+        &mut self,
+        job_id: JobId,
+        generation: Generation,
+    ) -> Result<ImportEvent, (JobId, Generation, String)> {
+        if self.publication_gate.is_cancelled() {
+            return Err((
+                job_id,
+                generation,
+                "Cancelled: CPU retry suppressed by latched Stop/Quit".into(),
+            ));
+        }
+        let request = self
+            .live
+            .as_ref()
+            .filter(|live| (live.request.job_id, live.request.generation) == (job_id, generation))
+            .map(|live| live.request.clone())
+            .ok_or((
+                job_id,
+                generation,
+                "StaleResponse: live passage is unavailable".into(),
+            ))?;
+        let selection = self
+            .workers
+            .select(whisper_core::ComputeChoice::Cpu)
+            .map_err(|error| {
+                (
+                    job_id,
+                    generation,
+                    format!("BackendUnavailable: CPU fallback unavailable ({error:?})"),
+                )
+            })?;
+        let (confirmed_samples, next_segment_sequence, next_window_sequence, attempt_number) =
+            self.reserve_cpu_live_retry(job_id, generation)?;
+        let (transport, instance_id) = self.spawn_cpu_live_retry_worker(&request, &selection)?;
+        self.live_archive
+            .as_mut()
+            .ok_or((
+                job_id,
+                generation,
+                "StorageUnavailable: live archive disappeared after CPU spawn".into(),
+            ))?
+            .mark_attempt_started(attempt_number)
+            .map_err(|error| (job_id, generation, error))?;
+        self.active = Some(ImportRequestState {
+            job_id,
+            generation,
+            instance_id,
+            backend: BackendKind::Cpu,
+            attempt_number,
+            import_request: None,
+            recovery: LiveRecoveryState::None,
+            startup_ready: false,
+            gpu_candidate: None,
+            gpu_attested: false,
+        });
+        self.transport = Some(transport);
+        self.reset_cpu_live_retry_state(
+            job_id,
+            generation,
+            confirmed_samples,
+            next_segment_sequence,
+            next_window_sequence,
+        )?;
         Ok(ImportEvent::LiveAttemptStarting { job_id, generation })
     }
 

@@ -225,12 +225,24 @@
                 compute: ComputeChoice::Cpu,
             },
         };
+        let mut runtime = legacy_live_pump_runtime(&root, &worker, &request);
+
+        assert_legacy_live_capture_progress(&mut runtime);
+        assert_legacy_live_completion(&mut runtime, job_id, generation);
+        stop_legacy_live_runtime(&mut runtime, &root);
+    }
+
+    fn legacy_live_pump_runtime(
+        root: &std::path::Path,
+        worker: &std::path::Path,
+        request: &LiveRequest,
+    ) -> ImportRuntime {
         let capture = CaptureStream::empty_test_capture(16_000, 1, "test:legacy");
         let probe = crate::microphone_probe::MicrophoneProbe::start(
             16_000,
             Some("test:legacy".into()),
-            job_id,
-            generation,
+            request.job_id,
+            request.generation,
         )
         .unwrap();
         let staging_path = root.join("pending.pcm");
@@ -239,16 +251,16 @@
         archive.capture_started().unwrap();
         let mut runtime = ImportRuntime::new(
             WorkerPaths {
-                cpu: worker.clone(),
-                gpu: worker.clone(),
+                cpu: worker.to_path_buf(),
+                gpu: worker.to_path_buf(),
             },
             Arc::new(PublicationGate::default()),
         );
-        let mut transport = ChildWorkerTransport::spawn(&worker).unwrap();
+        let mut transport = ChildWorkerTransport::spawn(worker).unwrap();
         transport
             .request(WorkerCommand::StartLiveWorker {
-                job_id,
-                generation,
+                job_id: request.job_id,
+                generation: request.generation,
                 instance_id: 1,
                 model_path: request.model_path.clone(),
                 model_sha256: request.model_sha256,
@@ -257,8 +269,8 @@
             .unwrap();
         runtime.transport = Some(transport);
         runtime.active = Some(ImportRequestState {
-            job_id,
-            generation,
+            job_id: request.job_id,
+            generation: request.generation,
             instance_id: 1,
             backend: BackendKind::Cpu,
             attempt_number: 0,
@@ -303,7 +315,10 @@
             last_reported_durable: 0,
             failure: None,
         });
+        runtime
+    }
 
+    fn assert_legacy_live_capture_progress(runtime: &mut ImportRuntime) {
         let mut saw_counters = false;
         let mut saw_meter = false;
         let mut saw_spectrum = false;
@@ -378,7 +393,13 @@
         );
         assert!(saw_meter, "legacy capture did not publish RMS telemetry");
         assert!(saw_spectrum, "legacy capture did not publish a spectrum");
+    }
 
+    fn assert_legacy_live_completion(
+        runtime: &mut ImportRuntime,
+        job_id: JobId,
+        generation: Generation,
+    ) {
         let segment = WorkerSegment {
             job_id,
             generation,
@@ -454,6 +475,9 @@
         assert!(saw_text, "mock worker confirmed text did not progress");
         assert!(saw_confirmed, "window confirmation did not progress");
         assert!(saw_end, "mock worker End did not progress");
+    }
+
+    fn stop_legacy_live_runtime(runtime: &mut ImportRuntime, root: &std::path::Path) {
         if let Some(mut live) = runtime.live.take() {
             live.stop_capture();
             drop(live);
@@ -462,70 +486,26 @@
         let _ = std::fs::remove_dir_all(root);
     }
 
-    #[test]
-    fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed() {
-        #[derive(Clone)]
-        struct SimulatedPort(Rc<RefCell<Vec<ImportEffect>>>);
+    #[derive(Clone)]
+    struct MicrophoneGainSimulatedPort(Rc<RefCell<Vec<ImportEffect>>>);
 
-        impl ImportIoPort for SimulatedPort {
-            fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
-                self.0.borrow_mut().push(effect);
-                Ok(())
-            }
-
-            fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
-                Ok(None)
-            }
+    impl ImportIoPort for MicrophoneGainSimulatedPort {
+        fn submit(&mut self, effect: ImportEffect) -> Result<(), PortError> {
+            self.0.borrow_mut().push(effect);
+            Ok(())
         }
 
-        let root = std::env::temp_dir().join(format!(
-            "whisper-t3-gain-e2e-{}-{}",
-            std::process::id(),
-            NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&root).unwrap();
-        let request = LiveRequest {
-            job_id: JobId(((std::process::id() as u128) << 64) | 0xA551),
-            generation: Generation::first(),
-            model_path: "delayed-engine-model".into(),
-            model_sha256: [1; 32],
-            destination: root.to_string_lossy().into_owned(),
-            group_offset_samples: 0,
-            auto_stop_after_speech_samples: None,
-            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
-            microphone_gain_db: 0,
-            config: JobConfig {
-                language: LanguageChoice::Automatic,
-                compute: ComputeChoice::Cpu,
-            },
-        };
-        let effects = Rc::new(RefCell::new(Vec::new()));
-        let mut app = ImportApplication::new(SimulatedPort(effects.clone()));
-        app.dispatch(AppCommand::StartDirectLiveConfigured {
-            request: request.clone(),
-        })
-        .unwrap();
-        let ImportEffect::StartDirectLive(request) = effects.borrow()[0].clone() else {
-            panic!("direct start command must produce the direct capture effect")
-        };
+        fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
+            Ok(None)
+        }
+    }
 
-        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
-        capture.enqueue_test_block(vec![0.25; 16_000]);
-        let direct =
-            crate::direct_live::DirectLive::from_test_capture(request.clone(), capture).unwrap();
-        let mut runtime = ImportRuntime::new(
-            WorkerPaths {
-                cpu: root.join("unused-cpu.exe"),
-                gpu: root.join("unused-gpu.exe"),
-            },
-            Arc::new(PublicationGate::default()),
-        );
-        runtime.direct_live = Some(direct);
-        let direct = runtime.direct_live.as_mut().unwrap();
-        assert!(
-            !direct.test_worker_ready(),
-            "engine remains delayed in this test"
-        );
+    fn apply_gain_revisions_reject_other_source_and_stop(
+        app: &mut ImportApplication<MicrophoneGainSimulatedPort>,
+        runtime: &mut ImportRuntime,
+        request: &LiveRequest,
+        effects: &Rc<RefCell<Vec<ImportEffect>>>,
+    ) {
         app.dispatch(AppCommand::SetMicrophoneGain {
             job_id: request.job_id,
             generation: request.generation,
@@ -613,7 +593,9 @@
             events.pop_front(),
             Some(ImportEvent::LiveFinalizing { .. })
         ));
+    }
 
+    fn assert_finalized_gain_wav(runtime: &mut ImportRuntime, root: &Path) {
         let wav_path = runtime
             .direct_live
             .as_mut()
@@ -640,6 +622,61 @@
         );
         fs::remove_file(wav_path).unwrap();
         fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed() {
+
+        let root = std::env::temp_dir().join(format!(
+            "whisper-t3-gain-e2e-{}-{}",
+            std::process::id(),
+            NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let request = LiveRequest {
+            job_id: JobId(((std::process::id() as u128) << 64) | 0xA551),
+            generation: Generation::first(),
+            model_path: "delayed-engine-model".into(),
+            model_sha256: [1; 32],
+            destination: root.to_string_lossy().into_owned(),
+            group_offset_samples: 0,
+            auto_stop_after_speech_samples: None,
+            microphone: whisper_core::MicrophoneChoice::Device("test:mic".into()),
+            microphone_gain_db: 0,
+            config: JobConfig {
+                language: LanguageChoice::Automatic,
+                compute: ComputeChoice::Cpu,
+            },
+        };
+        let effects = Rc::new(RefCell::new(Vec::new()));
+        let mut app = ImportApplication::new(MicrophoneGainSimulatedPort(effects.clone()));
+        app.dispatch(AppCommand::StartDirectLiveConfigured {
+            request: request.clone(),
+        })
+        .unwrap();
+        let ImportEffect::StartDirectLive(request) = effects.borrow()[0].clone() else {
+            panic!("direct start command must produce the direct capture effect")
+        };
+
+        let mut capture = crate::capture::CaptureStream::empty_test_capture(16_000, 1, "test:mic");
+        capture.enqueue_test_block(vec![0.25; 16_000]);
+        let direct =
+            crate::direct_live::DirectLive::from_test_capture(request.clone(), capture).unwrap();
+        let mut runtime = ImportRuntime::new(
+            WorkerPaths {
+                cpu: root.join("unused-cpu.exe"),
+                gpu: root.join("unused-gpu.exe"),
+            },
+            Arc::new(PublicationGate::default()),
+        );
+        runtime.direct_live = Some(direct);
+        let direct = runtime.direct_live.as_mut().unwrap();
+        assert!(
+            !direct.test_worker_ready(),
+            "engine remains delayed in this test"
+        );
+        apply_gain_revisions_reject_other_source_and_stop(&mut app, &mut runtime, &request, &effects);
+        assert_finalized_gain_wav(&mut runtime, &root);
     }
 
     #[test]

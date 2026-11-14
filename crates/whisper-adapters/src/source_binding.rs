@@ -706,7 +706,21 @@ fn recovery_candidate(
         }
         Err(error) => return Ok(protected(format!("Destination inconnue : {error}"))),
     };
-    let queue = match crate::queue_store::QueueStore::inspect_read_only(&canonical) {
+    recovery_candidate_at_destination(entry, &canonical)
+}
+
+fn recovery_candidate_at_destination(
+    entry: &RegistryEntry,
+    canonical: &Path,
+) -> Result<SourceSnapshotRecoveryCandidate, String> {
+    let protected = |reason: String| SourceSnapshotRecoveryCandidate {
+        job_id: entry.job_id,
+        generation: entry.generation,
+        destination: entry.destination.clone(),
+        recoverable: false,
+        reason: Some(reason),
+    };
+    let queue = match crate::queue_store::QueueStore::inspect_read_only(canonical) {
         Ok(queue) => queue,
         Err(error) => return Ok(protected(error)),
     };
@@ -717,7 +731,7 @@ fn recovery_candidate(
             "Traitement encore présent dans la file durable".into(),
         ));
     }
-    let archived = match crate::archive::ArchiveStore::scan(&canonical) {
+    let archived = match crate::archive::ArchiveStore::scan(canonical) {
         Ok(archive) => archive,
         Err(error) => return Ok(protected(format!("État d'archive illisible : {error}"))),
     };
@@ -744,7 +758,7 @@ fn recovery_candidate(
         ));
     }
 
-    let snapshot_path = expected_snapshot_path(&canonical, entry);
+    let snapshot_path = expected_snapshot_path(canonical, entry);
     let partial_path = canonical.join(SNAPSHOT_DIRECTORY).join(format!(
         "{}.snapshot.partial",
         snapshot_stem(entry.job_id, entry.generation)
@@ -754,12 +768,27 @@ fn recovery_candidate(
             "Copie partielle présente : réservation conservée".into(),
         ));
     }
+    recovery_candidate_for_snapshot(entry, canonical, &snapshot_path)
+}
+
+fn recovery_candidate_for_snapshot(
+    entry: &RegistryEntry,
+    canonical: &Path,
+    snapshot_path: &Path,
+) -> Result<SourceSnapshotRecoveryCandidate, String> {
+    let protected = |reason: String| SourceSnapshotRecoveryCandidate {
+        job_id: entry.job_id,
+        generation: entry.generation,
+        destination: entry.destination.clone(),
+        recoverable: false,
+        reason: Some(reason),
+    };
     if entry.status == RegistryStatus::Retiring {
         let Some(intent) = entry.retirement.as_ref() else {
             return Ok(protected("Intention de retrait durable absente".into()));
         };
         if Path::new(&intent.snapshot.path) != snapshot_path
-            || Path::new(&intent.record.path) != expected_record_path(&canonical, entry)
+            || Path::new(&intent.record.path) != expected_record_path(canonical, entry)
         {
             return Ok(protected("Chemin de retrait durable divergent".into()));
         }
@@ -775,8 +804,8 @@ fn recovery_candidate(
         });
     }
 
-    let record_path = expected_record_path(&canonical, entry);
-    let snapshot_exists = file_exists_strict(&snapshot_path)?;
+    let record_path = expected_record_path(canonical, entry);
+    let snapshot_exists = file_exists_strict(snapshot_path)?;
     let record_exists = file_exists_strict(&record_path)?;
     if !snapshot_exists && !record_exists {
         return Ok(SourceSnapshotRecoveryCandidate {
@@ -799,7 +828,7 @@ fn recovery_candidate(
             "Une réservation inachevée possède des fichiers inattendus".into(),
         ));
     }
-    if let Err(error) = inspect_bound_pair(entry, &canonical, &snapshot_path, &record_path) {
+    if let Err(error) = inspect_bound_pair(entry, canonical, snapshot_path, &record_path) {
         return Ok(protected(error));
     }
     Ok(SourceSnapshotRecoveryCandidate {
