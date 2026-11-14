@@ -19,3 +19,5 @@ Les dix plans sont versionnés dans `docs/cadrage/plan-clippy-…-20261114.md` :
 Les tests nécessitant modèles, DLL natives ou audio réel restent ignorés ; le résultat N1 ne constitue pas une qualification native. L’archive [clippy-corrections-P41-P50-20261114.zip](raw/clippy-corrections-P41-P50-20261114.zip) contient 671 fichiers issus de 173 dossiers scratch (312 745 362 octets source). Chaque membre a été vérifié par taille et SHA-256. SHA-256 ZIP : `9a72df406e6de9ae30ed0efbd600e8caeb4cd4cc26747719f07dc96dc8741c8d`.
 
 Le nettoyage reste à faire après refus de suppression par l’outil. Les dix chemins exacts, déjà contrôlés sous `target/.../targets/`, sans reparse point ni processus Cargo/rustc les utilisant, sont `n1-p41-20261114` à `n1-p50-20261114` sous `C:/wt/cs/target/parakeet-tests/clippy-corrections-suivantes-20261113/targets/`. Leur taille totale est de 36 778 770 270 octets. Les caches partagés et persistants ne sont pas concernés. Après leur suppression par l’opérateur, le contrôle de rétention sera repris.
+
+Complément ultérieur : [vérification du nettoyage P41–P50](bilan-nettoyage-clippy-P41-P50-20261114.md).
