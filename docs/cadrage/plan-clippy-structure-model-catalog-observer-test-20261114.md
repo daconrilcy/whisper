@@ -1,8 +1,8 @@
-# Plan P20 — Extraire le faux inspecteur bloquant du test catalogue
+# Plan P20 — Décomposer le test de suivi du catalogue
 
-Avancée : plan ciblé sur un helper de test de 117 lignes.
+Avancée : plan ciblé sur un scénario de test de 117 lignes.
 Blocage : aucun ; la synchronisation du thread et le comptage d’inspections doivent rester identiques.
-Décision : extraire la closure `FixtureObserver` en helper privé de test.
+Décision : extraire l’observateur bloquant et l’assertion finale d’absence d’intérêt.
 
 ## En-tête
 
@@ -15,7 +15,7 @@ Décision : extraire la closure `FixtureObserver` en helper privé de test.
 
 ## 1. Résumé de l’audit
 
-Clippy relève 117 lignes dans `check_removed_interest_stops_monitoring`. Le helper monte deux canaux de contrôle pour bloquer une première inspection, démarre le service, retire l’intérêt demandé pendant que l’inspection est en vol, libère l’inspection, puis vérifie que les suppressions n’entraînent pas de nouvelle observation ni d’effet obsolète. Une closure `FixtureObserver` contrôle le compteur, la synchronisation et injecte une qualification déterministe par-dessus la lecture réelle du catalogue.
+Clippy relève 117 lignes dans `check_removed_interest_stops_monitoring`. Le helper monte deux canaux de contrôle pour bloquer une première inspection, démarre le service, retire l’intérêt demandé pendant que l’inspection est en vol, libère l’inspection, puis vérifie que les suppressions n’entraînent pas de nouvelle observation ni d’effet obsolète. Une closure `FixtureObserver` contrôle le compteur, la synchronisation et injecte une qualification déterministe par-dessus la lecture réelle du catalogue. Après extraction de cette closure, la fonction mesure encore 107 lignes ; la vérification finale de l’absence d’intérêt Parakeet est donc aussi déléguée à un helper d’assertion dédié.
 
 ## 2. Fraîcheur
 
@@ -24,6 +24,7 @@ Inspection du helper et des deux tests appelants (resume false/true, autre deman
 ## 3. Hypothèses
 
 - Safe : déplacer la closure dans `blocking_catalog_fixture_observer` sans changer ses captures ni la lecture `inspect_model`.
+- Safe : déplacer le dernier assert d’absence d’intérêt dans `assert_no_parakeet_inspection_interest`, sans modifier la condition vérifiée.
 - Validation needed : compteur/ordre d’appel, barrier `entered_tx/release_rx`, validation modèle Ready et tous les asserts restent identiques.
 - Validation needed : les quatre combinaisons testées par les appelants continuent de s’exécuter.
 
@@ -31,12 +32,12 @@ Inspection du helper et des deux tests appelants (resume false/true, autre deman
 
 | Constat | Priorité | Disposition | Tâche | Note |
 |---|---|---|---|---|
-| `check_removed_interest_stops_monitoring` 117 lignes | P20 | Planned | P20-T1 | Extraire la closure observer |
+| `check_removed_interest_stops_monitoring` 117 lignes, puis 107 après extraction observer | P20 | Planned | P20-T1 | Extraire closure observer et assertion finale |
 | 116 autres sites | Hors lot | Deferred | Aucun | Nouvelle tranche requise |
 
 ## 5. Séquence recommandée
 
-Extraire uniquement le faux inspecteur; conserver dans le test l’orchestration des canaux, retrait d’intérêt, reprise de l’inspection et toutes les assertions.
+Extraire le faux inspecteur et l’assertion finale de fin de scénario; conserver dans le test l’orchestration des canaux, retrait d’intérêt, reprise de l’inspection et les assertions d’état observé.
 
 ### Phase P20 : séparer le fixture d’inspection du scénario concurrent
 
@@ -47,16 +48,16 @@ Target metrics : test ≤100 lignes; au plus 116 sites; aucune alerte nouvelle.
 Metric commands : Clippy six crates et N1.
 Stop conditions : arrêter si la synchronisation/ordre, le compteur, le résultat Ready, la sélection ou les effets diffèrent; ou à tout échec gate.
 Dependencies : aucune.
-Expected outcome : une fonction privée de construction FixtureObserver.
+Expected outcome : une fonction privée de construction FixtureObserver et un helper privé pour l’assertion finale.
 Tasks : P20-T1.
 
 ## 6. Tâches
 
-#### P20-T1 — Extraire la closure d’observation bloquante
+#### P20-T1 — Extraire l’observateur et l’assertion finale
 
 - Priorité : Medium
 - Source : Clippy 117/100 sur `check_removed_interest_stops_monitoring`.
-- Justification : isoler un faux inspecteur réutilisable par ce test tout en gardant le scénario concurrent lisible.
+- Justification : isoler le faux inspecteur et réduire le scénario concurrent sous le seuil Clippy.
 - Fichiers : `crates/whisper-desktop/src/root/model_catalog/tests.rs` seulement.
 - Bucket : tests/support local à root/model_catalog.
 - Scope budget : un fichier de tests existant.
@@ -65,11 +66,11 @@ Tasks : P20-T1.
 - Metric commands : Clippy via garde.
 - Stop conditions : Phase P20.
 - Dépendances : aucune.
-- Outline : créer `blocking_catalog_fixture_observer(observed_calls, entered_tx, release_rx) -> FixtureObserver`; déplacer la closure en conservant l’assertion du ModelId, blocage uniquement au premier appel, timeout `WAIT`, appel réel à `inspect_model`, et surcouche Ready/sha/size/diagnostic; remplacer la déclaration locale par cet appel.
+- Outline : créer `blocking_catalog_fixture_observer(observed_calls, entered_tx, release_rx) -> FixtureObserver`; déplacer la closure en conservant l’assertion du ModelId, blocage uniquement au premier appel, timeout `WAIT`, appel réel à `inspect_model`, et surcouche Ready/sha/size/diagnostic; remplacer la déclaration locale par cet appel. Créer aussi `assert_no_parakeet_inspection_interest(&service)` pour déplacer telle quelle la dernière inspection de `receiver.interests()` et son assert `any`.
 - Tests : conserver les deux tests appelants et leurs boucles `resume` avec `another_need` false/true; aucun test nouveau inline.
 - Vérifications : fmt check, Clippy six crates, N1 via garde.
 - Provenance : Observed pour diagnostic/test; Repo docs pour les gates.
-- Acceptation : test ≤100 lignes; 4 combinaisons continuent d’être couvertes; premier appel attend le release, appels suivants ne bloquent pas; même observation Ready déterministe; tests/N1 PASS; seul fichier nommé touché.
+- Acceptation : test ≤100 lignes; 4 combinaisons continuent d’être couvertes; premier appel attend le release, appels suivants ne bloquent pas; même observation Ready déterministe et même assert final d’absence d’intérêt; tests/N1 PASS; seul fichier nommé touché.
 - Retour arrière : annuler l’extraction si la synchro, le nombre d’appels ou le rendu de l’observation diffère.
 - Notes : conserver le `Send` requis par le service et la lecture réelle d’`inspect_model`.
 
@@ -111,4 +112,4 @@ Ne pas modifier CatalogService, stratégie de qualification, événements UI, ca
 
 ## 11. Prompt d’implémentation
 
-Exécute P20-T1 du plan `docs/cadrage/plan-clippy-structure-model-catalog-observer-test-20261114.md` dans `C:/wt/cs`. Préserve P1–P19. Modifie uniquement `root/model_catalog/tests.rs`; extrais la closure en FixtureObserver sans changer barrières/counter/read/Ready fields. Passe SelfTests, fmt, Clippy et N1 via garde; arrête au premier échec.
+Exécute P20-T1 du plan `docs/cadrage/plan-clippy-structure-model-catalog-observer-test-20261114.md` dans `C:/wt/cs`. Préserve P1–P19. Modifie uniquement `root/model_catalog/tests.rs`; extrais la closure en FixtureObserver sans changer barrières/counter/read/Ready fields, puis extrais exactement l’assertion finale dans son helper. Le scénario doit mesurer ≤100 lignes. Passe SelfTests, fmt, Clippy et N1 via garde; arrête au premier échec.
