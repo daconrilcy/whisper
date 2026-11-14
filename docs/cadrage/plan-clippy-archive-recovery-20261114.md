@@ -28,4 +28,3 @@ Worktree `C:/wt/cs`; `LotRoot` `target/parakeet-tests/clippy-corrections-suivant
 ## Retour arrière
 
 Si une extraction change la préparation des publications, l’ordre des opérations disque ou l’oracle de collision, retirer uniquement l’extraction fautive et signaler l’écart; ne pas simplifier le scénario pour faire passer les lints. La révision 1 résout uniquement le plafond de taille; elle ne modifie ni le comportement ni les critères d’acceptation.
-
