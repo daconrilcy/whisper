@@ -15,7 +15,10 @@ use std::{
 use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};
 
 pub(crate) fn run() {
-    eprintln!("{}", whisper_rs::print_system_info());
+    whisper_worker_common::cpu_capabilities::emit_cpu_worker_diagnostic();
+    whisper_worker_common::cpu_capabilities::queue_worker_stderr_line(
+        whisper_rs::print_system_info(),
+    );
     let (tx, rx) = mpsc::sync_channel(8);
     thread::spawn(move || input_loop(tx));
     let stdout = io::stdout();

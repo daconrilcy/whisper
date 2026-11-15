@@ -35,10 +35,10 @@ impl CpuEngine {
             .create_state()
             .map_err(|e| format!("CPU state initialization failed: {e}"))?;
         if std::env::var_os("WHISPER_CPU_TIMINGS").is_some() {
-            eprintln!(
+            whisper_worker_common::cpu_capabilities::queue_worker_stderr_line(&format!(
                 "cpu_timing model_load_ms={:.1}",
                 load_started.elapsed().as_secs_f64() * 1000.0
-            );
+            ));
         }
         #[cfg(feature = "l01-memory-qualification")]
         crate::memory_qualification::record(
@@ -145,7 +145,7 @@ impl CpuEngine {
                 .encode(0, threads as usize)
                 .map_err(|e| format!("CPU diagnostic encode failed: {e}"))?;
             let encode_ms = encode_started.elapsed().as_secs_f64() * 1000.0;
-            eprintln!(
+            whisper_worker_common::cpu_capabilities::queue_worker_stderr_line(&format!(
                 "cpu_timing pcm_samples={} threads={} state_ms={:.1} full_ms={:.1} diagnostic_state_ms={:.1} mel_ms={:.1} encode_ms={:.1} decode_and_overhead_estimate_ms={:.1}",
                 pcm.len(),
                 threads,
@@ -155,7 +155,7 @@ impl CpuEngine {
                 mel_ms,
                 encode_ms,
                 (full_ms - mel_ms - encode_ms).max(0.0)
-            );
+            ));
         }
         let segments = state
             .as_iter()

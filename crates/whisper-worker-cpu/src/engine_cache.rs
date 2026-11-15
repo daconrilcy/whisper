@@ -10,14 +10,18 @@ pub(crate) fn cached_cpu_engine<'a>(
         .is_none_or(|(path, hash, _)| path != model_path || hash != &model_sha256)
     {
         *cache = None;
-        eprintln!("startup_perf model_cache=load backend=cpu");
+        whisper_worker_common::cpu_capabilities::queue_worker_stderr_line(
+            "startup_perf model_cache=load backend=cpu",
+        );
         *cache = Some((
             model_path.to_owned(),
             model_sha256,
             CpuEngine::load(model_path)?,
         ));
     } else {
-        eprintln!("startup_perf model_cache=hit backend=cpu");
+        whisper_worker_common::cpu_capabilities::queue_worker_stderr_line(
+            "startup_perf model_cache=hit backend=cpu",
+        );
     }
     Ok(&cache.as_ref().expect("cached engine").2)
 }

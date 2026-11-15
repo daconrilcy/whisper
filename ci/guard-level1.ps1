@@ -7,6 +7,7 @@ param(
     [string]$FreshTarget,
     [string]$ExistingTarget,
     [string]$PersonalParakeetModelPath,
+    [string]$DesktopCpuWorkerSha256,
     [string[]]$UnsetEnv = @(),
     [string[]]$CargoArgs = @(),
     [string]$CargoArgsJson,
@@ -39,6 +40,7 @@ function Convert-CargoArgsJson([string]$Json) {
 }
 
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$script:requestedLotRoot = $LotRoot
 $lotRoot = Join-Path $repo $LotRoot
 $cargoRoot = Join-Path $repo 'target/parakeet-tests/cargo-shared'
 $cargoHome = Join-Path $repo 'target/cargo-home-shared'
@@ -157,6 +159,37 @@ $script:cargoInvocationPolicies[$gpuDistributionRoot] = $gpuDistributionProfiles
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
     $CargoArgs = Convert-CargoArgsJson $CargoArgsJson
+}
+
+function Test-DesktopCpuWorkerSha256Policy([string]$Mode, [string]$Digest, [string[]]$Arguments, [string]$Root) {
+    if ($Mode -cne 'Run' -or $Digest -notmatch '^[0-9a-fA-F]{64}$' -or
+        $Root -cne 'target/parakeet-tests/cpu-distribution-x64-20261115') {
+        return $false
+    }
+    $expected = @('build','--release','-p','whisper-desktop','-vv')
+    if ($Arguments.Count -ne $expected.Count) { return $false }
+    for ($index = 0; $index -lt $expected.Count; $index++) {
+        if ($Arguments[$index] -cne $expected[$index]) { return $false }
+    }
+    return $true
+}
+
+function Test-DesktopCpuWorkerInvocation([string[]]$Arguments) {
+    $profile = @($Arguments | Where-Object { $_ -cne '--offline' -and $_ -cne '--locked' })
+    $expected = @('build','--release','-p','whisper-desktop','-vv')
+    if ($profile.Count -ne $expected.Count) { return $false }
+    for ($index = 0; $index -lt $expected.Count; $index++) {
+        if ($profile[$index] -cne $expected[$index]) { return $false }
+    }
+    return $true
+}
+
+$script:authorizedDesktopCpuWorkerSha256 = $null
+if ($DesktopCpuWorkerSha256) {
+    if (-not (Test-DesktopCpuWorkerSha256Policy $Mode $DesktopCpuWorkerSha256 $CargoArgs $script:requestedLotRoot)) {
+        throw 'Desktop CPU worker digest is allowed only for the exact T11 desktop release build and lot root.'
+    }
+    $script:authorizedDesktopCpuWorkerSha256 = $DesktopCpuWorkerSha256.ToLowerInvariant()
 }
 
 function Get-FullPath([string]$Path) { [IO.Path]::GetFullPath($Path).TrimEnd('\') }
@@ -563,6 +596,9 @@ function Assert-WriteRoots {
     if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; Cargo is forbidden.' }
     if (@(Get-ChildItem -LiteralPath $env:LOCALAPPDATA -Force).Count -ne 0) { throw 'LOCALAPPDATA must be empty before every run.' }
     foreach ($entry in Get-ChildItem Env:) {
+        if ($entry.Name -ceq 'WHISPER_EXPECTED_CPU_WORKER_SHA256' -and
+            $script:authorizedDesktopCpuWorkerSha256 -and
+            $entry.Value -ceq $script:authorizedDesktopCpuWorkerSha256) { continue }
         if ($entry.Name -match '^(WHISPER_|PARAKEET_)') { throw "Campaign variable was not cleared: $($entry.Name)" }
     }
     if ([Environment]::GetEnvironmentVariable('N1_TEST_PERSONAL_PARAKEET_MODEL','Process') -cne $script:personalModel) { throw 'Personal model test path differs from the validated selection.' }
@@ -711,15 +747,21 @@ function Get-StructuralClippyKey($Diagnostic, [string]$RepositoryRoot) {
     if ([string]::IsNullOrWhiteSpace($packageId)) { throw "Structural Clippy diagnostic $lint has no package id." }
     $package = $packageId
     if ($packageId -match '^path\+.+/([^/#]+)(?:#[^/]*)?$') { $package = [Uri]::UnescapeDataString($Matches[1]) }
-    $path = ([string]$span.file_name).Replace('\','/')
-    if ([string]::IsNullOrWhiteSpace($path)) { throw "Structural Clippy diagnostic $lint has no source path." }
-    if ([IO.Path]::IsPathRooted([string]$span.file_name)) {
-        $root = (Get-FullPath $RepositoryRoot).Replace('\','/') + '/'
-        if (-not $path.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)) { throw "Structural Clippy path is outside the worktree: $path" }
-        $path = $path.Substring($root.Length)
+    $rawPath = [string]$span.file_name
+    if ([string]::IsNullOrWhiteSpace($rawPath)) { throw "Structural Clippy diagnostic $lint has no source path." }
+    $root = Get-FullPath $RepositoryRoot
+    $resolvedPath = if ([IO.Path]::IsPathRooted($rawPath)) {
+        Get-FullPath $rawPath
+    } else {
+        Get-FullPath (Join-Path $root $rawPath)
     }
-    while ($path.StartsWith('./',[StringComparison]::Ordinal)) { $path = $path.Substring(2) }
-    if (($path -split '/') -contains '..' -or ($path -split '/') -contains '.' -or $path.Contains("`t")) { throw "Structural Clippy path is not a normalized relative path: $path" }
+    if (-not (Test-InRoot $resolvedPath $root) -or $resolvedPath.Equals($root,[StringComparison]::OrdinalIgnoreCase)) {
+        throw "Structural Clippy path is outside the worktree: $rawPath"
+    }
+    $path = $resolvedPath.Substring($root.Length).TrimStart('\').Replace('\','/')
+    if ([string]::IsNullOrWhiteSpace($path) -or ($path -split '/') -contains '..' -or ($path -split '/') -contains '.' -or $path.Contains("`t")) {
+        throw "Structural Clippy path is not a normalized relative path: $path"
+    }
     $signature = ([regex]::Replace([string]$span.text[0].text,'\s+',' ')).Trim()
     $functionMatch = [regex]::Match($signature,'\bfn\s+([A-Za-z_][A-Za-z0-9_]*)')
     if ($functionMatch.Success) { $signature = "fn $($functionMatch.Groups[1].Value)" }
@@ -866,6 +908,17 @@ function Invoke-StructuralClippySelfTests {
     $publicFunction = Get-StructuralClippyKey ((New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' 'pub fn a(value: usize) {' 60 | ConvertFrom-Json)) $repo
     if ($restrictedFunction -cne $publicFunction -or -not $restrictedFunction.EndsWith('|fn a',[StringComparison]::Ordinal)) { throw 'Structural Clippy SelfTest did not normalize visibility for the same function name.' }
     $positive++
+    $traversingInRoot = New-StructuralClippyFixture 'clippy::cognitive_complexity' 'crates/whisper-adapters/../../scripts/recette-build.rs' 'fn main() {' 1 | ConvertFrom-Json
+    $traversingInRootKey = Get-StructuralClippyKey $traversingInRoot $repo
+    if ($traversingInRootKey -cne 'clippy::cognitive_complexity|fixture-package|scripts/recette-build.rs|fn main') {
+        throw "Structural Clippy SelfTest did not normalize an in-root parent path: $traversingInRootKey"
+    }
+    $positive++
+    $escapingRoot = New-StructuralClippyFixture 'clippy::cognitive_complexity' '../../outside.rs' 'fn outside() {' 1 | ConvertFrom-Json
+    $rejected = $false
+    try { [void](Get-StructuralClippyKey $escapingRoot $repo) } catch { $rejected = $_.Exception.Message.Contains('outside the worktree') }
+    if (-not $rejected) { throw 'Structural Clippy SelfTest accepted a source path escaping the repository root.' }
+    $negative++
     foreach ($case in @(
         @{ Name='new alert'; Lines=@((New-StructuralClippyFixture 'clippy::cognitive_complexity' 'crates/fixture/src/lib.rs' 'fn fresh() {' 20)); Baseline=$baseline; Match='clippy::cognitive_complexity' },
         @{ Name='same-key duplicate occurrence'; Lines=@($baseRecord,(New-StructuralClippyFixture 'clippy::too_many_lines' 'crates/fixture/src/lib.rs' $baseSignature 10 'lib' 100)); Baseline=$baseline; Match='current=2, baseline=1' },
@@ -906,8 +959,13 @@ function Set-ProcessEnvironmentValue([string]$Name, [AllowNull()][object]$Value)
     }
 }
 
+function Set-AuthorizedDesktopCpuWorkerDigest {
+    Set-ProcessEnvironmentValue 'WHISPER_EXPECTED_CPU_WORKER_SHA256' $script:authorizedDesktopCpuWorkerSha256
+}
+
 function Set-CleanEnvironment {
     foreach ($entry in @(Get-ChildItem Env: | Where-Object Name -Match '^(WHISPER_.*|PARAKEET_.*)$')) { Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue }
+    Set-AuthorizedDesktopCpuWorkerDigest
     foreach ($name in $UnsetEnv) { Set-ProcessEnvironmentValue $name $null }
     $script:runRoot = Join-Path $scratchRoot ((Get-Date -Format 'yyyyMMddTHHmmssfff') + '-' + [guid]::NewGuid().ToString('N'))
     foreach ($path in @($script:runRoot,(Join-Path $runRoot 'localappdata'),(Join-Path $tempRoot 'temp'),(Join-Path $tempRoot 'tmp'))) { Initialize-Directory $path 'isolated run directory' }
@@ -1303,6 +1361,43 @@ function Invoke-CpuDistributionInvocationPolicySelfTests {
 
 function Invoke-SelfTests {
     $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
+    $digest = 'a' * 64
+    $desktopBuild = @('build','--release','-p','whisper-desktop','-vv')
+    if (-not (Test-DesktopCpuWorkerSha256Policy 'Run' $digest $desktopBuild 'target/parakeet-tests/cpu-distribution-x64-20261115')) {
+        throw 'Self-test rejected the exact T11 desktop digest build.'
+    }
+    if (-not (Test-DesktopCpuWorkerInvocation (@('--offline','--locked') + $desktopBuild))) {
+        throw 'Self-test rejected the normalized guarded T11 desktop invocation.'
+    }
+    foreach ($case in @(
+        @{ Mode='Run'; Digest='bad'; Args=$desktopBuild; Root='target/parakeet-tests/cpu-distribution-x64-20261115' },
+        @{ Mode='Run'; Digest=$digest; Args=@('build','--release','-p','whisper-worker-cpu','-vv'); Root='target/parakeet-tests/cpu-distribution-x64-20261115' },
+        @{ Mode='Run'; Digest=$digest; Args=$desktopBuild; Root='target/parakeets/other' },
+        @{ Mode='SelfTest'; Digest=$digest; Args=$desktopBuild; Root='target/parakeets/cpu-distribution-x64-20261115' }
+    )) {
+        if (Test-DesktopCpuWorkerSha256Policy $case.Mode $case.Digest $case.Args $case.Root) {
+            throw 'Self-test accepted an invalid T11 desktop digest scope.'
+        }
+    }
+    $savedDigest = $script:authorizedDesktopCpuWorkerSha256
+    $savedEnvironmentDigest = [Environment]::GetEnvironmentVariable('WHISPER_EXPECTED_CPU_WORKER_SHA256','Process')
+    try {
+        $script:authorizedDesktopCpuWorkerSha256 = $digest
+        Set-AuthorizedDesktopCpuWorkerDigest
+        if ([Environment]::GetEnvironmentVariable('WHISPER_EXPECTED_CPU_WORKER_SHA256','Process') -cne $digest) {
+            throw 'Self-test accepted the T11 digest policy but did not pass the digest to the guarded desktop invocation environment.'
+        }
+        $script:cpuDigestHandoffSelfTestPositive = 1
+        $script:authorizedDesktopCpuWorkerSha256 = $null
+        Set-AuthorizedDesktopCpuWorkerDigest
+        if (Test-Path -LiteralPath 'Env:WHISPER_EXPECTED_CPU_WORKER_SHA256') {
+            throw 'Self-test retained an unauthorized desktop worker digest in the guarded invocation environment.'
+        }
+        $script:cpuDigestHandoffSelfTestNegative = 1
+    } finally {
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDigest
+        Set-ProcessEnvironmentValue 'WHISPER_EXPECTED_CPU_WORKER_SHA256' $savedEnvironmentDigest
+    }
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
     if ($singletonJsonArgs.Count -ne 1 -or $singletonJsonArgs[0] -cne 'test') { throw 'Self-test did not preserve a singleton JSON Cargo argv.' }
     $positive = @(
@@ -1379,8 +1474,8 @@ function Invoke-SelfTests {
     $negative += ,@('clippy','-p','whisper-adapters','--','-W','clippy::too_many_lines','--locked')
     $negative += ,@('test','--message-format=json')
     $policyTests = Invoke-PackagePolicySelfTests
-    $pCount = 1 + $policyTests.Positive
-    $nCount = $policyTests.Negative
+    $pCount = 2 + $policyTests.Positive
+    $nCount = 3 + $policyTests.Negative
     $invocationPolicyTests = Invoke-CargoInvocationPolicySelfTests
     $invocationPolicyTests.Summary
     $pCount += $invocationPolicyTests.Positive
@@ -1389,6 +1484,12 @@ function Invoke-SelfTests {
     $cpuDistributionPolicyTests.Summary
     $pCount += $cpuDistributionPolicyTests.Positive
     $nCount += $cpuDistributionPolicyTests.Negative
+    if ($script:cpuDigestHandoffSelfTestPositive -ne 1 -or $script:cpuDigestHandoffSelfTestNegative -ne 1) {
+        throw 'CPU worker digest handoff SelfTest did not complete both cases.'
+    }
+    'CPU_WORKER_DIGEST_HANDOFF_SELFTEST positive=1 negative=1'
+    $pCount++
+    $nCount++
     $fetch = Test-CargoArguments @('fetch','--locked') $members
     if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
     $pCount++
@@ -1738,6 +1839,12 @@ if ($FreshTarget) {
 }
 if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$cargoArgs)) target=$script:targetRoot"; exit 0 }
 Assert-WriteRoots
+if ($script:authorizedDesktopCpuWorkerSha256) {
+    if (-not (Test-DesktopCpuWorkerInvocation $checked.Args)) {
+        throw 'Authorized desktop worker digest reached a non-desktop Cargo invocation.'
+    }
+    "CPU_WORKER_DIGEST_INVOCATION sha256=$script:authorizedDesktopCpuWorkerSha256"
+}
 if ($checked.Args[0] -ceq 'test' -and '--no-run' -cnotin $checked.Args) {
     $scope = Get-CargoPackageScope $checked.Args
     if ($scope.Packages.Count -eq 1 -and $scope.Packages[0] -in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {

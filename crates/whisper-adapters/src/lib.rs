@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod capture;
+pub mod cpu_capabilities;
 pub mod decoder;
 mod direct_live;
 pub mod gpu_inventory;

@@ -3,6 +3,7 @@
 pub mod application;
 pub mod audio;
 pub mod compute_policy;
+pub mod cpu_compatibility;
 pub mod domain;
 pub mod engine_capabilities;
 pub mod gpu_inventory;

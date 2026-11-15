@@ -372,7 +372,9 @@ use whisper_core::{ImportApplication, JobState};
 struct LifecycleIo(Rc<RefCell<VecDeque<ImportEvent>>>);
 
 impl ImportIoPort for LifecycleIo {
-    fn submit(&mut self, _effect: ImportEffect) -> Result<(), PortError> { Ok(()) }
+    fn submit(&mut self, _effect: ImportEffect) -> Result<(), PortError> {
+        Ok(())
+    }
 
     fn poll(&mut self) -> Result<Option<ImportEvent>, PortError> {
         Ok(self.0.borrow_mut().pop_front())
@@ -414,26 +416,21 @@ fn complete_turbo_capture_and_start_unified_parakeet(
         Some(false),
         "Turbo drain blocks admission"
     );
-    io.0.borrow_mut()
-        .push_back(ImportEvent::Ready {
-            job_id,
-            generation,
-            backend: "CPU".into(),
-        });
+    io.0.borrow_mut().push_back(ImportEvent::Ready {
+        job_id,
+        generation,
+        backend: "CPU".into(),
+    });
     core.dispatch(AppCommand::Refresh).unwrap();
-    io.0.borrow_mut()
-        .push_back(ImportEvent::DirectPublished {
-            job_id,
-            generation,
-            txt_path: "a.txt".into(),
-            srt_path: "a.srt".into(),
-            wav_path: "a.wav".into(),
-        });
+    io.0.borrow_mut().push_back(ImportEvent::DirectPublished {
+        job_id,
+        generation,
+        txt_path: "a.txt".into(),
+        srt_path: "a.srt".into(),
+        wav_path: "a.wav".into(),
+    });
     let completed = core.dispatch(AppCommand::Refresh).unwrap();
-    assert_eq!(
-        completed.active_job,
-        Some((job_id, JobState::Complete))
-    );
+    assert_eq!(completed.active_job, Some((job_id, JobState::Complete)));
     assert_eq!(
         completed.direct_capture_phase,
         Some(DirectCapturePhase::Stopped)
@@ -673,7 +670,8 @@ fn unified_audio_page_stays_visible_at_same_position_while_progress_refreshes() 
             unified_audio_page_is_updating(&output),
             "older page must be labelled as updating"
         );
-        positions.push(unified_audio_page_part_y(&output).expect("the old audio part remains visible"));
+        positions
+            .push(unified_audio_page_part_y(&output).expect("the old audio part remains visible"));
     }
     assert!(
         positions

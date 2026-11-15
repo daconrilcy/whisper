@@ -3,6 +3,7 @@
 mod root;
 
 fn main() -> eframe::Result {
+    whisper_adapters::cpu_capabilities::emit_desktop_startup_diagnostic();
     let process_started_at_unix_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_millis() as u64);

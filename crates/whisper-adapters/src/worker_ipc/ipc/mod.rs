@@ -10,13 +10,17 @@ use super::EVENTS_PER_STAGE;
 #[cfg(feature = "l01-memory-qualification")]
 use super::support::memory_trace;
 use crate::WorkerTransport;
+use sha2::{Digest, Sha256};
 #[cfg(test)]
 use std::collections::VecDeque;
 use std::{
     io::{self, BufRead, BufReader},
     path::Path,
     process::{Child, Command, Stdio},
-    sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
+    },
     thread,
     time::Duration,
 };
@@ -52,8 +56,86 @@ pub(super) enum WorkerReaderMessage {
     TransportEnded,
 }
 
+fn spawn_worker_stderr_drain(
+    stderr: std::process::ChildStderr,
+    relay_state: Arc<Mutex<crate::cpu_capabilities::WorkerDiagnosticRelayState>>,
+) {
+    thread::spawn(move || {
+        crate::cpu_capabilities::drain_worker_stderr(BufReader::new(stderr), relay_state, |line| {
+            let _ = crate::cpu_capabilities::queue_forwarded_diagnostic(line.to_vec());
+        });
+    });
+}
+
+fn spawn_worker_image_hash_reader(image: Option<std::fs::File>) -> Receiver<Option<[u8; 32]>> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let hash = image.and_then(hash_worker_image);
+        let _ = sender.send(hash);
+    });
+    receiver
+}
+
+fn hash_worker_image(mut image: std::fs::File) -> Option<[u8; 32]> {
+    use std::io::Read;
+
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let count = image.read(&mut buffer).ok()?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Some(hasher.finalize().into())
+}
+
+fn spawn_worker_identity_resolver(
+    expected_hash: Receiver<Option<[u8; 32]>>,
+    trusted_expected_sha256: Option<[u8; 32]>,
+    executable: &Path,
+    pid: u32,
+    relay_state: Arc<Mutex<crate::cpu_capabilities::WorkerDiagnosticRelayState>>,
+) {
+    let executable = executable.to_path_buf();
+    thread::spawn(move || {
+        let observed_sha256 = expected_hash.recv().ok().flatten();
+        if let Some(line) = resolve_worker_diagnostic_identity(
+            observed_sha256,
+            trusted_expected_sha256,
+            &executable,
+            pid,
+            &relay_state,
+        ) {
+            let _ = crate::cpu_capabilities::queue_forwarded_diagnostic(line);
+        }
+    });
+}
+
+fn resolve_worker_diagnostic_identity(
+    observed_sha256: Option<[u8; 32]>,
+    trusted_expected_sha256: Option<[u8; 32]>,
+    executable: &Path,
+    pid: u32,
+    relay_state: &Arc<Mutex<crate::cpu_capabilities::WorkerDiagnosticRelayState>>,
+) -> Option<Vec<u8>> {
+    let identity = trusted_expected_sha256
+        .filter(|expected| observed_sha256 == Some(*expected))
+        .and_then(|expected| {
+            crate::cpu_capabilities::WorkerDiagnosticIdentity::launched(pid, executable, expected)
+        });
+    crate::cpu_capabilities::install_worker_diagnostic_identity(relay_state, identity)
+}
+
 impl ChildWorkerTransport {
     pub fn spawn(executable: &Path) -> Result<Self, PortError> {
+        let trusted_expected_sha256 = crate::cpu_capabilities::expected_cpu_worker_sha256();
+        let image = std::fs::File::open(executable).ok();
+        let expected_image_hash = spawn_worker_image_hash_reader(image);
+        let relay_state = Arc::new(Mutex::new(
+            crate::cpu_capabilities::WorkerDiagnosticRelayState::default(),
+        ));
         let mut command = Command::new(executable);
         #[cfg(windows)]
         {
@@ -70,18 +152,16 @@ impl ChildWorkerTransport {
         let stdin = child.stdin.take().ok_or(PortError::Unavailable)?;
         let stdout = child.stdout.take().ok_or(PortError::Unavailable)?;
         let stderr = child.stderr.take().ok_or(PortError::Unavailable)?;
-        // Drain diagnostics so native logging cannot block the worker. Session
-        // readiness is proven only by the correlated typed IPC attestation.
-        thread::spawn(move || {
-            let mut stderr = BufReader::new(stderr);
-            let mut line = Vec::new();
-            while stderr
-                .read_until(b'\n', &mut line)
-                .is_ok_and(|size| size > 0)
-            {
-                line.clear();
-            }
-        });
+        // Drain worker stderr so diagnostics cannot block the worker. Only the
+        // process-local CPU capability record is relayed to the desktop stderr.
+        spawn_worker_identity_resolver(
+            expected_image_hash,
+            trusted_expected_sha256,
+            executable,
+            child.id(),
+            Arc::clone(&relay_state),
+        );
+        spawn_worker_stderr_drain(stderr, relay_state);
         #[cfg(all(feature = "l01-memory-qualification", windows))]
         let stdin_pipe_handle = {
             use std::os::windows::io::AsRawHandle;
@@ -396,3 +476,6 @@ pub(super) fn read_events(stdout: impl io::Read, tx: SyncSender<WorkerReaderMess
     }
     let _ = tx.send(WorkerReaderMessage::TransportEnded);
 }
+
+#[cfg(test)]
+mod tests;
