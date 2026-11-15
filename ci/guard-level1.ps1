@@ -116,6 +116,44 @@ $script:cargoInvocationPolicies = @{
     'target/parakeet-tests/clippy-corrections-suivantes-20261113' = [string[]]@($clippyCorrectionsProfiles | ForEach-Object { ConvertTo-Json -InputObject ([string[]]$_) -Compress })
 }
 
+$cpuDistributionRoot = 'target/parakeet-tests/cpu-distribution-x64-20261115'
+$cpuDistributionProfiles = [Collections.Generic.List[string]]::new()
+foreach ($profile in @(
+    @('fetch'),
+    @('fmt','--check'),
+    @('test','--no-fail-fast'),
+    @('test','--no-run','-p','whisper-worker-cpu'),
+    @('test','-p','whisper-worker-cpu','--','--list'),
+    @('test','-p','whisper-worker-cpu'),
+    @('test','--no-run','-p','whisper-worker-parakeet-cpu'),
+    @('test','-p','whisper-worker-parakeet-cpu','--','--list'),
+    @('test','-p','whisper-worker-parakeet-cpu'),
+    @('test','--no-run','-p','whisper-worker-common'),
+    @('test','-p','whisper-worker-common','--','--list'),
+    @('test','-p','whisper-worker-common'),
+    @('build','--release','-p','whisper-worker-cpu','-vv'),
+    @('build','--release','-p','whisper-desktop','-vv'),
+    @('build','--release','-p','whisper-bootstrap','-vv')
+)) {
+    $cpuDistributionProfiles.Add((ConvertTo-Json -InputObject ([string[]]$profile) -Compress))
+}
+$cpuDistributionClippy = [Collections.Generic.List[string]]::new()
+$cpuDistributionClippy.Add('clippy')
+foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-cpu','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+    $cpuDistributionClippy.Add('-p')
+    $cpuDistributionClippy.Add($package)
+}
+foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) {
+    $cpuDistributionClippy.Add($argument)
+}
+$cpuDistributionProfiles.Add((ConvertTo-Json -InputObject ([string[]]$cpuDistributionClippy.ToArray()) -Compress))
+$gpuDistributionRoot = 'target/parakeet-tests/main-facades'
+$gpuDistributionProfiles = [string[]]@(
+    (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-worker-gpu','-vv')) -Compress)
+)
+$script:cargoInvocationPolicies[$cpuDistributionRoot] = [string[]]$cpuDistributionProfiles.ToArray()
+$script:cargoInvocationPolicies[$gpuDistributionRoot] = $gpuDistributionProfiles
+
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
     $CargoArgs = Convert-CargoArgsJson $CargoArgsJson
@@ -314,6 +352,10 @@ function Test-CargoArguments([string[]]$CommandTokens, [string[]]$Members, [swit
             $release = $true
             continue
         }
+        if ($arg -ceq '-vv') {
+            if ($sub -cne 'build') { throw '-vv is only allowed for an explicitly profiled cargo build.' }
+            continue
+        }
         if ($arg -eq '--no-run') {
             if ($sub -ne 'test') { throw '--no-run is only allowed with cargo test.' }
             $noRun = $true
@@ -441,7 +483,10 @@ function Get-CargoInvocationPolicySignature([string[]]$Arguments) {
 
 function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
     $policyKey = Get-PackagePolicyKey $Root
-    if (-not $script:cargoInvocationPolicies.ContainsKey($policyKey)) { return $false }
+    if (-not $script:cargoInvocationPolicies.ContainsKey($policyKey)) {
+        if ($script:packageSetPolicies.ContainsKey($policyKey) -or $policyKey -ceq 'target/parakeet-tests/garde-n1-categories') { return $false }
+        throw "No versioned package policy is registered for lot root '$policyKey'; Cargo not launched."
+    }
     $signature = Get-CargoInvocationPolicySignature $Arguments
     foreach ($profile in $script:cargoInvocationPolicies[$policyKey]) {
         if ($signature -ceq $profile) { return $true }
@@ -564,6 +609,71 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
 function Invoke-CargoCaptured([string[]]$Arguments, [string]$Label) {
     $script:cargoProcessLaunchCount++
     return Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $Arguments $Label
+}
+
+function Get-CargoTestExecutablePaths([string[]]$OutputStreams, [string]$TargetRoot) {
+    $paths = [Collections.Generic.List[string]]::new()
+    foreach ($stream in $OutputStreams) {
+      foreach ($line in ($stream -split "`r?`n")) {
+        # Cargo's human output (which may be emitted on stderr) is accepted.
+        # It is `Executable <target> (<path>)`; capture through the final .exe so
+        # spaces or parentheses in earlier display text do not alter the path.
+        $rawPath = $null
+        if ($line -match '^\s*Executable\((.+\.exe)\)\s*$') { $rawPath = $Matches[1].Trim().Trim('"') }
+        elseif ($line -match '^\s*Executable\s+.+\s+\((.+\.exe)\)\s*$') { $rawPath = $Matches[1].Trim().Trim('"') }
+        if ([string]::IsNullOrWhiteSpace($rawPath)) { continue }
+        $path = if ([IO.Path]::IsPathRooted($rawPath)) { Get-FullPath $rawPath } else { Get-FullPath (Join-Path $repo $rawPath) }
+        if ([IO.Path]::GetExtension($path) -ine '.exe') { throw "Cargo test executable is not a Windows PE path: $path" }
+        if (-not (Test-InRoot $path $TargetRoot)) { throw "Cargo test executable escaped the selected target root: $path" }
+        Assert-NoReparseChain $path 'Cargo test executable'
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Cargo test executable is missing: $path" }
+        if (-not @($paths | Where-Object { $_ -ieq $path }).Count) { $paths.Add($path) }
+      }
+    }
+    if ($paths.Count -eq 0) { throw 'cargo test --no-run reported no executable harness; refusing worker test execution.' }
+    return ,([string[]]$paths.ToArray())
+}
+
+function Invoke-WorkerHarnessImportGate([string]$Package, [string[]]$ExecutablePaths, [string]$LabelPrefix, [scriptblock]$CheckAction = $null) {
+    if ($Package -notin @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) { throw "No N1 worker import-gate mapping for package '$Package'." }
+    if ($ExecutablePaths.Count -eq 0) { throw "No test harness was supplied for '$Package'." }
+    $kind = switch ($Package) {
+        'whisper-worker-cpu' { 'Cpu' }
+        'whisper-worker-parakeet-cpu' { 'ParakeetCpu' }
+        'whisper-worker-common' { 'Cpu' }
+    }
+    $checker = Join-Path $repo 'ci/check-worker-imports.ps1'
+    $powerShell = (Get-Process -Id $PID).Path
+    $index = 0
+    foreach ($path in $ExecutablePaths) {
+        $fullPath = Get-FullPath $path
+        if (-not (Test-InRoot $fullPath $script:targetRoot)) { throw "Worker test harness escaped the selected Cargo target: $fullPath" }
+        Assert-NoReparseChain $fullPath 'worker test harness'
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw "Worker test harness is missing: $fullPath" }
+        $result = if ($null -ne $CheckAction) {
+            & $CheckAction $kind $fullPath
+        } else {
+            Invoke-Captured $powerShell @('-NoProfile','-File',$checker,'-Kind',$kind,'-Path',$fullPath) ("$LabelPrefix-$Package-$index")
+        }
+        if ($null -eq $result -or $result.ExitCode -ne 0) { throw "PE import gate failed for '$Package' harness '$fullPath'; refusing inventory or test execution." }
+        $sha256 = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Host "WORKER_HARNESS_PE package=$Package kind=$kind path=$fullPath sha256=$sha256 verdict=PASS"
+        $index++
+    }
+    return $index
+}
+
+function Invoke-WorkerHarnessPreflight([string]$Package, [string]$Phase) {
+    $preflightArgs = [string[]]@('test','--offline','--locked','--no-run','-p',$Package)
+    [void](Assert-CargoInvocationPolicy $preflightArgs $lotRoot)
+    [void](Assert-CargoPackagePolicy $preflightArgs $lotRoot)
+    if ($script:useConfigTarget) { $preflightArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot))) }
+    Assert-WriteRoots
+    $preflight = Invoke-CargoCaptured $preflightArgs ("worker-harness-$Phase-$Package")
+    if ($preflight.ExitCode -ne 0) { throw "Worker harness preflight build failed for '$Package' ($($preflight.ExitCode)); inventory/test not launched. Logs: $($preflight.OutPath), $($preflight.ErrPath)" }
+    $executables = Get-CargoTestExecutablePaths @($preflight.Stdout,$preflight.Stderr) $script:targetRoot
+    $checked = Invoke-WorkerHarnessImportGate $Package $executables "worker-harness-$Phase"
+    "WORKER_HARNESS_IMPORT_GATE package=$Package checked=$checked phase=$Phase target=$script:targetRoot"
 }
 
 $script:structuralClippyLints = @(
@@ -1064,6 +1174,133 @@ function Invoke-ClippyCorrectionsInvocationPolicySelfTests {
     return [pscustomobject]@{ Positive=$positive; Negative=$negative }
 }
 
+function Invoke-CpuDistributionInvocationPolicySelfTests {
+    $cpuRoot = Join-Path $repo $cpuDistributionRoot
+    $gpuRoot = Join-Path $repo $gpuDistributionRoot
+    $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu','whisper-desktop','whisper-bootstrap')
+    $expectedCpuProfiles = [Collections.Generic.List[string]]::new()
+    foreach ($profile in @(
+        @('fetch'),@('fmt','--check'),@('test','--no-fail-fast'),
+        @('test','--no-run','-p','whisper-worker-cpu'),@('test','-p','whisper-worker-cpu','--','--list'),@('test','-p','whisper-worker-cpu'),
+        @('test','--no-run','-p','whisper-worker-parakeet-cpu'),@('test','-p','whisper-worker-parakeet-cpu','--','--list'),@('test','-p','whisper-worker-parakeet-cpu'),
+        @('test','--no-run','-p','whisper-worker-common'),@('test','-p','whisper-worker-common','--','--list'),@('test','-p','whisper-worker-common'),
+        @('build','--release','-p','whisper-worker-cpu','-vv'),@('build','--release','-p','whisper-desktop','-vv'),@('build','--release','-p','whisper-bootstrap','-vv')
+    )) { $expectedCpuProfiles.Add((ConvertTo-Json -InputObject ([string[]]$profile) -Compress)) }
+    $expectedClippy = [Collections.Generic.List[string]]::new()
+    $expectedClippy.Add('clippy')
+    foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-cpu','whisper-worker-common','whisper-worker-parakeet-cpu')) { $expectedClippy.Add('-p'); $expectedClippy.Add($package) }
+    foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) { $expectedClippy.Add($argument) }
+    $expectedCpuProfiles.Add((ConvertTo-Json -InputObject ([string[]]$expectedClippy.ToArray()) -Compress))
+    $expectedGpuProfiles = [string[]]@((ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-worker-gpu','-vv')) -Compress))
+    if ($expectedCpuProfiles.Count -ne 16 -or $expectedGpuProfiles.Count -ne 1) { throw 'CPU distribution SelfTest expected profile count changed unexpectedly.' }
+    if ([string]::Join("`n",[string[]]$expectedCpuProfiles.ToArray()) -cne [string]::Join("`n",[string[]]$script:cargoInvocationPolicies[$cpuDistributionRoot])) { throw 'CPU distribution registered profiles differ from the independently declared SelfTest allowlist.' }
+    if ([string]::Join("`n",$expectedGpuProfiles) -cne [string]::Join("`n",[string[]]$script:cargoInvocationPolicies[$gpuDistributionRoot])) { throw 'GPU producer registered profiles differ from the independently declared SelfTest allowlist.' }
+    $beforeProcesses = $script:cargoProcessLaunchCount
+    $script:cpuDistributionMetadataCallbacks = 0
+    $metadataProbe = { param($checked) $script:cpuDistributionMetadataCallbacks++; return [pscustomobject]@{ Args=$checked.Args } }
+    $positive = 0
+    foreach ($profileJson in $expectedCpuProfiles) {
+        $profile = [string[]](Convert-CargoArgsJson $profileJson)
+        foreach ($useJson in @($false,$true)) {
+            $tokens = $profile
+            if ($profile.Count -eq 1 -and $profile[0] -ceq 'fetch') { $tokens = @('fetch','--locked') }
+            if ($useJson) { $tokens = Convert-CargoArgsJson (ConvertTo-Json -InputObject ([string[]]$tokens) -Compress) }
+            $checked = Test-CargoArguments ([string[]]$tokens) $members -SkipMemberValidation
+            if ($checked.Category -in @('Fetch','Lecture')) {
+                if (-not (Assert-CargoInvocationPolicy $checked.Args $cpuRoot)) { throw "CPU distribution SelfTest rejected allowlisted $($profile -join ' ')." }
+            } else {
+                [void](Invoke-GuardedCargoPreflight ([string[]]$tokens) $cpuRoot $metadataProbe)
+            }
+            $positive++
+        }
+    }
+    foreach ($profileJson in $expectedGpuProfiles) {
+        $profile = [string[]](Convert-CargoArgsJson $profileJson)
+        foreach ($useJson in @($false,$true)) {
+            $tokens = $profile
+            if ($useJson) { $tokens = Convert-CargoArgsJson (ConvertTo-Json -InputObject ([string[]]$profile) -Compress) }
+            [void](Invoke-GuardedCargoPreflight ([string[]]$tokens) $gpuRoot $metadataProbe)
+            $positive++
+        }
+    }
+    $expectedCallbacks = ($positive - 4)
+    if ($script:cpuDistributionMetadataCallbacks -ne $expectedCallbacks) { throw "CPU distribution SelfTest reached the metadata boundary $($script:cpuDistributionMetadataCallbacks) times; expected $expectedCallbacks." }
+
+    $negative = 0
+    $savedTargetRoot = $script:targetRoot
+    $gateRoot = Join-Path $runRoot 'worker-harness-import-gate'
+    $gateDeps = Join-Path $gateRoot 'debug/deps'
+    Initialize-Directory $gateDeps 'worker harness SelfTest fixture'
+    $fixtureHarness = Join-Path $gateDeps 'worker_contract-selftest.exe'
+    Copy-Item -LiteralPath (Join-Path $repo 'ci/fixtures/pe/no-cuda.bin') -Destination $fixtureHarness
+    $script:targetRoot = $gateRoot
+    try {
+        $humanStderr = "Executable unittests src/lib.rs ($fixtureHarness)`r`nExecutable tests\worker.rs ($fixtureHarness)"
+        $paths = Get-CargoTestExecutablePaths @('', $humanStderr) $gateRoot
+        if ($paths.Count -ne 1 -or $paths[0] -ine (Get-FullPath $fixtureHarness)) { throw 'Worker harness SelfTest did not resolve the exact reported PE path.' }
+        $successfulChecker = { param($kind,$path) $script:cpuDistributionCheckerCalls++; $script:cpuDistributionCheckerKind=$kind; $script:cpuDistributionCheckerPath=$path; return [pscustomobject]@{ ExitCode=0; Kind=$kind; Path=$path } }
+        $script:cpuDistributionCheckerCalls = 0
+        foreach ($mapping in @(
+            @{ Package='whisper-worker-cpu'; Kind='Cpu' },
+            @{ Package='whisper-worker-parakeet-cpu'; Kind='ParakeetCpu' },
+            @{ Package='whisper-worker-common'; Kind='Cpu' }
+        )) {
+            $checkedCount = Invoke-WorkerHarnessImportGate $mapping.Package $paths 'selftest' $successfulChecker
+            if ($checkedCount -ne 1 -or $script:cpuDistributionCheckerKind -cne $mapping.Kind -or $script:cpuDistributionCheckerPath -ine (Get-FullPath $fixtureHarness)) { throw "Worker harness SelfTest did not enforce the $($mapping.Kind) mapping for $($mapping.Package): count=$checkedCount kind=$script:cpuDistributionCheckerKind path=$script:cpuDistributionCheckerPath expected=$(Get-FullPath $fixtureHarness)." }
+        }
+        if ($script:cpuDistributionCheckerCalls -ne 3) { throw 'Worker harness SelfTest did not call the import-check boundary once for each worker package.' }
+        $positive += 3
+
+        foreach ($badOutput in @(@('',''), @('',"Executable unittests src/lib.rs ($(Join-Path $gateDeps 'missing.exe'))"))) {
+            $rejected = $false
+            try { [void](Get-CargoTestExecutablePaths $badOutput $gateRoot) } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Worker harness SelfTest accepted absent or missing Cargo test output.' }
+            $negative++
+        }
+        $failedChecker = { param($kind,$path) return [pscustomobject]@{ ExitCode=1; Kind=$kind; Path=$path } }
+        $rejected = $false
+        try { [void](Invoke-WorkerHarnessImportGate 'whisper-worker-cpu' $paths 'selftest-failure' $failedChecker) } catch { $rejected = $_.Exception.Message.Contains('PE import gate failed') }
+        if (-not $rejected) { throw 'Worker harness SelfTest did not stop on an import-check failure.' }
+        $negative++
+    } finally { $script:targetRoot = $savedTargetRoot }
+
+    $bad = @(
+        @{ Root=$cpuRoot; Args=@('test','--workspace'); Match='versioned profile' },
+        @{ Root=$cpuRoot; Args=@('test','-p','whisper-worker-cpu','-p','whisper-worker-common'); Match='versioned profile' },
+        @{ Root=$cpuRoot; Args=@('build','--release','-p','whisper-worker-cpu'); Match='versioned profile' },
+        @{ Root=$cpuRoot; Args=@('build','--release','-p','whisper-worker-gpu','-vv'); Match='versioned profile' },
+        @{ Root=$gpuRoot; Args=@('build','--release','-p','whisper-worker-gpu'); Match='versioned profile' },
+        @{ Root=$gpuRoot; Args=@('build','--release','-p','whisper-worker-cpu','-vv'); Match='versioned profile' },
+        @{ Root=$gpuRoot; Args=@('test','-p','whisper-worker-gpu','--','--list'); Match='versioned profile' },
+        @{ Root=$gpuRoot; Args=@('fetch','--locked'); Match='versioned profile' },
+        @{ Root=(Join-Path $repo 'target/parakeet-tests/unregistered-cpu-distribution'); Args=@('test'); Match='No versioned package policy' },
+        @{ Root=(Join-Path $repo 'target/parakeet-tests/unregistered-cpu-distribution'); Args=@('test','--no-fail-fast'); Match='No versioned package policy' },
+        @{ Root=(Join-Path $repo 'target/parakeet-tests/unregistered-cpu-distribution'); Args=@('test','-p','whisper-worker-cpu'); Match='No versioned package policy' },
+        @{ Root=(Join-Path $repo 'target/parakeet-tests/unregistered-cpu-distribution'); Args=@('fmt','--check'); Match='No versioned package policy' }
+    )
+    foreach ($case in $bad) {
+        foreach ($useJson in @($false,$true)) {
+            $tokens = [string[]]$case.Args
+            if ($useJson) { $tokens = Convert-CargoArgsJson (ConvertTo-Json -InputObject ([string[]]$tokens) -Compress) }
+            $rejected = $false
+            try { [void](Invoke-GuardedCargoPreflight $tokens $case.Root $metadataProbe) }
+            catch { $rejected = $_.Exception.Message.Contains($case.Match) -and $_.Exception.Message.Contains('Cargo not launched') }
+            if (-not $rejected) { throw "CPU distribution SelfTest did not reject '$($case.Args -join ' ') at '$($case.Root)'." }
+            $negative++
+        }
+    }
+    foreach ($badArguments in @(@('build','-p','whisper-worker-cpu','-v'),@('build','-p','whisper-worker-cpu','-vvv'),@('test','-p','whisper-worker-cpu','-vv'))) {
+        $rejected = $false
+        try { [void](Test-CargoArguments $badArguments $members -SkipMemberValidation) } catch { $rejected = $true }
+        if (-not $rejected) { throw "CPU distribution SelfTest accepted invalid verbosity: $($badArguments -join ' ')." }
+        $negative++
+    }
+    if ($script:cpuDistributionMetadataCallbacks -ne $expectedCallbacks) { throw 'CPU distribution negative profile checks reached Cargo metadata.' }
+    if ($script:cargoProcessLaunchCount -ne $beforeProcesses) { throw 'CPU distribution policy SelfTest launched a Cargo process.' }
+    $summary = "CPU_DISTRIBUTION_POLICY_SELFTEST cpu_profiles=$($expectedCpuProfiles.Count) gpu_profiles=$($expectedGpuProfiles.Count) positive=$positive negative=$negative cargo_processes=$($script:cargoProcessLaunchCount - $beforeProcesses) metadata_callbacks=$($script:cpuDistributionMetadataCallbacks)"
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative; Summary=$summary }
+}
+
 function Invoke-SelfTests {
     $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-gpu','whisper-worker-parakeet-cpu')
     $singletonJsonArgs = @(Convert-CargoArgsJson '["test"]')
@@ -1148,6 +1385,10 @@ function Invoke-SelfTests {
     $invocationPolicyTests.Summary
     $pCount += $invocationPolicyTests.Positive
     $nCount += $invocationPolicyTests.Negative
+    $cpuDistributionPolicyTests = Invoke-CpuDistributionInvocationPolicySelfTests
+    $cpuDistributionPolicyTests.Summary
+    $pCount += $cpuDistributionPolicyTests.Positive
+    $nCount += $cpuDistributionPolicyTests.Negative
     $fetch = Test-CargoArguments @('fetch','--locked') $members
     if ($fetch.Category -cne 'Fetch' -or ($fetch.Args -join ' ') -cne 'fetch --locked') { throw 'Self-test did not preserve locked fetch without offline.' }
     $pCount++
@@ -1457,7 +1698,6 @@ $members = @()
 if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $checked = Test-CargoArguments $CargoArgs $members
     [void](Assert-CargoInvocationPolicy $checked.Args $lotRoot)
-    if ($FreshTarget -or $ExistingTarget) { throw 'Fetch does not accept a compilation target selection.' }
     if (-not $DryRun) { Initialize-Directory $cargoHome 'persistent Cargo cache' }
 } elseif ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fmt') {
     $checked = Test-CargoArguments $CargoArgs $members
@@ -1498,11 +1738,25 @@ if ($FreshTarget) {
 }
 if ($DryRun) { "DRY_RUN category=$($checked.Category) cargo $([string]::Join(' ', [string[]]$cargoArgs)) target=$script:targetRoot"; exit 0 }
 Assert-WriteRoots
+if ($checked.Args[0] -ceq 'test' -and '--no-run' -cnotin $checked.Args) {
+    $scope = Get-CargoPackageScope $checked.Args
+    if ($scope.Packages.Count -eq 1 -and $scope.Packages[0] -in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+        Invoke-WorkerHarnessPreflight $scope.Packages[0] 'before-test'
+    }
+}
 $result = Invoke-CargoCaptured $cargoArgs 'cargo-command'
 Get-Content -LiteralPath $result.OutPath -Tail 30
 Get-Content -LiteralPath $result.ErrPath -Tail 30
 "N1_GUARD category=$($checked.Category) exit_code=$($result.ExitCode) CARGO_TARGET_DIR_child=$($result.CargoTargetEnvPresent) target_directory=$script:targetRoot stdout=$($result.OutPath) stderr=$($result.ErrPath)"
 try { Assert-StructuralClippyPassed $result.ExitCode } catch { throw $_ }
+if ($result.ExitCode -eq 0 -and $checked.Args[0] -ceq 'test' -and '--no-run' -cin $checked.Args) {
+    $scope = Get-CargoPackageScope $checked.Args
+    if ($scope.Packages.Count -eq 1 -and $scope.Packages[0] -in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
+        $executables = Get-CargoTestExecutablePaths @($result.Stdout,$result.Stderr) $script:targetRoot
+        $checkedHarnesses = Invoke-WorkerHarnessImportGate $scope.Packages[0] $executables 'worker-harness-no-run'
+        "WORKER_HARNESS_IMPORT_GATE package=$($scope.Packages[0]) checked=$checkedHarnesses phase=no-run target=$script:targetRoot"
+    }
+}
 if ($script:structuralClippyActive) {
     $baselinePath = Join-Path $repo 'ci/clippy-structure-baseline.tsv'
     $baselineText = Read-StructuralClippyBaseline $baselinePath
