@@ -8,6 +8,8 @@ Décision : conserver un ensemble conservateur pour préparer les notices de l'a
 
 Le tableau présente les fichiers de licence repérés **à la racine** de chaque archive Cargo ; sauf indication contraire, ils sont relatifs à `target/cargo-home-shared/registry/src/index.crates.io-1949cf8c6b5b557f/<paquet>-<version>/` dans le worktree de reprise. `license_file` est également pris en compte. La présence d'un fichier n'établit ni le choix d'une licence parmi les alternatives, ni l'absence de notices, copyrights ou composants natifs supplémentaires. Pour les fichiers non trouvés à la racine, un lien vers la révision amont est fourni quand elle est connue. Il faut identifier les textes applicables, les lire et les joindre au produit ; un lien ou cet index ne les remplace pas.
 
+Les lignes de copyright identifiées dans les licences racine, ainsi que des mentions pour certaines ressources natives et polices, figurent dans le [relevé complémentaire](copyrights-notices-turbo.md). Elles restent à vérifier et à réunir avec les textes complets pour le paquet.
+
 | Paquet | Version | PE candidats | Licence déclarée | Textes candidats à examiner |
 |---|---|---|---|---|
 | accesskit | 0.24.1 | D | MIT OR Apache-2.0 | [dépôt à la révision a55d3e1a](https://github.com/AccessKit/accesskit/tree/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969) : texte racine à vérifier |
