@@ -5,7 +5,7 @@ use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use whisper_core::cpu_compatibility::{
-    CpuCapabilities, CpuCapabilityDiagnostic, CpuProcessRole, DIAGNOSTIC_PREFIX,
+    CpuCapabilities, CpuCapabilityDiagnostic, CpuCompatibility, CpuProcessRole, DIAGNOSTIC_PREFIX,
     MAX_DIAGNOSTIC_BYTES,
 };
 
@@ -94,6 +94,11 @@ fn decode_hex_digit(value: u8) -> Option<u8> {
 
 pub fn emit_desktop_startup_diagnostic() {
     emit(CpuProcessRole::Desktop, std::process::id(), read_current());
+}
+
+/// Reads this process's CPUID capabilities and applies the shared v2 policy.
+pub fn current_cpu_compatibility() -> CpuCompatibility {
+    read_current().compatibility()
 }
 
 pub(crate) fn validated_worker_diagnostic(
@@ -269,5 +274,7 @@ fn read_current() -> CpuCapabilities {
     CpuCapabilities::default()
 }
 
+#[cfg(test)]
+mod probe_tests;
 #[cfg(test)]
 mod tests;
