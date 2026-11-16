@@ -34,3 +34,14 @@ Couvrir avec des tests du vrai parcours décisionnel : CPU indéterminé, CPU re
 Avant chaque campagne, relever branche, diff, espace libre ≥ 30 Gio, ressources actives et racines autorisées ; exécuter le SelfTest et les commandes Cargo applicables via `ci/guard-level1.ps1` suivant les signatures autorisées. Les catégories attendues sont format, tests ciblés T31/T32, N1 complet et Clippy structurel, builds séparés v1 et Turbo, puis contrôles PE/imports. Les commandes et cibles exactes dépendent de la conception et des profils de garde qui devront être arrêtés et relus avec le lot ; elles ne sont pas encore une recette exécutable.
 
 Gate L3→L4 : les trois tâches sont exécutées, le candidat et ses ressources sont identifiés, les droits sont fermés, les refus avant mutation et le premier lancement sont démontrés. L'absence d'un prérequis ou d'un résultat laisse la gate ouverte. Les essais utilisateur, v2 exact et Windows ARM64 conservent leur statut et leurs conditions L4.
+
+## Vérifications restantes avant assemblage
+
+| Vérification | État et condition de fermeture |
+|---|---|
+| Dépendances Rust | [Relevé des paquets compilés](dependances-compilees-turbo.md) disponible pour les candidats desktop et GPU. Établir pour chaque PE final le graphe et les composants réellement incorporés, distinguer les dépendances de build et vérifier les notices et obligations. Worker CPU et bootstrap finaux encore non identifiés. |
+| Code natif et DLL | Rattacher `whisper-rs-sys 0.15.0` (licence déclarée Unlicense) à la version de `whisper.cpp`/GGML et aux licences incluses dans cette version. Contrôler les DLL candidates CUDA et Visual C++, imports transitifs et chargements dynamiques, versions, redistribution et résolution sur machine propre. |
+| Modèle | Le fichier local correspond au SHA attendu ; déterminer la provenance et les conditions de la conversion GGML exacte. Le modèle reste fourni séparément. |
+| Identité des PE | Arrêter les PE CPU/GPU/desktop finaux, SHA et commandes ; établir l'attribution des références de workers au desktop et la reconstruction après changement des entrées. Une identité relue sur le seul chemin ne prouve pas l'image effective. |
+| Contrôles et droits | Vérifier les notices et licences réellement applicables, y compris les licences alternatives ou cumulatives et polices ; confirmer les droits du code propre et la licence du distributeur Visual Studio. Les déclarations de `Cargo.toml` ne suffisent pas à fermer le point. |
+| Assemblage | Revoir la primitive de publication sans écrasement, les effets du bootstrap et les commandes gardées avant le mandat L3. Ne pas assembler tant que les ressources et droits obligatoires ne sont pas clos. |
