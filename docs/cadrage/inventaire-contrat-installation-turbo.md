@@ -2,7 +2,7 @@
 
 Avancée : inventaire initial des candidats produits et contrat d'installation préparé pour T23–T24.
 Blocage : droits et fermeture des dépendances incomplets ; candidat final et installation propre non qualifiés.
-Décision : arbitrages D1–D3 à prendre avant assemblage L3.
+Décision : orientations D1–D3 acceptées par l'utilisateur ; les prérequis de qualification restent ouverts.
 
 État observé le 16 novembre 2026 sur `C:/wt/distcpu-l2-reprise`, branche `codex/cpu-distribution-l2-reprise`, base `26da7b6e` et changements T21/T22 non commités. Les PE ci-dessous sont des candidats de travail, leurs chemins sous `target` ne sont pas des chemins de livraison ni des preuves pérennes. Une reconstruction impose de refaire les relevés. Cadrage et gates de référence : [évolution](evo-distribution-cpu-x64.md) et [plan](plan-implementation-distribution-cpu-x64.md), T21–T24. Cet inventaire ne constitue pas un avis juridique ni une autorisation de redistribution.
 
@@ -33,12 +33,32 @@ Le point d'engagement proposé est la publication atomique sans écrasement de l
 
 La cible est Windows 11 x64 Home/Pro encore supporté à la publication, avec plancher matériel x86-64-v2. Au 16 novembre 2026, la page Microsoft indique 25H2, 26H1 et 26H2 dans le tableau Home/Pro supporté, tandis que 24H2 Home/Pro est en fin de mises à jour. Cette photographie doit être réévaluée à la publication ; la qualification réelle des versions et de l'émulation ARM64 n'est pas acquise. [Versions Windows 11](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information)
 
-## Décisions restantes
+## Décisions acceptées
 
 **D1 — Runtime CUDA.** Recommandation : livrer les DLL CUDA redistribuables nécessaires à côté du worker GPU, après fermeture des versions, licences, imports transitifs et résolution, et demander un pilote NVIDIA compatible préinstallé. Autre option : exiger les runtimes installés par l'utilisateur ; elle doit démontrer l'absence de dépendance au SDK de développement. Vérifier l'interaction avec le mode CPU et les erreurs GPU manuel/Auto.
 
 **D2 — Runtime Visual C++.** Recommandation : étudier la livraison locale des fichiers redistribuables exacts à côté des exécutables, sans élévation, après vérification de licence, de version et des dépendances. Autre option : exiger le redistribuable x64 préinstallé ; son installation système et ses effets nécessiteraient un contrat distinct. Aucune option n'est encore qualifiée.
 
 **D3 — Format et effets de remise.** Recommandation : un installateur Rust par utilisateur, fourni avec les ressources et licences, sans raccourci ni inscription Windows par défaut. Arbitrer si un raccourci doit être proposé et si un paquet ZIP est préféré ; préciser alors ses effets et le point d'engagement. Aucune primitive ni technologie supplémentaire n'est autorisée par cette proposition.
+
+**Décision utilisateur de la session :** D1, D2 et D3 sont acceptées selon les recommandations ci-dessus. Le runtime CUDA et les fichiers Visual C++ sont envisagés en application locale après vérification de leur redistribution et de leur fonctionnement. L'installateur Rust est par utilisateur, sans raccourci ni inscription Windows par défaut. Cette décision ne valide pas encore les fichiers précis ni le paquet.
+
+## Vérifications complémentaires
+
+Dans le toolkit CUDA 12.9 local, `dumpbin /imports` relève `cublasLt64_12.dll` comme import direct de `cublas64_12.dll`. Les trois candidats suivants sont présents dans `C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.9/bin` :
+
+| DLL locale candidate | Octets | SHA-256 |
+|---|---:|---|
+| `cublas64_12.dll` | 102 518 272 | `52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82` |
+| `cublasLt64_12.dll` | 668 673 536 | `71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5` |
+| `cudart64_12.dll` | 583 680 | `760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1` |
+
+Leurs imports directs observés restant sont des API Windows. L'absence de chargements dynamiques n'est pas établie. Ces fichiers totalisent environ 736 Mio et n'ont pas été copiés ni désignés comme fichiers finaux. Le code GPU ouvre explicitement `nvcuda.dll` depuis System32, confirmant que le pilote est une ressource de la machine cible. [Source GPU](../../crates/whisper-worker-gpu/src/native_ffi.rs)
+
+La licence du toolkit CUDA 12.9 liste ces bibliothèques parmi les composants distribuables sous conditions, notamment un usage avec une application apportant des fonctionnalités supplémentaires. Les obligations complètes doivent être vérifiées pour la distribution choisie. Microsoft autorise sous conditions la distribution non modifiée de fichiers issus du répertoire Visual Studio 2022 `VC/redist`, à l'exclusion des répertoires non redistribuables ; le droit applicable au distributeur reste à confirmer. Un répertoire candidat local `VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.CRT` a été repéré, sans sélectionner ou copier ses fichiers. [EULA CUDA 12.9](https://docs.nvidia.com/cuda/archive/12.9.0/eula/index.html) · [Redistribution Visual Studio 2022](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution)
+
+Dans ce répertoire Visual C++, trois fichiers candidats portent la version 14.44.35211.0 : `msvcp140.dll` SHA-256 `0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9`, `vcruntime140_1.dll` SHA-256 `1f2d41c4aa5db0bc33ebf7b66d72943a817d7ceed5702e84c2b72028a89837e1` et `vcruntime140.dll` SHA-256 `d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066`. Ils ne sont pas encore qualifiés pour le paquet. Le modèle local `C:/dev/whisper/models/ggml-large-v3-turbo.bin`, 1 624 555 275 octets, correspond au SHA requis au moment de la lecture ; cela ne prouve pas sa provenance ni ses conditions de conversion.
+
+Le `Cargo.lock` contient 440 paquets de registre et leurs métadonnées de licence sont disponibles dans le cache ; ce total couvre plusieurs cibles et ne prouve pas que les 440 sont liés. Les déclarations incluent notamment MIT, Apache-2.0, Unicode-3.0 et MPL-2.0, ainsi que des expressions alternatives ou combinées. La liste effectivement liée par binaire, les licences exactes retenues, leurs notices et les sources à fournir le cas échéant restent à établir. La licence et les droits du code propre restent à confirmer. La carte OpenAI déclare MIT pour le modèle source ; la provenance de la conversion GGML associée au SHA exigé reste ouverte.
 
 Avant de déclarer T23/T24 fermés, fixer les binaires finaux et leurs empreintes, établir toutes les dépendances statiques/dynamiques et licences, vérifier les droits de redistribution applicables, arrêter les décisions D1–D3 et revoir le contrat. La compilation du desktop Turbo disponible n'établit pas encore la liaison aux deux workers ni l'invalidation du cache. La recette de premier lancement et l'autonomie du paquet sont prévues en T33 ; les validations matérielles restent en L4.
