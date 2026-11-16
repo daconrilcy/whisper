@@ -6,6 +6,8 @@ Décision : conserver un ensemble conservateur pour préparer les notices de l'a
 
 État au 16 novembre 2026. D = entrée du graphe du desktop `aca1b94b230b14d21ea73f89f10d464b241f5a5f9c28caed7849f9c701bba414` ; G = entrée du graphe du worker GPU `757a7bd4c874fe076ed109dd176702a11ec3bd7ea0bc532be954a64ed92bcef8` ; C? = nom rencontré dans le parcours conservateur du cache du worker CPU `03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a`. Les versions multiples CPU, dépendances de compilation et macros peuvent faire partie de C? sans entrer dans le binaire. Les graphes D et G identifient des entrées potentielles, pas la présence de chaque paquet après liaison. Voir les [méthodes et réserves](entrees-rust-candidats-turbo.md).
 
+Après correction du diagnostic GPU, les candidats sont le desktop `af89e1b4d5ce3c40c8c7e1647fd9a7f4dfe5a7aaa9cd0cce2e47f2b190640d15` et le worker GPU `d874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9`. La comparaison des commandes `rustc` retrouve les mêmes ensembles de couples nom/type et références `--extern` dans les anciens et nouveaux builds : 205 unités desktop et 79 GPU relevées par cette méthode. Les 150 chemins de sources natifs GPU sont identiques après retrait du préfixe propre à la cible. Les quatre polices précédemment recensées sont présentes en entier dans le nouveau desktop. Ces comparaisons permettent de conserver l'index D/G comme inventaire prudent ; elles ne prouvent pas que le linker a conservé exactement les mêmes objets ni la résolution des DLL sur la machine de destination.
+
 Le tableau présente les fichiers de licence repérés **à la racine** de chaque archive Cargo ; sauf indication contraire, ils sont relatifs à `target/cargo-home-shared/registry/src/index.crates.io-1949cf8c6b5b557f/<paquet>-<version>/` dans le worktree de reprise. `license_file` est également pris en compte. La présence d'un fichier n'établit ni le choix d'une licence parmi les alternatives, ni l'absence de notices, copyrights ou composants natifs supplémentaires. Pour les fichiers non trouvés à la racine, un lien vers la révision amont est fourni quand elle est connue. Il faut identifier les textes applicables, les lire et les joindre au produit ; un lien ou cet index ne les remplace pas.
 
 Les lignes de copyright identifiées dans les licences racine, ainsi que des mentions pour certaines ressources natives et polices, figurent dans le [relevé complémentaire](copyrights-notices-turbo.md). Elles restent à vérifier et à réunir avec les textes complets pour le paquet.
@@ -216,7 +218,7 @@ Les demandes du fichier nommé exactement `NOTICE` à la racine des révisions a
 | whisper-core | 0.1.0 | D, G, C? | code propre | Code propre : droits confirmés, licence à préciser |
 | whisper-desktop | 0.1.0 | D | code propre | Code propre : droits confirmés, licence à préciser |
 | whisper-rs | 0.16.0 | G, C? | Unlicense | `LICENSE` |
-| whisper-rs-sys | 0.15.0 | G, C? | Unlicense | `whisper.cpp/LICENSE` (MIT) ; texte Unlicense à recueillir |
+| whisper-rs-sys | 0.15.0 | G, C? | Unlicense | `whisper.cpp/LICENSE` (MIT) ; texte Unlicense dans le [complément](notices-complementaires-turbo.md) |
 | whisper-worker-common | 0.1.0 | G, C? | code propre | Code propre : droits confirmés, licence à préciser |
 | whisper-worker-cpu | 0.1.0 | C? | code propre | Code propre : droits confirmés, licence à préciser |
 | whisper-worker-gpu | 0.1.0 | G | code propre | Code propre : droits confirmés, licence à préciser |

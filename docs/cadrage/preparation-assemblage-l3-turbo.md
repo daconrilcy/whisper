@@ -1,10 +1,12 @@
 # Préparation de l'assemblage L3 Turbo
 
-Avancée : orientations de livraison acceptées et tâches T31–T33 précisées pour le candidat Turbo.
-Blocage : gate L2 ouverte, droits et ressources finaux incomplets, primitive de publication à établir.
-Décision : l'implémentation et les campagnes L3 attendent un mandat de lot après fermeture des prérequis.
+Avancée : gate L2→L3 passée ; orientations de livraison et tâches T31–T33 précisées pour le candidat Turbo.
+Blocage : assemblage et conditions effectives de remise restent à vérifier en L3.
+Décision : préparer L3 à partir du bilan L2 et des conditions ci-dessous.
 
-Ce document prépare L3 à partir du [plan de distribution](plan-implementation-distribution-cpu-x64.md) et de l'[inventaire des ressources](inventaire-contrat-installation-turbo.md). Il ne déclare pas L2 terminé. État de travail : `C:/wt/distcpu-l2-reprise`, base L1 `26da7b6e`, changements T21/T22 non commités. Les candidats desktop et GPU compilés sont des entrées de travail ; les octets à livrer ne sont pas figés.
+Ce document prépare L3 à partir du [plan de distribution](plan-implementation-distribution-cpu-x64.md) et de l'[inventaire des ressources](inventaire-contrat-installation-turbo.md). Les candidats desktop et GPU compilés sont des entrées de travail ; le paquet à livrer n'est pas assemblé.
+
+Actualisation : le [bilan L2](bilan-l2-distribution-turbo.md) clôt le candidat d'implémentation et remplace les états de travail historiques ci-dessous. L'assemblage L3 et les conditions effectives de remise restent à vérifier.
 
 ### Vérification du candidat au 16 novembre
 
