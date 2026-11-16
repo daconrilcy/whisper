@@ -46,6 +46,8 @@ Gate L3→L4 : les trois tâches sont exécutées, le candidat et ses ressources
 | Contrôles et droits | Vérifier les notices et licences réellement applicables, y compris les licences alternatives ou cumulatives et polices ; confirmer les droits du code propre et la licence du distributeur Visual Studio. Les déclarations de `Cargo.toml` ne suffisent pas à fermer le point. |
 | Assemblage | Revoir la primitive de publication sans écrasement, les effets du bootstrap et les commandes gardées avant le mandat L3. Ne pas assembler tant que les ressources et droits obligatoires ne sont pas clos. |
 
+L'[index des notices candidates](index-notices-turbo.md) relie les sources examinées aux graphes des trois PE. C'est un ensemble prudent de travail, non un recueil final ni une preuve d'incorporation de chaque dépendance. Les textes applicables, leurs copyrights, les composants natifs et les conditions des DLL restent à collecter et vérifier.
+
 ### Composition des PE : écart à fermer
 
 Le worker CPU L1 existant dans `C:/wt/distcpu/target/parakeet-tests/cpu-distribution-x64-20261115/targets/cpu-distribution-release/release/whisper-worker-cpu.exe` a pour SHA-256 `03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a`. Le desktop Turbo actuel `d052adba43459ce525d57c8da2d1eb45c4c189cf1871229e803a39baf66ce344` ne contient pas la représentation ASCII de cette empreinte : on ne peut pas présenter ce couple comme une composition dont le relai CPU est attribué au worker L1. Cette recherche ne démontre rien sur d'autres couples possibles.
