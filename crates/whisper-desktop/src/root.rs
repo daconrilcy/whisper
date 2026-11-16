@@ -29,7 +29,10 @@ use whisper_desktop::ui::{
     model_preference_command_channel,
 };
 
+mod distribution_edition;
+mod edition_admission;
 mod model_catalog;
+use distribution_edition::TURBO_DISTRIBUTION;
 
 pub struct DesktopComposition {
     pub application: DesktopAdmissionApplication<AsyncImportIo>,
@@ -40,48 +43,75 @@ pub struct DesktopComposition {
     pub gpu_probe: Receiver<Result<(), String>>,
     pub gpu_inventory: GpuInventoryApp,
     pub model_selection: ModelSelectionRuntime,
+    pub reactivity_log_path: Option<PathBuf>,
 }
 
 pub fn compose() -> DesktopComposition {
     let personal_root = personal_install_root();
-    let model_root = if cfg!(feature = "personal-install") {
-        personal_root
-            .as_ref()
-            .map(|root| root.join("models"))
-            .unwrap_or_else(|| PathBuf::from("\0"))
+    let turbo_root = distribution_edition::turbo_install_root(std::env::var_os("LOCALAPPDATA"));
+    let repository_root = if TURBO_DISTRIBUTION || cfg!(feature = "personal-install") {
+        PathBuf::new()
     } else {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)
             .unwrap_or_else(|| std::path::Path::new("."))
-            .join("models")
+            .to_path_buf()
     };
+    let model_root = distribution_edition::model_root(
+        turbo_root.as_deref(),
+        personal_root.as_deref(),
+        cfg!(feature = "personal-install"),
+        repository_root,
+        TURBO_DISTRIBUTION,
+    );
+    let turbo_log_paths = turbo_root.as_deref().map(distribution_edition::log_paths);
     let (inspection_requests, catalog_receiver, admission_receiver) =
-        model_catalog::start_catalog_service(model_root.clone());
+        model_catalog::start_catalog_service_for_edition(model_root.clone(), TURBO_DISTRIBUTION);
 
     let (preference_command_sender, preference_command_receiver) =
         model_preference_command_channel();
-    let preference_command_sender =
-        preference_command_sender.with_inspection_requests(inspection_requests.clone());
+    let preference_command_sender = preference_command_sender
+        .with_inspection_requests(inspection_requests.clone())
+        .with_parakeet_enabled(!TURBO_DISTRIBUTION);
     let (preference_event_sender, preference_event_receiver) = std::sync::mpsc::sync_channel(4);
     let personal_install = cfg!(feature = "personal-install");
-    let preference_file = personal_root
-        .as_ref()
-        .map(|root| personal_settings_path(root));
+    let preference_root = if TURBO_DISTRIBUTION {
+        turbo_root.as_ref()
+    } else {
+        personal_root.as_ref()
+    };
+    let preference_file = preference_root.map(|root| distribution_edition::settings_path(root));
+    let preference_model_path = if TURBO_DISTRIBUTION {
+        model_root
+            .join(
+                model_registry::model(ModelId::WhisperLargeV3Turbo)
+                    .artifact
+                    .file_name,
+            )
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        whisper_desktop::ui::default_model_path()
+    };
     std::thread::spawn(move || {
-        if personal_install && preference_file.is_none() {
+        if (personal_install || TURBO_DISTRIBUTION) && preference_file.is_none() {
             let _ = preference_event_sender.send(ModelPreferenceEvent::Initialized {
                 model: None,
                 startup_compute: StartupComputePreference::FollowProbe,
-                notice: Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into()),
+                notice: Some(if TURBO_DISTRIBUTION {
+                    "Édition Turbo indisponible : LOCALAPPDATA n'est pas défini.".into()
+                } else {
+                    "Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into()
+                }),
             });
             return;
         }
         let preference_port: Box<dyn whisper_core::path_settings::ModelPreferencePort> =
-            if personal_install {
+            if personal_install || TURBO_DISTRIBUTION {
                 Box::new(WindowsModelPreferencePort::new_at(
-                    preference_file.expect("personal root checked above"),
-                    whisper_desktop::ui::default_model_path(),
+                    preference_file.expect("preference root checked above"),
+                    preference_model_path,
                 ))
             } else {
                 Box::new(WindowsModelPreferencePort::new())
@@ -95,10 +125,19 @@ pub fn compose() -> DesktopComposition {
             });
             return;
         };
-        let notice = preferences.legacy_path_notice();
+        let preferred_model = distribution_edition::preferred_model(preferences.preferred_model);
+        let notice =
+            if distribution_edition::ignores_parakeet_preference(preferences.preferred_model) {
+                Some(
+                    "La préférence Parakeet enregistrée est ignorée dans cette édition Turbo."
+                        .into(),
+                )
+            } else {
+                preferences.legacy_path_notice()
+            };
         if preference_event_sender
             .send(ModelPreferenceEvent::Initialized {
-                model: preferences.preferred_model,
+                model: preferred_model,
                 startup_compute: preferences.startup_compute,
                 notice,
             })
@@ -133,7 +172,13 @@ pub fn compose() -> DesktopComposition {
             }
         }
     });
-    let path_port = if cfg!(feature = "personal-install") {
+    let path_port = if TURBO_DISTRIBUTION {
+        turbo_root.as_ref().map(|root| {
+            Box::new(WindowsPathPort::new_at(
+                distribution_edition::settings_path(root),
+            )) as Box<dyn whisper_core::path_settings::PathPort>
+        })
+    } else if cfg!(feature = "personal-install") {
         personal_root.as_ref().map(|root| {
             Box::new(WindowsPathPort::new_at(personal_settings_path(root)))
                 as Box<dyn whisper_core::path_settings::PathPort>
@@ -144,53 +189,27 @@ pub fn compose() -> DesktopComposition {
     let paths = PathSettingsApp::new(
         PathDefaults {
             audio_directory: whisper_desktop::ui::default_audio_directory(),
-            model_path: if cfg!(feature = "personal-install") {
-                model_root
-                    .join(
-                        model_registry::model(ModelId::WhisperLargeV3Turbo)
-                            .artifact
-                            .file_name,
-                    )
-                    .to_string_lossy()
-                    .into_owned()
-            } else {
-                whisper_desktop::ui::default_model_path()
-            },
+            model_path: distribution_edition::default_model_path(
+                cfg!(feature = "personal-install"),
+                &model_root,
+                whisper_desktop::ui::default_model_path(),
+                TURBO_DISTRIBUTION,
+            ),
             destination: whisper_desktop::ui::default_destination(),
         },
         path_port.unwrap_or_else(|| Box::new(WindowsPathPort::new_at(PathBuf::new()))),
     );
-    let executable = std::env::current_exe().ok();
+    let executable = (!TURBO_DISTRIBUTION)
+        .then(|| std::env::current_exe().ok())
+        .flatten();
     let worker_path = |worker_name: &str| {
-        let sibling = executable
-            .as_ref()
-            .and_then(|path| path.parent().map(|parent| parent.join(worker_name)));
-        if cfg!(feature = "personal-install") {
-            return sibling
-                .clone()
-                .filter(|path| path.is_file())
-                .or(sibling)
-                .unwrap_or_else(|| PathBuf::from(worker_name));
-        }
-        let isolated = executable.as_ref().and_then(|path| {
-            let release = path.parent()?;
-            let target = release.parent()?;
-            let package_target = target.parent()?;
-            Some(
-                package_target
-                    .parent()?
-                    .join("cpu")
-                    .join(target.file_name()?)
-                    .join(release.file_name()?)
-                    .join(worker_name),
-            )
-        });
-        [sibling.clone(), isolated]
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file())
-            .or(sibling)
-            .unwrap_or_else(|| PathBuf::from(worker_name))
+        distribution_edition::worker_path(
+            turbo_root.as_deref(),
+            executable.as_deref(),
+            worker_name,
+            cfg!(feature = "personal-install"),
+            TURBO_DISTRIBUTION,
+        )
     };
     let workers = WorkerPaths {
         cpu: worker_path("whisper-worker-cpu.exe"),
@@ -206,8 +225,9 @@ pub fn compose() -> DesktopComposition {
     let historical_model_path = whisper_desktop::ui::default_model_path();
     let cpu_parakeet = configured_parakeet_worker();
     let gpu_parakeet = configured_gpu_parakeet_worker();
-    let snapshot_registry = reprocessing_snapshot_registry_root();
-    let native_candidate_enabled = cfg!(feature = "personal-install")
+    let snapshot_registry = reprocessing_snapshot_registry_root(turbo_root.as_deref());
+    let native_candidate_enabled = !TURBO_DISTRIBUTION
+        && cfg!(feature = "personal-install")
         && std::env::var_os("WHISPER_PARAKEET_UNIFIED_NATIVE_CANDIDATE").as_deref()
             == Some(std::ffi::OsStr::new("1"));
     let io = if native_candidate_enabled {
@@ -229,32 +249,61 @@ pub fn compose() -> DesktopComposition {
             snapshot_registry,
         )
     };
-    let application =
-        guarded_application(io, &model_root, historical_model_path, admission_receiver)
-            .with_inspection_requests(inspection_requests);
+    let application = edition_admission::guarded_application_for_edition(
+        io,
+        &model_root,
+        historical_model_path,
+        admission_receiver,
+        TURBO_DISTRIBUTION,
+    )
+    .with_inspection_requests(inspection_requests);
+    let gpu_inventory = if TURBO_DISTRIBUTION {
+        let inventory = WindowsGpuInventoryPort::new(inventory_worker);
+        match turbo_log_paths.as_ref() {
+            Some((_, gpu_log)) => inventory.with_log_path(gpu_log.clone()),
+            None => inventory.without_log(),
+        }
+    } else {
+        WindowsGpuInventoryPort::new(inventory_worker)
+    };
     DesktopComposition {
         application,
         compute_choice: ComputeChoice::Cpu,
         unified_candidate_enabled: native_candidate_enabled,
-        startup_message: if cfg!(feature = "personal-install") && personal_root.is_none() {
+        startup_message: if TURBO_DISTRIBUTION && turbo_root.is_none() {
+            Some("Édition Turbo indisponible : LOCALAPPDATA n'est pas défini.".into())
+        } else if cfg!(feature = "personal-install") && personal_root.is_none() {
             Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into())
         } else {
             Some("Vérification du GPU en cours…".into())
         },
         paths,
         gpu_probe: receiver,
-        gpu_inventory: GpuInventoryApp::new(Box::new(WindowsGpuInventoryPort::new(
-            inventory_worker,
-        ))),
+        gpu_inventory: GpuInventoryApp::new(Box::new(gpu_inventory)),
         model_selection: ModelSelectionRuntime {
             catalog: catalog_receiver,
             preference_events: preference_event_receiver,
             preference_commands: preference_command_sender,
         },
+        reactivity_log_path: if TURBO_DISTRIBUTION {
+            turbo_log_paths.map(|(reactivity_log, _)| reactivity_log)
+        } else {
+            None
+        },
     }
 }
 
 fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    configured_parakeet_worker_for_edition(TURBO_DISTRIBUTION, |name| std::env::var_os(name))
+}
+
+fn configured_parakeet_worker_for_edition(
+    turbo_edition: bool,
+    variable: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    if turbo_edition {
+        return None;
+    }
     if cfg!(feature = "personal-install") {
         let root = personal_install_root()?;
         return Some(personal_worker_paths(
@@ -262,15 +311,15 @@ fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::Par
             whisper_core::model_catalog::Backend::Cpu,
         ));
     }
-    let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
+    let runtime_root = PathBuf::from(variable("PARAKEET_L2_RUNTIME_ROOT")?);
     Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-        executable: std::env::var_os("PARAKEET_L2_CPU_WORKER")
+        executable: variable("PARAKEET_L2_CPU_WORKER")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("worker/parakeet-worker.exe")),
-        native_dir: std::env::var_os("PARAKEET_L2_CPU_NATIVE_DIR")
+        native_dir: variable("PARAKEET_L2_CPU_NATIVE_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("native")),
-        model: std::env::var_os("PARAKEET_L2_MODEL")
+        model: variable("PARAKEET_L2_MODEL")
             .map(PathBuf::from)
             .unwrap_or_else(|| runtime_root.join("runtime/model/parakeet-tdt-0.6b-v3.q8_0.gguf")),
         runtime_root: runtime_root.clone(),
@@ -279,6 +328,16 @@ fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::Par
 
 fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths>
 {
+    configured_gpu_parakeet_worker_for_edition(TURBO_DISTRIBUTION, |name| std::env::var_os(name))
+}
+
+fn configured_gpu_parakeet_worker_for_edition(
+    turbo_edition: bool,
+    variable: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    if turbo_edition {
+        return None;
+    }
     if cfg!(feature = "personal-install") {
         let root = personal_install_root()?;
         return Some(personal_worker_paths(
@@ -286,11 +345,11 @@ fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import:
             whisper_core::model_catalog::Backend::Gpu,
         ));
     }
-    let runtime_root = PathBuf::from(std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")?);
+    let runtime_root = PathBuf::from(variable("PARAKEET_L2_RUNTIME_ROOT")?);
     Some(whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-        executable: PathBuf::from(std::env::var_os("PARAKEET_L2_WORKER")?),
-        native_dir: PathBuf::from(std::env::var_os("PARAKEET_L2_NATIVE_DIR")?),
-        model: PathBuf::from(std::env::var_os("PARAKEET_L2_MODEL")?),
+        executable: PathBuf::from(variable("PARAKEET_L2_WORKER")?),
+        native_dir: PathBuf::from(variable("PARAKEET_L2_NATIVE_DIR")?),
+        model: PathBuf::from(variable("PARAKEET_L2_MODEL")?),
         runtime_root,
     })
 }
@@ -304,15 +363,24 @@ fn personal_install_root() -> Option<PathBuf> {
         .map(|root| root.join("Whisper"))
 }
 
+fn turbo_install_root(local_app_data: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    local_app_data
+        .map(PathBuf::from)
+        .map(|root| root.join("WhisperTurbo"))
+}
+
 fn personal_model_root(root: &std::path::Path) -> PathBuf {
     root.join("models")
 }
 
 fn personal_settings_path(root: &std::path::Path) -> PathBuf {
-    root.join("settings/settings.json")
+    distribution_edition::settings_path(root)
 }
 
-fn reprocessing_snapshot_registry_root() -> Option<PathBuf> {
+fn reprocessing_snapshot_registry_root(turbo_root: Option<&std::path::Path>) -> Option<PathBuf> {
+    if TURBO_DISTRIBUTION {
+        return turbo_root.map(|root| root.join("settings/reprocessing-snapshots"));
+    }
     std::env::var_os("LOCALAPPDATA").map(|root| {
         PathBuf::from(root)
             .join("Whisper")
@@ -524,6 +592,7 @@ pub struct DesktopAdmissionApplication<P> {
         whisper_core::Generation,
         Option<whisper_core::gpu_inventory::GpuRuntimeIdentity>,
     )>,
+    turbo_edition: bool,
 }
 
 fn guarded_application<P: ImportIoPort>(
@@ -532,49 +601,13 @@ fn guarded_application<P: ImportIoPort>(
     historical_model_path: String,
     admission_catalog: Receiver<CatalogSnapshot>,
 ) -> DesktopAdmissionApplication<P> {
-    let app_model_path = model_root
-        .join(
-            model_registry::model(whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo)
-                .artifact
-                .file_name,
-        )
-        .to_string_lossy()
-        .into_owned();
-    let accepted_paths = [
-        (ModelId::WhisperLargeV3Turbo, app_model_path),
-        (ModelId::WhisperLargeV3Turbo, historical_model_path.clone()),
-        (
-            ModelId::ParakeetTdt06BV3,
-            model_root
-                .join(
-                    model_registry::model(ModelId::ParakeetTdt06BV3)
-                        .artifact
-                        .file_name,
-                )
-                .to_string_lossy()
-                .into_owned(),
-        ),
-    ];
-    let core_guard = ModelCommandGuard::new_with_model_paths(
-        model_registry::engine_snapshot(1, |_| ModelAvailability::Ready, Vec::new()),
-        1,
-        accepted_paths,
-    );
-    DesktopAdmissionApplication {
-        inner: ImportApplication::new(io).with_model_guard(core_guard),
-        admission_catalog,
-        admission_guard: None,
-        admission_catalog_failed: false,
+    edition_admission::guarded_application_for_edition(
+        io,
+        model_root,
         historical_model_path,
-        admission_notice: None,
-        inspection_requests: None,
-        admission_generation: 0,
-        inspection_interests: std::collections::BTreeMap::new(),
-        visible_inspection: None,
-        inspection_sequence: 0,
-        admission_snapshot: model_catalog::uninspected_snapshot(model_root, 1),
-        pending_gpu_candidate: None,
-    }
+        admission_catalog,
+        TURBO_DISTRIBUTION,
+    )
 }
 
 impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
@@ -588,16 +621,13 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
     }
 
     fn guard_for_snapshot(&self, snapshot: &CatalogSnapshot) -> ModelCommandGuard {
-        let paths = snapshot
-            .entries
-            .iter()
-            .map(|entry| (entry.id, entry.path.to_string_lossy().into_owned()))
-            .chain(std::iter::once((
-                ModelId::WhisperLargeV3Turbo,
-                self.historical_model_path.clone(),
-            )));
+        let paths = distribution_edition::admission_paths(
+            snapshot,
+            &self.historical_model_path,
+            self.turbo_edition,
+        );
         ModelCommandGuard::new_with_model_paths(
-            snapshot.engine_snapshot(Vec::new()),
+            snapshot.engine_snapshot_for_edition(Vec::new(), !self.turbo_edition),
             snapshot.generation,
             paths,
         )
@@ -794,16 +824,13 @@ impl<P: ImportIoPort> DesktopAdmissionApplication<P> {
                         continue;
                     }
                     self.admission_generation = snapshot.generation;
-                    let paths = snapshot
-                        .entries
-                        .iter()
-                        .map(|entry| (entry.id, entry.path.to_string_lossy().into_owned()))
-                        .chain(std::iter::once((
-                            ModelId::WhisperLargeV3Turbo,
-                            self.historical_model_path.clone(),
-                        )));
+                    let paths = distribution_edition::admission_paths(
+                        &snapshot,
+                        &self.historical_model_path,
+                        self.turbo_edition,
+                    );
                     let guard = ModelCommandGuard::new_with_model_paths(
-                        snapshot.engine_snapshot(Vec::new()),
+                        snapshot.engine_snapshot_for_edition(Vec::new(), !self.turbo_edition),
                         snapshot.generation,
                         paths,
                     );
@@ -1084,6 +1111,9 @@ fn inspection_action_key(command: &AppCommand) -> Option<InspectionActionKey> {
 
 #[cfg(test)]
 mod tests {
+    #[path = "turbo_admission.rs"]
+    mod turbo_admission;
+
     use super::*;
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};

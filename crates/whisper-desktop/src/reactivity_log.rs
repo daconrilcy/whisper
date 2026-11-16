@@ -1,10 +1,7 @@
 use std::collections::HashSet;
-#[cfg(not(test))]
 use std::fs::{self, OpenOptions};
-#[cfg(not(test))]
 use std::io::BufWriter;
 use std::io::Write;
-#[cfg(not(test))]
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender};
 use std::thread::JoinHandle;
@@ -27,12 +24,16 @@ pub(crate) struct ReactivityLog {
 impl ReactivityLog {
     #[cfg(not(test))]
     pub(crate) fn start() -> Self {
+        Self::start_at(log_path())
+    }
+
+    pub(crate) fn start_at(log_path: Option<PathBuf>) -> Self {
         let (sender, receiver) = mpsc::channel::<Entry>();
         let writer = match std::thread::Builder::new()
             .name("whisper-reactivity-log".into())
             .spawn(move || {
-                let Some(path) = log_path() else {
-                    eprintln!("Whisper: LOCALAPPDATA is unavailable; reactivity log disabled");
+                let Some(path) = log_path else {
+                    eprintln!("Whisper: reactivity log path is unavailable; logging disabled");
                     return;
                 };
                 if let Some(parent) = path.parent()
@@ -241,5 +242,33 @@ mod tests {
         assert!(contents.contains("event=micro_clicked"));
         assert!(contents.contains("event=first_sample"));
         assert!(contents.contains("event=engine_ready"));
+    }
+
+    #[test]
+    fn writes_to_explicit_turbo_log_without_touching_personal_log() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("reactivity-edition-{nonce}"));
+        let turbo_log = root.join("WhisperTurbo/logs/reactivity.log");
+        let personal_log = root.join("Whisper/reactivity.log");
+        std::fs::create_dir_all(personal_log.parent().unwrap()).unwrap();
+        std::fs::write(&personal_log, "personal sentinel\n").unwrap();
+
+        let mut logger = ReactivityLog::start_at(Some(turbo_log.clone()));
+        logger.record_once("job", "turbo_event", 10, None);
+        drop(logger);
+
+        assert!(
+            std::fs::read_to_string(turbo_log)
+                .unwrap()
+                .contains("event=turbo_event")
+        );
+        assert_eq!(
+            std::fs::read_to_string(&personal_log).unwrap(),
+            "personal sentinel\n"
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

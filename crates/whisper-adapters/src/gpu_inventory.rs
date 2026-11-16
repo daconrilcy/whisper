@@ -10,8 +10,14 @@ use whisper_core::gpu_inventory::{
 use whisper_core::gpu_inventory::{GpuObservation, GpuPresence, GpuState};
 use whisper_core::gpu_inventory_app::{GpuCollection, GpuInventoryPort, GpuQualifiedCollection};
 
+#[path = "gpu_inventory/log_destination.rs"]
+mod log_destination;
 #[cfg(windows)]
 mod windows_native;
+use log_destination::{InventoryLogDestination, log_inventory};
+#[cfg(test)]
+#[path = "gpu_inventory/edition_tests.rs"]
+mod edition_tests;
 
 const DISPLAY_CLASS_GUID: &str = "{4d36e968-e325-11ce-bfc1-08002be10318}";
 
@@ -46,6 +52,7 @@ pub struct WindowsGpuInventoryPort {
     worker: PathBuf,
     qualified_receiver: Option<Receiver<(u64, Result<GpuQualifiedCollection, String>)>>,
     runtime_receiver: Option<RuntimeInventoryReceiver>,
+    log_destination: InventoryLogDestination,
 }
 
 impl WindowsGpuInventoryPort {
@@ -54,6 +61,16 @@ impl WindowsGpuInventoryPort {
             worker,
             ..Self::default()
         }
+    }
+
+    pub fn with_log_path(mut self, path: PathBuf) -> Self {
+        self.log_destination = InventoryLogDestination::Explicit(path);
+        self
+    }
+
+    pub fn without_log(mut self) -> Self {
+        self.log_destination = InventoryLogDestination::Disabled;
+        self
     }
 }
 
@@ -95,6 +112,7 @@ impl Default for WindowsGpuInventoryPort {
             worker: PathBuf::from("whisper-worker-gpu.exe"),
             qualified_receiver: None,
             runtime_receiver: None,
+            log_destination: InventoryLogDestination::Default,
         }
     }
 }
@@ -113,6 +131,7 @@ impl GpuInventoryPort for WindowsGpuInventoryPort {
         self.generation = Some(generation);
         let collecting = Arc::clone(&self.collecting);
         let worker = self.worker.clone();
+        let log_destination = self.log_destination.clone();
         std::thread::Builder::new()
             .name("whisper-gpu-inventory".into())
             .spawn(move || {
@@ -122,6 +141,7 @@ impl GpuInventoryPort for WindowsGpuInventoryPort {
                     sender,
                     qualified_sender,
                     runtime_sender,
+                    log_destination,
                     collecting,
                 );
             })
@@ -200,16 +220,30 @@ fn run_gpu_inventory_collection(
     sender: mpsc::Sender<(u64, Result<GpuCollection, String>)>,
     qualified_sender: mpsc::Sender<(u64, Result<GpuQualifiedCollection, String>)>,
     runtime_sender: mpsc::Sender<RuntimeInventoryResult>,
+    log_destination: InventoryLogDestination,
     collecting: Arc<AtomicBool>,
 ) {
     let result = collect_windows();
     let _ = sender.send((generation, result.clone()));
     let (qualified, runtime) = match result {
         Err(error) => {
-            log_inventory(generation, &[], &[], &[], None, Some(&error), None);
+            log_inventory(
+                InventoryLogSnapshot {
+                    generation,
+                    observations: &[],
+                    dxgi: &[],
+                    targets: &[],
+                    results: None,
+                    error: Some(&error),
+                    qualification_error: None,
+                },
+                &log_destination,
+            );
             (Err(error.clone()), Err(error))
         }
-        Ok(collection) => qualify_collected_gpu_inventory(generation, &worker, collection),
+        Ok(collection) => {
+            qualify_collected_gpu_inventory(generation, &worker, collection, &log_destination)
+        }
     };
     let _ = qualified_sender.send((generation, qualified));
     let _ = runtime_sender.send((generation, runtime));
@@ -220,6 +254,7 @@ fn qualify_collected_gpu_inventory(
     generation: u64,
     worker: &Path,
     collection: GpuCollection,
+    log_destination: &InventoryLogDestination,
 ) -> InventoryQualificationOutcome {
     #[cfg(windows)]
     let (joined, dxgi_log) = match windows_native::enumerate_dxgi() {
@@ -244,13 +279,16 @@ fn qualify_collected_gpu_inventory(
         Err(error) => {
             let message = error.clone();
             log_inventory(
-                generation,
-                &collection.observations,
-                &[],
-                &[],
-                None,
-                Some(&message),
-                None,
+                InventoryLogSnapshot {
+                    generation,
+                    observations: &collection.observations,
+                    dxgi: &[],
+                    targets: &[],
+                    results: None,
+                    error: Some(&message),
+                    qualification_error: None,
+                },
+                log_destination,
             );
             let qualified = unqualified_collection(collection, error);
             return (Ok(qualified), Err(message));
@@ -259,7 +297,14 @@ fn qualify_collected_gpu_inventory(
     #[cfg(not(windows))]
     let (joined, dxgi_log): (Vec<(String, (u32, Option<u64>))>, Vec<DxgiLogEntry>) =
         (Vec::new(), Vec::new());
-    qualify_gpu_collection(generation, worker, collection, &joined, &dxgi_log)
+    qualify_gpu_collection(
+        generation,
+        worker,
+        collection,
+        &joined,
+        &dxgi_log,
+        log_destination,
+    )
 }
 
 fn qualify_gpu_collection(
@@ -268,20 +313,24 @@ fn qualify_gpu_collection(
     collection: GpuCollection,
     joined: &[(String, (u32, Option<u64>))],
     dxgi_log: &[DxgiLogEntry],
+    log_destination: &InventoryLogDestination,
 ) -> InventoryQualificationOutcome {
     let targets = gpu_qualification_targets(generation, &collection.observations, joined);
     let response = crate::worker_ipc::qualify_gpu_worker(worker, generation, targets.clone());
     log_inventory(
-        generation,
-        &collection.observations,
-        dxgi_log,
-        &targets,
-        response
-            .as_ref()
-            .ok()
-            .map(|(_, results)| results.as_slice()),
-        collection.error.as_deref(),
-        response.as_ref().err().map(String::as_str),
+        InventoryLogSnapshot {
+            generation,
+            observations: &collection.observations,
+            dxgi: dxgi_log,
+            targets: &targets,
+            results: response
+                .as_ref()
+                .ok()
+                .map(|(_, results)| results.as_slice()),
+            error: collection.error.as_deref(),
+            qualification_error: response.as_ref().err().map(String::as_str),
+        },
+        log_destination,
     );
     let runtime = response
         .as_ref()
@@ -318,43 +367,6 @@ fn gpu_qualification_targets(
             }
         })
         .collect()
-}
-
-fn log_inventory(
-    generation: u64,
-    observations: &[GpuObservation],
-    dxgi: &[DxgiLogEntry],
-    targets: &[whisper_core::ipc::GpuQualificationTarget],
-    results: Option<&[whisper_core::ipc::GpuQualificationResult]>,
-    error: Option<&str>,
-    qualification_error: Option<&str>,
-) {
-    let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") else {
-        let message = "GPU inventory log unavailable: LOCALAPPDATA is unset".to_owned();
-        eprintln!("{message}");
-        return;
-    };
-    let path = PathBuf::from(local_app_data)
-        .join("Whisper")
-        .join("gpu-inventory.log");
-    if let Err(error) = append_inventory_log(
-        &path,
-        InventoryLogSnapshot {
-            generation,
-            observations,
-            dxgi,
-            targets,
-            results,
-            error,
-            qualification_error,
-        },
-    ) {
-        let message = format!(
-            "GPU inventory log append failed ({}): {error}",
-            path.display()
-        );
-        eprintln!("{message}");
-    }
 }
 
 struct InventoryLogSnapshot<'a> {
@@ -644,15 +656,14 @@ fn variant_u32(value: &wmi::Variant) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DISPLAY_CLASS_GUID, DxgiLogEntry, GpuCollection, InventoryLogSnapshot,
-        append_inventory_log, gpu_query, qualified_collection, runtime_identities, unique_adapter,
-        unqualified_collection,
+        DISPLAY_CLASS_GUID, DxgiLogEntry, GpuCollection, InventoryLogDestination,
+        InventoryLogSnapshot, append_inventory_log, gpu_query, log_inventory, qualified_collection,
+        runtime_identities, unique_adapter, unqualified_collection,
     };
     use whisper_core::gpu_inventory::{
         GpuAvailability, GpuCatalogueCoverage, GpuCause, GpuIdentityMatch, GpuObservation,
         GpuPresence, GpuState, GpuSupport, qualify,
     };
-
     #[test]
     fn query_uses_the_display_class_guid_without_filtering_current_presence() {
         let query = gpu_query();

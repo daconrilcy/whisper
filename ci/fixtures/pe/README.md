@@ -11,6 +11,7 @@ directory; no compiled artifact or previous campaign is required.
 | `cublas.bin` | cublas64_12.dll; CPU, Parakeet CPU and desktop refused |
 | `delay-cuda.bin` | delayed nvcuda.dll; CPU, Parakeet CPU and desktop refused |
 | `gpu.bin` | cudart64_12.dll and nvcuda.dll; GPU accepted, CPU kinds refused |
+| `gpu-arm64.bin` | same CUDA imports as `gpu.bin`, but COFF Machine ARM64; GPU refused |
 | `cudart-only.bin` | cudart64_12.dll; GPU refused because nvcuda is absent |
 | `nvcuda-only.bin` | nvcuda.dll; GPU refused because cudart is absent |
 | `truncated-direct.bin` | declared table ends before the next import and terminator; parse refused |

@@ -3,6 +3,8 @@
 mod reactivity_log;
 pub mod ui;
 
+pub const TURBO_EDITION: bool = option_env!("WHISPER_DISTRIBUTION_EDITION_TURBO").is_some();
+
 pub struct DesktopStartup {
     pub compute_choice: whisper_core::ComputeChoice,
     pub startup_message: Option<String>,
@@ -13,6 +15,8 @@ pub struct DesktopStartup {
     pub process_started_at_unix_ms: u64,
     pub model_selection: ui::ModelSelectionRuntime,
     pub unified_candidate_enabled: bool,
+    pub parakeet_edition_enabled: bool,
+    pub reactivity_log_path: Option<std::path::PathBuf>,
 }
 
 pub fn run<A: whisper_core::Application + 'static>(
@@ -29,6 +33,8 @@ pub fn run<A: whisper_core::Application + 'static>(
         process_started_at_unix_ms,
         model_selection,
         unified_candidate_enabled,
+        parakeet_edition_enabled,
+        reactivity_log_path,
     } = startup;
     eframe::run_native(
         "Whisper",
@@ -37,7 +43,7 @@ pub fn run<A: whisper_core::Application + 'static>(
             ..Default::default()
         },
         Box::new(move |_creation_context| {
-            Ok(Box::new(
+            let app = if parakeet_edition_enabled {
                 ui::DesktopApp::with_microphones(
                     application,
                     compute_choice,
@@ -45,12 +51,23 @@ pub fn run<A: whisper_core::Application + 'static>(
                     paths,
                     microphone_port,
                 )
-                .with_gpu_probe(gpu_probe)
-                .with_gpu_inventory(gpu_inventory)
-                .with_process_started(process_started_at_unix_ms)
-                .with_model_selection_runtime(model_selection)
-                .with_unified_candidate_enabled(unified_candidate_enabled),
-            ))
+            } else {
+                ui::DesktopApp::with_turbo_microphones(
+                    application,
+                    compute_choice,
+                    startup_message,
+                    paths,
+                    microphone_port,
+                    reactivity_log_path,
+                )
+            }
+            .with_gpu_probe(gpu_probe)
+            .with_gpu_inventory(gpu_inventory)
+            .with_process_started(process_started_at_unix_ms)
+            .with_model_selection_runtime(model_selection)
+            .with_unified_candidate_enabled(unified_candidate_enabled)
+            .with_parakeet_edition_enabled(parakeet_edition_enabled);
+            Ok(Box::new(app))
         }),
     )
 }

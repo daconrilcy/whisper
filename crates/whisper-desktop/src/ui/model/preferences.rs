@@ -61,6 +61,7 @@ fn model_index(model: ModelId) -> usize {
 pub struct CatalogInspectionSender {
     pending: Arc<Mutex<InspectionMailbox>>,
     wake: SyncSender<()>,
+    parakeet_enabled: bool,
 }
 
 pub struct CatalogInspectionReceiver {
@@ -69,12 +70,19 @@ pub struct CatalogInspectionReceiver {
 }
 
 pub fn catalog_inspection_channel() -> (CatalogInspectionSender, CatalogInspectionReceiver) {
+    catalog_inspection_channel_with_parakeet(true)
+}
+
+pub fn catalog_inspection_channel_with_parakeet(
+    parakeet_enabled: bool,
+) -> (CatalogInspectionSender, CatalogInspectionReceiver) {
     let (wake_tx, wake_rx) = std::sync::mpsc::sync_channel(1);
     let pending = Arc::new(Mutex::new(InspectionMailbox::default()));
     (
         CatalogInspectionSender {
             pending: Arc::clone(&pending),
             wake: wake_tx,
+            parakeet_enabled,
         },
         CatalogInspectionReceiver {
             pending,
@@ -92,6 +100,7 @@ impl CatalogInspectionSender {
     }
 
     pub fn select(&self, model: ModelId, revision: u64) -> Result<(), PreferenceChannelError> {
+        self.ensure_model_supported(model)?;
         {
             let mut pending = self
                 .pending
@@ -115,6 +124,7 @@ impl CatalogInspectionSender {
     }
 
     pub fn command(&self, model: ModelId) -> Result<u64, PreferenceChannelError> {
+        self.ensure_model_supported(model)?;
         let version = {
             let mut pending = self
                 .pending
@@ -143,6 +153,11 @@ impl CatalogInspectionSender {
         if pending.closed || pending.published_generation != snapshot.generation {
             return false;
         }
+        if !self.parakeet_enabled {
+            snapshot
+                .entries
+                .retain(|entry| entry.id != ModelId::ParakeetTdt06BV3);
+        }
         for entry in &mut snapshot.entries {
             let index = model_index(entry.id);
             if pending.published_versions[index] != pending.versions[index]
@@ -155,6 +170,13 @@ impl CatalogInspectionSender {
             }
         }
         true
+    }
+
+    fn ensure_model_supported(&self, model: ModelId) -> Result<(), PreferenceChannelError> {
+        if !self.parakeet_enabled && model == ModelId::ParakeetTdt06BV3 {
+            return Err(PreferenceChannelError::ModelUnavailable);
+        }
+        Ok(())
     }
 
     pub fn model_is_current(&self, model: ModelId, generation: u64) -> bool {
@@ -326,6 +348,7 @@ struct PendingPreferenceChoices {
 pub enum PreferenceChannelError {
     Poisoned,
     Disconnected,
+    ModelUnavailable,
 }
 
 impl std::fmt::Display for PreferenceChannelError {
@@ -333,6 +356,7 @@ impl std::fmt::Display for PreferenceChannelError {
         match self {
             Self::Poisoned => formatter.write_str("preference mailbox lock poisoned"),
             Self::Disconnected => formatter.write_str("preference channel disconnected"),
+            Self::ModelUnavailable => formatter.write_str("model is not available in this edition"),
         }
     }
 }
@@ -346,6 +370,7 @@ pub struct ModelPreferenceCommandSender {
     wake: SyncSender<()>,
     inspection: Option<CatalogInspectionSender>,
     selection_revision: Arc<AtomicU64>,
+    parakeet_enabled: bool,
 }
 
 pub struct ModelPreferenceCommandReceiver {
@@ -363,6 +388,7 @@ pub fn model_preference_command_channel()
             wake: wake_tx,
             inspection: None,
             selection_revision: Arc::new(AtomicU64::new(0)),
+            parakeet_enabled: true,
         },
         ModelPreferenceCommandReceiver {
             pending,
@@ -374,6 +400,11 @@ pub fn model_preference_command_channel()
 impl ModelPreferenceCommandSender {
     pub fn with_inspection_requests(mut self, inspection: CatalogInspectionSender) -> Self {
         self.inspection = Some(inspection);
+        self
+    }
+
+    pub fn with_parakeet_enabled(mut self, enabled: bool) -> Self {
+        self.parakeet_enabled = enabled;
         self
     }
 
@@ -390,6 +421,9 @@ impl ModelPreferenceCommandSender {
 
     pub fn send(&self, command: ModelPreferenceCommand) -> Result<(), PreferenceChannelError> {
         if let ModelPreferenceCommand::ChooseModel(model) = &command {
+            if !self.parakeet_enabled && *model == ModelId::ParakeetTdt06BV3 {
+                return Err(PreferenceChannelError::ModelUnavailable);
+            }
             self.inspect_selection(*model)?;
         }
         let mut pending = self

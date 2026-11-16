@@ -14,8 +14,9 @@ use sha2::{Digest, Sha256};
 #[cfg(test)]
 use std::collections::VecDeque;
 use std::{
+    fs::File,
     io::{self, BufRead, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
         Arc, Mutex,
@@ -26,6 +27,7 @@ use std::{
 };
 use whisper_core::{
     Generation, JobId,
+    cpu_compatibility::CpuProcessRole,
     ipc::{BackendKind, IPC_PROTOCOL_VERSION, IpcEnvelope, WorkerCommand, WorkerEvent},
     ports::PortError,
 };
@@ -67,16 +69,39 @@ fn spawn_worker_stderr_drain(
     });
 }
 
-fn spawn_worker_image_hash_reader(image: Option<std::fs::File>) -> Receiver<Option<[u8; 32]>> {
+struct WorkerImagePin {
+    sha256: [u8; 32],
+    _file: Option<File>,
+}
+
+fn open_gpu_worker_image(path: &Path) -> Option<File> {
+    #[cfg(windows)]
+    {
+        use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};
+        const FILE_SHARE_READ: u32 = 0x0000_0001;
+        OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ)
+            .open(path)
+            .ok()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        None
+    }
+}
+
+fn spawn_worker_image_hash_reader(image: Option<(File, bool)>) -> Receiver<Option<WorkerImagePin>> {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
-        let hash = image.and_then(hash_worker_image);
-        let _ = sender.send(hash);
+        let pin = image.and_then(|(file, hold_open)| hash_worker_image(file, hold_open));
+        let _ = sender.send(pin);
     });
     receiver
 }
 
-fn hash_worker_image(mut image: std::fs::File) -> Option<[u8; 32]> {
+fn hash_worker_image(mut image: File, hold_open: bool) -> Option<WorkerImagePin> {
     use std::io::Read;
 
     let mut hasher = Sha256::new();
@@ -88,11 +113,34 @@ fn hash_worker_image(mut image: std::fs::File) -> Option<[u8; 32]> {
         }
         hasher.update(&buffer[..count]);
     }
-    Some(hasher.finalize().into())
+    Some(WorkerImagePin {
+        sha256: hasher.finalize().into(),
+        _file: hold_open.then_some(image),
+    })
+}
+
+fn worker_image_to_hash(executable: &Path) -> (PathBuf, Option<(File, bool)>) {
+    if executable
+        .file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("whisper-worker-gpu.exe"))
+    {
+        return match executable.canonicalize() {
+            Ok(canonical) => {
+                let file = open_gpu_worker_image(&canonical).map(|file| (file, true));
+                (canonical, file)
+            }
+            Err(_) => (executable.to_path_buf(), None),
+        };
+    }
+
+    (
+        executable.to_path_buf(),
+        File::open(executable).ok().map(|file| (file, false)),
+    )
 }
 
 fn spawn_worker_identity_resolver(
-    expected_hash: Receiver<Option<[u8; 32]>>,
+    expected_hash: Receiver<Option<WorkerImagePin>>,
     trusted_expected_sha256: Option<[u8; 32]>,
     executable: &Path,
     pid: u32,
@@ -100,7 +148,8 @@ fn spawn_worker_identity_resolver(
 ) {
     let executable = executable.to_path_buf();
     thread::spawn(move || {
-        let observed_sha256 = expected_hash.recv().ok().flatten();
+        let image_pin = expected_hash.recv().ok().flatten();
+        let observed_sha256 = image_pin.as_ref().map(|pin| pin.sha256);
         if let Some(line) = resolve_worker_diagnostic_identity(
             observed_sha256,
             trusted_expected_sha256,
@@ -110,6 +159,7 @@ fn spawn_worker_identity_resolver(
         ) {
             let _ = crate::cpu_capabilities::queue_forwarded_diagnostic(line);
         }
+        drop(image_pin);
     });
 }
 
@@ -120,23 +170,41 @@ fn resolve_worker_diagnostic_identity(
     pid: u32,
     relay_state: &Arc<Mutex<crate::cpu_capabilities::WorkerDiagnosticRelayState>>,
 ) -> Option<Vec<u8>> {
-    let identity = trusted_expected_sha256
-        .filter(|expected| observed_sha256 == Some(*expected))
-        .and_then(|expected| {
-            crate::cpu_capabilities::WorkerDiagnosticIdentity::launched(pid, executable, expected)
-        });
+    let expected_role = executable.file_name().and_then(|name| {
+        if name.eq_ignore_ascii_case("whisper-worker-cpu.exe") {
+            Some(CpuProcessRole::WorkerCpu)
+        } else if name.eq_ignore_ascii_case("whisper-worker-gpu.exe") {
+            Some(CpuProcessRole::WorkerGpu)
+        } else {
+            None
+        }
+    });
+    let expected_sha256 = match expected_role? {
+        CpuProcessRole::WorkerCpu => trusted_expected_sha256?,
+        CpuProcessRole::WorkerGpu => observed_sha256?,
+        CpuProcessRole::Desktop => return None,
+    };
+    let identity = (observed_sha256 == Some(expected_sha256))
+        .then(|| {
+            crate::cpu_capabilities::WorkerDiagnosticIdentity::launched(
+                pid,
+                executable,
+                expected_sha256,
+            )
+        })
+        .flatten();
     crate::cpu_capabilities::install_worker_diagnostic_identity(relay_state, identity)
 }
 
 impl ChildWorkerTransport {
     pub fn spawn(executable: &Path) -> Result<Self, PortError> {
         let trusted_expected_sha256 = crate::cpu_capabilities::expected_cpu_worker_sha256();
-        let image = std::fs::File::open(executable).ok();
+        let (launch_executable, image) = worker_image_to_hash(executable);
         let expected_image_hash = spawn_worker_image_hash_reader(image);
         let relay_state = Arc::new(Mutex::new(
             crate::cpu_capabilities::WorkerDiagnosticRelayState::default(),
         ));
-        let mut command = Command::new(executable);
+        let mut command = Command::new(&launch_executable);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -157,7 +225,7 @@ impl ChildWorkerTransport {
         spawn_worker_identity_resolver(
             expected_image_hash,
             trusted_expected_sha256,
-            executable,
+            &launch_executable,
             child.id(),
             Arc::clone(&relay_state),
         );

@@ -33,7 +33,8 @@ pub use preferences::{
     CatalogInspectionNeed, CatalogInspectionReceiver, CatalogInspectionSender,
     ModelPreferenceCommand, ModelPreferenceCommandReceiver, ModelPreferenceCommandSender,
     ModelPreferenceEvent, ModelSelectionRuntime, PreferenceChannelError, SelectionWidgetState,
-    catalog_inspection_channel, model_preference_command_channel,
+    catalog_inspection_channel, catalog_inspection_channel_with_parakeet,
+    model_preference_command_channel,
 };
 #[cfg(test)]
 #[path = "tests/catalog_fixture.rs"]
@@ -67,6 +68,7 @@ pub struct DesktopApp<A> {
     auto_stop_minutes: u64,
     compute_choice: ComputeChoice,
     unified_candidate_enabled: bool,
+    parakeet_edition_enabled: bool,
     compute_choice_touched: bool,
     startup_preferences_loaded: bool,
     startup_message: Option<String>,
@@ -188,12 +190,56 @@ impl<A: Application> DesktopApp<A> {
         self
     }
 
+    pub(crate) fn with_parakeet_edition_enabled(mut self, enabled: bool) -> Self {
+        self.parakeet_edition_enabled = enabled;
+        self
+    }
+
     pub fn with_microphones(
         application: A,
         compute_choice: ComputeChoice,
         startup_message: Option<String>,
         paths: PathSettingsApp,
         microphone_port: Box<dyn MicrophonePort>,
+    ) -> Self {
+        Self::with_microphones_and_log(
+            application,
+            compute_choice,
+            startup_message,
+            paths,
+            microphone_port,
+            None,
+            false,
+        )
+    }
+
+    pub(crate) fn with_turbo_microphones(
+        application: A,
+        compute_choice: ComputeChoice,
+        startup_message: Option<String>,
+        paths: PathSettingsApp,
+        microphone_port: Box<dyn MicrophonePort>,
+        reactivity_log_path: Option<std::path::PathBuf>,
+    ) -> Self {
+        Self::with_microphones_and_log(
+            application,
+            compute_choice,
+            startup_message,
+            paths,
+            microphone_port,
+            reactivity_log_path,
+            true,
+        )
+    }
+
+    fn with_microphones_and_log(
+        application: A,
+        compute_choice: ComputeChoice,
+        startup_message: Option<String>,
+        paths: PathSettingsApp,
+        microphone_port: Box<dyn MicrophonePort>,
+        reactivity_log_path: Option<std::path::PathBuf>,
+        turbo_edition: bool,
     ) -> Self {
         let mut microphones =
             MicrophoneSettings::new(microphone_port, paths.microphone_preference());
@@ -211,6 +257,7 @@ impl<A: Application> DesktopApp<A> {
             auto_stop_minutes: 120,
             compute_choice,
             unified_candidate_enabled: false,
+            parakeet_edition_enabled: true,
             compute_choice_touched: false,
             startup_preferences_loaded: true,
             startup_message,
@@ -227,7 +274,11 @@ impl<A: Application> DesktopApp<A> {
             process_started_at_unix_ms: unix_time_ms(),
             live_clicked_at_unix_ms: None,
             live_attempt_counter: 0,
-            reactivity_log: ReactivityLog::start(),
+            reactivity_log: if turbo_edition {
+                ReactivityLog::start_at(reactivity_log_path)
+            } else {
+                ReactivityLog::start()
+            },
             catalog_receiver: None,
             preference_events: None,
             preference_commands: None,

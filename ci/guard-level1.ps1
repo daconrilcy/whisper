@@ -4,6 +4,7 @@ param(
     [switch]$SelfTest,
     [switch]$DryRun,
     [switch]$WithoutCargoTargetDir,
+    [switch]$TurboEdition,
     [string]$FreshTarget,
     [string]$ExistingTarget,
     [string]$PersonalParakeetModelPath,
@@ -16,6 +17,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
+$script:turboEditionEnabled = [bool]$TurboEdition
+$script:turboEditionMarker = 'WHISPER_DISTRIBUTION_EDITION_TURBO'
 
 function Assert-DedicatedWorktree([string]$WorkingDirectory, [string]$RepositoryRoot) {
     $mainRoot = [IO.Path]::GetFullPath('C:/dev/whisper').TrimEnd('\', '/')
@@ -256,7 +259,25 @@ function Assert-AllowedUnset([string[]]$Names) {
     foreach ($name in $Names) {
         $valid = $false
         foreach ($pattern in $allowedUnsetPatterns) { if ($name -cmatch $pattern) { $valid = $true; break } }
+        if ($name -ceq $script:turboEditionMarker) { throw "Guard-managed edition marker cannot be listed in -UnsetEnv: $name" }
+        if ($script:authorizedDesktopCpuWorkerSha256 -and $name -ieq 'WHISPER_EXPECTED_CPU_WORKER_SHA256') {
+            throw 'The authorized desktop worker digest cannot be listed in -UnsetEnv.'
+        }
         if (-not $valid) { throw "Environment variable is not allowed in -UnsetEnv: $name" }
+    }
+}
+
+function Set-CargoEditionEnvironment([System.Collections.IDictionary]$Environment, [bool]$Turbo) {
+    if ($Turbo) { $Environment[$script:turboEditionMarker] = '1' }
+    else { [void]$Environment.Remove($script:turboEditionMarker) }
+}
+
+function Assert-CargoEditionEnvironment([System.Collections.IDictionary]$Environment, [bool]$Turbo) {
+    if ($Turbo -and $Environment[$script:turboEditionMarker] -cne '1') {
+        throw 'Turbo edition compile marker is missing or invalid in the Cargo child environment.'
+    }
+    if (-not $Turbo -and $Environment.Contains($script:turboEditionMarker)) {
+        throw 'Generic Cargo child environment inherited a Turbo edition marker.'
     }
 }
 
@@ -527,6 +548,115 @@ function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
     throw "Cargo invocation does not match a versioned profile for lot root '$policyKey'; Cargo not launched. Arguments: $signature"
 }
 
+function Assert-TurboEditionInvocation(
+    [string[]]$Arguments,
+    [string]$Root,
+    [string]$SelectedFreshTarget,
+    [string]$SelectedExistingTarget,
+    [bool]$NoCargoTargetDir
+) {
+    if (-not $script:turboEditionEnabled) { return }
+    if ((Get-FullPath $Root) -ine (Resolve-LotRoot $script:cpuDistributionRoot) -or
+        $SelectedFreshTarget -cnotin @('turbo-edition-release','turbo-edition-final','turbo-edition-l2-final') -or
+        -not [string]::IsNullOrWhiteSpace($SelectedExistingTarget) -or $NoCargoTargetDir) {
+        throw '-TurboEdition requires the CPU distribution lot and a fresh authorized Turbo target.'
+    }
+    if ($SelectedFreshTarget -cin @('turbo-edition-final','turbo-edition-l2-final') -and
+        $script:authorizedDesktopCpuWorkerSha256 -cne '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a') {
+        throw 'The final Turbo target requires the authorized L1 CPU worker SHA-256.'
+    }
+    $signature = Get-CargoInvocationPolicySignature $Arguments
+    $expected = ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','-vv')) -Compress
+    if ($signature -cne $expected) {
+        throw '-TurboEdition admits only the profiled release build of whisper-desktop.'
+    }
+}
+
+function Invoke-TurboEditionPolicySelfTests {
+    $saved = $script:turboEditionEnabled
+    $savedDigest = $script:authorizedDesktopCpuWorkerSha256
+    $script:turboEditionEnabled = $true
+    $positive = 0
+    $negative = 0
+    try {
+        $valid = @('build','--release','-p','whisper-desktop','-vv','--offline','--locked')
+        $resolvedCpuRoot = Resolve-LotRoot $script:cpuDistributionRoot
+        Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-release' $null $false
+        $positive++
+        $script:authorizedDesktopCpuWorkerSha256 = '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a'
+        Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-final' $null $false
+        $positive++
+        Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-l2-final' $null $false
+        $positive++
+        $rejected = $false
+        try { Assert-AllowedUnset @('WHISPER_EXPECTED_CPU_WORKER_SHA256') } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Turbo edition SelfTest accepted unsetting the authorized worker digest.' }
+        $negative++
+        foreach ($invalidDigest in @($null, ('a' * 64))) {
+            $script:authorizedDesktopCpuWorkerSha256 = $invalidDigest
+            $rejected = $false
+            try { Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-final' $null $false } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Turbo edition SelfTest accepted an unauthorized final worker digest.' }
+            $negative++
+        }
+        $script:authorizedDesktopCpuWorkerSha256 = '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a'
+        foreach ($case in @(
+            @{ Args=@('build','--release','-p','whisper-worker-cpu','-vv'); Root=$resolvedCpuRoot; Fresh='turbo-edition-release'; Existing=$null; NoTarget=$false },
+            @{ Args=$valid; Root=(Resolve-LotRoot 'target/parakeet-tests/main-facades'); Fresh='turbo-edition-release'; Existing=$null; NoTarget=$false },
+            @{ Args=$valid; Root=$resolvedCpuRoot; Fresh='cpu-distribution-release'; Existing=$null; NoTarget=$false },
+            @{ Args=$valid; Root=$resolvedCpuRoot; Fresh='turbo-edition-l2'; Existing=$null; NoTarget=$false },
+            @{ Args=$valid; Root=$resolvedCpuRoot; Fresh='turbo-edition-release'; Existing='turbo-edition-release'; NoTarget=$false },
+            @{ Args=$valid; Root=$resolvedCpuRoot; Fresh='turbo-edition-release'; Existing=$null; NoTarget=$true }
+        )) {
+            $rejected = $false
+            try { Assert-TurboEditionInvocation $case.Args $case.Root $case.Fresh $case.Existing $case.NoTarget } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Turbo edition SelfTest accepted an unprofiled command or target.' }
+            $negative++
+        }
+    } finally {
+        $script:turboEditionEnabled = $saved
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDigest
+    }
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
+}
+
+function Invoke-TurboEditionEnvironmentSelfTests {
+    $saved = [Environment]::GetEnvironmentVariable($script:turboEditionMarker,'Process')
+    $positive = 0
+    $negative = 0
+    try {
+        foreach ($invalid in @($null,'','0','generic')) {
+            $probe = [Diagnostics.ProcessStartInfo]::new()
+            [void]$probe.Environment.Remove($script:turboEditionMarker)
+            if ($null -ne $invalid) { $probe.Environment[$script:turboEditionMarker] = $invalid }
+            $rejected = $false
+            try { Assert-CargoEditionEnvironment $probe.Environment $true } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Turbo marker SelfTest accepted an absent or altered value.' }
+            $negative++
+        }
+        $turboProbe = [Diagnostics.ProcessStartInfo]::new()
+        [void]$turboProbe.Environment.Remove($script:turboEditionMarker)
+        Set-CargoEditionEnvironment $turboProbe.Environment $true
+        Assert-CargoEditionEnvironment $turboProbe.Environment $true
+        $positive++
+        [Environment]::SetEnvironmentVariable($script:turboEditionMarker,'inherited','Process')
+        $genericProbe = [Diagnostics.ProcessStartInfo]::new()
+        Set-CargoEditionEnvironment $genericProbe.Environment $false
+        Assert-CargoEditionEnvironment $genericProbe.Environment $false
+        if ([Environment]::GetEnvironmentVariable($script:turboEditionMarker,'Process') -cne 'inherited') {
+            throw 'Generic marker SelfTest changed the caller environment.'
+        }
+        $positive++
+        $rejectedUnset = $false
+        try { Assert-AllowedUnset @($script:turboEditionMarker) } catch { $rejectedUnset = $true }
+        if (-not $rejectedUnset) { throw 'Turbo marker SelfTest accepted an explicit -UnsetEnv conflict.' }
+        $negative++
+    } finally {
+        Set-ProcessEnvironmentValue $script:turboEditionMarker $saved
+    }
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
+}
+
 function Assert-CargoPackagePolicy([string[]]$Arguments, [string]$Root) {
     $scope = Get-CargoPackageScope $Arguments
     $policyKey = Get-PackagePolicyKey $Root
@@ -596,6 +726,7 @@ function Assert-WriteRoots {
     if ((Get-PSDrive -Name C).Free -lt 30GB) { throw 'C: has less than 30 GiB free; Cargo is forbidden.' }
     if (@(Get-ChildItem -LiteralPath $env:LOCALAPPDATA -Force).Count -ne 0) { throw 'LOCALAPPDATA must be empty before every run.' }
     foreach ($entry in Get-ChildItem Env:) {
+        if ($entry.Name -ceq $script:turboEditionMarker) { continue }
         if ($entry.Name -ceq 'WHISPER_EXPECTED_CPU_WORKER_SHA256' -and
             $script:authorizedDesktopCpuWorkerSha256 -and
             $entry.Value -ceq $script:authorizedDesktopCpuWorkerSha256) { continue }
@@ -604,7 +735,7 @@ function Assert-WriteRoots {
     if ([Environment]::GetEnvironmentVariable('N1_TEST_PERSONAL_PARAKEET_MODEL','Process') -cne $script:personalModel) { throw 'Personal model test path differs from the validated selection.' }
 }
 
-function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Label) {
+function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Label, [switch]$CargoInvocation) {
     $outPath = Join-Path $runRoot "$Label.stdout.log"
     $errPath = Join-Path $runRoot "$Label.stderr.log"
     foreach ($path in @($outPath,$errPath)) {
@@ -618,6 +749,10 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    Set-CargoEditionEnvironment $start.Environment ([bool]($script:turboEditionEnabled -and $CargoInvocation))
+    if ($CargoInvocation) {
+        Assert-CargoEditionEnvironment $start.Environment $script:turboEditionEnabled
+    }
     if ($script:useConfigTarget) {
         [void]$start.Environment.Remove('CARGO_TARGET_DIR')
         if ($start.Environment.ContainsKey('CARGO_TARGET_DIR')) { throw 'CARGO_TARGET_DIR remains in the Cargo child environment; process launch refused.' }
@@ -644,7 +779,7 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
 
 function Invoke-CargoCaptured([string[]]$Arguments, [string]$Label) {
     $script:cargoProcessLaunchCount++
-    return Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $Arguments $Label
+    return Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source $Arguments $Label -CargoInvocation
 }
 
 function Get-CargoTestExecutablePaths([string[]]$OutputStreams, [string]$TargetRoot) {
@@ -964,7 +1099,7 @@ function Set-AuthorizedDesktopCpuWorkerDigest {
 }
 
 function Set-CleanEnvironment {
-    foreach ($entry in @(Get-ChildItem Env: | Where-Object Name -Match '^(WHISPER_.*|PARAKEET_.*)$')) { Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue }
+    foreach ($entry in @(Get-ChildItem Env: | Where-Object { $_.Name -Match '^(WHISPER_.*|PARAKEET_.*)$' -and $_.Name -cne $script:turboEditionMarker })) { Remove-Item "Env:$($entry.Name)" -ErrorAction SilentlyContinue }
     Set-AuthorizedDesktopCpuWorkerDigest
     foreach ($name in $UnsetEnv) { Set-ProcessEnvironmentValue $name $null }
     $script:runRoot = Join-Path $scratchRoot ((Get-Date -Format 'yyyyMMddTHHmmssfff') + '-' + [guid]::NewGuid().ToString('N'))
@@ -1484,6 +1619,14 @@ function Invoke-SelfTests {
     $cpuDistributionPolicyTests.Summary
     $pCount += $cpuDistributionPolicyTests.Positive
     $nCount += $cpuDistributionPolicyTests.Negative
+    $turboEditionPolicyTests = Invoke-TurboEditionPolicySelfTests
+    "TURBO_EDITION_POLICY_SELFTEST positive=$($turboEditionPolicyTests.Positive) negative=$($turboEditionPolicyTests.Negative)"
+    $pCount += $turboEditionPolicyTests.Positive
+    $nCount += $turboEditionPolicyTests.Negative
+    $turboEditionEnvironmentTests = Invoke-TurboEditionEnvironmentSelfTests
+    "TURBO_EDITION_ENVIRONMENT_SELFTEST positive=$($turboEditionEnvironmentTests.Positive) negative=$($turboEditionEnvironmentTests.Negative)"
+    $pCount += $turboEditionEnvironmentTests.Positive
+    $nCount += $turboEditionEnvironmentTests.Negative
     if ($script:cpuDigestHandoffSelfTestPositive -ne 1 -or $script:cpuDigestHandoffSelfTestNegative -ne 1) {
         throw 'CPU worker digest handoff SelfTest did not complete both cases.'
     }
@@ -1789,6 +1932,7 @@ if ($FreshTarget) {
 } elseif ($ExistingTarget) { $script:targetRoot = Get-ExistingTargetPath $lotRoot $ExistingTarget }
 else { $script:targetRoot = $cargoRoot }
 if ($Mode -eq 'Structure' -and $CargoArgs.Count -gt 0) { throw 'Structure mode does not accept Cargo arguments.' }
+Assert-TurboEditionInvocation $CargoArgs $lotRoot $FreshTarget $ExistingTarget $WithoutCargoTargetDir
 Initialize-Roots
 Set-CleanEnvironment
 Assert-WriteRoots

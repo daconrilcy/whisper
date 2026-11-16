@@ -49,10 +49,19 @@ impl WorkerDiagnosticIdentity {
         self
     }
 
-    fn is_cpu_worker(&self, record: &CpuCapabilityDiagnostic) -> bool {
-        self.expected_executable
-            .file_name()
-            .is_some_and(|name| name.eq_ignore_ascii_case("whisper-worker-cpu.exe"))
+    fn expected_role(&self) -> Option<CpuProcessRole> {
+        let name = self.expected_executable.file_name()?;
+        if name.eq_ignore_ascii_case("whisper-worker-cpu.exe") {
+            Some(CpuProcessRole::WorkerCpu)
+        } else if name.eq_ignore_ascii_case("whisper-worker-gpu.exe") {
+            Some(CpuProcessRole::WorkerGpu)
+        } else {
+            None
+        }
+    }
+
+    fn matches_worker(&self, record: &CpuCapabilityDiagnostic) -> bool {
+        self.expected_role() == Some(record.role)
             && record.image_sha256.as_deref() == Some(hex_sha256(&self.expected_sha256).as_str())
     }
 }
@@ -100,11 +109,7 @@ pub(crate) fn validated_worker_diagnostic(
         .strip_prefix(DIAGNOSTIC_PREFIX.as_bytes())?
         .strip_prefix(b" ")?;
     let record: CpuCapabilityDiagnostic = serde_json::from_slice(json).ok()?;
-    if !identity.is_cpu_worker(&record)
-        || record.role != CpuProcessRole::WorkerCpu
-        || record.pid != identity.pid
-        || !record.is_consistent()
-    {
+    if !identity.matches_worker(&record) || record.pid != identity.pid || !record.is_consistent() {
         return None;
     }
     let mut forwarded = Vec::with_capacity(line.len() + 1);

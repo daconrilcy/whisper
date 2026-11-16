@@ -2,14 +2,23 @@ use super::*;
 use std::{collections::BTreeMap, sync::mpsc::Sender};
 use whisper_desktop::ui::{
     CatalogInspectionNeed, CatalogInspectionReceiver, CatalogInspectionSender,
-    PreferenceChannelError, catalog_inspection_channel,
+    PreferenceChannelError, catalog_inspection_channel_with_parakeet,
 };
 
 pub(super) fn uninspected_snapshot(root: &std::path::Path, generation: u64) -> CatalogSnapshot {
+    uninspected_snapshot_for_edition(root, generation, super::TURBO_DISTRIBUTION)
+}
+
+fn uninspected_snapshot_for_edition(
+    root: &std::path::Path,
+    generation: u64,
+    turbo_distribution: bool,
+) -> CatalogSnapshot {
     CatalogSnapshot {
         generation,
         entries: model_registry::MODELS
             .iter()
+            .filter(|record| !turbo_distribution || record.artifact.id != ModelId::ParakeetTdt06BV3)
             .map(|record| whisper_adapters::model_catalog::CatalogEntry {
                 id: record.artifact.id,
                 display_name: record.display_name.to_owned(),
@@ -32,7 +41,18 @@ pub(super) fn start_catalog_service(
     Receiver<CatalogSnapshot>,
     Receiver<CatalogSnapshot>,
 ) {
-    start_catalog_service_with(root, |catalog, id, generation| {
+    start_catalog_service_for_edition(root, super::TURBO_DISTRIBUTION)
+}
+
+pub(super) fn start_catalog_service_for_edition(
+    root: PathBuf,
+    turbo_edition: bool,
+) -> (
+    CatalogInspectionSender,
+    Receiver<CatalogSnapshot>,
+    Receiver<CatalogSnapshot>,
+) {
+    start_catalog_service_with(root, turbo_edition, |catalog, id, generation| {
         let mut snapshot = catalog.inspect_model(id, generation);
         if id == ModelId::ParakeetTdt06BV3 {
             qualify_parakeet_catalog_entry(&mut snapshot);
@@ -43,25 +63,27 @@ pub(super) fn start_catalog_service(
 
 fn start_catalog_service_with(
     root: PathBuf,
+    turbo_edition: bool,
     inspect: impl FnMut(&LocalModelCatalog, ModelId, u64) -> CatalogSnapshot + Send + 'static,
 ) -> (
     CatalogInspectionSender,
     Receiver<CatalogSnapshot>,
     Receiver<CatalogSnapshot>,
 ) {
-    let (requests, receiver) = catalog_inspection_channel();
+    let (requests, receiver) = catalog_inspection_channel_with_parakeet(!turbo_edition);
     let (catalog_tx, catalog_rx) = mpsc::channel();
     let (admission_tx, admission_rx) = mpsc::channel();
     std::thread::spawn(move || {
         let mut service = CatalogService {
             catalog: LocalModelCatalog::new(&root),
-            snapshot: uninspected_snapshot(&root, 1),
+            snapshot: uninspected_snapshot_for_edition(&root, 1, turbo_edition),
             observed_versions: BTreeMap::new(),
             observed_identities: BTreeMap::new(),
             gpu_route_metadata: None,
             receiver,
             outputs: [catalog_tx, admission_tx],
             inspect,
+            turbo_edition,
         };
         service.run();
     });
@@ -78,6 +100,7 @@ struct CatalogService<F> {
     receiver: CatalogInspectionReceiver,
     outputs: [Sender<CatalogSnapshot>; 2],
     inspect: F,
+    turbo_edition: bool,
 }
 
 impl<F: FnMut(&LocalModelCatalog, ModelId, u64) -> CatalogSnapshot> CatalogService<F> {
@@ -151,6 +174,9 @@ impl<F: FnMut(&LocalModelCatalog, ModelId, u64) -> CatalogSnapshot> CatalogServi
 
     fn observe(&mut self, need: CatalogInspectionNeed) -> Result<(), PreferenceChannelError> {
         if !self.receiver.need_is_requested(need)? {
+            return Ok(());
+        }
+        if self.turbo_edition && need.model == ModelId::ParakeetTdt06BV3 {
             return Ok(());
         }
         let record = model_registry::model(need.model);

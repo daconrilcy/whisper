@@ -34,9 +34,20 @@ impl<A: Application> DesktopApp<A> {
     }
 
     pub(in crate::ui::model) fn poll_model_selection(&mut self) {
+        self.poll_model_catalog();
+        self.poll_preference_events();
+        self.request_current_model_inspection();
+    }
+
+    fn poll_model_catalog(&mut self) {
         while let Some(receiver) = &self.catalog_receiver {
             match receiver.try_recv() {
                 Ok(mut catalog) => {
+                    if !self.parakeet_edition_enabled {
+                        catalog
+                            .entries
+                            .retain(|entry| entry.id != ModelId::ParakeetTdt06BV3);
+                    }
                     if self
                         .inspection_requests
                         .as_ref()
@@ -51,9 +62,11 @@ impl<A: Application> DesktopApp<A> {
                     {
                         continue;
                     }
-                    self.projection = ModelSelectionApp::new(catalog.engine_snapshot(vec![]))
-                        .projection(catalog.generation)
-                        .ok();
+                    self.projection = ModelSelectionApp::new(
+                        catalog.engine_snapshot_for_edition(vec![], self.parakeet_edition_enabled),
+                    )
+                    .projection(catalog.generation)
+                    .ok();
                     self.catalog = Some(catalog);
                 }
                 Err(TryRecvError::Disconnected) => {
@@ -64,6 +77,9 @@ impl<A: Application> DesktopApp<A> {
                 Err(TryRecvError::Empty) => break,
             }
         }
+    }
+
+    fn poll_preference_events(&mut self) {
         let mut events = Vec::new();
         let mut preferences_disconnected = false;
         if let Some(receiver) = &self.preference_events {
@@ -84,10 +100,25 @@ impl<A: Application> DesktopApp<A> {
         for event in events {
             match event {
                 ModelPreferenceEvent::Initialized {
-                    model,
+                    model: stored_model,
                     startup_compute,
-                    notice,
+                    notice: stored_notice,
                 } => {
+                    let unsupported_model = !self.parakeet_edition_enabled
+                        && stored_model == Some(ModelId::ParakeetTdt06BV3);
+                    let model = if unsupported_model {
+                        Some(ModelId::WhisperLargeV3Turbo)
+                    } else {
+                        stored_model
+                    };
+                    let notice = if unsupported_model {
+                        Some(
+                            "La préférence Parakeet enregistrée est ignorée dans cette édition."
+                                .into(),
+                        )
+                    } else {
+                        stored_notice
+                    };
                     self.startup_preferences_loaded = true;
                     self.preference_load_notice = apply_preference_event(
                         &mut self.selection,
@@ -116,10 +147,13 @@ impl<A: Application> DesktopApp<A> {
                 }
             }
         }
-        self.request_current_model_inspection();
     }
 
     fn request_current_model_inspection(&mut self) {
+        if !self.parakeet_edition_enabled && self.selection.model == Some(ModelId::ParakeetTdt06BV3)
+        {
+            self.selection.model = None;
+        }
         if (self.startup_preferences_loaded || self.selection_touched)
             && let (Some(model), Some(requests), Some(preferences)) = (
                 self.selection.model,

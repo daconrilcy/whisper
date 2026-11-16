@@ -5,7 +5,8 @@ pub use model::{
     CatalogInspectionNeed, CatalogInspectionReceiver, CatalogInspectionSender, DesktopApp,
     ModelPreferenceCommand, ModelPreferenceCommandReceiver, ModelPreferenceCommandSender,
     ModelPreferenceEvent, ModelSelectionRuntime, PreferenceChannelError, SelectionWidgetState,
-    catalog_inspection_channel, model_preference_command_channel,
+    catalog_inspection_channel, catalog_inspection_channel_with_parakeet,
+    model_preference_command_channel,
 };
 pub use presentation::{
     APPROVED_MODEL_SHA256, LanguageChoices, MicrophoneMeterPresentation, apply_initial_model,

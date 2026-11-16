@@ -476,7 +476,7 @@ impl CatalogSnapshot {
         &self,
         resources: Vec<whisper_core::engine_capabilities::ResourceObservation>,
     ) -> whisper_core::engine_capabilities::EngineSnapshot {
-        whisper_core::model_registry::engine_snapshot(
+        let mut snapshot = whisper_core::model_registry::engine_snapshot(
             self.generation,
             |id| {
                 self.entries
@@ -485,7 +485,25 @@ impl CatalogSnapshot {
                     .map_or(ModelAvailability::Uninspected, |entry| entry.availability)
             },
             resources,
-        )
+        );
+        snapshot
+    }
+
+    pub fn engine_snapshot_for_edition(
+        &self,
+        resources: Vec<whisper_core::engine_capabilities::ResourceObservation>,
+        parakeet_enabled: bool,
+    ) -> whisper_core::engine_capabilities::EngineSnapshot {
+        let mut snapshot = self.engine_snapshot(resources);
+        if !parakeet_enabled {
+            snapshot.models.retain(|model| {
+                model.id == whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
+            });
+            snapshot.capabilities.retain(|capability| {
+                capability.key.model == whisper_core::model_catalog::ModelId::WhisperLargeV3Turbo
+            });
+        }
+        snapshot
     }
 
     /// Rebinds a durable historical path to the verified Test catalog path before dispatch.

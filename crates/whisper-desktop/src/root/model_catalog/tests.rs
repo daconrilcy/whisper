@@ -14,9 +14,12 @@ use whisper_core::ports::{ImportEvent, ImportQueueEntry, ImportQueueStatus, Port
 use whisper_core::{
     Generation, ImportEffect, ImportRequest, JobConfig, JobId, LanguageChoice, LiveRequest,
 };
+use whisper_desktop::ui::catalog_inspection_channel;
 
 const WAIT: Duration = Duration::from_secs(10);
 static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+#[path = "edition_tests.rs"]
+mod edition_tests;
 
 struct Root(PathBuf);
 impl Root {
@@ -73,7 +76,7 @@ fn composed_service_starts_complete_uninspected_and_reads_only_effective_parakee
     fs::write(&qualification, b"qualification resource").unwrap();
     let resource = qualification.clone();
     let (requests, catalog, admission) =
-        start_catalog_service_with(root.0.clone(), move |catalog, id, generation| {
+        start_catalog_service_with(root.0.clone(), false, move |catalog, id, generation| {
             let snapshot = catalog.inspect_model(id, generation);
             if id == ModelId::ParakeetTdt06BV3 {
                 cached_artifact_sha256(&resource).unwrap();
@@ -191,7 +194,7 @@ fn newer_inspection_of_same_model_discards_old_result_without_reselecting() {
     let (resume_tx, resume_rx) = mpsc::sync_channel(1);
     let mut calls = 0;
     let (requests, catalog, _admission) =
-        start_catalog_service_with(root.0.clone(), move |catalog, id, generation| {
+        start_catalog_service_with(root.0.clone(), false, move |catalog, id, generation| {
             calls += 1;
             if calls == 1 {
                 entered_tx.send(()).unwrap();
@@ -227,7 +230,7 @@ fn identity_changed_during_observation_never_publishes_ready() {
     let (entered_tx, entered_rx) = mpsc::sync_channel(1);
     let (resume_tx, resume_rx) = mpsc::sync_channel(1);
     let (requests, catalog, _admission) =
-        start_catalog_service_with(root.0.clone(), move |catalog, id, generation| {
+        start_catalog_service_with(root.0.clone(), false, move |catalog, id, generation| {
             let snapshot = ready_snapshot(catalog.root(), generation, ModelAvailability::Ready);
             entered_tx.send(()).unwrap();
             resume_rx.recv_timeout(WAIT).unwrap();
@@ -267,7 +270,7 @@ fn closed_service_discards_inflight_observation_and_refuses_new_requests() {
     let (entered_tx, entered_rx) = mpsc::sync_channel(1);
     let (resume_tx, resume_rx) = mpsc::sync_channel(1);
     let (requests, catalog, _admission) =
-        start_catalog_service_with(root.0.clone(), move |catalog, id, generation| {
+        start_catalog_service_with(root.0.clone(), false, move |catalog, id, generation| {
             entered_tx.send(()).unwrap();
             resume_rx.recv_timeout(WAIT).unwrap();
             catalog.inspect_model(id, generation)
@@ -289,7 +292,7 @@ fn absent_identity_cannot_support_a_ready_publication() {
     let root = Root::new();
     fs::remove_file(root.path(ModelId::ParakeetTdt06BV3)).unwrap();
     let (requests, catalog, _admission) =
-        start_catalog_service_with(root.0.clone(), |catalog, id, generation| {
+        start_catalog_service_with(root.0.clone(), false, |catalog, id, generation| {
             let mut snapshot = ready_snapshot(catalog.root(), generation, ModelAvailability::Ready);
             snapshot.entries.retain(|entry| entry.id == id);
             snapshot
@@ -970,7 +973,7 @@ fn paused_catalog(
     let (resume_b, resume_b_rx) = mpsc::sync_channel(1);
     let mut first_observation = [true; 2];
     let (requests, catalog, admission) =
-        start_catalog_service_with(root, move |catalog, id, generation| {
+        start_catalog_service_with(root, false, move |catalog, id, generation| {
             let (index, entered, resume) = if id == ModelId::WhisperLargeV3Turbo {
                 (0, &entered_a_tx, &resume_a_rx)
             } else {
@@ -1233,6 +1236,7 @@ fn check_removed_interest_stops_monitoring(resume: bool, another_need: bool) {
         receiver,
         outputs: [catalog_tx, admission_tx],
         inspect,
+        turbo_edition: false,
     };
     assert!(service.publish(None));
     catalog.recv_timeout(WAIT).unwrap();

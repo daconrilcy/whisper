@@ -8,9 +8,8 @@ use whisper_core::cpu_compatibility::{
 
 static TEST_IMAGE_ID: AtomicUsize = AtomicUsize::new(0);
 
-fn diagnostic_line(pid: u32, image_sha256: [u8; 32]) -> Vec<u8> {
-    let mut record =
-        CpuCapabilityDiagnostic::new(CpuProcessRole::WorkerCpu, pid, CpuCapabilities::default());
+fn diagnostic_line(role: CpuProcessRole, pid: u32, image_sha256: [u8; 32]) -> Vec<u8> {
+    let mut record = CpuCapabilityDiagnostic::new(role, pid, CpuCapabilities::default());
     record.image_sha256 = Some(
         image_sha256
             .iter()
@@ -40,7 +39,7 @@ fn transport_pins_t11_digest_before_spawn_and_rejects_same_path_substitution() {
     let trusted_t11_digest = crate::archive::sha256_file(&configured)
         .expect("trusted build output digest is measurable");
     let pid = 81;
-    let valid_line = diagnostic_line(pid, trusted_t11_digest);
+    let valid_line = diagnostic_line(CpuProcessRole::WorkerCpu, pid, trusted_t11_digest);
     let valid_state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
     let mut valid_stderr = Cursor::new([valid_line.clone(), b"\n".to_vec()].concat());
     drain_worker_stderr(&mut valid_stderr, Arc::clone(&valid_state), |_| {});
@@ -73,7 +72,7 @@ fn transport_pins_t11_digest_before_spawn_and_rejects_same_path_substitution() {
     let substituted_sha256 =
         crate::archive::sha256_file(&configured).expect("substituted image digest is measurable");
     assert_ne!(substituted_sha256, trusted_t11_digest);
-    let substituted_line = diagnostic_line(pid, substituted_sha256);
+    let substituted_line = diagnostic_line(CpuProcessRole::WorkerCpu, pid, substituted_sha256);
     let substituted_state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
     let mut substituted_stderr =
         Cursor::new([substituted_line, b"\nordinary child output\n".to_vec()].concat());
@@ -97,4 +96,133 @@ fn transport_pins_t11_digest_before_spawn_and_rejects_same_path_substitution() {
     );
     assert!(!forwarded, "same-path discordant PE is not relayed");
     std::fs::remove_dir_all(root).expect("temporary PE fixture root is removed");
+}
+
+#[test]
+fn gpu_executable_diagnostic_is_relayed_only_for_its_pid_role_and_image() {
+    let image_sha256 = [7_u8; 32];
+    let line = diagnostic_line(CpuProcessRole::WorkerGpu, 92, image_sha256);
+    let input = [line.clone(), b"\nordinary worker output\n".to_vec()].concat();
+    let cpu_state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
+    assert!(
+        resolve_worker_diagnostic_identity(
+            Some(image_sha256),
+            Some(image_sha256),
+            std::path::Path::new("whisper-worker-cpu.exe"),
+            92,
+            &cpu_state,
+        )
+        .is_none()
+    );
+    let mut cpu_stderr = Cursor::new(input.clone());
+    let mut cpu_forwarded = Vec::new();
+    drain_worker_stderr(&mut cpu_stderr, cpu_state, |forwarded| {
+        cpu_forwarded.push(forwarded.to_vec())
+    });
+    assert_eq!(cpu_stderr.position() as usize, cpu_stderr.get_ref().len());
+    assert!(
+        cpu_forwarded.is_empty(),
+        "GPU role is not relayed for the CPU PE"
+    );
+
+    let gpu_state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
+    let mut gpu_stderr = Cursor::new(input);
+    let mut gpu_forwarded = Vec::new();
+    drain_worker_stderr(&mut gpu_stderr, Arc::clone(&gpu_state), |forwarded| {
+        gpu_forwarded.push(forwarded.to_vec())
+    });
+
+    assert_eq!(gpu_stderr.position() as usize, gpu_stderr.get_ref().len());
+    assert!(
+        gpu_forwarded.is_empty(),
+        "unidentified diagnostic remains pending"
+    );
+
+    let verified_gpu_line = resolve_worker_diagnostic_identity(
+        Some(image_sha256),
+        None,
+        std::path::Path::new("whisper-worker-gpu.exe"),
+        92,
+        &gpu_state,
+    )
+    .expect("observed GPU PE identity validates the pending matching record");
+    assert_eq!(verified_gpu_line, [line, b"\n".to_vec()].concat());
+
+    for (diagnostic_pid, diagnostic_sha) in [(93, image_sha256), (92, [8_u8; 32])] {
+        let mismatched_line =
+            diagnostic_line(CpuProcessRole::WorkerGpu, diagnostic_pid, diagnostic_sha);
+        let mismatched_state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
+        let mut mismatched_stderr = Cursor::new([mismatched_line, b"\n".to_vec()].concat());
+        drain_worker_stderr(
+            &mut mismatched_stderr,
+            Arc::clone(&mismatched_state),
+            |_| {},
+        );
+        assert!(
+            resolve_worker_diagnostic_identity(
+                Some(image_sha256),
+                None,
+                std::path::Path::new("whisper-worker-gpu.exe"),
+                92,
+                &mismatched_state,
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn gpu_diagnostic_without_an_opened_image_identity_is_not_relayed() {
+    let image_sha256 = [4_u8; 32];
+    let line = diagnostic_line(CpuProcessRole::WorkerGpu, 92, image_sha256);
+    let state = Arc::new(Mutex::new(WorkerDiagnosticRelayState::default()));
+    let mut stderr = Cursor::new([line, b"\n".to_vec()].concat());
+    drain_worker_stderr(&mut stderr, Arc::clone(&state), |_| {});
+
+    assert!(
+        resolve_worker_diagnostic_identity(
+            None,
+            None,
+            std::path::Path::new("whisper-worker-gpu.exe"),
+            92,
+            &state,
+        )
+        .is_none()
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn pinned_worker_image_blocks_replacement_and_allows_process_launch() {
+    let root = image_root();
+    std::fs::create_dir_all(&root).expect("fixture root can be created");
+    let current = std::env::current_exe().expect("test PE path is available");
+    let image = root.join("whisper-worker-gpu.exe");
+    crate::pe_fixture::copy_verified_pe(&current, &image);
+    let image = image.canonicalize().expect("worker fixture canonicalizes");
+    let pin = open_gpu_worker_image(&image).expect("worker image opens with a read-only share");
+
+    let write_open = std::fs::OpenOptions::new().write(true).open(&image);
+    assert!(write_open.is_err(), "pinned image rejects write access");
+    let replacement = image.with_extension("replacement.exe");
+    assert!(
+        std::fs::rename(&image, &replacement).is_err(),
+        "pinned image rejects rename/delete access"
+    );
+
+    let child = Command::new(&image)
+        .arg("--help")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Windows can launch a read-only-pinned image");
+    assert!(
+        child
+            .wait_with_output()
+            .expect("test process exits")
+            .status
+            .success()
+    );
+    drop(pin);
+    std::fs::remove_dir_all(root).expect("fixture root can be removed after pin release");
 }

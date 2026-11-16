@@ -115,6 +115,15 @@ function Get-PeImports([byte[]]$Bytes) {
     return @($result.ToArray())
 }
 
+function Get-PeMachine([byte[]]$Bytes) {
+    Assert-Range $Bytes 0 64
+    if ((Read-U16 $Bytes 0) -ne 0x5a4d) { throw 'Not a PE file: missing MZ signature.' }
+    $peOffset = [long](Read-U32 $Bytes 0x3c)
+    Assert-Range $Bytes $peOffset 6
+    if ((Read-U32 $Bytes $peOffset) -ne 0x00004550) { throw 'Not a PE file: missing PE signature.' }
+    return [uint16](Read-U16 $Bytes ($peOffset + 4))
+}
+
 function Test-Imports([string]$ArtifactKind, [string[]]$Imports) {
     $cuda = @($Imports | Where-Object { $_ -match $cudaPattern } | Sort-Object -Unique)
     if ($ArtifactKind -eq 'Gpu') {
@@ -128,15 +137,23 @@ function Test-Imports([string]$ArtifactKind, [string[]]$Imports) {
 
 function Invoke-Check([string]$ArtifactKind, [string]$ArtifactPath, [string[]]$KnownImports = $null, [byte[]]$KnownBytes = $null) {
     $parseFailure = $null
+    $machine = $null
     if ($null -eq $KnownImports) {
         $bytes = if ($null -ne $KnownBytes) { $KnownBytes } else { [IO.File]::ReadAllBytes($ArtifactPath) }
-        try { $imports = @(Get-PeImports $bytes) }
+        try {
+            $imports = @(Get-PeImports $bytes)
+            $machine = Get-PeMachine $bytes
+        }
         catch { $parseFailure = $_.Exception.Message; $imports = @() }
     } else { $imports = $KnownImports }
     $result = if ($parseFailure) { [pscustomobject]@{ Passed = $false; Reason = "PE parse failed: $parseFailure"; Cuda = @() } } else { Test-Imports $ArtifactKind $imports }
+    if (-not $parseFailure -and $ArtifactKind -eq 'Gpu' -and $machine -ne 0x8664) {
+        $result = [pscustomobject]@{ Passed = $false; Reason = "GPU worker PE machine is not AMD64: 0x$('{0:x4}' -f $machine)"; Cuda = @($result.Cuda) }
+    }
     $sha = if ($null -eq $KnownImports -and $null -eq $KnownBytes) { (Get-FileHash -LiteralPath $ArtifactPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { 'synthetic' }
     $verdict = if ($result.Passed) { 'PASS' } else { 'FAIL' }
-    [pscustomobject]@{ Kind = $ArtifactKind; Path = $ArtifactPath; Sha256 = $sha; Verdict = $verdict; Imports = @($imports | Sort-Object -Unique); CudaImports = $result.Cuda; Reason = $result.Reason }
+    $machineName = if ($machine -eq 0x8664) { 'AMD64' } elseif ($null -ne $machine) { '0x{0:x4}' -f $machine } else { 'unknown' }
+    [pscustomobject]@{ Kind = $ArtifactKind; Path = $ArtifactPath; Sha256 = $sha; Machine = $machineName; Verdict = $verdict; Imports = @($imports | Sort-Object -Unique); CudaImports = $result.Cuda; Reason = $result.Reason }
 }
 
 function Assert-True([bool]$Condition, [string]$Message) { if (-not $Condition) { throw "Self-test failed: $Message" } }
@@ -162,8 +179,11 @@ if ($SelfTest) {
         }
     }
     $gpu = Invoke-Check 'Gpu' (Join-Path $fixtures 'gpu.bin')
-    Assert-True ($gpu.Verdict -eq 'PASS' -and $gpu.Imports.Count -eq 2) 'GPU accepts cudart and nvcuda.'
+    Assert-True ($gpu.Verdict -eq 'PASS' -and $gpu.Machine -eq 'AMD64' -and $gpu.Imports.Count -eq 2) 'AMD64 GPU accepts cudart and nvcuda.'
     $positiveCount++
+    $gpuArm64 = Invoke-Check 'Gpu' (Join-Path $fixtures 'gpu-arm64.bin')
+    Assert-True ($gpuArm64.Verdict -eq 'FAIL' -and $gpuArm64.Machine -eq '0xaa64' -and $gpuArm64.Reason -match 'not AMD64') 'GPU rejects a non-AMD64 PE with valid CUDA imports.'
+    $negativeCount++
     foreach ($name in @('cudart-only.bin','nvcuda-only.bin','no-cuda.bin')) {
         $report = Invoke-Check 'Gpu' (Join-Path $fixtures $name)
         Assert-True ($report.Verdict -eq 'FAIL' -and $report.Reason -match 'Missing required CUDA imports') "GPU rejects $name."

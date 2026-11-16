@@ -75,6 +75,7 @@ pub struct CpuCompatibility {
 pub enum CpuProcessRole {
     Desktop,
     WorkerCpu,
+    WorkerGpu,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

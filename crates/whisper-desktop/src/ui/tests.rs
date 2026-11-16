@@ -7,3 +7,4 @@ include!("tests/unified_sessions_support.rs");
 include!("tests/compute_and_catalog.rs");
 include!("tests/document_presentation.rs");
 include!("tests/catalog_inspection.rs");
+include!("tests/edition_policy.rs");

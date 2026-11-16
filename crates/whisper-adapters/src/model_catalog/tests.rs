@@ -5,6 +5,9 @@ use std::{
 };
 use whisper_core::{model_catalog::ModelId, model_registry::model};
 
+#[path = "edition_tests.rs"]
+mod edition_tests;
+
 #[test]
 fn resolving_registered_paths_and_historical_alias_never_reads_models() {
     let root = catalog_root(true);

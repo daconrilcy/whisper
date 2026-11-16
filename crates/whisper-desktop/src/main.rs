@@ -16,6 +16,7 @@ fn main() -> eframe::Result {
         gpu_probe,
         gpu_inventory,
         model_selection,
+        reactivity_log_path,
     } = root::compose();
     whisper_desktop::run(
         application,
@@ -29,6 +30,8 @@ fn main() -> eframe::Result {
             process_started_at_unix_ms,
             model_selection,
             unified_candidate_enabled,
+            parakeet_edition_enabled: !whisper_desktop::TURBO_EDITION,
+            reactivity_log_path,
         },
     )
 }

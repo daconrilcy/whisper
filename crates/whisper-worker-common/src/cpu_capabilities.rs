@@ -18,6 +18,14 @@ pub fn current() -> CpuCapabilities {
 }
 
 pub fn emit_cpu_worker_diagnostic() {
+    emit_worker_diagnostic(CpuProcessRole::WorkerCpu);
+}
+
+pub fn emit_gpu_worker_diagnostic() {
+    emit_worker_diagnostic(CpuProcessRole::WorkerGpu);
+}
+
+fn emit_worker_diagnostic(role: CpuProcessRole) {
     if DIAGNOSTIC_EMITTED.swap(true, Ordering::Relaxed) {
         return;
     }
@@ -26,12 +34,7 @@ pub fn emit_cpu_worker_diagnostic() {
         let Some(image_sha256) = current_image_sha256() else {
             return;
         };
-        emit(
-            CpuProcessRole::WorkerCpu,
-            std::process::id(),
-            registers,
-            Some(image_sha256),
-        );
+        emit(role, std::process::id(), registers, Some(image_sha256));
     });
 }
 

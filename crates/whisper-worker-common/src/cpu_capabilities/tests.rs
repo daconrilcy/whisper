@@ -27,6 +27,21 @@ fn diagnostic_is_versioned_bounded_and_contains_process_local_registers() {
 }
 
 #[test]
+fn gpu_worker_diagnostic_has_its_own_role_and_image_identity() {
+    let line = diagnostic_line_with_image(
+        CpuProcessRole::WorkerGpu,
+        38,
+        CpuCapabilities::default(),
+        Some("ab".repeat(32)),
+    )
+    .expect("GPU worker diagnostic fits the bound");
+    let encoded = std::str::from_utf8(&line).expect("diagnostic is UTF-8");
+    assert!(encoded.contains("\"role\":\"worker_gpu\""));
+    assert!(encoded.contains("\"pid\":38"));
+    assert!(encoded.contains(&format!("\"image_sha256\":\"{}\"", "ab".repeat(32))));
+}
+
+#[test]
 fn undetected_required_leaf_is_reported_as_indeterminate() {
     let diagnostic =
         CpuCapabilityDiagnostic::new(CpuProcessRole::WorkerCpu, 9, CpuCapabilities::default());

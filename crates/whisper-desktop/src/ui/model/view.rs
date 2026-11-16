@@ -41,8 +41,10 @@ impl<A: Application> DesktopApp<A> {
                 self.dialogs_ui(ui);
                 self.stop_action_ui(ui, state);
                 self.active_job_ui(ui);
-                self.render_unified_parakeet_ui(ui);
-                self.render_parakeet_capture_ui(ui);
+                if self.parakeet_edition_enabled {
+                    self.render_unified_parakeet_ui(ui);
+                    self.render_parakeet_capture_ui(ui);
+                }
                 self.notices_ui(ui);
                 self.queue_ui(ui, busy);
                 self.history_ui(ui, busy, destination, destination_scan_pending);

@@ -12,6 +12,7 @@ use std::{
 use whisper_core::ipc::{IpcEnvelope, WorkerCommand, WorkerErrorCode, WorkerEvent};
 
 pub(crate) fn run() {
+    whisper_worker_common::cpu_capabilities::emit_gpu_worker_diagnostic();
     let (tx, rx) = mpsc::sync_channel(8);
     thread::spawn(move || input_loop(tx));
     let stdout = io::stdout();
