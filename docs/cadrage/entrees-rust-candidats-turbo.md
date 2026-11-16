@@ -33,6 +33,10 @@ Le desktop reconstruit le 16 novembre porte le SHA-256 `aca1b94b230b14d21ea73f89
 
 `webrtc-vad 0.4.0` déclare MIT et son build compile `libfvad` ; le journal de compilation du nouveau desktop montre une recherche de bibliothèque native dans sa sortie de build. Le paquet source contient aussi `resources/libfvad/LICENSE`, qui porte les copyrights des auteurs WebRTC et de Daniel Pirch et des conditions de redistribution binaire, ainsi que `resources/libfvad/PATENTS`. Les conserver parmi les éléments à examiner pour les notices du desktop, sans déduire du seul graphe Cargo la présence de chaque objet C dans le PE. La licence MIT de la crate ne remplace pas ces textes. [Source amont libfvad à la révision citée par la crate](https://github.com/dpirch/libfvad/blob/9713e439efe24d77575cb5fbc63d545acc4e5b21/LICENSE).
 
+Les métadonnées intégrées aux fichiers de police donnent aussi `Copyright 2013 Google Inc.` pour Noto Emoji et `Copyright 2011 Canonical Ltd.` pour Ubuntu Light. Reprendre ces mentions avec les textes OFL et Ubuntu Font Licence applicables. La lecture du cache des 182 couples nom/version distincts du graphe desktop/GPU repère 22 paquets tiers sans fichier de licence à la racine de leur archive Cargo ; cela ne signifie pas que leur licence est absente, mais interdit de prétendre que toutes les notices sont déjà collectées. Ces paquets incluent notamment AccessKit, egui/epaint et Symphonia ; il faut retrouver les notices adaptées à leurs révisions ou dans leurs ressources internes. Les champs de licence du tableau ne remplacent pas les textes ni les mentions de copyright.
+
+Les fichiers amont suivants ont été retrouvés aux révisions inscrites dans les métadonnées `.cargo_vcs_info.json` des archives concernées : [egui MIT](https://github.com/emilk/egui/blob/6f15dc0e16b26edce1fc2a05212eaf7e749c1d05/LICENSE-MIT) et [Apache](https://github.com/emilk/egui/blob/6f15dc0e16b26edce1fc2a05212eaf7e749c1d05/LICENSE-APACHE), [AccessKit MIT révision 1](https://github.com/AccessKit/accesskit/blob/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969/LICENSE-MIT) et [révision 2](https://github.com/AccessKit/accesskit/blob/1bbcf100942bac96c2c3a4a91cb67b0b20201a24/LICENSE-MIT), [Symphonia MPL](https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE), [clipboard-win](https://github.com/DoumanAsh/clipboard-win/blob/3b27cf2bfd1adcfa6e0264eb51c1025ddaf0f342/LICENSE), [dasp_sample MIT](https://github.com/RustAudio/dasp/blob/97c3bb9b2363c0b46ac1633858bf1054fd02a980/LICENSE-MIT) et [profiling MIT](https://github.com/aclysma/profiling/blob/8271551172eb6fa4cba47369aedd93790c623df9/LICENSE-MIT). Ils constituent des sources à examiner et à inclure selon les licences choisies, avec les éventuelles notices et droits d'auteur complémentaires ; ils ne sont pas encore collectés dans un paquet de notices. Le fichier de licence `realfft` recherché à sa révision n'a pas été trouvé par le chemin essayé ; poursuivre cette recherche.
+
 ### Desktop
 
 Unités rustc parcourues : 178 ; références rlib/rmeta non résolues : 0.
@@ -268,3 +272,79 @@ Unités rustc parcourues : 45 ; références rlib/rmeta non résolues : 0.
 | windows-result | 0.4.1 | MIT OR Apache-2.0 |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 |
+
+### Worker CPU L1 : ensemble conservateur issu du cache
+
+Le binaire CPU retenu est `03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a`. Dans sa cible L1, le graphe des fichiers Cargo `.fingerprint/*.json` part de `whisper-worker-cpu-467a86811100b567/bin-whisper-worker-cpu.json` et suit les noms de dépendances en retenant **tous** les dossiers de même nom ; les deux noms de scripts de build non résolus sont ceux des scripts internes des paquets traversés. Il en résulte 67 noms, incluant macros, scripts et outils de compilation comme bindgen et CMake, qui ne sont pas réputés distribués. Les versions ci-dessous proviennent des métadonnées de la résolution Cargo sous le même `Cargo.lock` (empreinte de ce fichier identique dans les deux worktrees) : lorsque plusieurs versions existent, elles sont toutes listées, sans attribution certaine à ce PE.
+
+Cet ensemble facilite un traitement prudent des licences ; il ne démontre ni l'inclusion de chaque composant, ni l'exhaustivité des sources natives, ni l'absence de chargement dynamique. Les sources et notices effectives du CPU restent à rattacher au PE et à revoir. Les informations sous `target` restent temporaires jusqu'à archivage prévu du lot.
+
+| Paquet candidat | Versions possibles | Licence déclarée |
+|---|---|---|
+| arrayvec | 0.7.8 | MIT OR Apache-2.0 |
+| bindgen | 0.72.1 | BSD-3-Clause |
+| bitflags | 1.3.2; 2.13.2 | MIT OR Apache-2.0; MIT/Apache-2.0 |
+| block-buffer | 0.10.4 | MIT OR Apache-2.0 |
+| bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
+| bytemuck_derive | 1.12.1 | Zlib OR Apache-2.0 OR MIT |
+| cc | 1.6.0 | MIT OR Apache-2.0 |
+| cexpr | 0.6.0 | Apache-2.0/MIT |
+| cfg-if | 1.0.5 | MIT OR Apache-2.0 |
+| clang-sys | 1.9.1 | Apache-2.0 |
+| cmake | 0.1.58 | MIT OR Apache-2.0 |
+| core_detect | 1.0.0 | MIT/Apache-2.0 |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
+| crypto-common | 0.1.7 | MIT OR Apache-2.0 |
+| digest | 0.10.7 | MIT OR Apache-2.0 |
+| either | 1.18.0 | MIT OR Apache-2.0 |
+| encoding_rs | 0.8.42 | (Apache-2.0 OR MIT) AND BSD-3-Clause |
+| extended | 0.1.0 | MIT |
+| find-msvc-tools | 0.1.14 | MIT OR Apache-2.0 |
+| fs_extra | 1.3.0 | MIT |
+| generic-array | 0.14.7 | MIT |
+| glob | 0.3.4 | MIT OR Apache-2.0 |
+| itertools | 0.13.0; 0.14.0 | MIT OR Apache-2.0 |
+| itoa | 1.0.18 | MIT OR Apache-2.0 |
+| lazy_static | 1.5.1 | MIT OR Apache-2.0 |
+| libc | 0.2.190 | MIT OR Apache-2.0 |
+| libloading | 0.8.9 | ISC |
+| log | 0.4.34 | MIT OR Apache-2.0 |
+| memchr | 2.8.3 | Unlicense OR MIT |
+| minimal-lexical | 0.2.1 | MIT/Apache-2.0 |
+| multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT |
+| nom | 7.1.3 | MIT |
+| prettyplease | 0.2.37 | MIT OR Apache-2.0 |
+| proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
+| quote | 1.0.47 | MIT OR Apache-2.0 |
+| regex | 1.13.1 | MIT OR Apache-2.0 |
+| regex-automata | 0.4.18 | MIT OR Apache-2.0 |
+| regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
+| rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
+| rustversion | 1.0.23 | MIT OR Apache-2.0 |
+| rusty_mp3 | 0.8.0 | Apache-2.0 |
+| ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 |
+| scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| semver | 1.0.28 | MIT OR Apache-2.0 |
+| serde | 1.0.228 | MIT OR Apache-2.0 |
+| serde_core | 1.0.228 | MIT OR Apache-2.0 |
+| serde_derive | 1.0.228 | MIT OR Apache-2.0 |
+| serde_json | 1.0.145 | MIT OR Apache-2.0 |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 |
+| shlex | 1.3.0; 2.0.1 | MIT OR Apache-2.0 |
+| simdutf8 | 0.1.5 | MIT OR Apache-2.0 |
+| symphonia | 0.5.5 | MPL-2.0 |
+| symphonia-bundle-mp3 | 0.5.5 | MPL-2.0 |
+| symphonia-codec-pcm | 0.5.5 | MPL-2.0 |
+| symphonia-core | 0.5.5 | MPL-2.0 |
+| symphonia-format-riff | 0.5.5 | MPL-2.0 |
+| symphonia-metadata | 0.5.5 | MPL-2.0 |
+| syn | 2.0.119; 3.0.6 | MIT OR Apache-2.0 |
+| typenum | 1.20.1 | MIT OR Apache-2.0 |
+| unicode-ident | 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| version_check | 0.9.5 | MIT/Apache-2.0 |
+| whisper-core | 0.1.0 | non declaree |
+| whisper-rs | 0.16.0 | Unlicense |
+| whisper-rs-sys | 0.15.0 | Unlicense |
+| whisper-worker-common | 0.1.0 | non declaree |
+| whisper-worker-cpu | 0.1.0 | non declaree |
+| windows-link | 0.2.1 | MIT OR Apache-2.0 |
