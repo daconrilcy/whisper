@@ -48,6 +48,8 @@ Gate L3→L4 : les trois tâches sont exécutées, le candidat et ses ressources
 
 L'[index des notices candidates](index-notices-turbo.md) relie les sources examinées aux graphes des trois PE. C'est un ensemble prudent de travail, non un recueil final ni une preuve d'incorporation de chaque dépendance. Les textes applicables, leurs copyrights, les composants natifs et les conditions des DLL restent à collecter et vérifier.
 
+Les notices AccessKit et Chromium et les éléments sans fichier racine disposent désormais d'un [complément préparé](notices-complementaires-turbo.md). Les archives Symphonia et Rust sont disponibles dans l'index. Avant l'assemblage, confronter cet ensemble aux composants effectivement remis, vérifier les éventuels fichiers `NOTICE` amont, les copyrights et licences des composants natifs, ainsi que les conditions des DLL. Les licences alternatives présentées dans le complément sont des choix de préparation à appliquer et vérifier dans la remise, pas une preuve que toutes les obligations sont déjà satisfaites.
+
 ### Composition des PE : écart à fermer
 
 Le worker CPU L1 existant dans `C:/wt/distcpu/target/parakeet-tests/cpu-distribution-x64-20261115/targets/cpu-distribution-release/release/whisper-worker-cpu.exe` a pour SHA-256 `03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a`. Le desktop Turbo actuel `d052adba43459ce525d57c8da2d1eb45c4c189cf1871229e803a39baf66ce344` ne contient pas la représentation ASCII de cette empreinte : on ne peut pas présenter ce couple comme une composition dont le relai CPU est attribué au worker L1. Cette recherche ne démontre rien sur d'autres couples possibles.
