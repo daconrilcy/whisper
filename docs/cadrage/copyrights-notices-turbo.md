@@ -232,3 +232,12 @@ Les composants natifs et ressources ne sont pas couverts complètement par ce re
 | Emoji Icon Font | Desktop, octets présents dans le PE | `fonts/emoji-icon-font-mit-license.txt` : MIT, copyright 2014 John Slegers. |
 
 Les chemins de cette table sont relatifs aux archives concernées sous la même racine Cargo que ci-dessus. Pour Noto Emoji et Ubuntu Light, les mentions ont été lues dans les métadonnées des polices. Ces relevés ne remplacent pas les textes complets et ne suffisent pas à fermer tous les droits de redistribution.
+
+## Compléments en amont
+
+- `egui`, `eframe`, `ecolor`, `emath`, `epaint` et les autres crates de la même révision 0.35.0 : le [texte MIT amont](https://github.com/emilk/egui/blob/6f15dc0e16b26edce1fc2a05212eaf7e749c1d05/LICENSE-MIT) porte le copyright 2018–2021 d'Emil Ernerfeldt. Les conditions complémentaires des polices restent cumulatives.
+- `dasp_sample 0.11.0` : la [licence MIT amont](https://github.com/RustAudio/dasp/blob/97c3bb9b2363c0b46ac1633858bf1054fd02a980/LICENSE-MIT) mentionne les développeurs RustAudio en 2016.
+- `profiling 1.0.18` : la [licence MIT amont](https://github.com/aclysma/profiling/blob/8271551172eb6fa4cba47369aedd93790c623df9/LICENSE-MIT) mentionne Philip Degarmo et les autres contributeurs en 2020.
+- `realfft 3.5.0` : la version exacte déclare MIT et HEnquist comme auteur ; le [fichier amont actuel](https://github.com/HEnquist/realfft/blob/master/LICENSE) mentionne Henrik Enquist et les contributeurs en 2020. Son rattachement à la version 3.5.0 n'est pas démontré par la seule révision actuelle.
+
+Ces sources amont renseignent les mentions, sans constituer à elles seules la collecte de tous les textes ou notices de ces paquets.

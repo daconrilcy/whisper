@@ -10,6 +10,8 @@ Le tableau présente les fichiers de licence repérés **à la racine** de chaqu
 
 Les lignes de copyright identifiées dans les licences racine, ainsi que des mentions pour certaines ressources natives et polices, figurent dans le [relevé complémentaire](copyrights-notices-turbo.md). Elles restent à vérifier et à réunir avec les textes complets pour le paquet.
 
+Un [recueil de textes de licences candidats](recueil-licences-candidates-turbo.md) rassemble les fichiers disponibles, dont certains textes des polices et composants natifs ; il reste incomplet et inclut des alternatives ou outils pouvant ne pas être livrés.
+
 | Paquet | Version | PE candidats | Licence déclarée | Textes candidats à examiner |
 |---|---|---|---|---|
 | accesskit | 0.24.1 | D | MIT OR Apache-2.0 | [dépôt à la révision a55d3e1a](https://github.com/AccessKit/accesskit/tree/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969) : texte racine à vérifier |
