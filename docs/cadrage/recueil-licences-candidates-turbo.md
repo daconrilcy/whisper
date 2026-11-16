@@ -6,7 +6,42 @@ Décision : préparer ces textes pour l'assemblage L3 sans les présenter comme 
 
 Les textes suivants proviennent des fichiers de licence, notice ou copyright présents à la racine des archives répertoriées dans l'[index](index-notices-turbo.md). Les contenus identiques sont regroupés, leurs paquets et fichiers sources sont indiqués. Certaines entrées concernent des alternatives de licence ou des outils de compilation et peuvent ne pas s'appliquer à la distribution. Leur inclusion ne choisit pas automatiquement une licence ni ne prouve que les composants figurent dans le binaire.
 
-La collecte inclut les textes repérés pour les quatre polices, `libfvad`, `whisper.cpp` et les licences MIT et Apache fournies avec le runtime Rust ; elle ne démontre pas la complétude des notices de GGML ou du runtime Rust. Les licences absentes des racines des archives, les conditions CUDA et Visual C++, le modèle et les éventuelles notices supplémentaires situées dans les sources restent à compléter et vérifier. Les fins de lignes et espaces en fin de ligne ont été normalisés sans modification des mots des licences.
+La collecte inclut les textes repérés pour les quatre polices, `libfvad`, `whisper.cpp` et les licences MIT et Apache fournies avec le runtime Rust ; elle ne démontre pas la complétude des notices de GGML. La [notice Symphonia et le texte MPL 2.0](licence-mpl-symphonia.md) sont accompagnés des sources des six crates ; l'[archive des notices complètes du runtime Rust 1.98.1](notices-rust-1.98.1.zip) contient le fichier officiel `COPYRIGHT-library.html` fourni par la toolchain utilisée. Les licences absentes des racines des autres archives, les conditions CUDA et Visual C++, le modèle et les éventuelles notices supplémentaires situées dans les sources restent à compléter et vérifier. Les fins de lignes et espaces en fin de ligne ont été normalisés sans modification des mots des licences de ce recueil ; le fichier Rust archivé est inchangé.
+
+## Chromium — licence BSD candidate pour AccessKit
+
+Le texte suivant figure dans la notice Rust `COPYRIGHT.html` associée à BoringSSL. Il correspond en substance au fichier `LICENSE.chromium` référencé par les sources AccessKit, avec les commentaires `//` en moins. Consulter les révisions exactes indiquées dans l'[index](index-notices-turbo.md) et conserver également les copyrights 2018 et 2021 figurant dans les en-têtes des fichiers concernés.
+
+````text
+Copyright 2015 The Chromium Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+````
+
 
 ### Texte 001
 

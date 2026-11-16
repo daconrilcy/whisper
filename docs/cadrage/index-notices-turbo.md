@@ -12,6 +12,10 @@ Les lignes de copyright identifiées dans les licences racine, ainsi que des men
 
 Un [recueil de textes de licences candidats](recueil-licences-candidates-turbo.md) rassemble les fichiers disponibles, dont certains textes des polices et composants natifs ; il reste incomplet et inclut des alternatives ou outils pouvant ne pas être livrés.
 
+Pour Symphonia, la [notice MPL 2.0](licence-mpl-symphonia.md) et l'[archive des sources 0.5.5](sources-symphonia-0.5.5.zip) sont préparées ; l'archive inclut la notice. Pour le runtime Rust, [notices-rust-1.98.1.zip](notices-rust-1.98.1.zip) contient l'intégralité du fichier `COPYRIGHT-library.html` de la toolchain utilisée, avec identité de contenu vérifiée. Ces archives sont des entrées de travail suivies dans le dépôt, à remettre ou rendre disponibles selon les conditions applicables et le paquet finalement retenu.
+
+Attention aux licences au niveau des fichiers : des sources des crates AccessKit retenues portent aussi des mentions Chromium et renvoient à `LICENSE.chromium`, non présent à la racine des archives Cargo examinées. Les textes correspondants sont disponibles dans les dépôts amont aux révisions [a55d3e1a](https://github.com/AccessKit/accesskit/blob/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969/LICENSE.chromium) et [1bbcf100](https://github.com/AccessKit/accesskit/blob/1bbcf100942bac96c2c3a4a91cb67b0b20201a24/LICENSE.chromium) ; les notices et les droits de ces sources doivent être traités en plus des déclarations MIT/Apache. `accesskit/src/geometry.rs` signale également des parties issues de kurbo. Ces crates sont des entrées potentielles du desktop ; leur inclusion effective n'est pas ici démontrée.
+
 | Paquet | Version | PE candidats | Licence déclarée | Textes candidats à examiner |
 |---|---|---|---|---|
 | accesskit | 0.24.1 | D | MIT OR Apache-2.0 | [dépôt à la révision a55d3e1a](https://github.com/AccessKit/accesskit/tree/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969) : texte racine à vérifier |

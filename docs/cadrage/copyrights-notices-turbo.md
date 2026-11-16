@@ -241,3 +241,5 @@ Les chemins de cette table sont relatifs aux archives concernées sous la même 
 - `realfft 3.5.0` : la version exacte déclare MIT et HEnquist comme auteur ; le [fichier amont actuel](https://github.com/HEnquist/realfft/blob/master/LICENSE) mentionne Henrik Enquist et les contributeurs en 2020. Son rattachement à la version 3.5.0 n'est pas démontré par la seule révision actuelle.
 
 Ces sources amont renseignent les mentions, sans constituer à elles seules la collecte de tous les textes ou notices de ces paquets.
+
+Les en-têtes de sources des versions AccessKit du graphe desktop mentionnent également les auteurs AccessKit (années 2021 à 2025 selon les fichiers), les auteurs Chromium (2018 ou 2021) et, pour `accesskit/src/geometry.rs`, les auteurs kurbo (2018). Les en-têtes Chromium renvoient à `LICENSE.chromium` : voir les deux révisions et réserves dans l'[index](index-notices-turbo.md). Cette information n'apparaît pas dans la simple expression de licence des manifestes Cargo.
