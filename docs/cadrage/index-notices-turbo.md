@@ -18,6 +18,12 @@ Attention aux licences au niveau des fichiers : des sources des crates AccessKit
 
 Le [complément des notices](notices-complementaires-turbo.md) réunit les mentions AccessKit, Chromium et kurbo, propose le traitement des licences alternatives et rattache les archives sans fichier de licence racine aux textes déjà recueillis. Les mentions, éventuels fichiers `NOTICE` amont, la composition effective et le contenu final de la remise restent à contrôler ; les descriptions historiques « texte racine à vérifier » ci-dessous signifient qu'aucun texte racine n'a été trouvé dans l'archive Cargo.
 
+Une recherche récursive en lecture seule dans les 207 archives tierces disponibles de cet index n'a trouvé aucun nom de fichier contenant `NOTICE` ; elle a trouvé cinq fichiers racine `COPYRIGHT`, déjà repris dans le recueil, et `webrtc-vad/resources/libfvad/debian/copyright`, qui vise les fichiers `debian/*` plutôt que les sources C listées dans `webrtc-vad/build.rs`. Ce résultat est limité aux archives locales : il ne démontre pas l'absence de notices amont exclues des archives ni de notices de fichiers système. Dans les `compile_commands.json` des workers retenus, 24 unités CPU et 150 GPU ont été lues ; deux fichiers GGML compilés portent une mention YaRN MIT supplémentaire, consignée dans le complément. Les inclusions transitives et l'effet exact du linker restent à vérifier ou à couvrir par l'ensemble prudent des notices.
+
+Les bases de compilation lues sont `C:/wt/distcpu/target/parakeet-tests/cpu-distribution-x64-20261115/targets/cpu-distribution-release/release/build/whisper-rs-sys-7e7baee5cd0b3f4a/out/build/compile_commands.json` et `target/parakeet-tests/main-facades/targets/gpu2/release/build/whisper-rs-sys-63629e119addea23/out/build/compile_commands.json` dans le worktree de reprise. Ces sources sous `target` sont temporaires et doivent être archivées selon la règle du lot avant clôture.
+
+Les demandes du fichier nommé exactement `NOTICE` à la racine des révisions amont AccessKit `a55d3e1a` et `1bbcf100`, egui `6f15dc0e` et Symphonia `6d533f26` ont retourné HTTP 404. Cela ne prouve pas l'absence d'un fichier autrement nommé ou dans un sous-répertoire. Les textes et copyrights identifiés restent à fournir conformément à leurs licences.
+
 | Paquet | Version | PE candidats | Licence déclarée | Textes candidats à examiner |
 |---|---|---|---|---|
 | accesskit | 0.24.1 | D | MIT OR Apache-2.0 | [dépôt à la révision a55d3e1a](https://github.com/AccessKit/accesskit/tree/a55d3e1a18bb9ef0e4bccc9083fb13c3e0ad8969) : texte racine à vérifier |

@@ -26,6 +26,8 @@ Ces mentions proviennent des en-têtes des sources en cache ; les liens amont au
 | Six crates `symphonia 0.5.5` | [Notice MPL et archive des sources](licence-mpl-symphonia.md). |
 | `whisper-rs-sys 0.15.0` | Unlicense déclaré ; texte dans le [recueil, texte 017](recueil-licences-candidates-turbo.md#texte-017), en plus de la licence MIT de whisper.cpp et des notices natives applicables. |
 
+Les sources GGML effectivement listées pour les builds CPU et GPU contiennent aussi une adaptation de YaRN : les commentaires de `ggml-cpu/ops.cpp` et `ggml-cuda/rope.cu` déclarent MIT et portent le copyright 2023 de Jeffrey Quesnelle et Bowen Peng. Conserver cette mention avec le texte MIT commun ci-dessous en plus de la licence MIT des auteurs ggml. Le fichier CUDA n'est concerné que par le build GPU ; le fichier CPU est listé dans les deux builds. Leur présence dans les commandes de compilation ne prouve pas à elle seule que chaque objet a été conservé dans le PE.
+
 Les sources amont exactes et réserves figurent dans le [relevé des copyrights](copyrights-notices-turbo.md). Les textes fournis par l'amont et toute notice supplémentaire exigée doivent être préservés dans la remise.
 
 ## Texte MIT commun
