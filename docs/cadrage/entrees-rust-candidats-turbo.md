@@ -27,6 +27,12 @@ Les six crates Symphonia 0.5.5 listées pour chacun des candidats déclarent MPL
 
 Les sources examinées sont dans le cache persistant du worktree, sous `target/cargo-home-shared/registry/src/index.crates.io-1949cf8c6b5b557f/` ; elles ne constituent pas des notices remises. Les notices définitives doivent être collectées et vérifiées pour les versions effectivement retenues, y compris les copyrights et les clauses `NOTICE` pertinentes, puis intégrées au livrable de L3.
 
+### Complément : nouveau desktop et code natif de détection vocale
+
+Le desktop reconstruit le 16 novembre porte le SHA-256 `aca1b94b230b14d21ea73f89f10d464b241f5a5f9c28caed7849f9c701bba414`. La comparaison en lecture seule retrouve les quatre fichiers de police complets dans ce PE également, aux offsets respectifs 11 416 509 (`Hack-Regular.ttf`), 11 725 934 (`NotoEmoji-Regular.ttf`), 12 144 738 (`Ubuntu-Light.ttf`) et 12 506 414 (`emoji-icon-font.ttf`). Les notices et copyrights à compléter restent ceux indiqués ci-dessus. Une comparaison des journaux des deux builds frais trouve 198 unités `rustc` distinctes dans chaque cas et les mêmes tuples nom de crate, type et références `--extern` avec leurs noms d'artefacts. Cela permet de réutiliser le graphe des 178 unités en amont du desktop ci-dessous comme inventaire indicatif du nouveau build ; cela ne prouve pas que les mêmes objets ont été conservés par le linker ni que les notices sont complètes.
+
+`webrtc-vad 0.4.0` déclare MIT et son build compile `libfvad` ; le journal de compilation du nouveau desktop montre une recherche de bibliothèque native dans sa sortie de build. Le paquet source contient aussi `resources/libfvad/LICENSE`, qui porte les copyrights des auteurs WebRTC et de Daniel Pirch et des conditions de redistribution binaire, ainsi que `resources/libfvad/PATENTS`. Les conserver parmi les éléments à examiner pour les notices du desktop, sans déduire du seul graphe Cargo la présence de chaque objet C dans le PE. La licence MIT de la crate ne remplace pas ces textes. [Source amont libfvad à la révision citée par la crate](https://github.com/dpirch/libfvad/blob/9713e439efe24d77575cb5fbc63d545acc4e5b21/LICENSE).
+
 ### Desktop
 
 Unités rustc parcourues : 178 ; références rlib/rmeta non résolues : 0.
