@@ -12,6 +12,7 @@ native-tests = ["whisper-core/native-tests", "whisper-adapters/native-tests"]
 [dependencies]
 whisper-core.workspace = true
 whisper-adapters.workspace = true
+renamest = "=0.1.3"
 
 [lints]
 workspace = true

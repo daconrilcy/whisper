@@ -8,8 +8,8 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $expectedLot = 'target/parakeet-tests/cpu-distribution-x64-20261115'
 if ($LotRoot -cne $expectedLot) { throw "-LotRoot must be '$expectedLot'." }
 $lotPath = [IO.Path]::GetFullPath((Join-Path $repo $LotRoot))
-$stagePath = Join-Path $lotPath 'turbo-package-candidate'
-$claimPath = Join-Path $lotPath 'turbo-package-candidate.stage-claim'
+$stagePath = Join-Path $lotPath 'turbo-package-l3-candidate'
+$claimPath = Join-Path $lotPath 'turbo-package-l3-candidate.stage-claim'
 if (-not (Test-Path -LiteralPath $lotPath -PathType Container)) { throw "The authorized lot root must already exist: $lotPath" }
 $resolvedLotPath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $lotPath).Path).TrimEnd('\')
 if (-not $resolvedLotPath.Equals($lotPath.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
@@ -60,7 +60,18 @@ function Invoke-PathSelfTest {
         $rejected = $false
         try { Assert-NoReparsePath (Join-Path $junctionPath 'child') $repo } catch { $rejected = $true }
         if (-not $rejected) { throw 'Reparse-path SelfTest accepted an ancestor junction.' }
-        Write-Output 'TURBO_STAGE_PATH_SELFTEST PASS positive=1 negative=1'
+        $manifestFixture = @'
+(
+    "notices-candidate/license.txt",
+    "notices/license.txt",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+)
+'@
+        Assert-NoticeHashMatchesInstaller $manifestFixture 'license.txt' ('a' * 64)
+        $hashMismatchRejected = $false
+        try { Assert-NoticeHashMatchesInstaller $manifestFixture 'license.txt' ('b' * 64) } catch { $hashMismatchRejected = $true }
+        if (-not $hashMismatchRejected) { throw 'Notice-hash SelfTest accepted a divergent installer hash.' }
+        Write-Output 'TURBO_STAGE_PATH_SELFTEST PASS positive=2 negative=2'
     } finally {
         if (Test-Path -LiteralPath $junctionPath) {
             $link = Get-Item -LiteralPath $junctionPath -Force
@@ -82,7 +93,6 @@ function Invoke-PathSelfTest {
 Assert-NoReparsePath $lotPath $repo
 Assert-NoReparsePath $stagePath $repo
 Assert-NoReparsePath $claimPath $repo
-if ($SelfTest) { Invoke-PathSelfTest; exit 0 }
 if (Test-Path -LiteralPath $stagePath) { throw "Stage already exists; refusing to overwrite: $stagePath" }
 if (Test-Path -LiteralPath $claimPath) { throw "Stage claim already exists; refusing to retry: $claimPath" }
 
@@ -104,13 +114,16 @@ $noticeSources = @(
     'docs/cadrage/index-notices-turbo.md',
     'docs/cadrage/recueil-licences-candidates-turbo.md',
     'docs/cadrage/notices-complementaires-turbo.md',
-    'docs/cadrage/notices-cuda-entetes.md'
+    'docs/cadrage/notices-cuda-entetes.md',
+    'crates/whisper-bootstrap/LICENSE-renamest-MIT'
 )
 $modelPath = 'C:/dev/whisper/models/ggml-large-v3-turbo.bin'
 $modelSha256 = '1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
+$bootstrapSource = Join-Path $lotPath 'targets/bootstrap-v1-l3-final/release/whisper-bootstrap.exe'
 
 foreach ($source in $sources) { Assert-NoReparsePath $source.Path ([IO.Path]::GetPathRoot($source.Path)) }
 Assert-NoReparsePath $modelPath ([IO.Path]::GetPathRoot($modelPath))
+Assert-NoReparsePath $bootstrapSource $repo
 foreach ($relative in $noticeSources) { Assert-NoReparsePath (Join-Path $repo $relative) $repo }
 
 function Assert-FileHash([string]$Path, [string]$Expected) {
@@ -119,10 +132,30 @@ function Assert-FileHash([string]$Path, [string]$Expected) {
     if ($observed -cne $Expected) { throw "SHA-256 mismatch for '$Path': $observed" }
 }
 
+function Get-InstallerNoticeHash([string]$InstallerSource, [string]$Name) {
+    $escapedName = [regex]::Escape($Name)
+    $pattern = '\(\s*"notices-candidate/' + $escapedName + '",\s*"notices/' + $escapedName + '",\s*"([0-9a-f]{64})"\s*,?\s*\)'
+    $matches = [regex]::Matches($InstallerSource, $pattern)
+    if ($matches.Count -ne 1) { throw "Installer notice hash is missing or ambiguous: $Name" }
+    return $matches[0].Groups[1].Value
+}
+
+function Assert-NoticeHashMatchesInstaller([string]$InstallerSource, [string]$Name, [string]$ObservedHash) {
+    $expected = Get-InstallerNoticeHash $InstallerSource $Name
+    if ($ObservedHash -cne $expected) { throw "Installer notice hash mismatch for '$Name': $ObservedHash" }
+}
+
+$installerSourceText = Get-Content -LiteralPath (Join-Path $repo 'crates/whisper-bootstrap/src/installer.rs') -Raw
+if ($SelfTest) { Invoke-PathSelfTest; exit 0 }
+
 foreach ($source in $sources) { Assert-FileHash $source.Path $source.Sha256 }
 Assert-FileHash $modelPath $modelSha256
+if (-not (Test-Path -LiteralPath $bootstrapSource -PathType Leaf)) { throw "Required bootstrap is missing: $bootstrapSource" }
+$bootstrapSha256 = (Get-FileHash -LiteralPath $bootstrapSource -Algorithm SHA256).Hash.ToLowerInvariant()
 foreach ($relative in $noticeSources) {
-    if (-not (Test-Path -LiteralPath (Join-Path $repo $relative) -PathType Leaf)) { throw "Required candidate notice is missing: $relative" }
+    $name = Split-Path -Leaf $relative
+    $noticeHash = (Get-FileHash -LiteralPath (Join-Path $repo $relative) -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-NoticeHashMatchesInstaller $installerSourceText $name $noticeHash
 }
 foreach ($source in @($sources | Where-Object { $_.Name -match '\.dll$' -and $_.Name -match '^(msvcp|vcruntime)' })) {
     $signature = Get-AuthenticodeSignature -LiteralPath $source.Path
@@ -137,6 +170,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop PE/import check failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'CPU worker PE/import check failed.' }
 & $powerShell -NoProfile -File $checker -Kind Gpu -Path $sources[2].Path | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'GPU worker PE/import check failed.' }
+
+$bootstrapReport = & $powerShell -NoProfile -File $checker -Kind Cpu -Path $bootstrapSource | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $bootstrapReport.Verdict -cne 'PASS' -or $bootstrapReport.Machine -cne 'AMD64') {
+    throw 'Bootstrap PE/import check failed or is not AMD64.'
+}
 
 $claim = $null
 try {
@@ -157,31 +195,42 @@ try {
         try { $input.CopyTo($output) } finally { $output.Dispose(); $input.Dispose() }
         Assert-FileHash $destination $source.Sha256
     }
+    $bootstrapDestination = Join-Path $stagePath 'whisper-bootstrap.exe'
+    $bootstrapInput = [IO.File]::OpenRead($bootstrapSource)
+    $bootstrapOutput = [IO.File]::Open($bootstrapDestination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $bootstrapInput.CopyTo($bootstrapOutput) } finally { $bootstrapOutput.Dispose(); $bootstrapInput.Dispose() }
+    $stagedBootstrapSha256 = (Get-FileHash -LiteralPath $bootstrapDestination -Algorithm SHA256).Hash.ToLowerInvariant()
+    $currentBootstrapSha256 = (Get-FileHash -LiteralPath $bootstrapSource -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($stagedBootstrapSha256 -cne $bootstrapSha256 -or $currentBootstrapSha256 -cne $bootstrapSha256) {
+        throw 'Bootstrap source or staged copy changed during assembly.'
+    }
     foreach ($relative in $noticeSources) {
         $name = Split-Path -Leaf $relative
         $destination = Join-Path $noticePath $name
+        $expectedNoticeHash = Get-InstallerNoticeHash $installerSourceText $name
         $input = [IO.File]::OpenRead((Join-Path $repo $relative))
         $output = [IO.File]::Open($destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
         try { $input.CopyTo($output) } finally { $output.Dispose(); $input.Dispose() }
+        Assert-FileHash $destination $expectedNoticeHash
     }
     $readme = @'
-# Candidat de ressources Turbo — non installable
+# Candidat local WhisperTurbo — L3
 
-Ce staging conserve les exécutables et DLL vérifiés pour poursuivre T33. Il ne constitue pas un installateur : T32 attend une primitive de publication atomique sans écrasement conforme au contrat d'installation.
+Ce dossier est assemblé une seule fois par `ci/stage-turbo-package.ps1` sous `target/parakeet-tests/cpu-distribution-x64-20261115/turbo-package-l3-candidate/`. Le staging antérieur `turbo-package-candidate/` est préservé ; une réexécution refuse d'écraser cette nouvelle cible.
 
-Le modèle n'est pas inclus. L'utilisateur le fournit hors ligne ; le fichier source vérifié lors de ce staging est ggml-large-v3-turbo.bin avec le SHA-256 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69.
+Lancez `whisper-bootstrap.exe` depuis ce dossier. Après vérification CPU, il demande le chemin du modèle fourni séparément, puis une confirmation. L'installation neuve est préparée dans un répertoire frère sous `%LOCALAPPDATA%` et publiée vers `%LOCALAPPDATA%\WhisperTurbo` sans remplacement d'une destination existante. Elle contient `app/`, `models/` et `notices/`. Aucun modèle n'est inclus. Le modèle attendu est `ggml-large-v3-turbo.bin`, SHA-256 `1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`.
 
-Les DLL Visual C++ proviennent de VC/Redist de Visual Studio Build Tools 2022, sont restées non modifiées et leurs signatures ont été contrôlées. Leur redistribution avec le programme dépend des conditions de licence Visual Studio Community déclarées par le distributeur. Les DLL CUDA correspondent au toolkit 12.9 ; leurs conditions NVIDIA s'appliquent. Le pilote NVIDIA et nvcuda.dll restent un prérequis externe. Les notices dans notices-candidate sont un ensemble préparatoire prudent et restent à rattacher aux composants effectivement livrés.
+Configuration provisoire : Windows 11 x64 Home/Pro supporté à la date de publication à revalider ; plancher CPU x86-64-v2 ; version CUDA 12.9 et codegen GPU sm_61 ; pilote NVIDIA compatible requis. Les DLL Visual C++ proviennent des Build Tools 2022 et sont non modifiées ; redistribution dépendante de la licence Visual Studio Community déclarée. Les DLL CUDA 12.9 sont soumises aux conditions NVIDIA. Les notices candidates sont jointes sous `notices-candidate/`.
 
-Le worker GPU a été compilé pour sm_61. Aucune inférence CUDA, qualification sur machine propre ou validation utilisateur n'est attestée ici.
+La publication utilise `renamest 0.1.3` `rename_exclusive` sans fallback. Sur Windows, la crate appelle `MoveFileExW` sans option de remplacement ; la documentation Microsoft consultée ne garantit pas explicitement l'atomicité. Cette limite est acceptée pour ce candidat. L'alternative MIT de `renamest` est sélectionnée parmi `MIT OR Apache-2.0`; son texte exact et son copyright sont joints dans `notices-candidate/LICENSE-renamest-MIT`. L'essai d'inférence GPU, la première utilisation en profil Windows propre et la validation utilisateur restent NOT RUN ; ce dossier n'est pas une distribution qualifiée.
 '@
-    $readmePath = Join-Path $stagePath 'README-CANDIDATE.md'
+    $readmePath = Join-Path $stagePath 'README-INSTALL-CANDIDATE.md'
     $readmeStream = [IO.File]::Open($readmePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try {
         $readmeBytes = [Text.UTF8Encoding]::new($false).GetBytes($readme)
         $readmeStream.Write($readmeBytes, 0, $readmeBytes.Length)
     } finally { $readmeStream.Dispose() }
-    Write-Output "TURBO_RESOURCE_STAGE PASS path=$stagePath files=$($sources.Count) notices=$($noticeSources.Count) model=verified-but-not-copied installer=BLOCKED-T32"
+    Write-Output "TURBO_RESOURCE_STAGE PASS path=$stagePath payload_files=$($sources.Count) bootstrap_sha256=$bootstrapSha256 notices=$($noticeSources.Count) model=verified-but-not-copied"
 } finally {
     if ($claim) { $claim.Dispose() }
 }
