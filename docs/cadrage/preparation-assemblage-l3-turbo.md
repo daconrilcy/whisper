@@ -8,6 +8,14 @@ Ce document prépare L3 à partir du [plan de distribution](plan-implementation-
 
 Actualisation : le [bilan L2](bilan-l2-distribution-turbo.md) clôt le candidat d'implémentation et remplace les états de travail historiques ci-dessous. L'assemblage L3 et les conditions effectives de remise restent à vérifier.
 
+### Reprise L3 — état du 16 novembre
+
+Le sous-ensemble T31 et le staging de ressources ont été relus indépendamment : `CLEAN` après deux cycles de correction. Le bootstrap réutilise la sonde CPU existante, distingue refus et indétermination, puis indique que l'installation n'est pas disponible. SelfTests du staging et de la garde, `fmt --check`, N1 et Clippy structurel ont réussi. Le build release explicite `-C target-cpu=x86-64` du bootstrap est AMD64, sans import CUDA, SHA-256 `d11a4f8242239fc6b045571128978de6a1d061556aa0e96f8e859620fb7582e1`. Ce binaire n'est pas un installateur opérationnel.
+
+Un dossier de travail `target/parakeet-tests/cpu-distribution-x64-20261115/turbo-package-candidate/` contient neuf PE/DLL, sept notices préparatoires et un avertissement ; chaque copie a été comparée à sa source et les trois PE ont passé leur contrôle d'imports. Le modèle a été vérifié mais n'y est pas copié. Ce dossier n'est pas un paquet installable ni une preuve pérenne ; les traces de campagne restent à archiver lors de la clôture de L3. Les copies et les cibles de compilation sont conservées pour la suite du lot.
+
+T32 reste ouvert : le contrat exige la publication de l'arborescence préparée sans écraser une racine créée concurremment. `std::fs::rename` ne garantit pas ce refus sur Windows. La bibliothèque Rust [renamest 0.1.3](https://docs.rs/crate/renamest/0.1.3) propose `rename_exclusive`, qui emploie `MoveFileExW` sans option de remplacement ; elle n'est pas dans le manifeste ni le cache du projet. Son auteur indique que l'atomicité de l'opération Windows n'est pas explicitement garantie par la documentation Microsoft. Son ajout et son téléchargement exigent un accord précis ; aucun ajout ni téléchargement n'a été effectué. L'alternative consistant à créer la racine puis la remplir rendrait une installation partielle visible et demanderait une modification explicite du contrat. Les essais de premier lancement et l'inférence T33 restent `NOT RUN`.
+
 ### Vérification du candidat au 16 novembre
 
 La trace de dépendances Ninja CPU historique couvre 24 unités et 28 en-têtes du projet, mais ne liste pas les en-têtes système réellement ouverts. Une recherche statique, incluant toutes les branches conditionnelles, trouve 89 noms d'en-têtes système : 43 présents dans les en-têtes MSVC installés, 14 dans l'UCRT du SDK Windows et un dans le SDK Windows UM ; 31 noms ne sont pas trouvés dans ces répertoires et comprennent notamment des alternatives d'autres plateformes. Ce décompte ne prouve pas leur utilisation effective. Le plan n'exige pas de liste exhaustive des en-têtes système ouverts comme condition de gate.
