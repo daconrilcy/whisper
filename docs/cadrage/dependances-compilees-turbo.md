@@ -12,7 +12,7 @@ Sources de travail : desktop `target/parakeet-tests/cpu-distribution-x64-2026111
 
 ## Desktop Turbo
 
-| Paquet compil� | Version | Licence d�clar�e |
+| Paquet compilé | Version | Licence déclarée |
 |---|---|---|
 | accesskit | 0.24.1 | MIT OR Apache-2.0 |
 | accesskit_consumer | 0.35.0 | MIT OR Apache-2.0 |
@@ -155,9 +155,9 @@ Sources de travail : desktop `target/parakeet-tests/cpu-distribution-x64-2026111
 | web-time | 1.1.0 | MIT OR Apache-2.0 |
 | webbrowser | 1.2.4 | MIT OR Apache-2.0 |
 | webrtc-vad | 0.4.0 | MIT |
-| whisper-adapters | 0.1.0 | non d�clar�e |
-| whisper-core | 0.1.0 | non d�clar�e |
-| whisper-desktop | 0.1.0 | non d�clar�e |
+| whisper-adapters | 0.1.0 | non déclarée |
+| whisper-core | 0.1.0 | non déclarée |
+| whisper-desktop | 0.1.0 | non déclarée |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
@@ -191,7 +191,7 @@ Sources de travail : desktop `target/parakeet-tests/cpu-distribution-x64-2026111
 
 ## Worker GPU
 
-| Paquet compil� | Version | Licence d�clar�e |
+| Paquet compilé | Version | Licence déclarée |
 |---|---|---|
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 |
 | bindgen | 0.72.1 | BSD-3-Clause |
@@ -240,11 +240,11 @@ Sources de travail : desktop `target/parakeet-tests/cpu-distribution-x64-2026111
 | syn | 2.0.119 | MIT OR Apache-2.0 |
 | unicode-ident | 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | version_check | 0.9.5 | MIT/Apache-2.0 |
-| whisper-core | 0.1.0 | non d�clar�e |
+| whisper-core | 0.1.0 | non déclarée |
 | whisper-rs | 0.16.0 | Unlicense |
 | whisper-rs-sys | 0.15.0 | Unlicense |
-| whisper-worker-common | 0.1.0 | non d�clar�e |
-| whisper-worker-gpu | 0.1.0 | non d�clar�e |
+| whisper-worker-common | 0.1.0 | non déclarée |
+| whisper-worker-gpu | 0.1.0 | non déclarée |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 |
@@ -259,3 +259,64 @@ Sources de travail : desktop `target/parakeet-tests/cpu-distribution-x64-2026111
 
 
 Le détail des DLL, des licences NVIDIA/Microsoft, du modèle et des portes restantes figure dans [l'inventaire](inventaire-contrat-installation-turbo.md) et la [préparation L3](preparation-assemblage-l3-turbo.md). Les expressions alternatives ou combinées, notamment MPL-2.0, Unicode-3.0 et les licences de polices, exigent une revue des composants effectivement distribués et de leurs notices.
+
+## Rectification des traces multilignes
+
+La première extraction omettait les commandes dont l'environnement contient des retours à la ligne. La lecture des blocs complets ajoute 32 paquets au desktop et 15 au GPU : respectivement 206 et 78 paquets compilés repérés, build compris. Leurs licences déclarées suivent. Cette rectification ne transforme pas les paquets compilés en preuve d'inclusion dans le PE.
+
+### Desktop — compléments
+
+| Paquet | Version | Licence déclarée |
+|---|---|---|
+| bitflags | 1.3.2 | MIT/Apache-2.0 |
+| bitflags | 2.13.2 | MIT OR Apache-2.0 |
+| cc | 1.6.0 | MIT OR Apache-2.0 |
+| cfg-if | 1.0.5 | MIT OR Apache-2.0 |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
+| displaydoc | 0.2.7 | MIT OR Apache-2.0 |
+| either | 1.18.0 | MIT OR Apache-2.0 |
+| extended | 0.1.0 | MIT |
+| flate2 | 1.1.10 | MIT OR Apache-2.0 |
+| futures | 0.3.33 | MIT OR Apache-2.0 |
+| futures-channel | 0.3.33 | MIT OR Apache-2.0 |
+| futures-core | 0.3.33 | MIT OR Apache-2.0 |
+| futures-executor | 0.3.33 | MIT OR Apache-2.0 |
+| futures-io | 0.3.34 | MIT OR Apache-2.0 |
+| futures-macro | 0.3.33 | MIT OR Apache-2.0 |
+| futures-sink | 0.3.34 | MIT OR Apache-2.0 |
+| futures-task | 0.3.33 | MIT OR Apache-2.0 |
+| futures-util | 0.3.33 | MIT OR Apache-2.0 |
+| litrs | 1.0.0 | MIT OR Apache-2.0 |
+| log | 0.4.34 | MIT OR Apache-2.0 |
+| memchr | 2.8.3 | Unlicense OR MIT |
+| pin-project-lite | 0.2.17 | Apache-2.0 OR MIT |
+| primal-check | 0.3.4 | MIT OR Apache-2.0 |
+| same-file | 1.0.6 | Unlicense/MIT |
+| scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 |
+| stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
+| tracing | 0.1.44 | MIT |
+| tracing-core | 0.1.36 | MIT |
+| typenum | 1.20.1 | MIT OR Apache-2.0 |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 |
+| wmi | 0.18.4 | MIT OR Apache-2.0 |
+
+### GPU — compléments
+
+| Paquet | Version | Licence déclarée |
+|---|---|---|
+| bitflags | 1.3.2 | MIT/Apache-2.0 |
+| bitflags | 2.13.2 | MIT OR Apache-2.0 |
+| cc | 1.6.0 | MIT OR Apache-2.0 |
+| cfg-if | 1.0.5 | MIT OR Apache-2.0 |
+| cmake | 0.1.58 | MIT OR Apache-2.0 |
+| cpufeatures | 0.2.17 | MIT OR Apache-2.0 |
+| either | 1.18.0 | MIT OR Apache-2.0 |
+| extended | 0.1.0 | MIT |
+| glob | 0.3.4 | MIT OR Apache-2.0 |
+| log | 0.4.34 | MIT OR Apache-2.0 |
+| memchr | 2.8.3 | Unlicense OR MIT |
+| regex | 1.13.1 | MIT OR Apache-2.0 |
+| scopeguard | 1.2.0 | MIT OR Apache-2.0 |
+| sha2 | 0.10.9 | MIT OR Apache-2.0 |
+| typenum | 1.20.1 | MIT OR Apache-2.0 |
