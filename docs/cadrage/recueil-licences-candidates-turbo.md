@@ -8,6 +8,29 @@ Les textes suivants proviennent des fichiers de licence, notice ou copyright pr�
 
 La collecte inclut les textes repérés pour les quatre polices, `libfvad`, `whisper.cpp` et les licences MIT et Apache fournies avec le runtime Rust ; elle ne démontre pas la complétude des notices de GGML. La [notice Symphonia et le texte MPL 2.0](licence-mpl-symphonia.md) sont accompagnés des sources des six crates ; l'[archive des notices complètes du runtime Rust 1.98.1](notices-rust-1.98.1.zip) contient le fichier officiel `COPYRIGHT-library.html` fourni par la toolchain utilisée. Les licences absentes des racines des autres archives, les conditions CUDA et Visual C++, le modèle et les éventuelles notices supplémentaires situées dans les sources restent à compléter et vérifier. Les fins de lignes et espaces en fin de ligne ont été normalisés sans modification des mots des licences de ce recueil ; le fichier Rust archivé est inchangé.
 
+## Exception LLVM — en-têtes CUDA candidats
+
+Des en-têtes du toolkit CUDA utilisés lors du build GPU déclarent `Apache-2.0 WITH LLVM-exception`. Le texte Apache-2.0 figure notamment dans le texte 002 ci-dessous. L'exception suivante provient du fichier `share/doc/rust/licenses/LLVM-exception.txt` de la toolchain Rust 1.98.1.
+
+````text
+---- LLVM Exceptions to the Apache 2.0 License ----
+
+   As an exception, if, as a result of your compiling your source code, portions
+   of this Software are embedded into an Object form of such source code, you
+   may redistribute such embedded portions in such Object form without complying
+   with the conditions of Sections 4(a), 4(b) and 4(d) of the License.
+
+   In addition, if you combine or link compiled forms of this Software with
+   software that is licensed under the GPLv2 ("Combined Software") and if a
+   court of competent jurisdiction determines that the patent provision (Section
+   3), the indemnity provision (Section 9) or other Section of the License
+   conflicts with the conditions of the GPLv2, you may retroactively and
+   prospectively choose to deem waived or otherwise exclude such Section(s) of
+   the License, but only in their entirety and only with respect to the Combined
+   Software.
+````
+
+
 ## Chromium — licence BSD candidate pour AccessKit
 
 Le texte suivant figure dans la notice Rust `COPYRIGHT.html` associée à BoringSSL. Il correspond en substance au fichier `LICENSE.chromium` référencé par les sources AccessKit, avec les commentaires `//` en moins. Consulter les révisions exactes indiquées dans l'[index](index-notices-turbo.md) et conserver également les copyrights 2018 et 2021 figurant dans les en-têtes des fichiers concernés.
