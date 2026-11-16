@@ -10,6 +10,8 @@ La détection se limite aux blocs et motifs reconnus : elle ne démontre pas l'a
 
 Une recherche complémentaire sur l'intégralité des 51 fichiers sans bloc reconnu dans les 120 premières lignes n'a trouvé aucun des mêmes marqueurs de copyright ou licence. Cela ne signifie pas qu'ils sont sans licence : beaucoup sont des en-têtes générés `cuda/__ptx`, et les conditions des composants doivent aussi être déterminées depuis le toolkit et le projet amont. Le macro local `CCCL_VERSION` vaut `2008002` ; la [licence CCCL 2.8.2](https://github.com/NVIDIA/cccl/blob/v2.8.2/LICENSE) indique notamment Apache-2.0 avec exception LLVM pour libcu++, Apache-2.0 avec exceptions pour Thrust et BSD 3 clauses pour CUB. La correspondance octet à octet de l'ensemble du toolkit avec ce tag n'est pas établie.
 
+Sur ces 51 fichiers, 50 sont sous `cuda/__ptx/instructions/generated/` et un sous `cub/detail/launcher/cuda_runtime.cuh`. Les chemins et le numéro de version les rapprochent respectivement de libcu++ et de CUB ; le texte de licence CCCL fournit donc une base prudente pour ces familles. Sans comparaison complète des fichiers du toolkit avec la version amont, cette correspondance reste une attribution par famille, pas une preuve d'identité des sources. Les 51 chemins restent retrouvables dans la sortie Ninja archivée avec l'[index](index-notices-turbo.md).
+
 ### Notice CUDA 001
 
 En-têtes : `builtin_types.h` ; `sm_20_intrinsics.hpp` ; `sm_30_intrinsics.h` ; `sm_30_intrinsics.hpp` ; `vector_functions.h` ; `vector_functions.hpp`.
