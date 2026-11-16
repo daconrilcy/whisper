@@ -6,6 +6,14 @@ Décision : l'implémentation et les campagnes L3 attendent un mandat de lot apr
 
 Ce document prépare L3 à partir du [plan de distribution](plan-implementation-distribution-cpu-x64.md) et de l'[inventaire des ressources](inventaire-contrat-installation-turbo.md). Il ne déclare pas L2 terminé. État de travail : `C:/wt/distcpu-l2-reprise`, base L1 `26da7b6e`, changements T21/T22 non commités. Les candidats desktop et GPU compilés sont des entrées de travail ; les octets à livrer ne sont pas figés.
 
+### Vérification du candidat au 16 novembre
+
+La trace de dépendances Ninja CPU historique couvre 24 unités et 28 en-têtes du projet, mais ne liste pas les en-têtes système réellement ouverts. Une recherche statique, incluant toutes les branches conditionnelles, trouve 89 noms d'en-têtes système : 43 présents dans les en-têtes MSVC installés, 14 dans l'UCRT du SDK Windows et un dans le SDK Windows UM ; 31 noms ne sont pas trouvés dans ces répertoires et comprennent notamment des alternatives d'autres plateformes. Ce décompte ne prouve pas leur utilisation effective. Le plan n'exige pas de liste exhaustive des en-têtes système ouverts comme condition de gate.
+
+Sur le candidat de travail inchangé, SelfTest de la garde, N1 sans `CARGO_TARGET_DIR`, contrôles PE des trois exécutables candidats, les trois sélections worker CPU et Clippy structurel ont réussi ; `fmt --check` a également réussi. N1 compte 974 tests réussis et 129 ignorés. Les résultats ignorés et les essais matériels différés ne sont pas des validations matérielles. Les traces de ces commandes restent sous `target/parakeet-tests/cpu-distribution-x64-20261115/scratch/` et doivent être archivées avant clôture selon la règle de rétention.
+
+La gate L2 ne peut pas être déclarée passée : T12/T22 demande une ligne de capacités au démarrage de chaque worker et son relai attribué au processus ; le démarrage du worker GPU actuel ne l'émet pas, et son relai reste désactivé conformément à la décision T22 tant que son identité n'est pas établie. La correction et sa validation restent à faire avant de fixer de nouveaux PE. Les éléments précédents du présent document décrivent des états de travail successifs, et les droits et ressources restent à vérifier au regard des fichiers effectivement retenus pour L3.
+
 ## Entrées et prérequis de L3
 
 1. Fermer la gate L2 prévue : composition Turbo revue et vérifiée, worker CPU et GPU release identifiés, imports et options de compilation attribués à leurs PE, N1 et Clippy applicables réussis ; relier le desktop final aux références de workers selon le contrat retenu. La preuve de reconstruction après changement du marqueur et des références reste ouverte.
