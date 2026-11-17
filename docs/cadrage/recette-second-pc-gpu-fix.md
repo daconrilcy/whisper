@@ -1,0 +1,66 @@
+# Recette du candidat corrigé sur le second PC
+
+Avancée : candidat corrigé assemblé et vérifié automatiquement ; la recette Windows reste à effectuer par l'utilisateur.
+Blocage : la disparition de la fenêtre `nvcuda.dll` et le fonctionnement du nouveau candidat sans NVIDIA ne sont pas encore observés sur le second PC.
+Décision : utiliser une installation isolée neuve et conserver l'ancienne recette.
+
+## 1. Copier les fichiers
+
+Sur le premier PC, copiez dans un même dossier sur le second PC :
+
+1. Le **contenu entier** du dossier `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\turbo-package-gpu-fix\`, placé dans un sous-dossier nommé `paquet`.
+2. Le modèle `C:\dev\whisper\models\ggml-large-v3-turbo.bin`, à côté de `paquet`.
+3. Le fichier `C:\wt\distcpu-l2-reprise\docs\cadrage\feas-pm-01-corpus\fr_passage_28-32.wav`, à côté de `paquet`.
+
+Le dossier choisi doit donc contenir `paquet`, `ggml-large-v3-turbo.bin` et `fr_passage_28-32.wav`. Le modèle est fourni séparément ; ne modifiez aucun fichier du paquet. Prévoyez au moins 5 Gio libres pour les copies et l'installation.
+
+## 2. Vérifier et installer
+
+Sur le second PC, ouvrez une nouvelle fenêtre **PowerShell**, copiez le bloc ci-dessous en entier, puis appuyez sur Entrée. Quand il le demande, collez le chemin du dossier qui contient `paquet`, le modèle et le WAV. Le bloc vérifie les empreintes, crée un dossier `profil-gpu-fix` neuf et lance l'installateur. Si ce dossier existe déjà, il s'arrête sans l'écraser.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$base = (Read-Host 'Chemin du dossier contenant paquet, modèle et WAV').Trim().Trim('"')
+$files = @{
+    'paquet\whisper-bootstrap.exe' = '25205a05500fecd2d39a237d6d8c9caab00b7ed1e442f0bed6636f84f6476ea3'
+    'paquet\app\whisper-desktop.exe' = 'd3a288b1a455e069b5ad0e6a93cd348279fbee200b2fbafd809d4a0c83b91613'
+    'paquet\app\whisper-worker-cpu.exe' = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+    'paquet\app\whisper-worker-gpu.exe' = 'd874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9'
+    'ggml-large-v3-turbo.bin' = '1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
+    'fr_passage_28-32.wav' = '1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad'
+}
+foreach ($name in $files.Keys) {
+    $path = Join-Path $base $name
+    if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $files[$name]) {
+        throw "Fichier différent du candidat : $name"
+    }
+}
+$package = Join-Path $base 'paquet'
+if (@(Get-ChildItem -LiteralPath $package -Recurse -File).Count -ne 19) {
+    throw 'Le paquet ne contient pas les 19 fichiers attendus.'
+}
+$localTestRoot = Join-Path $base 'profil-gpu-fix'
+if (Test-Path -LiteralPath $localTestRoot) {
+    throw "Le dossier de recette existe déjà : $localTestRoot"
+}
+New-Item -ItemType Directory -Path $localTestRoot | Out-Null
+$env:LOCALAPPDATA = $localTestRoot
+Write-Host 'À la question du modèle, copiez ce chemin :'
+Write-Host (Join-Path $base 'ggml-large-v3-turbo.bin')
+& (Join-Path $package 'whisper-bootstrap.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Installation échouée : conservez le message et arrêtez.' }
+$desktop = Join-Path $localTestRoot 'WhisperTurbo\app\whisper-desktop.exe'
+if (-not (Test-Path -LiteralPath $desktop)) { throw 'Desktop installé absent : arrêtez et signalez-le.' }
+Start-Process -FilePath $desktop -WorkingDirectory $base
+```
+
+Lorsque l'installateur demande le chemin du modèle, collez le chemin affiché par PowerShell puis appuyez sur Entrée. À la confirmation, tapez `o` et appuyez sur Entrée. L'installation vise `profil-gpu-fix\WhisperTurbo` dans le dossier choisi ; elle ne réutilise pas le profil de la recette précédente. Ne créez pas vous-même les dossiers de réglages ou de journaux.
+
+## 3. Observer le démarrage et transcrire
+
+1. Au démarrage, notez si une fenêtre Windows indique encore que `nvcuda.dll` est introuvable, ainsi que tout autre message. Ne téléchargez pas cette DLL.
+2. Dans Whisper, choisissez **CPU**, sélectionnez le WAV copié, importez-le et lancez **Traiter**. Vérifiez que la transcription est lisible et que les fichiers TXT et SRT sont produits.
+3. Recommencez avec **Auto**. Relevez le moteur affiché, les messages éventuels et vérifiez la transcription ainsi que les fichiers TXT et SRT. Sans GPU NVIDIA utilisable, le résultat attendu est le moteur CPU ; une sonde GPU est permise.
+4. Indiquez les résultats de chaque étape, en particulier la présence ou l'absence de la fenêtre d'erreur. En cas d'échec, conservez le dossier de recette et transmettez le message affiché.
+
+L'essai vérifie le cas observé sur ce PC. Il ne démontre pas l'absence de toute erreur possible du chargeur Windows ni le comportement sur d'autres machines. Le paquet reste un candidat non qualifié pour distribution.
