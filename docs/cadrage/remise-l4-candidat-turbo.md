@@ -148,3 +148,19 @@ La N1 gardée du candidat a exécuté des tests avec faux workers pour un échec
 - **T33 complet :** confirmer l'absence d'accès au dépôt et aux outils de build sur le second PC, ainsi que l'identité des fichiers de la recette avant de conclure. L'absence de SDK CUDA et le fonctionnement CPU ont été rapportés ; ne pas présumer les autres éléments.
 
 T45 et la distribution restent bloqués tant que les critères obligatoires sont `NOT RUN` ou incomplets. L'obtention d'un témoin, l'activation CI et tout stimulus réel d'interruption font l'objet d'un mandat adapté avant exécution.
+
+### Étude des moyens d'observation
+
+Le journal `worker-0.jsonl` contient notamment date, job, génération, moteur, `worker_started`, `backend_ready` et progression ; le type `DiagnosticRecord` ne contient ni PID ni identifiant d'instance. Le transport consomme les événements IPC du worker ; le marqueur explicite `worker_pid` trouvé dans le transport est conditionné à la feature distincte `l01-memory-qualification`. Il n'est donc pas établi qu'il soit présent dans le candidat remis. En particulier, `worker_started` ou la seule présence d'un processus GPU ne prouve pas que ce PID traite ce job, ni que la frontière avant audio n'a pas été franchie.
+
+Une méthode fiable pour interrompre au bon moment et attribuer les deux pannes au job réel n'est pas encore établie. Aucune terminaison de processus, instrumentation ni recette de panne n'a été exécutée dans cette étude. Les tests simulés et les résultats utilisateurs ne lèvent pas cette limite.
+
+Mandat d'observation proposé avant une éventuelle recette de panne : sur le PC NVIDIA, utiliser une seule transcription GPU Auto normale du candidat identifié, avec un fichier de test et un dossier de sortie isolé ; l'utilisateur pilote la fenêtre. Pendant cette transcription, relever uniquement les processus desktop et workers Whisper par leur chemin, PID, parent et heure de création, sans les arrêter ; après la fin, lire les enregistrements du diagnostic de cette sortie et relever job, génération, moteur et progrès, ainsi que l'éventuelle ligne de diagnostic d'identité du worker. Une seule exécution, aucune élévation, aucun téléchargement, aucun changement du paquet ou des réglages Windows. Préserver les sorties et demander l'arbitrage si leur emplacement ou l'identité du candidat n'est pas certain. Cette observation peut révéler des indices utiles, mais ne démontrera pas à elle seule la frontière avant audio ni l'unicité de toutes les tentatives ; si la corrélation PID/job reste absente, ne pas interrompre de worker et proposer une décision distincte sur les moyens de preuve.
+
+La lecture ponctuelle proposée pendant la transcription est la commande ci-dessous ; elle ne modifie ni n'interrompt de processus. Une valeur absente ou ambiguë ne permet pas d'identifier le worker. Le dossier de sortie prévu est `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\obs-auto-l4`, à condition qu'il soit neuf et sans jonction ; l'application crée elle-même son état. Le chemin exact de l'installation utilisée doit être confirmé avant l'essai.
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='whisper-desktop.exe' OR Name='whisper-worker-gpu.exe' OR Name='whisper-worker-cpu.exe'" |
+    Select-Object Name, ProcessId, ParentProcessId, CreationDate, ExecutablePath |
+    Format-Table -AutoSize
+```
