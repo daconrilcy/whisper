@@ -70,3 +70,40 @@ L'essai vérifie le cas observé sur ce PC. Il ne démontre pas l'absence de tou
 Sur le second PC, l'utilisateur indique qu'aucune alerte n'apparaît plus au démarrage et qu'Auto choisit bien CPU. En CPU manuel, l'import et le microphone fonctionnent, avec des transcriptions présentes et de qualité. Il confirme ensuite qu'une transcription en Auto fonctionne et que les fichiers TXT et SRT sont produits en CPU et en Auto.
 
 Le mode GPU reste sélectionnable ; la transcription est refusée avec `BackendMismatch: selected GPU has no current runtime identity proof`. Le refus sans bascule en mode GPU manuel est conforme au choix fixe ; ce message technique en anglais n'explique pas clairement à l'utilisateur que le GPU n'est pas disponible. Les sources attribuent ce message à l'absence d'identité GPU utilisable pour la requête. L'utilisateur a demandé sa correction ; le résultat de cette correction reste à vérifier.
+
+## Recette du candidat avec message corrigé
+
+Cette section concerne le nouveau dossier `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\turbo-package-message-fix\`. Les instructions et empreintes des sections précédentes restent celles du candidat déjà testé ; ne les utilisez pas pour ce nouveau paquet.
+
+Copiez sur le second PC le contenu entier de ce nouveau dossier dans un dossier nommé `paquet-message`, à côté du modèle `ggml-large-v3-turbo.bin` et du WAV `fr_passage_28-32.wav`. Le modèle et le WAV de la recette précédente peuvent être réutilisés ; prévoyez un espace suffisant pour une installation isolée supplémentaire. Dans une nouvelle fenêtre PowerShell, copiez ce bloc, puis fournissez le chemin du dossier contenant les trois éléments :
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$base = (Read-Host 'Chemin du dossier contenant paquet-message, modèle et WAV').Trim().Trim('"')
+$files = @{
+    'paquet-message\whisper-bootstrap.exe' = '59c94bac7bf36260048e885bd24ee0f8ee31b3598e91d0ef0acb3fcb257efc4b'
+    'paquet-message\app\whisper-desktop.exe' = '01e2ea8ba221ed3245b9227c2fdb2bd5a36da073bff8305b255ad4dfe1be1f48'
+    'paquet-message\app\whisper-worker-cpu.exe' = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+    'paquet-message\app\whisper-worker-gpu.exe' = 'd874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9'
+    'ggml-large-v3-turbo.bin' = '1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
+    'fr_passage_28-32.wav' = '1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad'
+}
+foreach ($name in $files.Keys) {
+    if ((Get-FileHash -LiteralPath (Join-Path $base $name) -Algorithm SHA256).Hash -ine $files[$name]) { throw "Fichier différent du candidat : $name" }
+}
+$package = Join-Path $base 'paquet-message'
+if (@(Get-ChildItem -LiteralPath $package -Recurse -File).Count -ne 19) { throw 'Le paquet ne contient pas les 19 fichiers attendus.' }
+$localTestRoot = Join-Path $base 'profil-message-fix'
+if (Test-Path -LiteralPath $localTestRoot) { throw "Le dossier de recette existe déjà : $localTestRoot" }
+New-Item -ItemType Directory -Path $localTestRoot | Out-Null
+$env:LOCALAPPDATA = $localTestRoot
+Write-Host 'À la question du modèle, copiez ce chemin :'
+Write-Host (Join-Path $base 'ggml-large-v3-turbo.bin')
+& (Join-Path $package 'whisper-bootstrap.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Installation échouée : conservez le message et arrêtez.' }
+$desktop = Join-Path $localTestRoot 'WhisperTurbo\app\whisper-desktop.exe'
+if (-not (Test-Path -LiteralPath $desktop)) { throw 'Desktop installé absent : arrêtez et signalez-le.' }
+Start-Process -FilePath $desktop -WorkingDirectory $base
+```
+
+À la demande, collez le chemin du modèle affiché et confirmez l'installation avec `o`. Vérifiez ensuite l'absence de la fenêtre `nvcuda.dll`, une transcription CPU et une transcription Auto. Enfin, sélectionnez GPU et tentez une transcription : elle doit être refusée sans bascule automatique et un message en français doit indiquer que l'identité GPU ne peut pas être vérifiée, en proposant CPU ou Auto. Signalez le texte affiché et tout autre message. Ne modifiez ni le paquet ni l'ancienne installation de recette.
