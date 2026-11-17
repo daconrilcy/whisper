@@ -164,3 +164,9 @@ Get-CimInstance Win32_Process -Filter "Name='whisper-desktop.exe' OR Name='whisp
     Select-Object Name, ProcessId, ParentProcessId, CreationDate, ExecutablePath |
     Format-Table -AutoSize
 ```
+
+**Observation unique exécutée le 18 novembre 2026.** Après vérification des neuf fichiers applicatifs et du modèle, une installation isolée complète a été créée par le bootstrap sous `target/parakeet-tests/cpu-distribution-x64-20261115/obs-auto-l4/profil-complet/WhisperTurbo`. Une première fenêtre ouverte avec un profil vide ne pouvait pas accéder au modèle : l'utilisateur l'a fermée normalement ; aucune transcription n'avait été lancée. L'utilisateur a ensuite lancé une transcription Auto et confirmé sa fin.
+
+À 00:20:33,966 (+01:00), un seul relevé des processus a observé le desktop PID `121232` et son enfant direct `whisper-worker-gpu.exe` PID `64128`, créés respectivement à 00:18:56 et 00:20:25 depuis l'installation isolée. Aucun worker CPU n'était présent dans cet instantané ; aucun processus n'a été interrompu. Le diagnostic de sortie contient 63 lignes pour le même job et la génération 1 : un `worker_started` CUDA, un `backend_ready` CUDA et 61 progrès, le dernier à `4 800 000/4 800 000` échantillons. Les fichiers TXT et SRT sont présents. Le [journal archivé](preuves-observation-auto-l4.zip) a été comparé à la source par SHA-256.
+
+Ce journal ne contient ni PID ni identifiant d'instance ; l'instantané montre une concordance temporelle et une parenté, sans preuve directe liant le PID au job. Il ne prouve pas non plus l'absence de processus entre les instants observés, ni la frontière avant audio. Les flux IPC `Ready`/`Segment`/`End` n'ont pas été capturés par cette observation. Les deux scénarios de panne restent `NOT RUN` ; aucune méthode fiable d'interruption à la frontière avant audio n'est établie par ce seul essai. Les sorties de recette sont conservées dans le dossier isolé, sans suppression.
