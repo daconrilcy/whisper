@@ -67,11 +67,11 @@ L'utilisateur rapporte, avec large-v3-turbo : import WAV CPU et microphone CPU �
 
 L'utilisateur confirme ensuite avoir vérifié, pour les essais micro CPU, GPU et Auto, la présence des fichiers WAV, TXT et SRT et la conformité des transcriptions, phrase finale comprise. Il indique que le MP3 correspondant au WAV testé a été importé et transcrit conformément en CPU et en GPU. Il confirme également qu'un bloc de texte est apparu avant l'arrêt d'un enregistrement micro, sans préciser pour quels modes ; la nature confirmée de ce bloc n'est pas précisée.
 
-« Quasi instantané » est une appréciation, pas une mesure de durée : elle ne permet pas de conclure séparément aux seuils de vitesse ou à une comparaison de qualité sur les mêmes entrées. La sélection GPU en Auto ne démontre pas les scénarios GPU absent, échec avant audio ou panne après début de traitement.
+L'utilisateur estime la qualité de transcription identique en CPU et GPU. Il indique que le CPU est très long et le GPU ne prend que quelques secondes au plus ; ces appréciations ne sont pas des mesures de durée. La sélection GPU en Auto ne démontre pas les scénarios GPU absent, échec avant audio ou panne après début de traitement.
 
 ## Suivi des preuves restantes
 
 - **T33 complet : NOT RUN.** Premier lancement et inférence sans dépôt, SDK CUDA ni outils de build, reportés à L4 par décision utilisateur ; la seule réduction du `PATH` ne démontre pas cette condition.
 - **T41 et T42 : NOT RUN.** Témoin x86-64-v2 exact et Windows ARM64 sous émulation : accès, protocole UIA et mandat d'exécution/activation CI requis ; aucun job n'est activé par cette remise.
-- **T43 : partiel.** WAV et MP3 correspondants en CPU/GPU, micro CPU/GPU/Auto avec exports et phrase finale, sélection GPU en Auto et apparition d'un bloc micro avant arrêt signalés fonctionnels par l'utilisateur. Le statut confirmé de ce bloc et les modes concernés, les mesures de performance et la comparaison de qualité, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
+- **T43 : partiel.** WAV et MP3 correspondants en CPU/GPU, micro CPU/GPU/Auto avec exports et phrase finale, sélection GPU en Auto et apparition d'un bloc micro avant arrêt signalés fonctionnels par l'utilisateur ; qualité CPU/GPU estimée identique. Le statut confirmé de ce bloc et les modes concernés, les mesures de performance, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
 - **T45 : en attente.** Consolider les résultats seulement après réception des preuves ; aucune publication, qualification ni distribution ne découle de cette fiche.
