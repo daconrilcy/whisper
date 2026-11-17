@@ -61,3 +61,11 @@ Dans Whisper :
 5. Communiquer le résultat, y compris tout message d'erreur ou absence de TXT/SRT. La validation finale de la fenêtre appartient à l'utilisateur.
 
 Ce parcours utilise la machine actuelle ; le `PATH` limité ne prouve pas l'absence d'un SDK ou d'outils sur cette machine. Les données créées sous `recette-cpu-fix` sont conservées jusqu'à décision de clôture.
+
+## Résultat de la recette CPU du 17 novembre 2026
+
+L'utilisateur confirme une transcription CPU et la production des fichiers TXT et SRT. Les empreintes du desktop et du worker CPU installés correspondent au candidat : respectivement `7f352689d12787d529462438c5e1ad24c8a741f5c7cf134e0cb5ddc09090ecfb` et `a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b`. Le modèle installé correspond à l'empreinte attendue. Les sorties TXT et SRT sont présentes ; le journal du worker relève le moteur CPU et le traitement des 64 000 échantillons.
+
+La branche T32 de ressource manquante a été exécutée sur une copie des 19 fichiers du candidat, après comparaison de leurs empreintes. Le retrait du desktop dans cette seule copie a provoqué le refus attendu, sans création de racine d'installation ; le candidat original reste identique. Les sorties de cet essai sont archivées dans `preuves-recette-cpu-l3.zip`.
+
+Sur les processus encore ouverts après la recette, les modules observés du worker CPU provenaient de l'installation de recette ou de Windows ; ceux du desktop comprenaient également un module Windows Defender. Cette observation ponctuelle et le `PATH` limité ne prouvent pas un premier lancement sur une machine dépourvue du SDK CUDA, des outils de build et du dépôt. La recette a été exécutée dans une racine isolée sous le worktree ; cette limite de T33 reste ouverte. Les essais matériels et la qualification de distribution restent prévus en L4.
