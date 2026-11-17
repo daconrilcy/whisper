@@ -525,12 +525,12 @@ fn bundle_assets() -> Vec<BundleAsset> {
         (
             "app/whisper-desktop.exe",
             "app/whisper-desktop.exe",
-            "af89e1b4d5ce3c40c8c7e1647fd9a7f4dfe5a7aaa9cd0cce2e47f2b190640d15",
+            "7f352689d12787d529462438c5e1ad24c8a741f5c7cf134e0cb5ddc09090ecfb",
         ),
         (
             "app/whisper-worker-cpu.exe",
             "app/whisper-worker-cpu.exe",
-            "03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a",
+            "a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b",
         ),
         (
             "app/whisper-worker-gpu.exe",

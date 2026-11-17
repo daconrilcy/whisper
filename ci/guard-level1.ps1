@@ -557,9 +557,13 @@ function Assert-TurboEditionInvocation(
 ) {
     if (-not $script:turboEditionEnabled) { return }
     if ((Get-FullPath $Root) -ine (Resolve-LotRoot $script:cpuDistributionRoot) -or
-        $SelectedFreshTarget -cnotin @('turbo-edition-release','turbo-edition-final','turbo-edition-l2-final') -or
+        $SelectedFreshTarget -cnotin @('turbo-edition-release','turbo-edition-final','turbo-edition-l2-final','turbo-edition-cpu-fix') -or
         -not [string]::IsNullOrWhiteSpace($SelectedExistingTarget) -or $NoCargoTargetDir) {
         throw '-TurboEdition requires the CPU distribution lot and a fresh authorized Turbo target.'
+    }
+    if ($SelectedFreshTarget -ceq 'turbo-edition-cpu-fix' -and
+        $script:authorizedDesktopCpuWorkerSha256 -cne 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b') {
+        throw 'The CPU-fix Turbo target requires the authorized portable CPU worker SHA-256.'
     }
     if ($SelectedFreshTarget -cin @('turbo-edition-final','turbo-edition-l2-final') -and
         $script:authorizedDesktopCpuWorkerSha256 -cne '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a') {
@@ -588,6 +592,9 @@ function Invoke-TurboEditionPolicySelfTests {
         $positive++
         Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-l2-final' $null $false
         $positive++
+        $script:authorizedDesktopCpuWorkerSha256 = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+        Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-cpu-fix' $null $false
+        $positive++
         $rejected = $false
         try { Assert-AllowedUnset @('WHISPER_EXPECTED_CPU_WORKER_SHA256') } catch { $rejected = $true }
         if (-not $rejected) { throw 'Turbo edition SelfTest accepted unsetting the authorized worker digest.' }
@@ -599,6 +606,31 @@ function Invoke-TurboEditionPolicySelfTests {
             if (-not $rejected) { throw 'Turbo edition SelfTest accepted an unauthorized final worker digest.' }
             $negative++
         }
+        foreach ($invalidDigest in @($null, '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a', ('a' * 64))) {
+            $script:authorizedDesktopCpuWorkerSha256 = $invalidDigest
+            $rejected = $false
+            try { Assert-TurboEditionInvocation $valid $resolvedCpuRoot 'turbo-edition-cpu-fix' $null $false } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Turbo edition SelfTest accepted an unauthorized CPU-fix worker digest.' }
+            $negative++
+        }
+        $script:authorizedDesktopCpuWorkerSha256 = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+        foreach ($target in @('turbo-edition-final','turbo-edition-l2-final')) {
+            $rejected = $false
+            try { Assert-TurboEditionInvocation $valid $resolvedCpuRoot $target $null $false } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Turbo edition SelfTest let the CPU-fix digest authorize a prior final target.' }
+            $negative++
+        }
+        $script:authorizedDesktopCpuWorkerSha256 = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+        $workerCommandRejectedAtSignature = $false
+        try {
+            Assert-TurboEditionInvocation @('build','--release','-p','whisper-worker-cpu','-vv') $resolvedCpuRoot 'turbo-edition-cpu-fix' $null $false
+        } catch {
+            $workerCommandRejectedAtSignature = $_.Exception.Message -ceq '-TurboEdition admits only the profiled release build of whisper-desktop.'
+        }
+        if (-not $workerCommandRejectedAtSignature) {
+            throw 'Turbo edition SelfTest did not reject the CPU-fix worker command at its signature check.'
+        }
+        $negative++
         $script:authorizedDesktopCpuWorkerSha256 = '03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a'
         foreach ($case in @(
             @{ Args=@('build','--release','-p','whisper-worker-cpu','-vv'); Root=$resolvedCpuRoot; Fresh='turbo-edition-release'; Existing=$null; NoTarget=$false },

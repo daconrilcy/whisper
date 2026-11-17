@@ -8,8 +8,8 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $expectedLot = 'target/parakeet-tests/cpu-distribution-x64-20261115'
 if ($LotRoot -cne $expectedLot) { throw "-LotRoot must be '$expectedLot'." }
 $lotPath = [IO.Path]::GetFullPath((Join-Path $repo $LotRoot))
-$stagePath = Join-Path $lotPath 'turbo-package-l3-candidate'
-$claimPath = Join-Path $lotPath 'turbo-package-l3-candidate.stage-claim'
+$stagePath = Join-Path $lotPath 'turbo-package-cpu-fix'
+$claimPath = Join-Path $lotPath 'turbo-package-cpu-fix.stage-claim'
 if (-not (Test-Path -LiteralPath $lotPath -PathType Container)) { throw "The authorized lot root must already exist: $lotPath" }
 $resolvedLotPath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $lotPath).Path).TrimEnd('\')
 if (-not $resolvedLotPath.Equals($lotPath.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
@@ -97,8 +97,8 @@ if (Test-Path -LiteralPath $stagePath) { throw "Stage already exists; refusing t
 if (Test-Path -LiteralPath $claimPath) { throw "Stage claim already exists; refusing to retry: $claimPath" }
 
 $sources = @(
-    [pscustomobject]@{ Name='whisper-desktop.exe'; Path=(Join-Path $lotPath 'targets/turbo-edition-l2-final/release/whisper-desktop.exe'); Sha256='af89e1b4d5ce3c40c8c7e1647fd9a7f4dfe5a7aaa9cd0cce2e47f2b190640d15' },
-    [pscustomobject]@{ Name='whisper-worker-cpu.exe'; Path='C:/wt/distcpu/target/parakeet-tests/cpu-distribution-x64-20261115/targets/cpu-distribution-release/release/whisper-worker-cpu.exe'; Sha256='03566517fa8580414770f346cc0a6be9846da45d8c928ead6a32cc10635f782a' },
+    [pscustomobject]@{ Name='whisper-desktop.exe'; Path=(Join-Path $lotPath 'targets/turbo-edition-cpu-fix/release/whisper-desktop.exe'); Sha256='7f352689d12787d529462438c5e1ad24c8a741f5c7cf134e0cb5ddc09090ecfb' },
+    [pscustomobject]@{ Name='whisper-worker-cpu.exe'; Path=(Join-Path $repo 'target/parakeet-tests/cpu-distribution-x64-20261115/targets/cpu-diag2/release/whisper-worker-cpu.exe'); Sha256='a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b' },
     [pscustomobject]@{ Name='whisper-worker-gpu.exe'; Path=(Join-Path $repo 'target/parakeet-tests/main-facades/targets/gpu-l2-final/release/whisper-worker-gpu.exe'); Sha256='d874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9' },
     [pscustomobject]@{ Name='msvcp140.dll'; Path='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.CRT/msvcp140.dll'; Sha256='0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9' },
     [pscustomobject]@{ Name='vcruntime140.dll'; Path='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Redist/MSVC/14.44.35112/x64/Microsoft.VC143.CRT/vcruntime140.dll'; Sha256='d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066' },
@@ -119,7 +119,7 @@ $noticeSources = @(
 )
 $modelPath = 'C:/dev/whisper/models/ggml-large-v3-turbo.bin'
 $modelSha256 = '1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
-$bootstrapSource = Join-Path $lotPath 'targets/bootstrap-v1-l3-final/release/whisper-bootstrap.exe'
+$bootstrapSource = Join-Path $lotPath 'targets/bootstrap-v1-cpu-fix/release/whisper-bootstrap.exe'
 
 foreach ($source in $sources) { Assert-NoReparsePath $source.Path ([IO.Path]::GetPathRoot($source.Path)) }
 Assert-NoReparsePath $modelPath ([IO.Path]::GetPathRoot($modelPath))
@@ -216,11 +216,11 @@ try {
     $readme = @'
 # Candidat local WhisperTurbo — L3
 
-Ce dossier est assemblé une seule fois par `ci/stage-turbo-package.ps1` sous `target/parakeet-tests/cpu-distribution-x64-20261115/turbo-package-l3-candidate/`. Le staging antérieur `turbo-package-candidate/` est préservé ; une réexécution refuse d'écraser cette nouvelle cible.
+Ce dossier est assemblé une seule fois par `ci/stage-turbo-package.ps1` sous `target/parakeet-tests/cpu-distribution-x64-20261115/turbo-package-cpu-fix/`. Les candidats et claims antérieurs sont préservés ; une réexécution refuse d'écraser cette nouvelle cible.
 
 Lancez `whisper-bootstrap.exe` depuis ce dossier. Après vérification CPU, il demande le chemin du modèle fourni séparément, puis une confirmation. L'installation neuve est préparée dans un répertoire frère sous `%LOCALAPPDATA%` et publiée vers `%LOCALAPPDATA%\WhisperTurbo` sans remplacement d'une destination existante. Elle contient `app/`, `models/` et `notices/`. Aucun modèle n'est inclus. Le modèle attendu est `ggml-large-v3-turbo.bin`, SHA-256 `1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`.
 
-Configuration provisoire : Windows 11 x64 Home/Pro supporté à la date de publication à revalider ; plancher CPU x86-64-v2 ; version CUDA 12.9 et codegen GPU sm_61 ; pilote NVIDIA compatible requis. Les DLL Visual C++ proviennent des Build Tools 2022 et sont non modifiées ; redistribution dépendante de la licence Visual Studio Community déclarée. Les DLL CUDA 12.9 sont soumises aux conditions NVIDIA. Les notices candidates sont jointes sous `notices-candidate/`.
+Configuration provisoire : Windows 11 x64 Home/Pro supporté à la date de publication à revalider ; plancher CPU x86-64-v2 ; version CUDA 12.9 et codegen GPU sm_61 ; pilote NVIDIA compatible requis. Les DLL Visual C++ proviennent des Build Tools 2022 et sont non modifiées ; redistribution dépendante de la licence Visual Studio Community déclarée. Les DLL CUDA 12.9 sont soumises aux conditions NVIDIA. Le worker CPU courant a réussi le profil T11, PE, Shutdown et diagnostic ciblé ; l'inférence reste non exécutée. Les notices candidates sont jointes sous `notices-candidate/`.
 
 La publication utilise `renamest 0.1.3` `rename_exclusive` sans fallback. Sur Windows, la crate appelle `MoveFileExW` sans option de remplacement ; la documentation Microsoft consultée ne garantit pas explicitement l'atomicité. Cette limite est acceptée pour ce candidat. L'alternative MIT de `renamest` est sélectionnée parmi `MIT OR Apache-2.0`; son texte exact et son copyright sont joints dans `notices-candidate/LICENSE-renamest-MIT`. L'essai d'inférence GPU, la première utilisation en profil Windows propre et la validation utilisateur restent NOT RUN ; ce dossier n'est pas une distribution qualifiée.
 '@
