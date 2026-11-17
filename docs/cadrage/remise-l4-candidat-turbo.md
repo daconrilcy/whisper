@@ -69,9 +69,11 @@ L'utilisateur confirme ensuite avoir vérifié, pour les essais micro CPU, GPU e
 
 L'utilisateur estime la qualité de transcription identique en CPU et GPU. Il indique que le CPU est très long et le GPU ne prend que quelques secondes au plus ; ces appréciations ne sont pas des mesures de durée. La sélection GPU en Auto ne démontre pas les scénarios GPU absent, échec avant audio ou panne après début de traitement.
 
+Mesures rapportées ensuite par l'utilisateur sur le GPU : WAV de 5 minutes transcrit en 1 minute 11 secondes, soit environ 4,2 fois plus vite que la durée de l'audio ; premier texte micro après 5 secondes. Ces observations satisfont les deux seuils de temps sur cet essai, sous réserve de confirmer que le premier texte observé était un bloc confirmé. Elles ne constituent pas une qualification de toutes les configurations GPU.
+
 ## Suivi des preuves restantes
 
 - **T33 complet : NOT RUN.** Premier lancement et inférence sans dépôt, SDK CUDA ni outils de build, reportés à L4 par décision utilisateur ; la seule réduction du `PATH` ne démontre pas cette condition.
 - **T41 et T42 : NOT RUN.** Témoin x86-64-v2 exact et Windows ARM64 sous émulation : accès, protocole UIA et mandat d'exécution/activation CI requis ; aucun job n'est activé par cette remise.
-- **T43 : partiel.** WAV et MP3 correspondants en CPU/GPU, micro CPU/GPU/Auto avec exports et phrase finale, sélection GPU en Auto et apparition d'un bloc micro avant arrêt signalés fonctionnels par l'utilisateur ; qualité CPU/GPU estimée identique. Le statut confirmé de ce bloc et les modes concernés, les mesures de performance, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
+- **T43 : partiel.** WAV et MP3 correspondants en CPU/GPU, micro CPU/GPU/Auto avec exports et phrase finale, sélection GPU en Auto et apparition d'un bloc micro avant arrêt signalés fonctionnels par l'utilisateur ; qualité CPU/GPU estimée identique et temps GPU relevés ci-dessus. Le statut confirmé du premier bloc micro et les modes concernés, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
 - **T45 : en attente.** Consolider les résultats seulement après réception des preuves ; aucune publication, qualification ni distribution ne découle de cette fiche.
