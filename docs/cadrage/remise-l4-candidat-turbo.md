@@ -6,7 +6,7 @@ Décision : l'utilisateur reporte à L4 l'essai sans dépôt, SDK CUDA ni outils
 
 ## Candidat et configuration provisoire
 
-Le candidat local est le dossier `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\turbo-package-cpu-fix\` : 19 fichiers, dont huit notices. Il ne s'agit pas d'une distribution qualifiée. Le modèle est fourni séparément, sans téléchargement par l'application. Ne pas modifier ce dossier pour les essais. Son fichier `README-INSTALL-CANDIDAT.md` décrit le contenu ; ses indications historiques « inférence non exécutée » et « validation utilisateur NOT RUN » sont remplacées par le résultat CPU limité ci-dessous.
+Le candidat local est le dossier `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\turbo-package-cpu-fix\` : 19 fichiers, dont huit notices. Il ne s'agit pas d'une distribution qualifiée. Le modèle est fourni séparément, sans téléchargement par l'application. Ne pas modifier ce dossier pour les essais. Son fichier `README-INSTALL-CANDIDATE.md` décrit le contenu ; ses indications historiques « inférence non exécutée » et « validation utilisateur NOT RUN » sont remplacées par les résultats utilisateur ci-dessous.
 
 | Élément | SHA-256 |
 |---|---|
@@ -21,7 +21,7 @@ Plancher CPU provisoire : x86-64-v2 complet ; il ne se confond pas avec les exig
 
 ## Installation et premier parcours
 
-Sur cette machine, la [recette CPU isolée](recette-manuelle-cpu-candidat.md) a installé ce candidat et le modèle vérifié dans `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\recette-cpu-fix\LocalAppData\WhisperTurbo\`. Elle protège le profil Windows réel ; le script de première installation refuse de réutiliser un dossier déjà existant. L'utilisateur a confirmé la transcription WAV CPU et la production de TXT et SRT. Le journal relève le moteur CPU et le traitement complet des 64 000 échantillons. Cela ne valide pas encore l'import MP3, le microphone ou les autres machines.
+Sur cette machine, la [recette CPU isolée](recette-manuelle-cpu-candidat.md) a installé ce candidat et le modèle vérifié dans `C:\wt\distcpu-l2-reprise\target\parakeet-tests\cpu-distribution-x64-20261115\recette-cpu-fix\LocalAppData\WhisperTurbo\`. Elle protège le profil Windows réel ; le script de première installation refuse de réutiliser un dossier déjà existant. Les résultats fonctionnels CPU, GPU et Auto communiqués ensuite sont ci-dessous ; ils ne valident pas les autres machines.
 
 Pour poursuivre dans la fenêtre déjà ouverte, utiliser cette installation et le WAV de la recette ; conserver les sorties de chaque essai dans un dossier distinct. Pour un nouveau lancement de l'installation isolée, ouvrir une nouvelle fenêtre PowerShell et exécuter :
 
@@ -60,6 +60,43 @@ Pour chaque essai, relever date, Windows et son édition, processeur et, si conc
 5. **Témoins CPU.** Sur Intel et AMD, relever les résultats ; sur le témoin v2 exact, vérifier les capacités exigées, l'absence des capacités v3/v4 et l'admission du même paquet. Le refus sur matériel sous v2 reste à observer sur un témoin capable d'exécuter le bootstrap.
 
 Le test T32 d'indétermination utilise une injection dans le parcours de décision ; la ressource manquante a été testée séparément sur une copie du candidat, sans mutation de l'original ([traces](preuves-recette-cpu-l3.zip)). Ces résultats ne remplacent pas les témoins matériels.
+
+### Essai à préparer sur le second PC Intel
+
+L'utilisateur indique disposer d'un PC Intel de 11e génération, sans GPU dédié ni outils de développement ; AMD et ARM64 ne sont pas disponibles pour l'instant. Cet essai peut couvrir T33 et le cas Auto sans GPU NVIDIA utilisable, si les conditions et observations sont confirmées. Il ne remplace ni le témoin v2 exact ni les autres bancs.
+
+Copier sur ce PC, sans modifier les originaux, le dossier candidat entier en le nommant `paquet`, le modèle `ggml-large-v3-turbo.bin` et le WAV de référence `fr_passage_28-32.wav`, tous dans un même dossier choisi par l'utilisateur. Prévoir au moins 5 Gio libres pour les copies et l'installation. Vérifier que ce PC n'a accès ni au dépôt, ni au SDK CUDA, ni aux outils de build du PC de développement ; relever sa version et son édition de Windows. Si une condition est incertaine, la signaler plutôt que conclure à une absence.
+
+Sur le second PC, ouvrir PowerShell, puis copier le bloc suivant. Il demande le chemin du dossier choisi, vérifie les empreintes et crée uniquement une racine `profil-local` neuve. Les données applicatives restent isolées dans cette racine. Le bootstrap et l'application créent eux-mêmes leur état.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$base = (Read-Host 'Chemin du dossier contenant paquet, modèle et WAV').Trim().Trim('"')
+$files = @{
+    'paquet\whisper-bootstrap.exe' = 'd7852efb06b5c010623ab8ee9833c6b23dbc7515f4208e5bff3d934febef6f5a'
+    'paquet\app\whisper-desktop.exe' = '7f352689d12787d529462438c5e1ad24c8a741f5c7cf134e0cb5ddc09090ecfb'
+    'paquet\app\whisper-worker-cpu.exe' = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+    'paquet\app\whisper-worker-gpu.exe' = 'd874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9'
+    'ggml-large-v3-turbo.bin' = '1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69'
+    'fr_passage_28-32.wav' = '1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad'
+}
+foreach ($name in $files.Keys) {
+    if ((Get-FileHash -LiteralPath (Join-Path $base $name) -Algorithm SHA256).Hash -ine $files[$name]) { throw "Fichier différent du candidat : $name" }
+}
+$localTestRoot = Join-Path $base 'profil-local'
+if (Test-Path -LiteralPath $localTestRoot) { throw "Le profil existe déjà : $localTestRoot ; ne pas l'écraser." }
+New-Item -ItemType Directory -Path $localTestRoot | Out-Null
+$env:LOCALAPPDATA = $localTestRoot
+Write-Host 'À la question du modèle, copiez ce chemin :'
+Write-Host (Join-Path $base 'ggml-large-v3-turbo.bin')
+& (Join-Path $base 'paquet\whisper-bootstrap.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Installation échouée : conserver le message et arrêter.' }
+$desktop = Join-Path $localTestRoot 'WhisperTurbo\app\whisper-desktop.exe'
+if (-not (Test-Path -LiteralPath $desktop)) { throw 'Desktop installé absent : conserver le message et arrêter.' }
+Start-Process -FilePath $desktop -WorkingDirectory $base
+```
+
+Après installation, ouvrir le WAV copié dans Whisper, sélectionner CPU et vérifier une transcription ainsi que TXT et SRT. Puis sélectionner Auto, refaire l'import et relever la préférence affichée, le moteur effectivement utilisé, les éventuels messages et les sorties. Le résultat attendu sans GPU NVIDIA utilisable est CPU sans transcription GPU ; la sonde GPU reste permise. Signaler toute erreur ou ambiguïté sans modifier les DLL, le pilote, le paquet ou l'installation. Une preuve complète du nombre et du rôle des processus peut demander une observation complémentaire ; le simple résultat affiché ne la démontre pas.
 
 ### Retour utilisateur — 17 novembre 2026
 
