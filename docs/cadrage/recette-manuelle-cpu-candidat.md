@@ -1,8 +1,8 @@
 # Recette manuelle CPU — candidat Turbo
 
-Avancée : candidat reconstruit et contrôles automatiques gardés réussis.
-Blocage : la transcription et les exports de ce nouveau candidat ne sont pas encore validés.
-Décision : essai manuel dans la fenêtre par l'utilisateur, sur un profil applicatif isolé.
+Avancée : candidat reconstruit, contrôles automatiques réussis et transcription WAV CPU confirmée par l'utilisateur.
+Blocage : la vérification complète sans dépôt ni outils de développement reste à réaliser.
+Décision : gate L3→L4 ouverte avec report de cette vérification avant distribution ; voir la [remise L4](remise-l4-candidat-turbo.md).
 
 Ouvrir une **nouvelle fenêtre PowerShell**, y copier le bloc suivant en entier et appuyer sur Entrée. Il vérifie les empreintes, prépare un dossier de recette neuf, installe le modèle fourni séparément et ouvre le desktop. Si le dossier existe déjà, il s'arrête sans l'écraser. Les réglages d'environnement ne concernent que cette fenêtre et l'application qu'elle lance.
 
