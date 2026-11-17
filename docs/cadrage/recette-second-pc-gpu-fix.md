@@ -64,3 +64,9 @@ Lorsque l'installateur demande le chemin du modèle, collez le chemin affiché p
 4. Indiquez les résultats de chaque étape, en particulier la présence ou l'absence de la fenêtre d'erreur. En cas d'échec, conservez le dossier de recette et transmettez le message affiché.
 
 L'essai vérifie le cas observé sur ce PC. Il ne démontre pas l'absence de toute erreur possible du chargeur Windows ni le comportement sur d'autres machines. Le paquet reste un candidat non qualifié pour distribution.
+
+## Résultat communiqué par l'utilisateur
+
+Sur le second PC, l'utilisateur indique qu'aucune alerte n'apparaît plus au démarrage et qu'Auto choisit bien CPU. En CPU manuel, l'import et le microphone fonctionnent, avec des transcriptions présentes et de qualité. Le résultat ne précise pas séparément les fichiers TXT/SRT ni le déroulement d'une transcription en Auto.
+
+Le mode GPU reste sélectionnable ; la transcription est refusée avec `BackendMismatch: selected GPU has no current runtime identity proof`. Le refus sans bascule en mode GPU manuel est conforme au choix fixe ; ce message technique en anglais n'explique pas clairement à l'utilisateur que le GPU n'est pas disponible. Les sources attribuent ce message à l'absence d'identité GPU utilisable pour la requête. Une amélioration du message reste à préparer et à valider ; aucun changement n'est déduit de ce constat.
