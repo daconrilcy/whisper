@@ -107,3 +107,9 @@ Start-Process -FilePath $desktop -WorkingDirectory $base
 ```
 
 À la demande, collez le chemin du modèle affiché et confirmez l'installation avec `o`. Vérifiez ensuite l'absence de la fenêtre `nvcuda.dll`, une transcription CPU et une transcription Auto. Enfin, sélectionnez GPU et tentez une transcription : elle doit être refusée sans bascule automatique et un message en français doit indiquer que l'identité GPU ne peut pas être vérifiée, en proposant CPU ou Auto. Signalez le texte affiché et tout autre message. Ne modifiez ni le paquet ni l'ancienne installation de recette.
+
+### Résultat communiqué pour ce candidat
+
+L'utilisateur confirme que les transcriptions en CPU et en Auto fonctionnent sur le second PC, et qu'aucune fenêtre d'erreur `nvcuda.dll` n'apparaît au démarrage. En GPU manuel, la transcription est refusée ; il rapporte le message français « GPU indisponible pour la transcription. Vous pouvez utiliser le CPU. »
+
+Cette formulation correspond au message de disponibilité du GPU déjà présent dans l'interface desktop. Le retour confirme qu'un message compréhensible a été observé et que la transcription GPU a été refusée, mais ne démontre pas que le nouveau libellé détaillé de refus d'identité a été affiché. Les résultats GPU de performance et qualité observés sur le candidat précédent ne valent pas automatiquement validation du présent desktop reconstruit.
