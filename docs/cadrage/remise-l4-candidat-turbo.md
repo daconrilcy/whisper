@@ -65,11 +65,13 @@ Le test T32 d'indétermination utilise une injection dans le parcours de décisi
 
 L'utilisateur rapporte, avec large-v3-turbo : import WAV CPU et microphone CPU « ok » ; import WAV GPU et microphone GPU « ok », perçus comme quasi instantanés ; en mode Auto, sélection du GPU NVIDIA GTX 1080 Ti. Ce retour s'inscrit dans la recette de l'installation isolée remise ci-dessus. Après ce retour, les empreintes des trois exécutables installés correspondaient encore au candidat et le desktop ainsi que le worker GPU de cette installation étaient ouverts ; cela n'établit pas indépendamment toutes les observations pendant les essais.
 
-« Quasi instantané » est une appréciation, pas une mesure de durée : elle ne permet pas de conclure séparément aux seuils de vitesse ou à une comparaison de qualité. Le détail des sorties micro et de la phrase finale n'a pas été communiqué. La sélection GPU en Auto ne démontre pas les scénarios GPU absent, échec avant audio ou panne après début de traitement.
+L'utilisateur confirme ensuite avoir vérifié, pour les essais micro CPU, GPU et Auto, la présence des fichiers WAV, TXT et SRT et la conformité des transcriptions, phrase finale comprise. Il rapporte également un import MP3 réussi avec une transcription conforme ; le moteur utilisé et l'identité du MP3 ne sont pas précisés. La présence d'un bloc confirmé avant l'arrêt n'a pas été précisée.
+
+« Quasi instantané » est une appréciation, pas une mesure de durée : elle ne permet pas de conclure séparément aux seuils de vitesse ou à une comparaison de qualité sur les mêmes entrées. La sélection GPU en Auto ne démontre pas les scénarios GPU absent, échec avant audio ou panne après début de traitement.
 
 ## Suivi des preuves restantes
 
 - **T33 complet : NOT RUN.** Premier lancement et inférence sans dépôt, SDK CUDA ni outils de build, reportés à L4 par décision utilisateur ; la seule réduction du `PATH` ne démontre pas cette condition.
 - **T41 et T42 : NOT RUN.** Témoin x86-64-v2 exact et Windows ARM64 sous émulation : accès, protocole UIA et mandat d'exécution/activation CI requis ; aucun job n'est activé par cette remise.
-- **T43 : partiel.** WAV et micro CPU/GPU signalés fonctionnels, sélection GPU en Auto observée par l'utilisateur ; détails des sorties micro, MP3, mesures de performance et de qualité, autres scénarios Auto et témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
+- **T43 : partiel.** WAV et micro CPU/GPU, sélection GPU en Auto, fichiers et transcriptions micro, import MP3 signalés conformes par l'utilisateur. L'identité et le moteur du MP3, l'apparition d'un bloc micro avant arrêt, les mesures de performance et la comparaison de qualité, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
 - **T45 : en attente.** Consolider les résultats seulement après réception des preuves ; aucune publication, qualification ni distribution ne découle de cette fiche.
