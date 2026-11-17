@@ -110,9 +110,15 @@ Mesures rapportées ensuite par l'utilisateur sur le GPU : WAV de 5 minutes tran
 
 Relevé local après ces retours : Windows 11 Professionnel 64 bits, build `26200` ; processeur Intel Core i9-14900K ; NVIDIA GeForce GTX 1080 Ti, pilote Windows `32.0.15.8129`. Les empreintes des trois exécutables installés correspondent toujours aux valeurs ci-dessus. Ce relevé ne démontre pas le prédicat CPUID complet, ni que cette machine est le témoin v2 exact de T41 ; aucun témoin AMD ou Windows ARM64 n'est établi par ce relevé.
 
+### Retour utilisateur — second PC Intel
+
+L'utilisateur rapporte que l'application démarre malgré des fenêtres d'erreur NVIDIA, que les imports et le microphone fonctionnent en CPU et Auto et que les transcriptions sont de la qualité attendue. Il indique environ quatre minutes pour décoder le WAV testé ; sa durée et le mode de ce chronométrage ne sont pas précisés. La capture montre une erreur système du processus `whisper-worker-gpu.exe` indiquant que `nvcuda.dll` est introuvable. Ce défaut visible sur un PC sans NVIDIA reste à diagnostiquer et à corriger ; il n'invalide pas les transcriptions CPU observées. Le worker GPU importe `nvcuda.dll` et le desktop lance une sonde GPU au démarrage : ce sont des éléments compatibles avec la fenêtre, mais la chaîne exacte reste à établir.
+
+La version de Windows, les outils effectivement présents, l'identité des fichiers copiés et le moteur affiché en Auto n'ont pas été communiqués dans ce retour. En conséquence, T33 complet et la preuve du parcours Auto sans GPU restent partiels ; aucun résultat supplémentaire n'est présumé. Sur le worktree de développement, le WAV de référence suivi `docs/cadrage/feas-pm-01-corpus/fr_passage_28-32.wav` est constaté absent après la préparation de l'essai ; son origine est inconnue et il n'a pas été restauré.
+
 ## Suivi des preuves restantes
 
-- **T33 complet : NOT RUN.** Premier lancement et inférence sans dépôt, SDK CUDA ni outils de build, reportés à L4 par décision utilisateur ; la seule réduction du `PATH` ne démontre pas cette condition.
+- **T33 complet : partiel.** Premier lancement et inférence rapportés sur le second PC ; conditions d'environnement et identité à confirmer, fenêtre d'erreur GPU à traiter. La seule réduction du `PATH` sur le premier PC ne démontrait pas l'absence du dépôt, du SDK CUDA et des outils de build.
 - **T41 et T42 : NOT RUN.** Témoin x86-64-v2 exact et Windows ARM64 sous émulation : accès, protocole UIA et mandat d'exécution/activation CI requis ; aucun job n'est activé par cette remise.
 - **T43 : partiel.** WAV et MP3 correspondants en CPU/GPU, micro CPU/GPU/Auto avec exports et phrase finale, sélection GPU en Auto et apparition d'un bloc micro avant arrêt signalés fonctionnels par l'utilisateur ; qualité CPU/GPU estimée identique et temps GPU relevés ci-dessus, premier bloc GPU confirmé. Le statut confirmé du bloc avant arrêt pour les autres modes, les autres scénarios Auto et les témoins matériels restent à établir selon les critères ci-dessus et le [plan](plan-implementation-distribution-cpu-x64.md).
 - **T45 : en attente.** Consolider les résultats seulement après réception des preuves ; aucune publication, qualification ni distribution ne découle de cette fiche.
