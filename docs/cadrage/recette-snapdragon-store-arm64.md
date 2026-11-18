@@ -1,6 +1,6 @@
-Avancée : la recette cible le guidage graphique de l’installateur x64 exécuté sur le Snapdragon.
-Blocage : le parcours avec le Microsoft Store doit être observé sur une réservation où le pack est absent.
-Décision : arrêter la recette dès que la revérification réussit et que le bouton de confirmation de l’installation de Whisper devient disponible.
+Avancée : recette du bootstrap B7 réussie sur le Snapdragon X2 Elite.
+Blocage : aucun pour ce parcours.
+Décision : clôturer le parcours alerte → Store → revérification → installation sur ce témoin.
 
 ## Sur le bureau du Snapdragon
 
@@ -24,3 +24,12 @@ Archive à extraire : WhisperTurbo-Snapdragon-Store-ARM64.zip. Empreinte SHA-256
 Parcours Store en échec. L’opérateur signale avoir utilisé le nouveau paquet. La [capture](preuves-bootstrap-snapdragon/alerte-store-b7-signalee.png) montre uniquement Oui pour réessayer et Non pour quitter. Non ferme bien la fenêtre. L’identité du processus exécuté sur la VM et la valeur d’architecture qu’il a effectivement obtenue restent à établir. La revérification après passage par le Store reste non exercée.
 
 Le contrôle de la fenêtre ouverte sur SC8480XP a identifié le bootstrap du dossier WhisperTurbo-Snapdragon-Store-ARM64 du bureau. Son SHA-256 diffère de B7 (CandidatB7=False). Windows annonce ArchitectureCPU=12 et Snapdragon X2 Elite. L’alerte observée ne qualifie donc pas B7. La version exacte lancée n’a pas été identifiée. Reprendre avec le bootstrap vérifié du ZIP.
+
+## Recette finale B7 sur le Snapdragon — PASS
+
+L’opérateur confirme que le parcours a réussi avec le nouveau bootstrap. Les captures suivent l’ordre de la recette.
+
+1. [Alerte graphique](preuves-bootstrap-snapdragon/b7-alerte.png) — la sonde Glow échoue et le bootstrap signale que Microsoft.D3DMappingLayers est absent pour ce compte. Il propose l’ouverture du Store.
+2. [Fiche Microsoft Store](preuves-bootstrap-snapdragon/b7-store.png) — le Store affiche le pack de compatibilité OpenCL, OpenGL et Vulkan de Microsoft Corporation.
+3. [Retour à la revérification](preuves-bootstrap-snapdragon/b7-reverification.png) — l’assistant propose de vérifier à nouveau après installation du composant. L’opérateur confirme la réussite de cette étape.
+4. [Installation terminée](preuves-bootstrap-snapdragon/b7-installation.png) — le bootstrap confirme l’installation dans C:\Users\HCKTest\AppData\Local\WhisperTurbo.
