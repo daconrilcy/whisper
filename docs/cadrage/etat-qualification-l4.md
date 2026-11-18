@@ -1,5 +1,5 @@
-Avancée : recettes manuelles Intel/NVIDIA, Intel sans NVIDIA et Snapdragon après installation du pack graphique validées sur les parcours documentés.
-Blocage : T33 conserve un écart de traçabilité ; T41, T42, le refus matériel sous v2 et N2 CUDA restent ouverts. AMD est différé.
+Avancée : T33 validé sur le Dell. Les trois recettes matérielles manuelles restent acquises.
+Blocage : T41, T42, le refus matériel sous v2 et N2 CUDA restent ouverts. AMD est différé.
 Décision : conserver les résultats matériels acquis et réserver les prochaines exécutions aux critères encore ouverts.
 
 ## Relecture du plan et état des tâches
@@ -12,7 +12,7 @@ Le plan initial (Git ca8fb16e) distingue construction, installation, témoins CP
 | T11 à T13 | Terminées au titre de L1 | Profil portable, contrôle des capacités et composition CPU acceptés au passage vers L2. [Entrées du candidat](entrees-rust-candidats-turbo.md) et [correction du worker portable en L3](preuves-correction-cpu-l3.zip). |
 | T21 à T24 | Terminées au titre de L2 | Édition, dépendances, notices et contrat dans le [bilan L2](bilan-l2-distribution-turbo.md). N2 CUDA reste une validation prédistribution distincte. |
 | T31, T32, T34 | Terminées au titre de L3 | [Bootstrap et installation](preuves-recette-l3-bootstrap.zip), [preuves T32](preuves-t32-message-fix.zip), [configuration et remise](remise-l4-candidat-turbo.md). |
-| T33 | Assemblage, démarrage et inférence constatés ; traçabilité partielle | [Premier lancement](preuves-t33-premier-lancement.zip), [recette CPU](preuves-recette-cpu-l3.zip), [fiche Intel avec empreintes et résultats par candidat](recette-second-pc-gpu-fix.md). L’utilisateur déclare le PC sans SDK CUDA ni outils de développement. La procédure contrôle les empreintes et utilise un profil neuf ; son listing seul ne certifie pas l’exécution des contrôles sur ce PC. Il manque le rattachement explicite du contrôle d’identité et de l’absence d’accès au dépôt à ce premier lancement. Aucun nouvel import manuel demandé. |
+| T33 | Terminée pour le candidat testé | [Archive Dell du 18 novembre 2026, 18:08 UTC](T33-dcbf572ce7.zip). Le contrôle d’environnement ne détecte aucun indice de dépôt, SDK ou outil de build. Installation en profil vide, identités vérifiées, import du WAV par le desktop installé, backend CPU et 64 000/64 000 échantillons confirmés. Les empreintes TXT/SRT concordent avec le manifeste du job. Le worker encore actif après publication se termine pendant la fermeture normale du desktop. Verdict du rapport : PASS. |
 | T41 | NON EXÉCUTÉ | Runner x64 au prédicat T01 exact, import automatisé et exports. |
 | T42 | NON EXÉCUTÉ | [Mandat ARM64](mandat-t42-windows-arm64.md). Le retour Snapdragon récupéré documente le parcours manuel. Aucun résultat de job CI réunissant pilotage de l’import, preuves OS/PE et capacités des deux processus. |
 | T43 | Partiellement validée | Intel avec NVIDIA, Intel sans NVIDIA et observation Auto documentés dans les [résultats du candidat](recette-second-pc-gpu-fix.md) et la [remise](remise-l4-candidat-turbo.md). Admission matérielle v2 exacte et refus réel sous v2 ouverts ; AMD différé ; les deux pannes Auto provoquées sont hors périmètre. |
