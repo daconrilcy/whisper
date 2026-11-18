@@ -1,6 +1,6 @@
-Avancée : T33 validé sur le Dell. Les trois recettes matérielles manuelles restent acquises.
-Blocage : T41, T42 et le refus matériel sous v2 restent ouverts. AMD est différé.
-Décision : conserver les résultats matériels acquis et réserver les prochaines exécutions aux critères encore ouverts.
+Avancée : bootstrap B7 validé sur Snapdragon, T33 Dell et N2 CUDA GTX 1080 Ti clos pour leurs candidats. Les recettes matérielles manuelles restent acquises.
+Blocage : T41, le déclenchement CI de T42 et les témoins v2 exact et sous v2 de T43 restent ouverts. AMD est différé.
+Décision : rechercher en priorité un témoin x64 conforme à T01 pour T41 et l’admission T43. T45 reste ouvert.
 
 ## Relecture du plan et état des tâches
 
@@ -25,3 +25,16 @@ Le plan initial (Git ca8fb16e) distingue construction, installation, témoins CP
 - [Archive de recette interactive récupérée](RETOUR-L4-20261118-053844-ee015.zip) : 48 entrées, dont vérification du candidat, rapport graphique, bilan, journaux et exports. Pack Microsoft.D3DMappingLayers ARM64 1.2608.3.0. CPU et Auto produisent deux segments SRT couvrant 0–2,020–4,000 s. Le journal de l’import Auto donne backend_ready CPU et 64 000/64 000 échantillons. Les deux essais micro ont leurs WAV/TXT/SRT. Les délais de premier texte (1 min 45 en CPU, 3 min en Auto) sont des observations opérateur. Ces éléments complètent la [fiche Snapdragon](recette-windows-arm64.md) et remplacent la mention historique du ZIP indisponible pour la recette désormais documentée.
 
 L’installateur graphique sans terminal relève de la demande produit ultérieure. Le plan originel ne le spécifie pas comme condition de réussite des recettes déjà effectuées.
+
+## Point après la recette du bootstrap B7
+
+Sur le Snapdragon X2 Elite, le bootstrap B7 a signalé le pack graphique manquant, ouvert sa fiche dans le Microsoft Store, proposé la revérification et confirmé l’installation dans le profil utilisateur. La [fiche B7 et ses quatre captures](recette-snapdragon-store-arm64.md) clôturent cette recette. B7 désigne l’installateur dont le SHA-256 commence par 6560131d. Le desktop livré avec lui est tg7. Les preuves T33 et T42 conservent les identités de leurs propres exécutables.
+
+| Étape restante hors AMD | Condition de clôture selon le plan |
+|---|---|
+| T41 et admission T43/AC-03b | Identifier un témoin x64 satisfaisant exactement T01 (v2 complet, absence des capacités v3/v4 listées). Après mandat CI, vérifier l’installation, l’import CPU automatisé du WAV de référence et ses exports, avec les capacités attribuées au desktop et au worker. Rattacher l’admission sur témoin exact à T43. |
+| T42/AC-08 | Le ZIP du Snapdragon établit l’émulation x64 du desktop et du worker et l’import CPU. Le lancement depuis le bureau était manuel. Pour appliquer le plan en vigueur, exécuter le job sur un runner CI ARM64 interactif autorisé. Accepter le déclenchement déjà réalisé demanderait une décision explicite modifiant ce critère. |
+| T43/AC-03a | Sur un témoin x64 capable de lancer le bootstrap et privé d’au moins une capacité v2, constater le refus explicite et vérifier que l’état de l’installation est identique avant et après. |
+| T45 | Consolider AC-01 à AC-10 par candidat et par empreinte, identifier les preuves affectées par les changements de binaires, figer les configurations et limites effectivement qualifiées. Si AMD demeure indisponible, arbitrer la portée de distribution comme prévu au plan. |
+
+T44 est terminé pour la remise de recette. Les pannes Auto provoquées restent hors périmètre. La distribution publique demeure en attente de T45 et d’un accord distinct.
