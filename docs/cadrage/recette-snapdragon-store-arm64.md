@@ -18,3 +18,7 @@ Le rapport graphique antérieur sur le SC8480XP indique Windows ARM64 et la vale
 ## Identité du nouvel installateur
 
 Archive à extraire : WhisperTurbo-Snapdragon-Store-ARM64.zip. Empreinte SHA-256 de whisper-bootstrap.exe : 6560131dc0bbc6e6bdd45a2728f719db7a6079324dc3fd06b816cd6ca22f21f6.
+
+## Retour du nouveau créneau Snapdragon
+
+Parcours Store en échec. L’opérateur signale avoir utilisé le nouveau paquet. La [capture](preuves-bootstrap-snapdragon/alerte-store-b7-signalee.png) montre uniquement Oui pour réessayer et Non pour quitter. Non ferme bien la fenêtre. L’identité du processus exécuté sur la VM et la valeur d’architecture qu’il a effectivement obtenue restent à établir. La revérification après passage par le Store reste non exercée.
