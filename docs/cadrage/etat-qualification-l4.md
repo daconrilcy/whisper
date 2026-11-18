@@ -80,3 +80,13 @@ T42/AC-08 est pleinement validé sur le témoin accepté. L’utilisateur a test
 Configuration de référence pour les PC : Windows 11 Famille/Pro x64, socle v2 avec AVX utilisable, modèle local vérifié. Témoins Intel : Dell i7-1185G7 sans NVIDIA et station i9-14900K avec GTX 1080 Ti (CUDA 61-real). Sur Snapdragon SC8480XP, Windows 11 Enterprise ARM64 build 28000, les exécutables x64 fonctionnent sous émulation ; le guidage graphique B7 a été validé avec le pack Microsoft installé depuis le Store. AMD et anciens PC sans AVX sont différés.
 
 T45 documentaire terminé. Installation B7 vérifiée sur Snapdragon ; workers CPU/GPU et modèle identiques à ceux des recettes antérieures. Le desktop tg7 ajoute le parcours de sonde Glow avant la composition normale. Les mesures de débit, les imports et les essais micro restent attribués au desktop antérieur effectivement exécuté. Le dossier ne fournit pas de recette complète des transcriptions sur le SHA final tg7. La qualification intégrale du même paquet au sens strict du plan reste ouverte sur cet écart. La distribution publique requiert une décision distincte.
+
+## Remise du kit de recette du desktop final
+
+Avancée : le kit WhisperTurbo-L4-Final-B7-tg7.zip contient le bootstrap B7, le desktop tg7, les deux workers, le modèle hors ligne, les DLL et notices du candidat, les stimuli audio et les pilotes Windows PowerShell 5.1. SHA-256 du ZIP : 184f9fe42b35802d4fb5dc1126f0cd3bdd6a0e60b9e61ef3a94b1e93f0f23388.
+
+Blocage : les deux exécutions matérielles avec le bureau interactif et le microphone réel restent à recevoir.
+
+Décision : exercer 7 cas sur le Dell (WAV, MP3, micro en CPU et Auto, refus GPU manuel) et 10 sur la GTX 1080 Ti (WAV, MP3, micro en CPU, GPU et Auto, plus vitesse sur un WAV de 300 secondes). Le pilote fait lire deux extraits par les haut-parleurs pour le microphone. Chaque machine produit un ZIP de preuves. Consolider les deux retours, examiner les différences de texte en cas de divergence et rattacher le verdict au SHA du desktop.
+
+Vérifications locales du kit : 34 entrées relues et comparées par SHA-256, syntaxe des pilotes vérifiée sous Windows PowerShell 5.1, contrôle d’un vrai export micro archivé et rejet d’un texte divergent et d’horodatages invalides. La consolidation a été exercée sur des fixtures complètes et sur une archive privée d’un essai obligatoire. Ces vérifications qualifient le conditionnement et des contrôles du banc ; la matrice du binaire final reste non exécutée sur les deux témoins à cette remise.
