@@ -79,3 +79,15 @@ Le TXT reprend les deux segments IPC. Comparaison avec le [texte approuvé](feas
 Le lieu est mal reconnu. La variante graphique du premier nom et l’ajout du « n’ » ne changent pas le sens. Le dernier mot « le » correspond à la coupure du WAV. Le texte approuvé porte sur l’enregistrement long ; aucun score mot à mot n’est attribué aux frontières de cet extrait.
 
 Le diagnostic graphique séparé situe l’échec dans une session Console de Windows 11 Enterprise ARM64 build 28000, avec un Adreno X2-90 et le pilote 32.0.157.0. Le desktop x64 atteint Glow, qui refuse le contexte OpenGL inférieur à 2. La cause de cette version exposée reste indéterminée. Import et micro via le desktop, choix Auto et exports TXT/SRT de l’application restent non vérifiés sur ce matériel. Le TXT du ZIP provient du script de recette. Le job CI T42 reste `NOT RUN` et la gate de distribution reste fermée.
+
+## Recette manuelle dans Whisper après installation du pack Microsoft — 18 novembre 2026
+
+Avancée : sur le Snapdragon X2 Elite, l’utilisateur confirme le démarrage de Whisper puis la réussite des quatre parcours (import CPU, import Auto, micro CPU et micro Auto).
+Blocage : la réservation s’est déconnectée avant la récupération du ZIP de cette recette.
+Décision : retenir la validation fonctionnelle manuelle sur cette configuration avec le pack Microsoft. T42 reste `NOT RUN` et la gate de distribution reste fermée.
+
+Le lanceur a demandé l’installation du pack de compatibilité OpenGL Microsoft manquant. Après son installation, la fenêtre Whisper s’est affichée. L’utilisateur a pu traiter un fichier et utiliser le microphone dans les deux modes, sans erreur. Il a trouvé les transcriptions et les WAV et juge la qualité conforme à ses attentes.
+
+Au microphone, il a essayé une phrase seule, puis une première phrase suivie d’une pause jusqu’à l’apparition du texte à l’écran, avant de prononcer une deuxième phrase. Cette observation atteste l’affichage du texte pendant la capture. Aucun délai chiffré n’a été relevé.
+
+La version exacte du pack, le moteur effectif affiché en Auto et le détail des exports SRT (présence par essai et horodatages) ne sont pas documentés dans ce retour. Le ZIP du test CPU hors interface examiné précédemment reste une preuve distincte.
