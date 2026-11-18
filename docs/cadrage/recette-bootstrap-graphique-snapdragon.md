@@ -1,12 +1,22 @@
-Avancée : procédure préparée pour vérifier le bootstrap graphique du futur candidat Turbo sur Snapdragon.
-Blocage : le candidat et ses empreintes doivent être renseignés après implémentation, revue et build gardé.
-Décision : démarrer sur une image où le pack Microsoft est absent et observer l’installateur livré.
+Avancée : le candidat graphique Turbo a été compilé et assemblé. Le contrôle du rendu utilise le desktop livré.
+Blocage : le parcours Store avant/après reste à observer sur un Snapdragon dont le pack est initialement absent.
+Décision : lancer le bootstrap depuis le bureau sur une image fraîche et conserver les observations de la recette.
 
-## Préparation du candidat
+## Candidat à utiliser
 
-Lot proposé sur la branche de reprise. Le bootstrap orchestre les contrôles en lecture seule puis appelle son installation existante après confirmation. Les dialogues Windows en français et la sélection du modèle réutilisent la bibliothèque rfd des adaptateurs. Le desktop propose une sonde du moteur eframe/Glow, appelée sur son image du paquet vérifiée avant exécution. Elle doit initialiser le rendu réel puis quitter, sans charger de modèle, lancer de worker ou créer une installation. La consultation du pack concerne le compte interactif. Un échec de cette consultation doit rester distinguable d’une absence confirmée.
+| Fichier | SHA-256 |
+|---|---|
+| `whisper-bootstrap.exe` | `bd8ce23641f884eb09bd0901393599181691cd4883ae4841f0b3fe9105a23eac` |
+| `app/whisper-desktop.exe` | `6602055e1e57092f22c32e3966ea36d723a8e79ff0e67f6a1ab9a7cc82df6ad4` |
+| `modele/ggml-large-v3-turbo.bin` | `1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69` |
 
-Périmètre proposé : bootstrap (point d’entrée, validation des entrées et tests), adaptateurs (dialogues et consultation du prérequis), desktop (mode sonde et tests), puis adaptation des appels du banc qui alimentent actuellement le bootstrap sur son entrée standard. Conserver les protections de destination et revalider les entrées au moment de l’installation. Avant remise, faire relire le delta, exécuter N1 et Clippy via la garde, construire et identifier les exécutables du candidat puis vérifier le contenu du paquet. Une modification de l’identité du desktop ou du bootstrap doit être répercutée dans la fiche et le pilote de cette recette.
+Le modèle est déjà dans le kit. La sonde ouvre brièvement une fenêtre WhisperTurbo. Sur l’alerte initiale qui propose le Store, **Oui** ouvre la fiche Microsoft, **Non** vérifie à nouveau, **Annuler** quitte. Après ouverture du Store, revenir à la boîte de dialogue et cliquer sur **Oui** pour relancer la vérification après installation du pack. Quand l’installateur annonce que le PC est prêt, **Oui** confirme l’installation de WhisperTurbo.
+
+## Démarrer depuis le bureau
+
+Extraire entièrement l’archive de recette dans un dossier. Ouvrir ce dossier dans l’Explorateur et double-cliquer sur `whisper-bootstrap.exe`. Garder `app`, `notices-candidate` et `modele` à côté de cet exécutable. Le dossier `modele` contient le fichier `ggml-large-v3-turbo.bin` fourni hors ligne. Utiliser la session graphique du même compte jusqu’à la fin du test.
+
+Avant le premier lancement, ouvrir les applications installées dans les Paramètres Windows et constater l’absence du pack de compatibilité graphique Microsoft. Dans l’Explorateur, ouvrir `%LOCALAPPDATA%` et relever si `WhisperTurbo` existe. Pour tester une première installation utiliser un profil vierge. Conserver une capture de l’état initial. Le test porte sur l’alerte graphique, son annulation et la reprise après installation du pack. Il ne demande aucune nouvelle transcription.
 
 ## Sur la réservation Snapdragon
 
