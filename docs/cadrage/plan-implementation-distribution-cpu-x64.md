@@ -113,3 +113,11 @@ Le code de recette proposé est `ci/distribution-cpu-x64.ps1`, avec le workflow 
 - Les nettoyages de cibles et temporaires respectent la rétention : archiver et vérifier les preuves, identifier les chemins canoniques, préserver les caches partagés et ne jamais nettoyer les éléments d’un autre lot.
 
 **Vérifications du document :** aucune campagne, build, commande Cargo ou exécution CI n’a été lancée pour écrire ce plan. Le futur candidat devra satisfaire les contrôles prévus via la garde ; les preuves matérielles et l’essai fenêtre restent à faire.
+
+### Priorités L4 actualisées le 18 novembre 2026
+
+À la demande de l’utilisateur, suspendre la recherche et la recette du témoin AMD faute d’accès. Statut T43 AMD : différé, non exécuté. Avancer sur les autres témoins ; la portée de distribution sera arbitrée en T45 si AMD demeure indisponible. Les essais du socle v2 exact et du refus sous v2 restent ouverts indépendamment du constructeur.
+
+Le ZIP de recette Snapdragon `RETOUR-L4-20261118-053844-ee015.zip` a depuis été récupéré et vérifié. Il documente le pack graphique Microsoft ARM64 1.2608.3.0, les exports d’import CPU/Auto et les deux captures micro. T42 automatisé reste à exécuter. T33 complet, T41, le refus matériel sous v2 et N2 CUDA restent à fermer avant le bilan T45.
+
+Pour la remise publique, cadrer séparément le parcours graphique d’installation et de lancement, y compris la gestion du modèle, des fichiers manquants et de l’erreur OpenGL sans terminal. Cette demande précède le gel du candidat de distribution ; la présente mise à jour ne déclenche ni développement ni campagne.
