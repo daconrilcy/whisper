@@ -60,3 +60,22 @@ Cette recette manuelle vérifie le fonctionnement observé sur votre machine. El
 ## Retour de la première recette ARM64
 
 L'utilisateur rapporte que l'application ne reste pas ouverte et que le diagnostic affiche `Error OpenGL(PainterError("egui_glow requires opengl 2.0+. "))`. Le desktop retenu utilise explicitement le moteur `eframe::Renderer::Glow` ; le code `egui_glow` 0.35.0 émet ce message lorsque le contexte OpenGL obtenu annonce une version majeure inférieure à 2. Le pilote, le contexte graphique et le mode de connexion de cette machine restent à identifier ; l'erreur ne permet pas à elle seule de déterminer pourquoi cette version est exposée. Le démarrage desktop et l'inférence sur ce PC sont en échec / non exécutés ; T42 reste `NOT RUN`. Aucun changement de pilote ni de moteur de rendu n'a été effectué.
+## Qualification L4 du Snapdragon X2 Elite — 18 novembre 2026
+
+Avancée : le worker CPU x64 du candidat transcrit le WAV français de quatre secondes sur le Snapdragon.
+Blocage : le desktop échoue à l’initialisation OpenGL.
+Décision : retenir le succès de l’inférence CPU hors interface avec une réserve de fidélité sur le nom de lieu. La qualification ARM64 complète reste ouverte.
+
+Le ZIP de recette `resultat-cpu-20261118-025646-44fad6.zip` contient le rapport, les événements IPC, la sortie diagnostique et le texte. Le worker (PID 9500) déclare le SHA-256 `a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b` et le niveau `x86_64_v2` sans capacité manquante. Pour le même job, la même génération et la même instance, le journal donne `Ready(Cpu)`, deux segments contigus (0–2,02 s et 2,02–4,00 s), puis `End` à 64 000 échantillons. La sortie vaut 0. Le temps du worker, chargement du modèle compris, est de 66,808 s pour cet essai unique.
+
+Le TXT reprend les deux segments IPC. Comparaison avec le [texte approuvé](feas-pm-01-corpus/candidate_fr_continu_copie.txt) et la [validation humaine de l’extrait 28–32 s](feas-pm-01-corpus/validation_humaine.md). L’empreinte du [WAV](feas-pm-01-corpus/fr_passage_28-32.wav) a été revérifiée contre celle du manifeste et celle attendue par le script.
+
+| Passage | Référence du corpus | Worker sur Snapdragon |
+|---|---|---|
+| Population évoquée | Ouïgours | Ouïghours |
+| Lieu | à Hong Kong | à Haute-Gon |
+| Fin de l’extrait | je dis que nous avons pas le | je dis que nous n’avons pas le |
+
+Le lieu est mal reconnu. La variante graphique du premier nom et l’ajout du « n’ » ne changent pas le sens. Le dernier mot « le » correspond à la coupure du WAV. Le texte approuvé porte sur l’enregistrement long ; aucun score mot à mot n’est attribué aux frontières de cet extrait.
+
+Le diagnostic graphique séparé situe l’échec dans une session Console de Windows 11 Enterprise ARM64 build 28000, avec un Adreno X2-90 et le pilote 32.0.157.0. Le desktop x64 atteint Glow, qui refuse le contexte OpenGL inférieur à 2. La cause de cette version exposée reste indéterminée. Import et micro via le desktop, choix Auto et exports TXT/SRT de l’application restent non vérifiés sur ce matériel. Le TXT du ZIP provient du script de recette. Le job CI T42 reste `NOT RUN` et la gate de distribution reste fermée.
