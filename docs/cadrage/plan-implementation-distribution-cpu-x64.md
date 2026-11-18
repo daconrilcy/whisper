@@ -121,3 +121,5 @@ Le code de recette proposé est `ci/distribution-cpu-x64.ps1`, avec le workflow 
 Le ZIP de recette Snapdragon `RETOUR-L4-20261118-053844-ee015.zip` a depuis été récupéré et vérifié. Il documente le pack graphique Microsoft ARM64 1.2608.3.0, les exports d’import CPU/Auto et les deux captures micro. T42 automatisé reste à exécuter. T33 complet, T41, le refus matériel sous v2 et N2 CUDA restent à fermer avant le bilan T45.
 
 Pour la remise publique, cadrer séparément le parcours graphique d’installation et de lancement, y compris la gestion du modèle, des fichiers manquants et de l’erreur OpenGL sans terminal. Cette demande précède le gel du candidat de distribution ; la présente mise à jour ne déclenche ni développement ni campagne.
+
+[État consolidé par tâche et pièces de recette rattachées](etat-qualification-l4.md).
