@@ -1,6 +1,6 @@
 Avancée : le candidat graphique Turbo a été compilé et assemblé. Le contrôle du rendu utilise le desktop livré.
-Blocage : le parcours Store avant/après reste à observer sur un Snapdragon dont le pack est initialement absent.
-Décision : lancer le bootstrap depuis le bureau sur une image fraîche et conserver les observations de la recette.
+Blocage : sur le Snapdragon, l’alerte observée omet l’action d’ouverture du Microsoft Store.
+Décision : conserver les résultats du démarrage et de l’installation. La qualification du guidage Store reste ouverte.
 
 ## Candidat à utiliser
 
@@ -29,3 +29,9 @@ Avant le premier lancement, ouvrir les applications installées dans les Paramè
 ## Contrôles complémentaires
 
 Sur le Dell sans NVIDIA, vérifier que le CPU reste admissible lorsque le rendu et les ressources conviennent. Sur une copie de recette dédiée, présenter un modèle incorrect puis un modèle valide, et vérifier le diagnostic d’un fichier de paquet absent. Consigner séparément les résultats de chaque parcours. [Critères acceptés](prerequis-graphiques-installation-turbo.md)
+
+## Résultat sur le Snapdragon — 18 novembre 2026
+
+L’opérateur confirme que le dossier WhisperTurbo était toujours absent avant installation, puis présent après installation. Le desktop installé s’ouvre et est utilisable.
+
+La [capture de l’alerte](preuves-bootstrap-snapdragon/alerte-rendu.png) montre l’échec réel de Glow (OpenGL 2.0+ requis), puis deux actions : réessayer ou quitter. Le texte correspond au statut NotApplicable du bootstrap. Sur ce parcours, le bootstrap ne reconnaît pas l’hôte ARM64, ne vérifie pas le pack et ne propose pas le Store. La manière dont le composant graphique a été installé et les valeurs des variables d’architecture du processus ne sont pas documentées par cette capture.
