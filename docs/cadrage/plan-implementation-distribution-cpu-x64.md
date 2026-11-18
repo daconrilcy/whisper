@@ -2,6 +2,8 @@ Avancée : le plan séquence la distribution x64 autour des décisions produit a
 Blocage : les preuves sur bancs v2/ARM64 et l’installeur restent à exécuter lorsque ces machines seront accessibles.
 Décision : les validations matérielles sont des gates avant distribution publique, pas des prérequis pour commencer les lots de compilation portable.
 
+**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale reste non attestée. [Preuves de l’essai](T42-2a857f69a9.zip).
+
 **Périmètre courant — PC x64 avec AVX**
 
 Décision du 18 novembre 2026 applicable à la qualification en cours : sur PC x64, AVX utilisable par le processus Windows est désormais une condition de prise en charge, en complément du socle x64-v2 du candidat. AVX2 n’est pas exigé. Les témoins physiques anciens sans AVX (v2 exact et sous v2) sont différés et sortent des conditions de clôture de cette portée. Leur compatibilité reste non qualifiée. Cette décision prévaut sur les prescriptions historiques T01/T41 et les branches correspondantes de T43. AMD reste différé séparément.
