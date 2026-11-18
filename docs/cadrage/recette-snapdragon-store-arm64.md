@@ -22,3 +22,5 @@ Archive à extraire : WhisperTurbo-Snapdragon-Store-ARM64.zip. Empreinte SHA-256
 ## Retour du nouveau créneau Snapdragon
 
 Parcours Store en échec. L’opérateur signale avoir utilisé le nouveau paquet. La [capture](preuves-bootstrap-snapdragon/alerte-store-b7-signalee.png) montre uniquement Oui pour réessayer et Non pour quitter. Non ferme bien la fenêtre. L’identité du processus exécuté sur la VM et la valeur d’architecture qu’il a effectivement obtenue restent à établir. La revérification après passage par le Store reste non exercée.
+
+Le contrôle de la fenêtre ouverte sur SC8480XP a identifié le bootstrap du dossier WhisperTurbo-Snapdragon-Store-ARM64 du bureau. Son SHA-256 diffère de B7 (CandidatB7=False). Windows annonce ArchitectureCPU=12 et Snapdragon X2 Elite. L’alerte observée ne qualifie donc pas B7. La version exacte lancée n’a pas été identifiée. Reprendre avec le bootstrap vérifié du ZIP.
