@@ -4,6 +4,23 @@ Avancée : candidat x64, modèle et audio réunis pour une recette manuelle sur 
 Blocage : le résultat sur cette machine et la qualification CI ARM64 ne sont pas encore connus.
 Décision : tester le même candidat sous émulation x64, sans annoncer de version ARM native.
 
+## Si Whisper ne s'ouvre pas : lancer le diagnostic
+
+Si l'installation a déjà été tentée, commencez par ce diagnostic : il ne réinstalle rien et ne supprime aucun fichier.
+
+1. Extrayez cette nouvelle archive et ouvrez le dossier extrait qui contient **DIAGNOSTIC.ps1**. Dans la barre d'adresse de l'explorateur, tapez `powershell` et appuyez sur Entrée.
+2. Copiez la commande ci-dessous dans la fenêtre PowerShell puis appuyez sur Entrée :
+
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\DIAGNOSTIC.ps1"
+   ```
+
+   Le paramètre `ExecutionPolicy` vaut seulement pour ce lancement de PowerShell ; il ne modifie pas le réglage permanent de Windows.
+3. Attendez la vérification des fichiers et les 15 secondes d'observation du lancement. Ne fermez pas une éventuelle fenêtre d'erreur avant d'en noter le message.
+4. Le programme indique un dossier `diagnostic-...` contenant `rapport.txt` et, si le desktop a été lancé, ses fichiers `desktop-stdout.txt` et `desktop-stderr.txt`. Communiquez ces fichiers et tout message affiché. Le rapport contient des informations Windows et des chemins de fichiers ; vous pouvez les consulter avant de les transmettre.
+
+Le diagnostic contrôle l'identité du paquet et de l'installation, relève le code de sortie si le desktop se ferme et indique s'il est encore actif après 15 secondes. Il ne tue aucun processus. Si un desktop Whisper est déjà actif, il ne lance pas de seconde instance.
+
 ## 1. Extraire et installer
 
 1. Copiez l'archive sur le PC Windows ARM64, puis faites clic droit sur l'archive et choisissez **Extraire tout**. Prévoyez au moins 6 Gio libres pour l'archive extraite et l'installation.
