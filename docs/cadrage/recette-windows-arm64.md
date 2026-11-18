@@ -1,7 +1,7 @@
 # Recette Whisper sur Windows ARM64
 
 Avancée : candidat x64, modèle et audio réunis pour une recette manuelle sur Windows ARM64.
-Blocage : le résultat sur cette machine et la qualification CI ARM64 ne sont pas encore connus.
+Blocage : sur la machine ARM64, le démarrage de la fenêtre échoue avec une erreur OpenGL ; la qualification CI ARM64 reste ouverte.
 Décision : tester le même candidat sous émulation x64, sans annoncer de version ARM native.
 
 ## Si Whisper ne s'ouvre pas : lancer le diagnostic
@@ -56,3 +56,7 @@ Sélectionnez **CPU**, démarrez le microphone, prononcez une phrase, faites une
 Indiquez : version et édition de Windows ; résultat de l'installation ; ouverture de la fenêtre ; moteur affiché en CPU et en Auto ; résultat de l'import WAV, présence de TXT/SRT et qualité du texte ; résultat du micro si testé ; messages d'erreur éventuels. Une capture des informations système et une capture de Whisper peuvent aider à comprendre un échec.
 
 Cette recette manuelle vérifie le fonctionnement observé sur votre machine. Elle ne remplace pas à elle seule le job CI T42 ni la preuve technique des processus x64 sous émulation prévus par le plan. Le candidat n'est pas encore qualifié pour distribution.
+
+## Retour de la première recette ARM64
+
+L'utilisateur rapporte que l'application ne reste pas ouverte et que le diagnostic affiche `Error OpenGL(PainterError("egui_glow requires opengl 2.0+. "))`. Le desktop retenu utilise explicitement le moteur `eframe::Renderer::Glow` ; le code `egui_glow` 0.35.0 émet ce message lorsque le contexte OpenGL obtenu annonce une version majeure inférieure à 2. Le pilote, le contexte graphique et le mode de connexion de cette machine restent à identifier ; l'erreur ne permet pas à elle seule de déterminer pourquoi cette version est exposée. Le démarrage desktop et l'inférence sur ce PC sont en échec / non exécutés ; T42 reste `NOT RUN`. Aucun changement de pilote ni de moteur de rendu n'a été effectué.
