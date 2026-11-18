@@ -1,6 +1,10 @@
 Avancée : les décisions de périmètre et les contrats de distribution x64 sont cadrés ; les procédures matérielles sont affectées à la qualification finale.
-Blocage : les validations sur x86-64-v2 et Windows on Arm restent à exécuter avant distribution, lorsque les plateformes seront accessibles.
-Décision : le plancher applicatif est x86-64-v2 ; aucune implémentation n’est autorisée par ce design.
+Blocage : suivre les critères encore ouverts dans le bilan L4 actualisé.
+Décision : pour la qualification actuelle des PC x64, retenir le socle du candidat et exiger AVX utilisable.
+
+**Périmètre courant — PC x64 avec AVX**
+
+Décision du 18 novembre 2026 applicable à la qualification en cours : sur PC x64, AVX utilisable par le processus Windows est désormais une condition de prise en charge, en complément du socle x64-v2 du candidat. AVX2 n’est pas exigé. Les témoins physiques anciens sans AVX (v2 exact et sous v2) sont différés et sortent des conditions de clôture de cette portée. Leur compatibilité reste non qualifiée. Cette décision prévaut sur les prescriptions historiques T01/T41 et les branches correspondantes de T43. AMD reste différé séparément.
 
 # Évolution — distribution Windows x64 pour CPU Intel et AMD
 

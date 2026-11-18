@@ -2,6 +2,10 @@ Avancée : le plan séquence la distribution x64 autour des décisions produit a
 Blocage : les preuves sur bancs v2/ARM64 et l’installeur restent à exécuter lorsque ces machines seront accessibles.
 Décision : les validations matérielles sont des gates avant distribution publique, pas des prérequis pour commencer les lots de compilation portable.
 
+**Périmètre courant — PC x64 avec AVX**
+
+Décision du 18 novembre 2026 applicable à la qualification en cours : sur PC x64, AVX utilisable par le processus Windows est désormais une condition de prise en charge, en complément du socle x64-v2 du candidat. AVX2 n’est pas exigé. Les témoins physiques anciens sans AVX (v2 exact et sous v2) sont différés et sortent des conditions de clôture de cette portée. Leur compatibilité reste non qualifiée. Cette décision prévaut sur les prescriptions historiques T01/T41 et les branches correspondantes de T43. AMD reste différé séparément.
+
 # Plan d’implémentation — Distribution Whisper Windows x64
 
 **État : DESIGN READY / PLANS READY après revues indépendantes CLEAN.** Le plan décline [evo-distribution-cpu-x64.md](evo-distribution-cpu-x64.md) et conserve les décisions acceptées : Windows 11 Home/Pro encore supporté à la publication ; `large-v3-turbo` CPU/NVIDIA/Auto, sans Parakeet ; installation neuve. Les essais x86-64-v2 et Windows on Arm attendent l’accès aux plateformes ; ils restent obligatoires avant distribution publique, sans bloquer les lots de compilation portable. T00 est autorisé, implémenté et revu CLEAN ; aucun build/test de campagne n’a été lancé. Ces statuts rendent le plan exploitable pour préparer un mandat précis de lot, mais n’autorisent pas à eux seuls l’implémentation.
