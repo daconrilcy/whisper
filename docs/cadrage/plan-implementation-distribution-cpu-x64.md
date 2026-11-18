@@ -2,7 +2,7 @@ Avancée : le plan séquence la distribution x64 autour des décisions produit a
 Blocage : les preuves sur bancs v2/ARM64 et l’installeur restent à exécuter lorsque ces machines seront accessibles.
 Décision : les validations matérielles sont des gates avant distribution publique, pas des prérequis pour commencer les lots de compilation portable.
 
-**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale reste non attestée. [Preuves de l’essai](T42-2a857f69a9.zip).
+**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale est confirmée par l’utilisateur lors de son essai manuel. [Preuves de l’essai](T42-2a857f69a9.zip).
 
 **Périmètre courant — PC x64 avec AVX**
 

@@ -2,7 +2,7 @@ Avancée : les décisions de périmètre et les contrats de distribution x64 son
 Blocage : suivre les critères encore ouverts dans le bilan L4 actualisé.
 Décision : pour la qualification actuelle des PC x64, retenir le socle du candidat et exiger AVX utilisable.
 
-**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale reste non attestée. [Preuves de l’essai](T42-2a857f69a9.zip).
+**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale est confirmée par l’utilisateur lors de son essai manuel. [Preuves de l’essai](T42-2a857f69a9.zip).
 
 **Périmètre courant — PC x64 avec AVX**
 

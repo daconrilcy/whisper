@@ -1,8 +1,8 @@
-Avancée : bootstrap B7 validé sur Snapdragon, T33 Dell et N2 CUDA GTX 1080 Ti clos pour leurs candidats. Les recettes matérielles manuelles restent acquises.
-Blocage : T45 reste à finaliser pour le candidat retenu dans la portée AVX.
-Décision : retenir les PC x64 avec AVX utilisable. Différer les anciens PC sans AVX et conserver le report AMD.
+Avancée : T42 validé, fermeture comprise. T45 a consolidé les preuves et figé le candidat B7/tg7.
+Blocage : les preuves de transcription sur le paquet final exact restent limitées aux parcours rattachés ci-dessous.
+Décision : figer le bilan dans la portée AVX, avec les limites de qualification par binaire.
 
-**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale reste non attestée. [Preuves de l’essai](T42-2a857f69a9.zip).
+**Décision du 18 novembre 2026 — T42 / AC-08 validé pour cette version.** L’utilisateur accepte l’essai automatisé lancé depuis le bureau du Snapdragon SC8480XP. Il lève l’exigence de déclenchement CI ARM64 pour cet essai. Le ZIP établit l’émulation x64 du desktop et du worker, la transcription et les exports. Le rapport brut reste INCOMPLET à la lecture du journal encore ouvert et la fermeture normale est confirmée par l’utilisateur lors de son essai manuel. [Preuves de l’essai](T42-2a857f69a9.zip).
 
 ## Relecture du plan et état des tâches
 
@@ -16,10 +16,10 @@ Le plan initial (Git ca8fb16e) distingue construction, installation, témoins CP
 | T31, T32, T34 | Terminées au titre de L3 | [Bootstrap et installation](preuves-recette-l3-bootstrap.zip), [preuves T32](preuves-t32-message-fix.zip), [configuration et remise](remise-l4-candidat-turbo.md). |
 | T33 | Terminée pour le candidat testé | [Archive Dell du 18 novembre 2026, 18:08 UTC](T33-dcbf572ce7.zip). Le contrôle d’environnement ne détecte aucun indice de dépôt, SDK ou outil de build. Installation en profil vide, identités vérifiées, import du WAV par le desktop installé, backend CPU et 64 000/64 000 échantillons confirmés. Les empreintes TXT/SRT concordent avec le manifeste du job. Le worker encore actif après publication se termine pendant la fermeture normale du desktop. Verdict du rapport : PASS. |
 | T41 | Différé hors portée AVX ; non exécuté | Runner x64 au prédicat T01 exact, import automatisé et exports. |
-| T42 | Validée sur le candidat testé par décision utilisateur | [Import automatisé sur le bureau Snapdragon](T42-2a857f69a9.zip). Windows ARM64, PE et processus AMD64, PID desktop 10488 et worker 1276, capacités v2 complètes, import CPU 64 000/64 000. TXT/SRT identiques à T33. Le pilote lancé par l’opérateur a consigné INCOMPLET à la lecture du journal encore ouvert ; corrélation vérifiée dans le ZIP. Fermeture normale non attestée. Mode de déclenchement accepté. |
+| T42 | Validée sur le candidat testé par décision utilisateur | [Import automatisé sur le bureau Snapdragon](T42-2a857f69a9.zip). Windows ARM64, PE et processus AMD64, PID desktop 10488 et worker 1276, capacités v2 complètes, import CPU 64 000/64 000. TXT/SRT identiques à T33. Le pilote lancé par l’opérateur a consigné INCOMPLET à la lecture du journal encore ouvert ; corrélation vérifiée dans le ZIP. Fermeture normale confirmée manuellement. Mode de déclenchement accepté. |
 | T43 | Partiellement validée | Intel avec NVIDIA, Intel sans NVIDIA et observation Auto documentés dans les [résultats du candidat](recette-second-pc-gpu-fix.md) et la [remise](remise-l4-candidat-turbo.md). Admission matérielle v2 exacte et refus réel sous v2 différés hors portée AVX ; AMD différé ; les deux pannes Auto provoquées sont hors périmètre. |
 | T44 | Terminée pour le candidat de recette | Paquet, références, consignes et remises effectuées ; essais utilisateurs reçus. |
-| T45 | En attente | Consolider les critères applicables et figer les configurations qualifiées après résolution des éléments ouverts. |
+| T45 | Consolidation réalisée | Candidat B7/tg7 figé. Voir le verdict de portée ci-dessous. |
 
 ## Pièces ARM64 rattachées
 
@@ -56,9 +56,27 @@ T45 doit documenter ce prérequis et rattacher aux témoins Intel retenus les ca
 | AC-04 | Fermeture de paquet et installation en profil vierge documentées sur le candidat T33 Dell. Pour la configuration finale, annoncer x64-v2 avec AVX utilisable sur PC x64, et distinguer les éditions Windows testées ainsi que le pack graphique requis sur le Snapdragon de recette. |
 | AC-05 / AC-06 | Imports CPU et capture micro documentés dans les recettes Intel et Snapdragon. Les exports et le contenu du WAV de référence sont vérifiés sur le Dell par T33 ; la capture micro relève des recettes utilisateur. |
 | AC-07 | CI sur témoin v2 exact sans AVX différée hors de la portée actuelle. |
-| AC-08 | Preuve matérielle obtenue sur SC8480XP, Windows 11 Enterprise ARM64 build 28000, avec desktop et worker x64 émulés. Le script d’import a été démarré depuis le bureau. Son journal final indique INCOMPLET ; import et exports sont établis par les pièces du ZIP, fermeture normale non attestée. La dispense de CI est actée pour cette version. |
+| AC-08 | Preuve matérielle obtenue sur SC8480XP, Windows 11 Enterprise ARM64 build 28000, avec desktop et worker x64 émulés. Le script d’import a été démarré depuis le bureau. Son journal final indique INCOMPLET ; import et exports sont établis par les pièces du ZIP, fermeture normale confirmée manuellement. La dispense de CI est actée pour cette version. |
 | AC-09 / AC-10 | GTX 1080 Ti : CPU, GPU manuel et Auto testés ; moteur GPU affiché en Auto. Import GPU de 5 minutes en 1 min 10 s et premier bloc confirmé au micro en 4 s. Sur le Dell sans NVIDIA : Auto utilise le CPU, et le GPU manuel est refusé. Les deux pannes provoquées sont hors périmètre. |
 
-**Identités à conserver.** Les archives T33 et T42 concernent le desktop 01e2ea8b… ; l’installateur B7 (6560131d…) embarque le desktop tg7 (6602055e…). La recette B7 prouve le guidage Store et l’installation. Les transcriptions historiques gardent l’identité de leur candidat. Le dossier T45 reste préparatoire jusqu’à consolidation du candidat retenu.
+**Identités à conserver.** Les archives T33 et T42 concernent le desktop 01e2ea8b… ; l’installateur B7 (6560131d…) embarque le desktop tg7 (6602055e…). La recette B7 prouve le guidage Store et l’installation. Les transcriptions historiques gardent l’identité de leur candidat. Les identités du candidat retenu ont été vérifiées à la consolidation T45.
 
 [Recette Intel et NVIDIA](recette-second-pc-gpu-fix.md) · [Pièces T33](T33-dcbf572ce7.zip) · [Pièces T42](T42-2a857f69a9.zip) · [Mandat T42 et empreintes](mandat-t42-windows-arm64.md) · [Recette B7](recette-snapdragon-store-arm64.md)
+
+## Verdict T45 — candidat figé le 18 novembre 2026
+
+Le kit de recette retenu est WhisperTurbo-Snapdragon-Store-ARM64.zip (SHA-256 64969a4105e33abc865576c3d5fa3993c3a6a246cf1761fe617f614d5408b794). Empreintes SHA-256 relues directement depuis le ZIP :
+
+| Entrée | SHA-256 |
+|---|---|
+| Bootstrap B7 | 6560131dc0bbc6e6bdd45a2728f719db7a6079324dc3fd06b816cd6ca22f21f6 |
+| Desktop tg7 | 6602055e1e57092f22c32e3966ea36d723a8e79ff0e67f6a1ab9a7cc82df6ad4 |
+| Worker CPU | a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b |
+| Worker NVIDIA | d874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9 |
+| Modèle large-v3-turbo | 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69 |
+
+T42/AC-08 est pleinement validé sur le témoin accepté. L’utilisateur a testé la fermeture normale. Le journal brut documente la limite de lecture du banc. Ces deux éléments sont conservés avec leur provenance.
+
+Configuration de référence pour les PC : Windows 11 Famille/Pro x64, socle v2 avec AVX utilisable, modèle local vérifié. Témoins Intel : Dell i7-1185G7 sans NVIDIA et station i9-14900K avec GTX 1080 Ti (CUDA 61-real). Sur Snapdragon SC8480XP, Windows 11 Enterprise ARM64 build 28000, les exécutables x64 fonctionnent sous émulation ; le guidage graphique B7 a été validé avec le pack Microsoft installé depuis le Store. AMD et anciens PC sans AVX sont différés.
+
+T45 documentaire terminé. Installation B7 vérifiée sur Snapdragon ; workers CPU/GPU et modèle identiques à ceux des recettes antérieures. Le desktop tg7 ajoute le parcours de sonde Glow avant la composition normale. Les mesures de débit, les imports et les essais micro restent attribués au desktop antérieur effectivement exécuté. Le dossier ne fournit pas de recette complète des transcriptions sur le SHA final tg7. La qualification intégrale du même paquet au sens strict du plan reste ouverte sur cet écart. La distribution publique requiert une décision distincte.
