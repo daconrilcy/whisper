@@ -1,5 +1,5 @@
 Avancée : T33 validé sur le Dell. Les trois recettes matérielles manuelles restent acquises.
-Blocage : T41, T42, le refus matériel sous v2 et N2 CUDA restent ouverts. AMD est différé.
+Blocage : T41, T42 et le refus matériel sous v2 restent ouverts. AMD est différé.
 Décision : conserver les résultats matériels acquis et réserver les prochaines exécutions aux critères encore ouverts.
 
 ## Relecture du plan et état des tâches
@@ -10,7 +10,7 @@ Le plan initial (Git ca8fb16e) distingue construction, installation, témoins CP
 |---|---|---|
 | T00 à T04 | Terminées au titre de L0 | Garde et SelfTest, protocoles de mesure préparés dans le plan. Les exécutions matérielles sont reportées en L4. |
 | T11 à T13 | Terminées au titre de L1 | Profil portable, contrôle des capacités et composition CPU acceptés au passage vers L2. [Entrées du candidat](entrees-rust-candidats-turbo.md) et [correction du worker portable en L3](preuves-correction-cpu-l3.zip). |
-| T21 à T24 | Terminées au titre de L2 | Édition, dépendances, notices et contrat dans le [bilan L2](bilan-l2-distribution-turbo.md). N2 CUDA reste une validation prédistribution distincte. |
+| T21 à T24 | Terminées au titre de L2 | Édition, dépendances, notices et contrat dans le [bilan L2](bilan-l2-distribution-turbo.md). N2 CUDA de réutilisation des imports validé sur GTX 1080 Ti pour le candidat T33 : un test exécuté, un succès, aucun ignoré. [Résultat et journaux](preuves-n2-gtx1080ti-59c7a61f.zip). |
 | T31, T32, T34 | Terminées au titre de L3 | [Bootstrap et installation](preuves-recette-l3-bootstrap.zip), [preuves T32](preuves-t32-message-fix.zip), [configuration et remise](remise-l4-candidat-turbo.md). |
 | T33 | Terminée pour le candidat testé | [Archive Dell du 18 novembre 2026, 18:08 UTC](T33-dcbf572ce7.zip). Le contrôle d’environnement ne détecte aucun indice de dépôt, SDK ou outil de build. Installation en profil vide, identités vérifiées, import du WAV par le desktop installé, backend CPU et 64 000/64 000 échantillons confirmés. Les empreintes TXT/SRT concordent avec le manifeste du job. Le worker encore actif après publication se termine pendant la fermeture normale du desktop. Verdict du rapport : PASS. |
 | T41 | NON EXÉCUTÉ | Runner x64 au prédicat T01 exact, import automatisé et exports. |
