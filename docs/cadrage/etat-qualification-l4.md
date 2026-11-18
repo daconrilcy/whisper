@@ -44,3 +44,19 @@ T44 est terminé pour la remise de recette. Les pannes Auto provoquées restent 
 Décision du 18 novembre 2026 applicable à la qualification en cours : sur PC x64, AVX utilisable par le processus Windows est désormais une condition de prise en charge, en complément du socle x64-v2 du candidat. AVX2 n’est pas exigé. Les témoins physiques anciens sans AVX (v2 exact et sous v2) sont différés et sortent des conditions de clôture de cette portée. Leur compatibilité reste non qualifiée. Cette décision prévaut sur les prescriptions historiques T01/T41 et les branches correspondantes de T43. AMD reste différé séparément.
 
 T45 doit documenter ce prérequis et rattacher aux témoins Intel retenus les capacités effectivement disponibles. Le bootstrap B7 contrôle le niveau v2 ; le refus automatique d’un CPU v2 sans AVX ne fait pas partie du comportement livré. La recette Store sur Snapdragon est acquise ; la question du déclenchement CI de T42 reste distincte.
+
+## Préparation de T45 dans la portée AVX
+
+| Critère | Résultat attribuable et limite |
+|---|---|
+| AC-01 / AC-02 | Installation et fonctionnement sur les deux PC Intel de recette. Sur la station i9-14900K, un contrôle complémentaire dans PowerShell x64 rapporte Avx.IsSupported=True. Cette mesure porte sur ce processus. Les essais physiques au plancher exact sont différés, de même que le témoin AMD. |
+| AC-03a / AC-03b | Refus matériel sur ancien CPU différé. Les contrôles de refus avant mutation, de compatibilité indéterminée et de ressource altérée restent rattachés à T32. Le parcours graphique de B7 sur Snapdragon est validé séparément. |
+| AC-04 | Fermeture de paquet et installation en profil vierge documentées sur le candidat T33 Dell. Pour la configuration finale, annoncer x64-v2 avec AVX utilisable sur PC x64, et distinguer les éditions Windows testées ainsi que le pack graphique requis sur le Snapdragon de recette. |
+| AC-05 / AC-06 | Imports CPU et capture micro documentés dans les recettes Intel et Snapdragon. Les exports et le contenu du WAV de référence sont vérifiés sur le Dell par T33 ; la capture micro relève des recettes utilisateur. |
+| AC-07 | CI sur témoin v2 exact sans AVX différée hors de la portée actuelle. |
+| AC-08 | Preuve matérielle obtenue sur SC8480XP, Windows 11 Enterprise ARM64 build 28000, avec desktop et worker x64 émulés. Le script d’import a été démarré depuis le bureau. Son journal final indique INCOMPLET ; import et exports sont établis par les pièces du ZIP, fermeture normale non attestée. Le mode CI prévu au plan reste non exécuté. |
+| AC-09 / AC-10 | GTX 1080 Ti : CPU, GPU manuel et Auto testés ; moteur GPU affiché en Auto. Import GPU de 5 minutes en 1 min 10 s et premier bloc confirmé au micro en 4 s. Sur le Dell sans NVIDIA : Auto utilise le CPU, et le GPU manuel est refusé. Les deux pannes provoquées sont hors périmètre. |
+
+**Identités à conserver.** Les archives T33 et T42 concernent le desktop 01e2ea8b… ; l’installateur B7 (6560131d…) embarque le desktop tg7 (6602055e…). La recette B7 prouve le guidage Store et l’installation. Les transcriptions historiques gardent l’identité de leur candidat. Le dossier T45 reste préparatoire jusqu’à décision sur T42 et consolidation du candidat retenu.
+
+[Recette Intel et NVIDIA](recette-second-pc-gpu-fix.md) · [Pièces T33](T33-dcbf572ce7.zip) · [Pièces T42](T42-2a857f69a9.zip) · [Mandat T42 et empreintes](mandat-t42-windows-arm64.md) · [Recette B7](recette-snapdragon-store-arm64.md)
