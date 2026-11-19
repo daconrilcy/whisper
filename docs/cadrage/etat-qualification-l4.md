@@ -90,3 +90,5 @@ Blocage : les deux exécutions matérielles avec le bureau interactif et le micr
 Décision : exercer 7 cas sur le Dell (WAV, MP3, micro en CPU et Auto, refus GPU manuel) et 10 sur la GTX 1080 Ti (WAV, MP3, micro en CPU, GPU et Auto, plus vitesse sur un WAV de 300 secondes). Le pilote fait lire deux extraits par les haut-parleurs pour le microphone. Chaque machine produit un ZIP de preuves. Consolider les deux retours, examiner les différences de texte en cas de divergence et rattacher le verdict au SHA du desktop.
 
 Vérifications locales du kit : 34 entrées relues et comparées par SHA-256, syntaxe des pilotes vérifiée sous Windows PowerShell 5.1, contrôle d’un vrai export micro archivé et rejet d’un texte divergent et d’horodatages invalides. La consolidation a été exercée sur des fixtures complètes et sur une archive privée d’un essai obligatoire. Ces vérifications qualifient le conditionnement et des contrôles du banc ; la matrice du binaire final reste non exécutée sur les deux témoins à cette remise.
+
+[Validation manuelle du candidat final sur le Z790, 19 novembre 2026](validation-l4-z790.md).
