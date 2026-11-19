@@ -1,6 +1,6 @@
-Avancée : P1 vérifie les identités des modèles et a retrouvé les reçus de deux générations de builds natifs Parakeet.
-Blocage : les DLL du runtime personnel diffèrent des DLL des builds répétés ; la génération destinée au paquet dual et ses notices restent à arrêter et à vérifier.
-Décision : le 19 novembre 2026, l’utilisateur demande deux modèles intégrés, import et micro, modes CPU/GPU/Auto et trois témoins Dell sans NVIDIA, GTX 1080 Ti et Snapdragon ARM64 sous émulation.
+Avancée : P1 vérifie les identités des modèles ; les sorties reproductibles CPU r2 et GPU r5 sont nommées candidates à qualifier.
+Blocage : ces candidats ne sont pas qualifiés dans l’édition duale ; compatibilité cible et présence des notices dans le paquet restent à vérifier.
+Décision : le 19 novembre 2026, l’utilisateur demande deux modèles intégrés, import et micro, modes CPU/GPU/Auto et trois témoins Dell sans NVIDIA, GTX 1080 Ti et Snapdragon ARM64 sous émulation ; il retient les sorties reproductibles r2/r5 comme candidats de qualification seulement.
 
 Statut : DESIGN À COMPLÉTER / PLAN CONDITIONNEL. P1 et P2 précisent ressources et contrats ; P3 à P6 demandent un design stabilisé et relu ainsi que leurs autorisations applicables.
 
@@ -48,7 +48,7 @@ P1 produit l’inventaire attribué des ressources et licences et une matrice de
 
 ## Résultat P1/P2 — contrat proposé pour les lots suivants
 
-P1 est partiellement fermé : les deux modèles locaux correspondent à leurs tailles et SHA de référence, et les builds natifs conservés ont des sources et options épinglées. Les licences/attributions des deux modèles sont identifiées. Les DLL moteur des builds reproduits diffèrent de celles du runtime personnel qui a servi de référence ; leur compatibilité sur les trois témoins et leur adoption au candidat public ne sont pas établies. L’inventaire des notices montre les composants nécessaires, mais pas leur présence dans un paquet dual final. Aucun de ces fichiers ne devient une entrée approuvée par sa seule présence dans le runtime personnel ou dans les reçus de build. Détails : [inventaire P1](inventaire-parakeet-distribution.md), [constat CRT](constat-runtime-parakeet-distribution.md) et [provenance des builds conservés](constat-provenance-builds-parakeet.md).
+P1 est partiellement fermé : les deux modèles locaux correspondent à leurs tailles et SHA de référence, et les builds natifs conservés ont des sources et options épinglées. Les licences/attributions des deux modèles sont identifiées. Sur décision utilisateur, les sorties reproductibles CPU r2 et GPU r5 sont les candidats à qualifier pour la suite ; leurs DLL diffèrent de celles du runtime personnel de référence. Cette nomination ne les approuve pas pour la distribution : compatibilité cible, intégration et notices du paquet restent ouvertes. Détails : [inventaire P1](inventaire-parakeet-distribution.md), [constat CRT](constat-runtime-parakeet-distribution.md) et [provenance des builds conservés](constat-provenance-builds-parakeet.md).
 
 ### Paquet et installation
 
