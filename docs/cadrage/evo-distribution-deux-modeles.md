@@ -2,6 +2,8 @@ Avancée : cadrage et plan proposés pour une édition publique Whisper et Parak
 Blocage : identité et portabilité des ressources natives Parakeet et droits du modèle à établir.
 Décision : le 19 novembre 2026, l’utilisateur demande deux modèles intégrés, import et micro, modes CPU/GPU/Auto et trois témoins Dell sans NVIDIA, GTX 1080 Ti et Snapdragon ARM64 sous émulation.
 
+Statut : DESIGN À COMPLÉTER / PLAN CONDITIONNEL. P1 et P2 précisent ressources et contrats ; P3 à P6 demandent un design stabilisé et relu ainsi que leurs autorisations applicables.
+
 ## Objectif et référence
 
 Le paquet propose Whisper large-v3-turbo et Parakeet, chacun sélectionnable pour WAV, MP3 et microphone. CPU et GPU manuels et Auto sont accessibles selon le matériel et le moteur effectivement disponibles. Les sorties TXT/SRT et le WAV micro sont vérifiés. Une incompatibilité est expliquée. Le choix manuel GPU ne bascule pas silencieusement sur CPU. L’étude doit identifier les comportements Auto existants pour Parakeet avant de fixer leur contrat.
@@ -21,6 +23,8 @@ Le fichier local `C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf` mesure 7
 - E7. Attribuer au candidat exact les identités, résultats, licences et notices ; distinguer essais manuels, automatiques et historiques.
 - E8. Préserver les résultats Turbo acceptés et vérifier leur non-régression sur le nouveau candidat. AMD, anciens x64 sans AVX et pannes Auto provoquées restent différés selon les décisions L4.
 
+Pour chacun des deux modèles, la matrice minimale comprend sur Dell et Snapdragon CPU et Auto pour WAV, MP3 et micro, ainsi que le refus explicite du GPU manuel. Sur GTX 1080 Ti, elle comprend CPU, GPU manuel et Auto pour ces trois entrées. Une impossibilité constatée sur une cellule obligatoire exige une décision utilisateur sur la portée avant clôture.
+
 ## Risques et architecture à établir
 
 Les DLL natives Parakeet historiques ont été construites avec `GGML_NATIVE=ON` et des instructions AVX2/FMA/F16C selon `docs/architecture/BUILD-NATIF-QUALIF-PTX.md`. Leur adéquation aux trois machines, notamment Snapdragon émulé, est inconnue. Les reconstructions natives sont suspendues par AGENTS.md ; toute reprise exige une décision précise et la voie prévue. L’absence de preuve de compatibilité n’établit pas une incompatibilité.
@@ -39,3 +43,5 @@ Les fichiers modifiés ou non suivis du worktree sont à préserver. Une nouvell
 6. **P6 — Bilan et remise (E7,E8)** : consolider résultats et limites par empreinte, traiter les écarts et préparer la décision de publication.
 
 Ce plan est proposé, sans implémentation ni campagne autorisées par sa seule rédaction. Les inconnues de P1 peuvent imposer une modification du design avant P2. La distribution publique fait l’objet d’une décision distincte.
+
+P1 produit l’inventaire attribué des ressources et licences et une matrice de compatibilité accompagnée des preuves ou inconnues. P2 fournit les contrats d’installation, de sélection, d’Auto, de résolution des DLL et d’identité, ainsi que les prérequis, chemins et contrôles précis des lots suivants. Une revue indépendante du design stabilisé précède la mise en exécution des lots P3 à P6.
