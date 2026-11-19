@@ -1,0 +1,25 @@
+Avancée : sources locales, copie fichier par fichier et téléchargement ciblé de vcpkg préparés.
+Blocage : aucune copie ni acquisition n’est autorisée avant acceptation de ce mandat.
+Décision : préparer les entrées du futur build, en conservant son refus actuel.
+
+## Périmètre exact proposé
+
+Copier depuis `C:/dev/whisper/native/cache/` les trois seuls sous-arbres `nemo`, `vcpkg` et `downloads` vers leurs homologues sous `C:/wt/distcpu-l2-reprise/native/cache/`. `nemo` inclut son sous-module `llama.cpp` et chaque checkout inclut ses métadonnées `.git`. Les trois destinations doivent être absentes au préflight. Le parent destination existe et contient `source-selftests`, à conserver. Ne rien déplacer, supprimer, modifier ou remplacer dans le cache source et les autres ressources.
+
+L’inventaire préalable de ces trois arbres est `C:/wt/distcpu-l2-reprise/deliverables/parakeet-faisabilite/inventaire-caches-source.json`, SHA-256 `9a2411e599aa47e216b5088697885b48c52a06aec76d9d6585272ce2c3cbbfcc`, 22447 entrées fichiers et dossiers. Il contient chaque chemin relatif, taille et SHA-256 des fichiers. Il a été obtenu sans suivre de points de réanalyse ; les trois racines ne contenaient pas de tels points lors du relevé. Les copies sont celles de l’inventaire exact, et non la promesse que toutes les dépendances futures sont déjà présentes.
+
+Acquérir au plus une fois le fichier officiel `https://github.com/microsoft/vcpkg-tool/releases/download/2026-07-27/vcpkg.exe`, SHA-256 attendu `13b8175e99a884c5ad34249218754b45541a1a63f216e92603aee57a285ac741`. Les [assets Microsoft de la version](https://github.com/microsoft/vcpkg-tool/releases/expanded_assets/2026-07-27) et le pin local concordent. Télécharger vers `C:/wt/distcpu-l2-reprise/target/native-build/acquisition-vcpkg-20260727/vcpkg.exe.part`, dans un dossier neuf, puis publier uniquement après vérification vers `C:/wt/distcpu-l2-reprise/native/cache/vcpkg/vcpkg.exe`, lui aussi absent. Ne pas exécuter l’exécutable téléchargé.
+
+## Préflight et ordre d’exécution proposés
+
+1. Vérifier espace disque d’au moins 30 Gio après estimation des copies, identité et état Git des trois sources, HEAD et origines épinglées, absence de fichiers suivis modifiés ou non suivis, métadonnées `.git` locales, absence de `objects/info/alternates` et de `core.worktree` externe, et stabilité des chemins résolus sans jonction ni lien. Refuser les changements depuis l’inventaire, les chemins inattendus, ou les destinations déjà existantes ; préserver tout état en cas d’erreur.
+2. Préparer un script PowerShell de copie et d’acquisition dédié dans `deliverables/parakeet-faisabilite/`, en tester les branches sur petits arbres synthétiques et le faire relire avant toute action réelle. Vérifier l’inventaire par son SHA ; comparer intégralement source actuelle, liste, tailles et SHA, y compris fichiers cachés et dossiers. Aucun fichier source supplémentaire, disparu ou modifié n’est accepté sans nouvel inventaire relu.
+3. Télécharger uniquement l’asset ci-dessus par HTTPS avec validation TLS, au plus dix redirections HTTPS vers `github.com`, `release-assets.githubusercontent.com` ou `objects.githubusercontent.com`, délai total de 180 secondes et taille maximale de 10 Mio, création exclusive du fichier temporaire. Une redirection vers un autre hôte arrête l’opération et sera soumise à arbitrage. Enregistrer les hôtes de redirection sans URL signée. À la première erreur ou divergence, conserver l’état et arrêter ; aucune relance automatique.
+4. Copier les trois sous-arbres vers leurs destinations exactes uniquement après contrôle d’absence, sans suivre les liens ni écraser de fichier. Comparer le nombre, la liste, les tailles et SHA de toutes les entrées après copie, y compris `.git`. Recontrôler les commits et origines sur les copies sans modifier les dépôts source. Toute divergence interrompt l’opération et conserve les éléments pour diagnostic.
+5. Contrôler taille non nulle et SHA du fichier temporaire, puis publier par création exclusive du fichier `vcpkg.exe` dans la copie `native/cache/vcpkg`. Recalculer son empreinte après publication. Une destination existante, un changement de chemin ou un hash incorrect interrompt l’opération sans écrasement. Conserver les preuves et les fichiers partiels éventuels ; aucun nettoyage automatique.
+
+## Résultat et limites
+
+Le compte rendu indique le résultat de chaque copie, les nombres et hashes vérifiés, les redirections constatées et l’empreinte de l’exécutable. Les ressources historiques, le cache d’origine, les modèles, les DLL, les profils et les modifications préexistantes restent conservés. Le fichier téléchargé n’est pas lancé et aucun CMake, vcpkg, Cargo, build, essai natif ou réseau supplémentaire n’est inclus.
+
+Cette opération ne lève pas le refus du build portable. La fermeture des outils et archives, la maîtrise des téléchargements transitifs et la qualification ISA des dépendances restent à résoudre par un mandat distinct. Un contrôle CMake/vcpkg limité ne prouve pas qu’un processus externe ne pourrait pas accéder au réseau.
