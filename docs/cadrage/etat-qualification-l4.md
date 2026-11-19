@@ -92,3 +92,5 @@ Décision : exercer 7 cas sur le Dell (WAV, MP3, micro en CPU et Auto, refus GPU
 Vérifications locales du kit : 34 entrées relues et comparées par SHA-256, syntaxe des pilotes vérifiée sous Windows PowerShell 5.1, contrôle d’un vrai export micro archivé et rejet d’un texte divergent et d’horodatages invalides. La consolidation a été exercée sur des fixtures complètes et sur une archive privée d’un essai obligatoire. Ces vérifications qualifient le conditionnement et des contrôles du banc ; la matrice du binaire final reste non exécutée sur les deux témoins à cette remise.
 
 [Validation manuelle du candidat final sur le Z790, 19 novembre 2026](validation-l4-z790.md).
+
+[Recette manuelle sur le Dell avec le candidat final, 19 novembre 2026](recette-l4-dell-tg7.md).
