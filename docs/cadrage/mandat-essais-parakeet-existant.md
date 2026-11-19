@@ -30,7 +30,7 @@ Le worker CPU est lancé avec `--model <profil/Whisper/models/parakeet-tdt-0.6b-
 
 Envoyer une unique commande `transcribe` avec request_id 1, job_id propre au cas, generation et attempt 1, identité vérifiée, chemin absolu du WAV, hash source et `expected_gpu` null en CPU ou UUID/PCI contrôlés en GPU. Lire `result` corrélé puis envoyer `shutdown`, exiger `stopped` et sortie 0. Pour CUDA, exiger aussi `native_call_started`, preuve CUDA0 et identité GPU cohérente. CPU ne requiert pas cet événement.
 
-PASS exige un résultat corrélé, 64000 échantillons, texte non vide et reconnaissable du passage de référence, mots et horodatages positifs, ordonnés, sans chevauchement et bornés à 4000 ms, identité et hash conformes, puis arrêt établi. Conserver le texte pour vérification humaine. FAIL signifie résultat explicite incorrect ; INCOMPLET signifie preuve insuffisante, timeout, arrêt ou environnement non établi. Aucune réussite déduite d’un simple code 0.
+PASS exige un résultat corrélé, 64000 échantillons, texte non vide et reconnaissable du passage de référence, mots et horodatages ordonnés et sans chevauchement avec `0 ≤ start_ms < end_ms ≤ 4000`, identité et hash conformes, puis arrêt établi. Conserver le texte pour vérification humaine. FAIL signifie résultat explicite incorrect ; INCOMPLET signifie preuve insuffisante, timeout, arrêt ou environnement non établi. Aucune réussite déduite d’un simple code 0.
 
 ## Délais et arrêt
 
