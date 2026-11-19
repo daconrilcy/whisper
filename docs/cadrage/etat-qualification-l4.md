@@ -94,3 +94,5 @@ Vérifications locales du kit : 34 entrées relues et comparées par SHA-256, sy
 [Validation manuelle du candidat final sur le Z790, 19 novembre 2026](validation-l4-z790.md).
 
 [Recette manuelle sur le Dell avec le candidat final, 19 novembre 2026](recette-l4-dell-tg7.md).
+
+[Clôture L4 dans la portée retenue, 19 novembre 2026](cloture-l4-portee-retenue.md).
