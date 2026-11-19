@@ -1,5 +1,5 @@
-Avancée : P1 vérifie les identités locales des deux modèles ; P2 propose les contrats de paquet, installation, catalogue, calcul et vérification.
-Blocage : les DLL Parakeet restent à relier aux sources/notices et aux droits de remise du paquet final ; les anciennes copies de campagne ont disparu de leurs chemins de staging.
+Avancée : P1 vérifie les identités des modèles et a retrouvé les reçus de deux générations de builds natifs Parakeet.
+Blocage : les DLL du runtime personnel diffèrent des DLL des builds répétés ; la génération destinée au paquet dual et ses notices restent à arrêter et à vérifier.
 Décision : le 19 novembre 2026, l’utilisateur demande deux modèles intégrés, import et micro, modes CPU/GPU/Auto et trois témoins Dell sans NVIDIA, GTX 1080 Ti et Snapdragon ARM64 sous émulation.
 
 Statut : DESIGN À COMPLÉTER / PLAN CONDITIONNEL. P1 et P2 précisent ressources et contrats ; P3 à P6 demandent un design stabilisé et relu ainsi que leurs autorisations applicables.
@@ -48,7 +48,7 @@ P1 produit l’inventaire attribué des ressources et licences et une matrice de
 
 ## Résultat P1/P2 — contrat proposé pour les lots suivants
 
-P1 est partiellement fermé : les deux modèles locaux correspondent à leurs tailles et SHA de référence, et le runtime personnel historique est inventorié par fichier. Les licences/attributions des deux modèles sont identifiées. P1 n’est pas fermé pour les DLL natives : leurs identités historiques sont connues, mais leur lien aux sources exactes, options de compilation, dépendances effectivement liées, notices et droits n’est pas suffisamment établi pour le paquet public. Aucun de ces fichiers ne devient une entrée approuvée par sa seule présence dans le runtime personnel. Le détail et les preuves sont dans l’[inventaire P1](inventaire-parakeet-distribution.md).
+P1 est partiellement fermé : les deux modèles locaux correspondent à leurs tailles et SHA de référence, et les builds natifs conservés ont des sources et options épinglées. Les licences/attributions des deux modèles sont identifiées. Les DLL moteur des builds reproduits diffèrent de celles du runtime personnel qui a servi de référence ; leur compatibilité sur les trois témoins et leur adoption au candidat public ne sont pas établies. L’inventaire des notices montre les composants nécessaires, mais pas leur présence dans un paquet dual final. Aucun de ces fichiers ne devient une entrée approuvée par sa seule présence dans le runtime personnel ou dans les reçus de build. Détails : [inventaire P1](inventaire-parakeet-distribution.md), [constat CRT](constat-runtime-parakeet-distribution.md) et [provenance des builds conservés](constat-provenance-builds-parakeet.md).
 
 ### Paquet et installation
 
