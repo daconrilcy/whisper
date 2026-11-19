@@ -42,3 +42,5 @@ Aux coupures, la passe unique et la VAD rendent notamment `140` contre `hundred 
 5. La découpe VAD de 60 à 120 s n'a été testée que sur des fichiers d'environ 5 min (2 coupures). Le parcours au-delà de 30 min, qui en compte 30 à 60, n'est pas mesuré. Il doit faire l'objet d'un test d'acceptation en intégration sur un fichier de 60 min.
 
 Cette clôture qualifie la faisabilité isolée. Le design et le plan d'intégration produit demeurent régis par leurs propres prérequis et autorisations.
+
+Complément ultérieur sur l’essai F4 Snapdragon X2 : [bilan F4 Parakeet sur Snapdragon X2](bilan-parakeet-snapdragon-x2-f4.md).
