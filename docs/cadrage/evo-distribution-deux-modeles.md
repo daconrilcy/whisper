@@ -10,7 +10,7 @@ Le paquet propose Whisper large-v3-turbo et Parakeet, chacun sélectionnable pou
 
 Le candidat B7/tg7 est validé dans sa portée [L4](cloture-l4-portee-retenue.md). Le desktop Turbo filtre Parakeet et désactive ses workers dans `crates/whisper-desktop/src/root.rs`. Le bootstrap `crates/whisper-bootstrap/src/gui.rs` sélectionne un seul modèle. Le profil personnel utilise d’autres chemins et ressources ; il ne constitue pas un paquet autonome.
 
-Le fichier local `C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf` mesure 713975456 octets ; son empreinte et ses droits sont à vérifier. Une empreinte historique e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e apparaît dans `fiche-parakeet-l3a-gpu.md` sans vérification actuelle. Le modèle Turbo est identifié dans la clôture L4.
+Le fichier local `C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf` a été revérifié le 19 novembre 2026 : 713975456 octets, SHA-256 `e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e`, identique à la référence officielle consignée dans l’[inventaire P1](inventaire-parakeet-distribution.md). Le modèle Turbo est identifié dans la clôture L4.
 
 ## Exigences vérifiables
 
