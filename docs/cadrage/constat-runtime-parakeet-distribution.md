@@ -35,4 +35,3 @@ Les ressources GPU du runtime personnel sont `cublas64_12.dll` et `cublasLt64_12
 2. La redistribution VC doit être vérifiée pour les quatre fichiers et leurs emplacements exacts ; ne pas conclure à l’autonomie à partir de l’inventaire de 21 fichiers.
 3. Les notices NeMo/ggml, CUDA et Microsoft restent à relier à chaque binaire final. Les imports PE ne déterminent pas quels projets ou avis de droit d’auteur sont incorporés dans les DLL.
 4. Le build Parakeet reste suspendu au titre de la décision WHEA. Ce constat ne lance ni build ni test matériel et ne rend pas nécessaire une reconstruction tant que les artefacts existants peuvent être identifiés et qualifiés autrement.
-
