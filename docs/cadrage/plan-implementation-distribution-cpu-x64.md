@@ -129,3 +129,9 @@ Le ZIP de recette Snapdragon `RETOUR-L4-20261118-053844-ee015.zip` a depuis ét�
 Pour la remise publique, cadrer séparément le parcours graphique d’installation et de lancement, y compris la gestion du modèle, des fichiers manquants et de l’erreur OpenGL sans terminal. Cette demande précède le gel du candidat de distribution ; la présente mise à jour ne déclenche ni développement ni campagne.
 
 [État consolidé par tâche et pièces de recette rattachées](etat-qualification-l4.md).
+
+### Mise à jour de portée — 20 novembre 2026
+
+Le paragraphe de priorité daté du 18 novembre ci-dessus est un instantané historique ; les états T33–T45 à retenir pour l’édition Turbo sont ceux de l’[état consolidé L4](etat-qualification-l4.md) et de la [clôture L4](cloture-l4-portee-retenue.md). L’édition Turbo B7/tg7 et ses validations ne qualifient pas l’édition duale.
+
+La demande acceptée d’intégrer Parakeet est maintenant gouvernée par le plan P1–P6 de [l’évolution duale](evo-distribution-deux-modeles.md). Son avancement au 20 novembre est : P1/P2 clos ; implémentation, contrôles locaux et revues de code P3 réussis, mais la gate P3 reste ouverte tant que l’installation sur profil vierge, le routage/modules réellement chargés et l’archivage des preuves ne sont pas établis ; P4 assemblage/droits, P5 essais sur le paquet exact et P6 bilan/décision de publication restent à faire. Le statut CLEAN des constats R6 n’équivaut pas à une qualification ou à une autorisation de distribution publique.
