@@ -1,0 +1,1454 @@
+
+running 645 tests
+test archive::tests::bounded_resume_accepts_a_current_backend_for_the_same_model_profile ... ok
+test archive::tests::archive_characterization_complete_corrupt_middle_segment_is_not_repaired ... ok
+test archive::tests::archive_characterization_index_absent_truncated_and_temporary_retry ... ok
+test archive::tests::archive_characterization_truncated_cleanup_plan_is_refused_without_disposition ... ok
+test archive::tests::archive_characterization_stream_error_keeps_final_and_retry_replaces_it ... ok
+test archive::tests::archive_characterization_index_rename_obstacle_preserves_temporary_and_retry ... ok
+test archive::tests::archive_characterization_replace_obstacle_keeps_temporary_until_retry ... ok
+test archive::tests::archive_characterization_pending_absent_truncated_and_divergent ... ok
+test archive::tests::archive_characterization_segment_journal_repairs_initial_and_large_partial_tail ... ok
+test archive::tests::archive_characterization_residual_reservation_cleanup_refusal_and_retry ... ok
+test archive::tests::canonical_generation_must_be_contained_by_archive_root ... ok
+test archive::tests::archive_characterization_current_before_index_internal_resolution_is_repeatable ... ok
+test archive::tests::archive_characterization_intent_and_partial_staging_stay_unpublished_until_retry ... ok
+test archive::tests::archive_characterization_txt_only_prepare_is_retried_before_publication ... ok
+test archive::tests::archive_characterization_missing_truncated_and_divergent_manifest_are_refused ... ok
+test archive::tests::archive_characterization_divergent_staged_srt_refused_and_retry_succeeds ... ok
+test archive::tests::archive_characterization_ownership_truncated_or_unknown_refuses_without_mutation ... ok
+test archive::tests::archive_characterization_second_external_resolution_preserves_committed_publication ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_locked_executor_rejects_divergent_destination ... ok
+test archive::tests::archive_characterization_v3_final_link_before_identity_is_recovered ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_locked_executor_rejects_unpublished_plan ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_locked_executor_rejects_moved_successor_directory ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_keeps_targets_when_plan_write_temp_is_a_directory ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_changed_current_bytes_before_removal ... ok
+test archive::tests::archive_characterization_reconcile_partial_skips_byte_identical_third_party_then_retries ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_persists_missing_index_read_error_without_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_private_executor_is_called_with_publication_lock_held ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_empty_target_list_preserves_successor_and_persists_empty_plan ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_persists_all_removed_containers_before_later_rejection ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_preserves_object_marked_removed_while_present ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_absent_file_is_recorded_then_remaining_target_is_removed ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_new_unselected_file_is_preserved_after_partial_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_nominal_plan_removes_only_owned_target ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_changed_target_hash_before_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_changed_source_before_removal ... ok
+test archive::tests::dual_and_legacy_personal_parakeet_keys_are_exactly_admitted ... ok
+test archive::tests::legacy_cleanup_target_without_container_proof_deserializes_without_parent_authority ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_changed_target_identity_before_removal ... ok
+test archive::tests::pending_archive_versions_bind_strategy_and_keep_legacy_default ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_divergent_publication_intent_before_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_inactive_successor_index_record_with_fresh_proof ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_missing_container_path_is_recorded_as_removed ... ok
+test archive::tests::r11_replace_deactivates_every_matching_publication_and_keeps_other_audio ... ok
+test archive::tests::r11_export_names_remain_reserved_by_the_index_after_visible_files_are_removed ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_preserves_parent_container_with_unselected_generation ... ok
+test archive::tests::recette_policy_l04_requires_the_feature ... ignored, requires WHISPER_L04_CAMPAIGN_BUILD=1 at compile time and WHISPER_L04_CAMPAIGN_RUN at runtime
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_incomplete_successor_proofs_before_removal ... ok
+test archive::tests::r11_create_new_preserves_existing_publications_and_index_write_is_atomic ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_locked_file_preserves_target_until_retry ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_index_version_with_fresh_proof ... ok
+test archive::tests::r11_replaced_export_reconciliation_never_moves_a_third_party_same_name_file ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_invalid_container_proof_before_removal ... ok
+test archive::tests::resume_rejects_canonical_cross_destination_without_mutating_either_root ... ok
+test capture::tests::callback_marks_partial_channel_frames_as_failed ... ok
+test capture::tests::callback_reuses_recycled_slots_without_blocking_or_saturating ... ok
+test capture::tests::callback_stamps_each_block_with_the_gain_active_at_its_acquisition_boundary ... ok
+test archive::tests::segment_recovery_keeps_synced_prefix_and_drops_only_a_partial_tail ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_malformed_pending_with_fresh_proof ... ok
+test capture::tests::empty_and_exact_chunk_capture_finish_without_an_empty_input_buffer ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_nonempty_generation_persists_partial_removal_and_resumes ... ok
+test capture::tests::native_selected_microphone_survives_initial_discontinuity ... ignored, requires WHISPER_TEST_MIC_ID and an available Windows microphone capture device
+test capture::tests::native_wasapi_input_catalog_has_stable_parseable_ids ... ignored, requires a Windows audio-device inventory and native capture backend
+test capture::tests::gain_is_applied_after_mono_measurement_and_before_limiter ... ok
+test capture::tests::gain_published_during_sample_copy_belongs_to_the_next_callback_block ... ok
+test capture::tests::neutral_gain_keeps_pre_gain_values_and_only_counts_the_existing_limiter ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_malformed_index_json_with_fresh_proof ... ok
+test capture::tests::stale_gain_revision_is_rejected_without_replacing_the_current_value ... ok
+test capture::tests::wasapi_xrun_is_counted_without_terminating_the_stream ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_real_foreign_index_identity ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_real_foreign_container_identity ... ok
+test cpu_capabilities::tests::decodes_the_t11_worker_digest_as_exact_sha256_bytes ... ok
+test cpu_capabilities::probe_tests::public_probe_applies_the_shared_policy_to_current_cpuid ... ok
+test capture::tests::collecting_probe_data_does_not_change_converted_or_drained_audio ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_successor_directory_with_another_real_identity ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_malformed_lf_terminated_segments_with_fresh_proof ... ok
+test archive::tests::resumed_prefix_copy_retries_after_pending_creation_without_duplication ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_semantically_divergent_manifest_with_fresh_proof ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_segment_count_mismatch_with_fresh_proofs ... ok
+test archive::tests::create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports ... ok
+test direct_live::d2_corpus::d2_corpus_real_cpu_turbo_and_parakeet ... ignored, requires WHISPER_MIC_LEVEL_D2_ROOT, WHISPER_MIC_LEVEL_D2_ENGINE=parakeet-cpu, LOCALAPPDATA Whisper Turbo/Parakeet workers, models and CPU DLLs plus the D2 audio corpus
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_target_intent_divergence_without_syncing_it ... ok
+test cpu_capabilities::tests::unavailable_or_full_diagnostic_queue_drops_without_waiting ... ok
+test decoder::tests::decoder_bounds_accept_one_and_eighty_thousand_and_reject_zero_or_oversized ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_semantically_divergent_pending_with_fresh_proof ... ok
+test decoder::tests::decoder_rejects_a_partial_block_that_skips_the_requested_prefix ... ok
+test decoder::tests::decoder_rejects_a_block_outside_the_requested_window ... ok
+test direct_live::d2_corpus::tests::d2_event_drain_stops_after_its_bounded_batch ... ok
+test direct_live::d2_corpus::tests::d2_frame_deadlines_follow_the_monotone_one_x_sample_clock ... ok
+test direct_live::d2_corpus::tests::d2_expired_frame_deadline_rebases_without_catch_up_burst ... ok
+test direct_live::d2_corpus::tests::d2_post_playback_drain_has_a_bounded_batch_count ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_malformed_successor_manifest_before_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_modified_publication_index_before_removal ... ok
+test archive::tests::segmented_capture_identity_references_every_rotated_pcm_part ... ok
+test direct_live::tests::cpu_ready_after_auto_fallback_needs_no_gpu_candidate_attestation ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_successor_proof_with_another_real_identity ... ok
+test direct_live::tests::live_window_waits_for_five_seconds_then_prefers_a_pause_before_eight ... ok
+test direct_live::tests::gpu_ready_requires_matching_attestation_and_stale_failed_keeps_existing_error ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_out_of_sequence_segment_with_fresh_proofs ... ok
+test direct_live::tests::parakeet_live_automatic_final_paths_are_distinct_and_explicitly_unverified ... ok
+test direct_live::d2_corpus::tests::test_status_writer_preserves_diagnostics ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_truncated_successor_segments_before_removal ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_unexpected_index_proof_path ... ok
+test direct_live::tests::microphone_interruption_finalizes_cpu_outputs_without_gpu_message ... ok
+test direct_live::tests::gain_command_changes_only_subsequently_acquired_audio_and_stop_finalizes_wav ... ok
+test direct_live::tests::wav_header_describes_mono_16khz_pcm_and_exact_audio_length ... ok
+test direct_live::d2_corpus::tests::d2_driver_paces_frames_and_drains_events_before_deadline ... ok
+test direct_live::tests::parakeet_json_write_failure_preserves_text_outputs_and_reports_incomplete ... ok
+test direct_live::tests::parakeet_exports_sort_time_and_write_versioned_companion_intervals ... ok
+test gpu_inventory::tests::dxgi_failure_keeps_wmi_observations_as_partial_catalogue_with_cause ... ok
+test direct_live::tests::stop_before_engine_ready_flushes_captured_audio_to_the_wav ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_unexpected_successor_proof_path_before_removal ... ok
+test direct_live::tests::wav_output_keeps_the_exact_converted_samples ... ok
+test direct_live::tests::simulated_gpu_failure_keeps_wav_and_confirmed_text_with_incomplete_suffix ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_successor_file_with_stale_hash_proof ... ok
+test direct_live::tests::parakeet_srt_failure_removes_created_txt_and_retries_coherent_incomplete_outputs ... ok
+test gpu_inventory::tests::query_uses_the_display_class_guid_without_filtering_current_presence ... ok
+test gpu_inventory::tests::missing_dxgi_identity_match_is_safe_and_returns_no_adapter ... ok
+test direct_live::tests::worker_rejects_stale_ready_and_confirms_segments_only_after_matching_window_end ... ok
+test gpu_inventory::tests::runtime_proof_keeps_windows_rank_distinct_from_cuda_and_ggml_ordinals ... ok
+test installer_ui::tests::pack_query_distinguishes_absence_from_installed_and_empty_output ... ok
+test installer_ui::tests::helper_processes_resolve_from_systemroot_not_the_package_directory ... ok
+test gpu_inventory::tests::inventory_log_write_failure_is_reportable_without_panicking ... ok
+test microphone_probe::retry_epoch_regression::full_queue_invalidates_old_epoch_before_fresh_contiguous_audio ... ok
+test microphone_probe::tests::bounded_nonblocking_queue_counts_overflow_and_readers_hold_independent_snapshots ... ok
+test gpu_inventory::tests::inventory_log_keeps_dxgi_adapters_that_failed_identity_join ... ok
+test microphone_probe::publication_hold_tests::dropping_probe_releases_a_held_publication_before_joining ... ok
+test direct_live::tests::test_capture_gain_preserves_probe_a_and_applies_once_to_wav_pcm ... ok
+test gpu_inventory::edition_tests::turbo_gpu_log_writes_to_whisperturbo_and_preserves_personal_log ... ok
+test microphone_probe::tests::mixed_gain_and_limiter_counts_follow_the_rms_window ... ok
+test microphone_probe::tests::multitone_parseval_and_unclipped_gain_ratio_match_independent_oracle ... ok
+test microphone_probe::tests::dropped_probe_blocks_force_a_full_rebuild_and_old_snapshots_expire ... ok
+test archive::tests::cleanup_equivalence::cleanup_characterization_rejects_target_for_another_destination_before_removal ... ok
+test microphone_probe::tests::dephased_psd_snapshot_reuses_rms_without_publishing_it_early ... ok
+test archive::tests::scan_preserves_healthy_entries_and_reports_each_corrupt_generation ... ok
+test gpu_inventory::tests::inventory_log_appends_timestamped_partial_snapshots_and_escapes_names ... ok
+test microphone_probe::tests::retry_epoch_discards_audio_acquired_before_the_retry_barrier ... ok
+test direct_live::tests::wav_backlog_fills_bounded_windows_without_drops_or_reordering ... ok
+test microphone_probe::tests::rms_peak_and_periodic_hann_psd_match_independent_parseval_oracle ... ok
+test model_catalog::concurrency_tests::panicked_reader_poison_is_explicit_and_another_key_still_progresses ... ok
+test model_catalog::concurrency_tests::another_key_finishes_while_a_cold_read_is_suspended ... ok
+test model_catalog::concurrency_tests::poisoned_global_index_is_an_explicit_error ... ok
+test model_catalog::concurrency_tests::distinct_hardlink_paths_keep_their_existing_distinct_keys ... ok
+test model_catalog::tests::edition_tests::engine_snapshot_projection_contains_only_catalogued_models_and_capabilities ... ok
+test model_catalog::concurrency_tests::reader_error_releases_same_key_waiter_which_can_retry ... ok
+test model_catalog::tests::edition_tests::generic_engine_snapshot_retains_every_registered_model ... ok
+test model_catalog::concurrency_tests::mutation_during_read_is_rejected_without_publishing_a_digest ... ok
+test model_catalog::concurrency_tests::concurrent_same_key_and_canonical_alias_share_one_read_and_warm_digest ... ok
+test model_catalog::concurrency_tests::mutation_while_waiting_rejects_a_previously_warm_digest ... ok
+test model_catalog::concurrency_tests::replacement_with_same_size_and_timestamp_while_waiting_rejects_warm_digest ... ok
+test model_catalog::concurrency_tests::short_read_is_not_published_and_next_request_retries ... ok
+test native_timing::tests::records_are_jsonl_with_monotonic_timestamps ... ok
+test archive::tests::r11_recovery_between_current_and_index_keeps_legacy_visible_until_explicit_activation ... ok
+test native_timing::tests::tracing_requires_the_exact_opt_in_value ... ok
+test model_catalog::concurrency_tests::replacement_during_read_is_rejected_even_with_same_size_and_timestamp ... ok
+test native_timing::tests::trace_path_stays_directly_under_existing_root ... ok
+test model_catalog::tests::missing_requested_model_remains_missing_without_reading_turbo ... ok
+test archive::tests::archive_characterization_ownership_versions_one_two_three_follow_existing_paths ... ok
+test model_catalog::tests::importing_parakeet_inspects_only_parakeet_and_full_catalog_still_inspects_both ... ok
+test parakeet_audio::tests::linear_resampler_drains_a_short_44100_source_without_resetting_at_packet_boundary ... ok
+test model_catalog::tests::historical_turbo_alias_resolves_only_turbo_and_unknown_paths_stay_refused ... ok
+test model_catalog::tests::resolving_registered_paths_and_historical_alias_never_reads_models ... ok
+test direct_live::tests::direct_capture_publishes_frequency_spectrum_without_changing_wav_audio ... ok
+test model_catalog::tests::requested_model_size_change_forces_rehash_and_remains_corrupt ... ok
+test parakeet_audio::tests::capture_writer_acknowledges_written_blocks_and_reads_a_serialized_snapshot ... ok
+test model_catalog::tests::targeted_inspection_preserves_generation_and_reads_only_the_requested_id ... ok
+test parakeet_import::dual_install_tests::dual_installed_key_rejects_each_changed_identity_and_profile ... ok
+test parakeet_import::dual_install_tests::dual_installed_keys_validate_pinned_cpu_and_gpu_identities ... ok
+test parakeet_audio::tests::capture_writer_reads_every_acknowledged_sample_across_test_rotation ... ok
+test parakeet_import::dual_install_tests::paths_reject_a_worker_outside_the_runtime_root ... ok
+test parakeet_import::dual_install_tests::personal_runtime_root_is_published_or_direct_staging_child_only ... ok
+test parakeet_audio::tests::stored_audio_is_contiguous_and_range_reads_are_bounded ... ok
+test model_catalog::execution_artifact_cache_tests::execution_artifact_cache_keys_hardlink_paths_and_rehashes_replaced_identity ... ok
+test parakeet_import::worker_log_mode_tests::gpu_log_prefix_preserves_l3b_and_scopes_l3c_names ... ok
+test model_catalog::execution_artifact_cache_tests::concurrent_execution_artifact_requests_hash_one_identity_once ... ok
+test parakeet_audio::tests::part_rotation_preserves_every_sample_across_a_test_only_small_boundary ... ok
+test microphone_probe::tests::repeated_fresh_spectrum_snapshot_does_not_emit_unavailable ... ok
+test parakeet_live::confirmation::tests::a_word_in_only_part_of_the_gap_cannot_release_later_words ... ok
+test parakeet_live::confirmation::tests::adjacent_repeated_word_requires_its_own_temporal_witness ... ok
+test parakeet_live::confirmation::tests::adjacent_words_inside_time_tolerance_are_not_the_same_acoustic_word ... ok
+test parakeet_live::confirmation::tests::ambiguous_overlap_does_not_supersede_an_earlier_word ... ok
+test parakeet_live::confirmation::tests::an_ambiguous_interval_between_agreed_words_stays_unresolved ... ok
+test parakeet_live::confirmation::tests::complete_concordant_coverage_resolves_a_full_window_gap ... ok
+test parakeet_live::confirmation::tests::confirmation_progresses_when_old_anchor_leaves_the_window ... ok
+test parakeet_live::confirmation::tests::contextual_recovery_witness_confirms_without_duplication_and_keeps_prefix ... ok
+test microphone_probe::tests::probe_and_spectrum_reader_leave_stt_pcm_and_final_wav_byte_identical ... ok
+test parakeet_live::confirmation::tests::empty_first_piece_cannot_borrow_a_word_from_the_second_piece ... ok
+test parakeet_live::confirmation::tests::expired_gap_does_not_block_a_stable_later_word ... ok
+test parakeet_live::confirmation::tests::failed_contextual_recovery_keeps_word_and_gap_unresolved ... ok
+test parakeet_live::confirmation::tests::finalization_never_promotes_a_single_hypothesis ... ok
+test parakeet_live::confirmation::tests::identical_audio_context_is_not_a_second_proof ... ok
+test parakeet_live::confirmation::tests::invalid_native_time_never_supplies_gap_evidence ... ok
+test parakeet_live::confirmation::tests::invalid_time_cannot_enter_ledger ... ok
+test parakeet_live::confirmation::tests::later_agreed_words_publish_independently_across_an_uncovered_prefix ... ok
+test parakeet_live::confirmation::tests::later_segment_publishes_across_an_unresolved_prefix_and_ids_survive_recovery ... ok
+test parakeet_live::confirmation::tests::partial_contextual_recovery_does_not_resolve_the_rest_of_a_gap ... ok
+test parakeet_live::confirmation::tests::partial_coverage_keeps_gap_until_concordant_pieces_join ... ok
+test parakeet_live::confirmation::tests::pending_word_is_marked_for_recovery_before_the_next_window_passes_it ... ok
+test parakeet_live::confirmation::tests::provisional_revision_needs_two_later_witnesses ... ok
+test parakeet_live::confirmation::tests::repeated_word_requires_two_distinct_temporal_matches ... ok
+test parakeet_live::confirmation::tests::shifted_distinct_word_without_shared_context_cannot_erase_predecessor ... ok
+test parakeet_live::confirmation::tests::stable_prefix_progresses_and_is_immutable ... ok
+test parakeet_live::confirmation::tests::two_empty_hypotheses_cannot_resolve_a_gap_before_later_text ... ok
+test parakeet_live::confirmation::tests::unmatched_word_blocks_later_confirmation ... ok
+test parakeet_live::confirmation::tests::unresolved_gap_preserves_prefix_and_allows_independent_later_confirmation ... ok
+test archive::tests::published_running_row_is_removed_durably_and_recovery_scans_are_stable ... ok
+test parakeet_document::tests::document_preview_is_a_single_revisable_record_separate_from_final_pages ... ok
+test parakeet_live::recovery_tests::recovery_window_keeps_context_for_the_observed_ah_word ... ok
+test parakeet_live::recovery_tests::recovery_window_refuses_a_portion_without_durable_context ... ok
+test parakeet_live::recovery_tests::stop_recovery_skips_a_portion_already_attempted_during_capture ... ok
+test parakeet_audio::tests::failed_part_creation_and_write_keep_the_written_prefix_readable ... ok
+test archive::tests::reprocessing_reservation_tracks_only_current_strategy_publications_for_resume ... ok
+test parakeet_live::window_result_contract_tests::configured_compute_selects_expected_ready_backend ... ok
+test parakeet_live::window_result_contract_tests::correlated_cpu_result_does_not_require_native_call_marker ... ok
+test parakeet_live::window_result_contract_tests::expected_gpu_result_requires_native_call_marker ... ok
+test parakeet_live::window_result_contract_tests::foreign_result_is_rejected_even_without_gpu_marker_requirement ... ok
+test parakeet_document::tests::document_reads_bounded_pages_at_a_stable_revision_and_finalizes_once ... ok
+test parakeet_live::recovery_tests::unified_capture_recycles_slots_and_preserves_audio_beyond_ring_capacity ... ok
+test parakeet_pipeline::tests::finalizer_rejects_a_checkpoint_whose_anchor_is_not_covered ... ok
+test parakeet_pipeline::tests::only_the_last_word_of_the_last_window_gets_the_bounded_eof_tolerance ... ok
+test parakeet_document::tests::resume_coverage_selects_the_last_checkpoint_within_the_archived_prefix ... ok
+test parakeet_live::recovery_tests::unified_capture_pump_converts_synthetic_input_and_closes_the_complete_source ... ok
+test path_settings::tests::malformed_json_gain_isolated_while_valid_settings_and_other_gain_restore ... ok
+test archive::tests::r7_copy_fallback_recovers_between_exports_without_clobbering_a_byte_identical_collision ... ok
+test queue_store::tests::historical_queue_json_without_strategy_reads_as_legacy_without_rewriting ... ok
+test queue_store::tests::pending_compute_change_cannot_skip_the_fifo_head ... ok
+test parakeet_document::tests::resume_coverage_rejects_impossible_window_geometry_and_accepts_short_terminal_eof ... ok
+test queue_store::tests::pending_compute_change_rejects_identity_or_status_changes ... ok
+test parakeet_live::diagnostics_absence_tests::d2_test_diagnostics_remain_available_in_guarded_destination ... ok
+test queue_store::tests::pending_compute_change_persists_only_the_choice_and_keeps_fifo ... ok
+test queue_store::tests::recovery_inspection_is_read_only_for_missing_and_corrupt_queues ... ok
+test gpu_inventory::windows_native::tests::live_dxgi_enumeration_has_ordered_ranks_and_setupapi_identity_join ... ok
+test queue_store::tests::unified_queue_schema_round_trips_strategy_and_rejects_legacy_schema_mismatch ... ok
+test supervisor::tests::capture_failure_diagnostic_keeps_the_technical_detail ... ok
+test parakeet_live::microphone_spectrum_tests::parakeet_capture_pump_publishes_frequency_spectrum_and_preserves_wav ... ok
+test source_binding::recovery_tests::snapshot_v2_preserves_strategy_and_rejects_request_mismatch ... ok
+test source_binding::recovery_tests::recovery_refuses_reserved_operation_while_acquire_holds_the_cross_process_lock ... ok
+test supervisor::tests::dropping_sink_drains_queued_records_and_closes_writer ... ok
+test supervisor::tests::writer_io_failure_marks_sink_degraded ... ok
+test supervisor::tests::startup_expires_only_known_stale_diagnostic_files ... ok
+test supervisor::tests::bounded_queue_drops_without_blocking_and_marks_sink_degraded ... ok
+test windows_file_identity::tests::deletion_is_applied_to_the_open_identity ... ok
+test supervisor::tests::rotation_stays_within_four_files_and_preserves_unknown_files ... ok
+test worker_ipc::ipc::tests::gpu_diagnostic_without_an_opened_image_identity_is_not_relayed ... ok
+test worker_ipc::ipc::cuda_driver::tests::driver_preflight_distinguishes_absent_and_present_file ... ok
+test windows_file_identity::tests::mismatching_identity_is_not_deleted ... ok
+test worker_ipc::ipc::tests::gpu_executable_diagnostic_is_relayed_only_for_its_pid_role_and_image ... ok
+test parakeet_pipeline::tests::restored_finalizer_keeps_prefix_and_accepts_midpoint_owned_boundary_word ... ok
+test windows_file_identity::tests::verified_handle_blocks_path_substitution_until_disposition ... ok
+test worker_ipc::publication::tests::failed_commit_remains_committing_even_after_stop_rollback ... ok
+test worker_ipc::publication::tests::rollback_only_restores_a_cancelled_gate ... ok
+test worker_ipc::runtime::live::live_driver_tests::unavailable_gpu_driver_selects_cpu_only_for_auto ... ok
+test worker_ipc::parakeet_stopped_ack_tests::stopped_ack_waits_for_exit_then_allows_completion ... ok
+test parakeet_live::diagnostics_absence_tests::legacy_environment_does_not_create_diagnostic_files ... ok
+test parakeet_pipeline::tests::controlled_worker_processes_a_long_source_in_contiguous_windows ... ok
+test source_binding::recovery_tests::retirement_intent_replays_after_each_disposition_boundary ... ok
+test parakeet_pipeline::tests::resume_preserves_prefix_while_backend_suffix_text_can_differ ... ok
+test parakeet_pipeline::tests::finalization_advances_from_acknowledged_capture_then_closes_the_tail ... ok
+test test_support::test_sources_create_executable_fixtures_only_through_pe_constructor ... ok
+test parakeet_import::legacy_runtime_tests::historical_cpu_requires_exact_worker_configuration_and_hash ... ok
+test archive::tests::unified_archive_pages_cap_text_and_audio_entries_at_128_with_real_cursors ... ok
+test direct_live::tests::auto_without_gpu_worker_clears_candidate_and_accepts_cpu_ready ... ok
+test parakeet_import::worker_log_tests::personal_gpu_log_creates_missing_settings_and_preserves_existing_files ... ok
+test parakeet_import::worker_log_tests::personal_gpu_log_rejects_settings_file_without_replacing_it ... ok
+test parakeet_import::worker_log_tests::personal_gpu_log_rejects_logs_file_without_replacing_it ... ok
+test worker_ipc::runtime::poll::tests::collection_priority::poll_drains_document_before_queued_event_and_microphone_block ... ok
+test worker_ipc::runtime::poll::tests::collection_priority::poll_microphone_capture_absence_is_none_and_bad_frame_cleans_up ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_attempt_journal_io_failure_cleans_runtime_state ... ok
+test worker_ipc::runtime::poll::tests::collection_priority::poll_ready_unified_import_precedes_ready_document_drain ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_awaiting_choice_keeps_live_archive_without_active_worker ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_defensive_missing_barrier_rejects_without_publication ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_auto_retry_missing_cpu_reports_error_after_retirement ... ok
+test worker_ipc::runtime::poll::tests::native_direct_cpu::native_direct_turbo_cpu_finishes_through_poll ... ignored, requires guarded WHISPER_TEST_WORKER_EXE and verified Turbo model
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_drain_checkpoint_failure_cleans_runtime_state ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_defensive_barrier_past_sequence_rejects_publishable_prefix ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_defensive_confirmed_coverage_past_durable_rejects_without_publication ... ok
+test parakeet_import::legacy_runtime_tests::personal_cpu_and_gpu_do_not_require_l3b ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_failure_keeps_archive_lock_until_writer_shutdown ... ok
+test parakeet_import::dual_install_tests::dual_install_layout_requires_exact_root_and_backend_paths ... ok
+test cpu_capabilities::tests::stderr_drain_finishes_while_identity_hash_is_pending_and_relays_first_line_on_resolution ... ok
+test cpu_capabilities::tests::rejects_inconsistent_oversized_and_malformed_diagnostics ... ok
+test cpu_capabilities::tests::transport_relays_a_valid_cpu_identity_as_its_only_stderr_line ... ok
+test parakeet_document::tests::resume_coverage_pages_are_capped_at_128_and_keep_the_global_cursor ... ok
+test worker_ipc::ipc::tests::pinned_worker_image_blocks_replacement_and_allows_process_launch ... ok
+test worker_ipc::ipc::tests::transport_pins_t11_digest_before_spawn_and_rejects_same_path_substitution ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_gate_cancellation_retires_without_cpu_retry ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_latched_stop_skips_auto_cpu_retry ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_publication_error_cleans_runtime_state ... ok
+test worker_ipc::runtime::poll::tests::capture_fairness::poll_serves_telemetry_then_worker_at_capture_quota_and_resumes ... ok
+test worker_ipc::runtime::poll::tests::deferred_window_poll::poll_preserves_queued_worker_event_until_deferred_window_is_persisted ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_publishes_confirmed_durable_audio ... ok
+test cpu_capabilities::tests::forwards_only_allowlisted_pid_attributed_cpu_diagnostics ... ok
+test cpu_capabilities::tests::blocked_diagnostic_collector_does_not_hold_emission_or_stderr_drain ... ok
+test cpu_capabilities::tests::full_forwarding_queue_does_not_stop_stderr_drain ... ok
+test cpu_capabilities::tests::stderr_is_fully_drained_while_unlisted_or_long_lines_are_discarded ... ok
+test direct_live::tests::auto_microphone_stop_before_gpu_ready_keeps_cpu_retry_for_recorded_audio ... ok
+test worker_ipc::runtime::poll::tests::active_live_stop::poll_stopped_live_auto_retry_starts_cpu_and_records_next_attempt ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_cpu_import_records_nominal_commands_and_events ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_failed_message_from_older_attempt_is_terminal ... ok
+test worker_ipc::runtime::poll::tests::poll_defers_degraded_notice_until_an_active_attempt_exists ... ok
+test worker_ipc::runtime::poll::tests::poll_emits_one_progress_stalled_notice_for_the_active_attempt ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_eof_after_result_preserves_unacknowledged_end_behavior ... ok
+test direct_live::tests::direct_capture_poll_keeps_spectrum_text_and_terminal_progress_within_four_events ... ok
+test worker_ipc::runtime::poll::tests::poll_keeps_attempt_reset_pending_until_live_worker_is_ready ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_ready_without_active_import_is_stale ... ok
+test cpu_capabilities::tests::rejects_a_different_pe_copied_under_the_expected_basename ... ok
+test worker_ipc::runtime::poll::tests::manual_gpu_choice::poll_manual_gpu_failure_waits_for_explicit_cpu_choice_after_stop_ack ... ok
+test direct_live::tests::auto_microphone_falls_back_while_capture_is_open_and_keeps_auto_preference ... ok
+test worker_ipc::runtime::poll::tests::parakeet_poll::poll_parakeet_window_write_error_returns_stopped_event_with_automatic_final_import ... ok
+test worker_ipc::runtime::poll::tests::poll_reports_asynchronous_diagnostic_sink_degradation_once ... ok
+test worker_ipc::runtime::poll::tests::poll_reports_degraded_diagnostics_once_for_the_active_attempt ... ok
+test worker_ipc::runtime::poll::tests::poll_returns_recovery_counters_then_ready_attempt_reset_before_observations ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_stopped_success_without_active_import_consumes_end_without_event ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_stopped_ipc_recurses_to_queued_end_after_exit ... ok
+test worker_ipc::runtime::poll::tests::direct_live_poll::poll_direct_terminal_reuses_worker_after_expiring_an_old_idle_worker ... ok
+test worker_ipc::runtime::poll::tests::parakeet_poll::poll_cleans_active_parakeet_state_after_transport_decode_error ... ok
+test worker_ipc::runtime::poll::tests::direct_live_poll::poll_direct_none_keeps_capture_and_direct_error_retires_without_worker_cache ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_failed_without_active_import_is_stale ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_gpu_ready_attests_worker_pid_and_transcribes_once ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_ready_rejects_identity_before_accepting_process ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_gpu_ready_key_mismatch_does_not_fallback_in_manual_mode ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_invalid_result_words_preserve_queued_progress ... ok
+test worker_ipc::runtime::poll::tests::parakeet_poll::poll_collects_queued_parakeet_event_before_legacy_transport ... ok
+test worker_ipc::runtime::poll::tests::parakeet_poll::poll_returns_none_while_parakeet_worker_is_alive_without_an_event ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_eof_status_preserves_the_existing_end_asymmetry ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_ready_without_import_request_is_stale ... ok
+test worker_ipc::runtime::poll::tests::poll_end_closes_inference_and_import_and_opens_finalizing ... ok
+test worker_ipc::runtime::poll::tests::poll_failed_closes_all_open_progress_phases ... ok
+test worker_ipc::runtime::poll::tests::poll_live_segment_refreshes_the_inference_progress_obligation ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_vad_ready_reaches_single_pass_process_profile_mismatch ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_vad_result_dispatches_after_private_vad_state_is_installed ... ok
+test worker_ipc::runtime::poll::tests::poll_progress_observations_reset_idle_warning_and_terminal_events_close_phases ... ok
+test worker_ipc::runtime::poll::tests::poll_records_ready_and_advances_progress_before_rejecting_backend_mismatch ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_attestation_matches_all_candidate_fields_and_accepts_pci_case_only_difference ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_auto_gpu_ready_sends_begin_import_and_accepts_only_the_expected_ack ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_cancelled_ready_does_not_activate_pending_live_state ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_cancelled_auto_gpu_ready_never_sends_begin_import_before_stop_barrier ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_cpu_ready_marks_existing_live_worker_ready ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_cpu_ready_reports_fallback_reason_and_advances_startup ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_ready_reports_begin_import_send_failure_as_cpu_retry_pending ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_consumes_matching_resume_segment_without_emitting_or_consuming_next_event ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_live_activation_error_sends_stop_and_waits_for_worker_acknowledgement ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_maps_live_segment_and_tracks_provisional_persistence_and_times ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_maps_import_segment_into_confirmed_import_event ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_rejects_end_before_reproducing_resume_prefix_and_clears_state ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_returns_mapping_failure_before_final_live_failure_handling ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_filters_stale_events_and_limits_unidentified_failure_binding_to_startup ... ok
+test worker_ipc::runtime::poll::tests::poll_ready_opens_live_capture_and_draining_phases_for_live_and_pending_live ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_native_call_started_binds_request_and_worker_pid ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_rejects_ready_before_attestation_and_ready_for_a_different_backend ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_result_rejects_missing_request_and_bad_correlation ... ok
+test parakeet_import::runtime_isolation_tests::personal_session_is_independent_of_historical_environment ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_cleans_attempt_and_entire_prefix_for_sequence_range_or_text_mismatch ... ok
+test worker_ipc::runtime::poll::tests::resume_and_segments::poll_end_retires_transport_to_pending_idle_only_for_import_request ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_diagnostic_notice_precedes_manual_gpu_failure_without_losing_choice ... ok
+test worker_ipc::runtime::poll::tests::terminal_routing::poll_correlated_failed_returns_error_and_releases_attempt ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_pending_cpu_retry_worker_absent_leaves_attempt_reserved_without_started ... ok
+test worker_ipc::runtime::poll::tests::terminal_routing::poll_nonterminal_progress_returns_before_due_live_meter_telemetry ... ok
+test worker_ipc::runtime_support_debug::native_qualification_debug_retains_spawn_and_result_fields ... ok
+test worker_ipc::runtime::poll::tests::terminal_routing::poll_unexpected_identity_free_event_returns_stale_response ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_pending_live_retirement_error_clears_pending_attempt_and_transport ... ok
+test worker_ipc::tests::auto_import_does_not_retry_cpu_after_gpu_ready ... ok
+test worker_ipc::runtime::poll::tests::terminal_routing::poll_live_failed_drains_and_sends_stop_before_deferring_failure ... ok
+test worker_ipc::tests::auto_import_gpu_failure_retains_request_until_correlated_stop_for_cpu_retry ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_auto_retry_cancels_pending_live_without_starting_cpu ... ok
+test worker_ipc::runtime::poll::tests::terminal_routing::poll_normal_stopped_releases_pending_attempt_state ... ok
+test worker_ipc::tests::automatic_final_binding_failure_updates_companion_and_clears_identity ... ok
+test worker_ipc::tests::automatic_final_publication_failure_leaves_no_partial_public_name ... ok
+test worker_ipc::runtime::poll::tests::transport_poll::poll_stopped_live_waits_for_child_exit_before_cleanup ... ok
+test worker_ipc::tests::automatic_final_source_read_failure_publishes_neither_output ... ok
+test worker_ipc::tests::cancelled_gate_skips_live_start_before_any_worker_or_capture_side_effect ... ok
+test worker_ipc::tests::capture_failure_stop_is_retained_when_data_channel_is_full ... ok
+test worker_ipc::tests::browse_accepts_only_exact_verified_treatment_in_current_destination ... ok
+test worker_ipc::tests::capture_identity_does_not_mask_existing_import_source_binding ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::capture_identity_does_not_mask_corrupt_snapshot_registry ... ok
+test worker_ipc::tests::capture_with_empty_snapshot_registry_publishes_complete_source_without_registry_state ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::controlled_bounded_gpu_prepare_uses_identity_without_legacy_session_qualification ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::capture_identity_with_orphaned_snapshot_artifact_fails_closed ... ok
+test worker_ipc::tests::controlled_document_drain_terminates_after_page_read_error ... ok
+test worker_ipc::tests::controlled_import_publishes_audio_over_one_gibibyte_across_physical_parts ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, a guarded WAV fixture over 1 GiB, native worker and model
+test worker_ipc::tests::controlled_runtime_recycles_scheduler_slots_across_many_unified_imports ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::controlled_worker_and_invalid_times_leave_no_complete_archive ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::corrupt_archive_alias_cannot_borrow_canonical_foreign_identity ... ok
+test worker_ipc::tests::direct_micro_start_and_single_stop_are_applied_in_order ... ok
+test worker_ipc::runtime::poll::tests::transport_poll::poll_transport_absence_returns_none_without_releasing_active_attempt ... ok
+test worker_ipc::tests::duplicate_confirmation_short_refusals_preserve_runtime_identity ... ok
+test worker_ipc::tests::effect_queue_accepts_eight_and_rejects_the_ninth_without_blocking ... ok
+test worker_ipc::runtime::poll::tests::transport_poll::poll_stopped_live_waits_for_pending_segment_persistence_before_cleanup ... ok
+test worker_ipc::tests::emptied_transcriptions_keeps_history_but_offers_no_duplicate_targets ... ok
+test worker_ipc::tests::existing_source_binding_is_reused_and_failed_acquisition_is_not_inserted ... ok
+test worker_ipc::tests::export_collision_keeps_existing_file_and_does_not_publish_unified_archive ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_stopped_ack_preserves_wait_and_maps_all_exit_states ... ok
+test worker_ipc::tests::failed_ready_is_reaped_before_the_executor_recycles ... ok
+test worker_ipc::tests::failed_unified_resume_after_binding_transfer_restores_registry_and_queue_identity ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::failed_unified_resume_preserves_interrupted_source_binding_and_queue_identity ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::failed_worker_message_does_not_hide_later_correlated_stop ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_explicit_cpu_choice_after_manual_gpu_failure_starts_preserved_request ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_import_auto_retry_drops_request_when_gate_is_cancelled ... ok
+test worker_ipc::tests::framed_ipc_rejects_incomplete_oversized_and_v1_messages ... ok
+test worker_ipc::tests::global_close_waits_for_both_capture_publications_and_refuses_new_admission ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::gpu_attestation_ack_is_bound_to_the_current_session ... ok
+test worker_ipc::tests::gpu_choice_keeps_drained_counters_ahead_of_following_events ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_import_auto_retry_reports_missing_cpu_worker_without_restoring_request ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_manual_gpu_choice_is_cancelled_by_publication_gate ... ok
+test worker_ipc::tests::import_application_decodes_real_mp3_and_publishes_full_unified_coverage ... ignored, requires WHISPER_PU_L1_MP3_FIXTURE real MP3 corpus, the installed Turbo model and native CPU worker/runtime
+test worker_ipc::tests::import_application_finalizes_stopped_capture_a_while_capture_b_pumps_and_publishes_segmented_audio ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::import_application_import_a_and_capture_b_share_one_held_backend_until_b_is_published ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::import_application_processes_durable_queued_unified_imports_for_cpu_gpu_auto_and_long_audio ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::import_application_resumes_a_verified_interrupted_unified_import ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::import_application_uses_real_archive_path_for_controlled_short_and_long_unified_imports ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::runtime::poll::tests::transport_poll::poll_transport_error_without_recovery_releases_runtime_attempt ... ok
+test worker_ipc::tests::injected_catalog_guards_all_worker_effect_routes_including_checkpoint_resume ... ok
+test worker_ipc::tests::live_automatic_final_gate_does_not_block_next_session_stop_or_late_publish ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test worker_ipc::tests::live_automatic_final_failure_is_routed_without_changing_active_capture ... ok
+test worker_ipc::tests::live_automatic_final_queue_corruption_is_reported_explicitly ... ok
+test worker_ipc::tests::live_inspection::classification_of_a_missing_registered_model_is_still_only_classification ... ok
+test worker_ipc::tests::live_inspection::classification_reads_neither_model_and_does_not_admit_corrupt_parakeet ... ok
+test worker_ipc::tests::live_inspection::native_binding_preserves_personal_path_and_request_without_catalog_reads ... ok
+test worker_ipc::tests::live_inspection::native_binding_still_checks_model_sha_and_route_before_returning_a_path ... ok
+test worker_ipc::tests::live_inspection::parakeet_auto_retries_cpu_after_gpu_route_failure_but_manual_gpu_does_not ... ok
+test worker_ipc::tests::live_inspection::parakeet_binding_inspects_only_parakeet_and_keeps_manual_route_refusals ... ok
+test worker_ipc::tests::live_inspection::parakeet_binding_rejects_unknown_or_incompatible_model_without_reading_either ... ok
+test worker_ipc::tests::live_inspection::turbo_binding_and_historical_alias_inspect_only_turbo_and_keep_integrity_refusal ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_manual_gpu_failure_waits_for_choice_and_preserves_pending_request ... ok
+test worker_ipc::tests::live_inspection::turbo_binding_preserves_missing_unknown_and_wrong_model_refusals ... ok
+test worker_ipc::tests::event_65_backpressures_all_production_stages_then_delivers_in_order ... ok
+test worker_ipc::tests::microphone_legacy_capture_budget_forces_worker_poll_within_four_ui_events ... ok
+test worker_ipc::tests::microphone_gain_command_reaches_acquisition_and_finalized_wav_while_worker_is_delayed ... ok
+test worker_ipc::tests::microphone_test_capture_owns_only_capture_conversion_and_probe_until_stop ... ok
+test worker_ipc::tests::missing_cuda_worker_is_reported_without_changing_cpu_path ... ok
+test worker_ipc::tests::native_auto_gpu_ready_failure_retries_once_on_cpu_before_first_call ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_defers_window_confirmation_until_segment_persistence_then_confirms ... ok
+test worker_ipc::tests::native_personal_cpu_ab_c_recycles_after_reap_with_spoken_burst_capture ... ignored, requires a separately authorized PU-L4 native CPU campaign and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_personal_cpu_finalizes_a_synthetic_capture_without_opening_hardware ... ignored, requires a separately authorized PU-L4 native CPU campaign; uses synthetic capture only; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_personal_gpu_ab_c_recycles_after_reap_with_attested_candidate ... ignored, requires a separately authorized PU-L4 native GPU campaign, real GPU identity, and the annotated guarded EN long fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_auto_long_import_prefers_current_gpu_candidate ... ignored, requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_auto_short_import_falls_back_to_cpu_without_candidate ... ignored, requires the separately authorized PU-L4 native campaign and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_auto_short_import_prefers_current_gpu_candidate ... ignored, requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_cpu_long_import_uses_the_durable_application_path ... ignored, requires the separately authorized PU-L4 native campaign and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_cpu_short_import_uses_the_durable_application_path ... ignored, requires the separately authorized PU-L4 native campaign and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_gpu_long_import_uses_current_attestation ... ignored, requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_gpu_resume_uses_current_attestation_and_rebinds_snapshot ... ignored, requires the separately authorized PU-L4 native GPU campaign, current GPU identity, and guarded 35-minute FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_queued_gpu_short_import_uses_current_attestation ... ignored, requires the separately authorized PU-L4 native campaign, current GPU identity, and guarded short FR fixture; requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper workers/model/native DLLs and the named WHISPER_PU_L4_FR_SOURCE, WHISPER_PU_L4_LONG_FR or WHISPER_PU_L4_LONG_EN guarded corpus fixture; GPU cases additionally require a compatible CUDA device
+test worker_ipc::tests::native_unified_capture_open_failure_leaves_no_session_or_capacity ... ok
+test worker_ipc::tests::native_window_pcm_requires_a_bounded_matching_riff_range ... ok
+test worker_ipc::tests::native_window_wav_is_short_pcm16_mono_16khz_riff ... ok
+test worker_ipc::tests::over_limit_parakeet_import_is_refused_before_pending_creation ... ignored, requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_WORKER and PARAKEET_L2_NATIVE_DIR
+test worker_ipc::tests::pagination_effects_preserve_request_and_generation_identity_on_error ... ok
+test worker_ipc::tests::native_executor_backend_changes_only_after_the_prior_instance_is_reaped ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_filters_stale_mp3_and_window_before_effects_then_appends_current_packet ... ok
+test worker_ipc::tests::pending_reservation_rejects_three_event_burst_at_twenty_slots ... ok
+test worker_ipc::tests::persist_segment_queue_full_is_distinct_from_disconnection ... ok
+test worker_ipc::tests::parakeet_live_automatic_final_exports_are_distinct_create_new_outputs ... ok
+test worker_ipc::tests::prepared_native_routes_without_start_are_bounded_and_stop_releases_identity ... ok
+test worker_ipc::tests::queue_effect_scan_and_remove_preserve_remaining_fifo_entry ... ok
+test worker_ipc::tests::controlled_document_drain_reads_one_segment_per_poll_and_preserves_all_pages ... ok
+test worker_ipc::tests::queue_inspection_characterization::interrupted_recovery_inspects_only_its_required_model ... ok
+test worker_ipc::tests::queue_inspection_characterization::interrupted_turbo_recovery_accepts_historical_alias_and_preserves_durable_identity ... ok
+test worker_ipc::tests::queue_inspection_characterization::interrupted_turbo_recovery_rejects_different_durable_model ... ok
+test worker_ipc::tests::queue_inspection_characterization::queue_processing_inspects_only_its_required_model ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_auto_retry_starts_cpu_and_preserves_pending_live_request ... ok
+test worker_ipc::tests::queued_create_only_publication_paths_reach_app_view ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::queued_import_record_accepts_legacy_live_offset_field ... ok
+test worker_ipc::tests::queued_live_start_is_applied_before_an_immediate_stop ... ok
+test worker_ipc::tests::queued_manual_gpu_preflight_requires_a_current_candidate_and_gpu_key ... ok
+test worker_ipc::tests::queue_inspection_characterization::queue_processing_inspects_turbo_without_inspecting_parakeet ... ok
+test worker_ipc::tests::queued_request_identity_allows_only_compute_choice_and_verified_model_path_binding ... ok
+test worker_ipc::tests::queue_inspection_characterization::queued_item_with_missing_model_keeps_explicit_unavailable_error ... ok
+test worker_ipc::tests::queue_inspection_characterization::queued_item_with_unresolved_model_keeps_model_unknown_error ... ok
+test worker_ipc::runtime::poll::tests::readiness_admission::poll_rejects_each_gpu_candidate_field_difference ... ok
+test worker_ipc::tests::r7_restart_resume_integrates_copy_crash_dialog_queue_and_publication ... ignored, requires models/ggml-large-v3-turbo.bin and the guarded R7 execution root
+test worker_ipc::tests::recette_policy_l2a2_requires_the_feature ... ignored, requires PARAKEET_L2_ACCEPTANCE_TEST_BUILD=1 at compile time
+test worker_ipc::tests::replay_windows_map_after_confirmed_prefix_without_duplicate_coverage ... ok
+test worker_ipc::tests::reprocessing_create_only_publication_paths_reach_app_view_and_preserve_earlier_result ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::reprocessing_latest_requires_known_unique_order_and_all_includes_inactive_present ... ok
+test worker_ipc::tests::resume_keeps_legacy_checkpoint_identity_and_returns_catalog_path_for_execution ... ignored, requires WHISPER_L1B_RUNTIME_ROOT/models/ggml-large-v3-turbo.bin and sound example/spkr0.wav; mixed resume flow is deferred as TODO(DEBT-1)
+test worker_ipc::tests::resumed_create_only_publication_paths_reach_app_view ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::queued_manual_gpu_without_current_proof_refuses_before_pending_creation ... ok
+test worker_ipc::tests::queued_unified_capacity_refusal_keeps_fifo_entry_without_preparing_route ... ok
+test worker_ipc::tests::single_pass_adapter_accepts_normalized_words_and_rejects_any_overlap ... ok
+test worker_ipc::tests::single_pass_punctuation_boundary_keeps_original_words_with_positive_ranges ... ok
+test worker_ipc::tests::slow_worker_backpressure_keeps_command_queue_bounded_and_retries_window ... ok
+test worker_ipc::tests::stale_mp3_and_failed_events_have_old_attempt_identity ... ok
+test worker_ipc::tests::stale_stopped_does_not_hide_later_correlated_stop ... ok
+test worker_ipc::tests::stdin_frames_preserve_live_start_and_admitted_window_before_normal_stop ... ok
+test worker_ipc::tests::stop_before_commit_atomically_prevents_publication ... ok
+test worker_ipc::tests::stop_control_is_admitted_when_effect_queue_is_full ... ok
+test worker_ipc::tests::queued_unified_non_candidate_refusal_does_not_prepare_or_start ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_ignores_window_fully_inside_replay_and_preserves_following_event ... ok
+test worker_ipc::tests::stop_counters_reach_application_before_final_window ... ok
+test worker_ipc::tests::stopped_worker_waits_until_live_segment_persistence_is_acknowledged ... ok
+test worker_ipc::tests::stop_during_blocked_commit_returns_promptly_and_reports_finalizing ... ok
+test worker_ipc::tests::stopping_before_the_first_gain_revision_block_emits_no_applied_acknowledgement ... ok
+test worker_ipc::tests::temporary_test_root_cleanup_reports_missing_root ... ok
+test worker_ipc::tests::temporary_test_root_diagnostic_contains_the_retained_path ... ok
+test worker_ipc::tests::temporary_test_root_diagnostic_failure_does_not_panic ... ok
+test worker_ipc::tests::temporary_test_root_preserves_during_unwind_after_child_completion ... ok
+test worker_ipc::tests::temporary_test_root_preserves_root_when_child_completion_is_unknown ... ok
+test worker_ipc::tests::queued_unified_gpu_refusal_preserves_durable_entry_and_source_before_preparation ... ok
+test worker_ipc::tests::frame_limit_counts_newline_and_rejects_oversize_before_write ... ok
+test worker_ipc::tests::temporary_test_root_rejects_parent_traversal_without_touching_sibling ... ok
+test worker_ipc::tests::temporary_test_root_reports_retention_during_active_unwind ... ok
+test worker_ipc::tests::temporary_test_root_requires_a_new_confined_path ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_mp3_packet_without_archive_keeps_current_error_cleanup_behavior ... ok
+test worker_ipc::tests::test_artifact_root_allocates_distinct_uncreated_paths_for_same_case ... ok
+test worker_ipc::tests::timestamp_guard_accepts_exactly_one_tdt_frame_overlap ... ok
+test worker_ipc::tests::unified_capture_after_direct_stop_uses_its_own_gate_and_publishes_audio ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario
+test worker_ipc::tests::unified_capture_alone_routes_probe_and_rejects_old_or_wrong_source_events ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario
+test worker_ipc::tests::unified_capture_gain_changes_apply_to_the_next_written_pcm_block_and_reject_stale_targets ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::unified_capture_runtime_rejects_third_before_capture_factory ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::unified_capture_updates_preview_and_final_document_before_stop_then_publishes_the_tail ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::disconnected_unified_inference_result_fails_the_inflight_session_and_preserves_its_peer ... ok
+test worker_ipc::tests::temporary_test_roots_are_independently_owned ... ok
+test worker_ipc::tests::unified_document_finalization_failure_releases_session_and_allows_replacement ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::unified_import_and_capture_without_controlled_injection_are_refused_before_hardware_start ... ok
+test worker_ipc::tests::unified_child_retains_only_two_job_ids_until_real_worker_recycle ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_failed_stale_identity_variants_keep_the_active_worker ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_mp3_append_error_stops_and_drains_capture_records_failure_and_sends_stop ... ok
+test worker_ipc::tests::unified_document_drains_are_included_in_the_two_session_admission_bound ... ok
+test worker_ipc::tests::unified_poll_capture_ack_clamps_artificially_excessive_durable_count ... ok
+test worker_ipc::tests::saturated_pending_queue_cannot_start_a_live_job_after_stop_and_allows_next_start ... ok
+test worker_ipc::tests::unified_poll_capture_ack_keeps_existing_higher_available_boundary ... ok
+test worker_ipc::runtime::poll::tests::stop_recovery::poll_stopped_import_auto_retry_starts_cpu_and_preserves_request ... ok
+test worker_ipc::tests::unified_poll_complete_final_window_cancels_reservation ... ok
+test worker_ipc::tests::unified_poll_capture_progress_is_monotone_and_preview_starts_at_four_seconds ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_window_finished_outside_live_returns_protocol_error_before_next_event ... ok
+test worker_ipc::tests::unified_poll_deferred_capture_failure_reaps_result_and_restarts_remaining_scheduler ... ok
+test worker_ipc::tests::unified_poll_deferred_capture_failure_releases_terminal_scheduler_session ... ok
+test worker_ipc::tests::unified_poll_defers_capture_pump_error_while_executor_inflight ... ok
+test worker_ipc::tests::unified_poll_completed_session_restarts_worker_for_surviving_peer ... ok
+test worker_ipc::tests::unified_poll_disconnect_unstarted_final_reports_missing_recycle ... ok
+test worker_ipc::tests::unified_poll_disconnect_without_scheduler_call_preserves_session ... ok
+test worker_ipc::tests::unified_poll_deferred_capture_failure_restarts_for_peer ... ok
+test worker_ipc::tests::auto_cpu_startup_failure_ends_without_another_attempt ... ok
+test worker_ipc::tests::unified_poll_empty_session_set_has_no_effects ... ok
+test worker_ipc::tests::unified_poll_empty_closed_source_retains_finalization_failure ... ok
+test worker_ipc::tests::unified_poll_disconnected_result_reaps_failed_job_and_finishes_peer ... ok
+test worker_ipc::tests::unified_poll_emits_active_microphone_telemetry_without_hold ... ok
+test worker_ipc::tests::unified_poll_dispatch_failure_records_final_and_preview_state ... ok
+test worker_ipc::tests::auto_gpu_ready_is_attested_and_explicitly_admitted ... ok
+test worker_ipc::tests::unified_poll_final_source_error_cancels_reservation_and_retains_failure ... ok
+test worker_ipc::tests::unified_poll_final_waiting_for_audio_cancels_reservation ... ok
+test worker_ipc::tests::unified_poll_finalization_failure_retains_failure_until_next_poll ... ok
+test worker_ipc::tests::unified_poll_failure_paths_retain_state_when_reap_fails ... ok
+test worker_ipc::tests::unified_poll_finished_document_survives_executor_reap_panic ... ok
+test worker_ipc::tests::auto_without_gpu_starts_cpu_with_normalized_compute_and_same_identity ... ok
+test worker_ipc::tests::unified_poll_finished_document_survives_scheduler_reap_error ... ok
+test worker_ipc::tests::unified_poll_finished_document_survives_missing_scheduler_session ... ok
+test worker_ipc::tests::unified_poll_idle_failure_restores_state_when_executor_reap_panics ... ok
+test worker_ipc::tests::temporary_test_root_cleans_after_child_exits_unsuccessfully ... ok
+test worker_ipc::tests::unified_poll_idle_failure_restores_state_when_scheduler_reap_rejects ... ok
+test worker_ipc::tests::temporary_test_root_refuses_a_reparse_ancestor ... ok
+test worker_ipc::tests::unified_poll_ignores_final_queue_error_for_terminal_scheduler_state ... ok
+test worker_ipc::tests::temporary_test_root_removal_does_not_follow_an_internal_junction ... ok
+test worker_ipc::tests::unified_poll_gpu_fallback_reports_missing_cpu_route_for_final_and_preview ... ok
+test worker_ipc::tests::unified_poll_finished_session_with_other_reserved_call_reports_reap_error ... ok
+test worker_ipc::tests::unified_poll_final_queue_uses_live_threshold_and_closed_tail ... ok
+test worker_ipc::tests::unified_poll_joined_trace_detects_file_effect_moved_between_polls ... ok
+test worker_ipc::tests::unified_poll_inflight_capture_failure_preempts_successful_result ... ok
+test worker_ipc::tests::panicking_unified_worker_terminates_the_inflight_session_and_its_peer ... ok
+test worker_ipc::tests::unified_poll_invalid_preview_preparation_cancels_and_records_failure ... ok
+test worker_ipc::tests::unified_poll_invalid_preview_words_trigger_commit_cleanup ... ok
+test worker_ipc::tests::unified_poll_inflight_capture_failure_restarts_surviving_peer ... ok
+test worker_ipc::tests::unified_poll_model_selection_and_portable_trace_reject_wrong_inputs ... ok
+test worker_ipc::tests::unified_poll_injected_disconnect_or_panic_reports_recycle_failure ... ok
+test worker_ipc::tests::unified_poll_meter_preserves_same_job_other_generation ... ok
+test worker_ipc::tests::unified_poll_meter_replaces_same_owner_and_preserves_other_owner ... ok
+test worker_ipc::tests::unified_poll_finished_selection_requires_each_guard ... ok
+test worker_ipc::tests::unified_poll_portable_index_validates_offsets_and_pid_widths ... ok
+test worker_ipc::tests::unified_poll_portable_worker_trace_pins_identity_and_preserves_other_fields ... ok
+test worker_ipc::tests::unified_poll_inference_failure_reaps_and_restarts_only_for_peer ... ok
+test worker_ipc::tests::unified_poll_missing_selected_session_cancels_reservation ... ok
+test worker_ipc::tests::unified_poll_inference_and_commit_failures_retain_state_when_recycle_not_pending ... ok
+test worker_ipc::tests::failed_publish_drops_pending_worker_without_starting_retention ... ok
+test worker_ipc::tests::unified_poll_invalid_final_commit_reaps_and_restarts_only_for_peer ... ok
+test worker_ipc::tests::unified_poll_preview_queue_error_occurs_after_progress_publication ... ok
+test worker_ipc::tests::unified_poll_nominal_import_records_complete_controlled_effects ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_confirms_zero_segment_window_immediately_and_propagates_confirmation_error ... ok
+test worker_ipc::tests::unified_poll_preview_commit_preserves_state_on_scheduler_complete_error ... ok
+test worker_ipc::tests::unified_poll_preview_uses_exact_acknowledgement_threshold ... ok
+test worker_ipc::tests::unified_poll_preview_source_error_cancels_reservation_and_retains_failure ... ok
+test worker_ipc::tests::unified_poll_recovery_boundaries_reject_early_ready_and_dispatch ... ok
+test worker_ipc::tests::unified_poll_publishes_telemetry_then_gain_then_progress_in_one_poll ... ok
+test worker_ipc::tests::unified_poll_panic_appends_capture_stop_error_from_partial_frame ... ok
+test worker_ipc::tests::unified_poll_panic_appends_peer_scheduler_abort_error_and_releases_both ... ok
+test worker_ipc::tests::unified_poll_panicked_worker_releases_both_sessions_in_order ... ok
+test worker_ipc::tests::unified_poll_refuses_route_replacement_for_a_reserved_call ... ok
+test worker_ipc::tests::unified_poll_refuses_route_change_while_executor_reports_inflight ... ok
+test worker_ipc::tests::unified_poll_rejects_pid_from_wrong_observed_incarnation ... ok
+test worker_ipc::tests::unified_poll_propagates_result_instance_without_extra_identity_check ... ok
+test worker_ipc::tests::unified_poll_preview_rejects_each_incomplete_prepared_pair ... ok
+test worker_ipc::tests::unified_poll_replaces_only_own_capture_progress_and_keeps_other_order ... ok
+test worker_ipc::tests::forced_gpu_initialization_failure_waits_for_explicit_cpu_choice ... ok
+test worker_ipc::tests::unified_poll_refuses_route_replacement_while_executor_is_live ... ok
+test worker_ipc::tests::unified_poll_rejects_changed_retained_call_after_taking_tuple ... ok
+test worker_ipc::tests::unified_poll_ready_gpu_failure_never_falls_back_for_final_or_preview ... ok
+test worker_ipc::tests::unified_poll_restart_error_preserves_session_and_executor ... ok
+test worker_ipc::tests::unified_poll_restart_rejects_unreaped_inflight_executor ... ok
+test worker_ipc::tests::live_blocked_automatic_queue_inspection_does_not_block_capture_b_stop_or_wav ... ok
+test worker_ipc::tests::unified_poll_replaces_reaped_executor_for_different_route ... ok
+test worker_ipc::tests::unified_poll_preview_requires_boundary_to_exceed_previous_sequence ... ok
+test worker_ipc::tests::retained_worker_reads_two_correlated_import_sessions_and_hits_model_cache ... ok
+test worker_ipc::tests::unified_poll_reports_unavailable_executor_without_changing_session ... ok
+test worker_ipc::tests::unified_poll_rejects_already_begun_final_and_preview_calls ... ok
+test worker_ipc::tests::live_slow_automatic_final_failure_does_not_block_another_capture_wav ... ok
+test worker_ipc::tests::unified_runtime_keeps_reserved_final_turn_through_preparation_with_peer_preview_ready ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf for model-catalogue archive preparation; mixed synthetic unified capture/import scenario
+test worker_ipc::tests::unified_start_and_immediate_stop_keep_the_new_session_identity ... ignored, requires models/parakeet-tdt-0.6b-v3.q8_0.gguf and target/parakeet-tests/refacto-parakeet-live/p3-workers; mixed synthetic unified capture scenario
+test worker_ipc::tests::unified_poll_unchanged_capture_ack_does_not_emit_progress ... ok
+test worker_ipc::tests::unified_poll_spectrum_replaces_same_owner_and_preserves_other_owner ... ok
+test worker_ipc::tests::vad_overlapped_sentence_word_extends_group_to_later_end ... ok
+test worker_ipc::tests::vad_sentence_overlap_over_one_tdt_frame_is_rejected ... ok
+test worker_ipc::tests::vad_sentence_overlap_within_one_frame_stays_in_one_valid_segment ... ok
+test worker_ipc::tests::worker_command_poll_prioritizes_control_and_distinguishes_idle_and_closed ... ok
+test worker_ipc::tests::worker_eof_without_end_is_reported_as_failure ... ok
+test worker_ipc::tests::worker_reader_signals_transport_end_after_session_end ... ok
+test worker_ipc::tests::unified_poll_retains_final_and_preview_through_readiness_announcement ... ok
+test worker_ipc::tests::auto_import_unlaunchable_gpu_uses_one_cpu_attempt ... ok
+test worker_ipc::runtime::poll::tests::window_confirmations::poll_rejects_unmappable_window_and_zero_based_last_segment_immediately ... ok
+test worker_ipc::tests::unified_poll_result_failures_reinsert_state_when_reap_panics ... ok
+test worker_ipc::tests::unified_poll_result_failures_reinsert_state_when_scheduler_reap_rejects ... ok
+test worker_ipc::runtime::poll::tests::poll_persists_ready_progress_failed_and_stopped_diagnostics_in_their_phases ... ok
+test worker_ipc::tests::unified_poll_worker_panic_closes_capture_and_releases_import_peer ... ok
+test worker_ipc::tests::unrecycled_controlled_child_rejects_third_job_with_bounded_table ... ok
+test worker_ipc::tests::auto_import_gpu_exit_after_ready_before_begin_retries_once_on_cpu ... ok
+test worker_ipc::tests::unified_poll_rejects_stale_result_without_losing_session ... ok
+test worker_ipc::tests::unified_terminal_failures_release_all_parent_state_and_preserve_source_audio ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_failed_maps_protocol_error_codes ... ok
+test worker_ipc::tests::microphone_legacy_live_pump_advances_capture_spectrum_confirmed_text_and_end ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_failed_preserves_optional_and_backend_routing ... ok
+test worker_ipc::tests::unified_poll_resumed_prefix_emits_only_new_segments ... ok
+test worker_ipc::tests::gpu_live_failed_then_eof_retries_cpu_and_accepts_ready_before_capture_activation ... ok
+test worker_ipc::tests::stop_latched_after_gpu_failure_prevents_cpu_worker_launch ... ok
+test worker_ipc::tests::gpu_import_failed_then_eof_retries_cpu_and_accepts_same_job_ready ... ok
+test worker_ipc::runtime::poll::tests::parakeet_equivalence::poll_parakeet_result_rejects_inactive_identity_duration_and_empty_words ... ok
+test worker_ipc::tests::unified_poll_stop_during_prepare_records_effects ... ok
+test worker_ipc::tests::unified_poll_stop_before_worker_ready_records_effects ... ok
+test worker_ipc::tests::unified_poll_stop_during_live_records_effects ... ok
+test worker_ipc::tests::unified_poll_stop_live_with_pending_audio_records_effects ... ok
+test worker_ipc::tests::unified_poll_live_preview_and_final_records_effects ... ok
+test worker_ipc::tests::unified_poll_auto_final_cpu_ready_failure_does_not_retry ... ok
+test worker_ipc::tests::unified_poll_auto_preview_cpu_ready_failure_does_not_retry ... ok
+test worker_ipc::tests::unified_poll_auto_preview_falls_back_before_ready_with_manual_peer ... ok
+test worker_ipc::tests::unified_poll_native_candidate_starts_validated_cpu_route ... ok
+test worker_ipc::tests::unified_poll_real_ipc_eof_records_effects ... ok
+test worker_ipc::tests::unified_poll_auto_fallback_with_manual_peer_uses_verified_personal_model ... ok
+test worker_ipc::tests::unified_poll_real_eof_restarts_and_completes_peer ... ok
+
+test result: ok. 596 passed; 0 failed; 49 ignored; 0 measured; 0 filtered out; finished in 36.78s
+
+
+running 3 tests
+test decoder_proxy_accepts_bounded_partial_range_and_rejects_out_of_range_block ... ok
+test decoder_proxy_accepts_only_matching_source_job_generation_and_range ... ok
+test decoder_proxy_rejects_a_stale_generation_before_returning_audio ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test resume_validation_rejects_later_fifo_row_without_advancing_any_generation ... ok
+test queue_ack_replays_fifo_and_running_work_recovers_without_launch ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 4 tests
+test maps_disabled_present_card_and_preserves_ambiguous_windows_error_codes ... ok
+test maps_integrated_gpu_as_current_without_cuda_eligibility_inference ... ok
+test missing_identity_cannot_be_claimed_as_a_current_device ... ok
+test missing_presence_is_unknown_and_false_presence_is_absent ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test qualification_response_is_typed_and_keeps_per_device_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test real_gpu_import_uses_current_windows_candidate_and_local_model_when_enabled ... ignored, requires WHISPER_L04_MODEL, WHISPER_L04_WAV, WHISPER_L04_GPU_WORKER and a qualified NVIDIA CUDA runtime
+test gpu_import_and_live_commands_keep_candidate_identity_and_distinct_ordinals ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test temporary_substitution_uses_q_then_restores_preferred_p ... ok
+test write_failure_is_attributed_to_revision_and_reported ... ok
+test old_json_migrates_additively_and_reopens_with_revision_acknowledgement ... ok
+test interleaved_path_microphone_and_gpu_edits_preserve_one_latest_snapshot ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 5 tests
+test r11_duplicate_import_prompts_before_queue_and_replace_keeps_all_old_archives ... ignored, requires models/ggml-large-v3-turbo.bin and native Turbo worker artifacts
+test real_wav_runs_through_cpu_worker_and_verified_archive ... ignored, requires WHISPER_L01_FIXTURE, WHISPER_L01_MODEL and the real CPU worker runtime
+test real_worker_serves_correlated_bounded_decode_blocks ... ignored, requires WHISPER_L01_FIXTURE and whisper-worker-cpu.exe
+test stop_during_native_inference_is_prompt_and_never_publishes_complete ... ignored, requires WHISPER_L01_FIXTURE, WHISPER_L01_MODEL and whisper-worker-cpu.exe
+test decoder_rejects_invalid_window_bounds_before_transport_admission ... ok
+
+test result: ok. 1 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test r11_mp3_content_identity_is_independent_of_filename_and_destination ... ignored, requires WHISPER_L02_MP3_FIXTURE and WHISPER_L01_MODEL or models/ggml-large-v3-turbo.bin
+test real_mp3_runs_through_durable_choice_cpu_worker_and_txt_srt_archive ... ignored, requires WHISPER_L02_MP3_FIXTURE, WHISPER_L01_MODEL and whisper-worker-cpu.exe
+test source_changed_after_queue_admission_is_refused_without_worker_launch ... ignored, requires the real WHISPER_L02_MP3_FIXTURE corpus
+test failed_preparation_keeps_durable_row_actionable ... ok
+
+test result: ok. 1 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 3 tests
+test explicit_resume_accepts_a_catalog_path_for_known_turbo_and_keeps_durable_path ... ignored, requires the pinned ggml-large-v3-turbo.bin under models/
+test queued_legacy_turbo_path_is_resolved_in_memory_and_durable_record_is_unchanged ... ignored, requires the pinned ggml-large-v3-turbo.bin under models/
+test unknown_queued_path_is_refused_with_an_explicit_diagnostic ... ignored, requires the pinned ggml-large-v3-turbo.bin under models/
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 12 tests
+test a_live_group_has_one_archive_writer_at_a_time ... ok
+test attempt_journal_reserves_monotonically_and_enforces_transitions ... ok
+test archive_characterization_live_coverage_checksum_and_order_are_refused ... ok
+test next_passage_refuses_unconfirmed_pcm_after_the_durable_checkpoint ... ok
+test next_passage_refuses_durable_pcm_without_verified_coverage ... ok
+test archive_characterization_live_segment_before_coverage_stays_unconfirmed ... ok
+test archive_characterization_attempt_journal_corruption_is_not_read_by_recovery ... ok
+test recovery_adopts_a_synced_silent_window_commit_without_a_durable_ack ... ok
+test fully_covered_but_unpublished_passage_stays_recoverable_and_blocks_next_generation ... ok
+test next_passage_refuses_text_after_the_last_coverage_commit ... ok
+test archive_characterization_live_current_manifest_and_snapshot_corruption_are_stable ... ok
+test passage_publishes_durable_pcm_mp3_and_confirmed_text_as_one_generation ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 3 tests
+test capture_conversion_rejects_unsupported_dimensions_and_uses_bounded_slots ... ok
+test bounded_pcm_writer_drains_queued_frames_to_a_verified_checkpoint ... ok
+test delayed_durable_high_water_keeps_the_80k_inference_window_on_disk ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 1 test
+test capture_path_accepts_the_declared_microphone_gain_range_and_bounded_queue ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test invalidation_hides_a_snapshot_even_when_a_reader_still_holds_it ... ok
+test fft_peak_tracks_hz_and_gain_window_records_return_to_initial_value ... ok
+test spectrum_is_cached_across_rms_ticks_and_invalidated_once_on_loss ... ok
+test real_queue_overflow_is_counted_and_measurement_recovers_after_a_full_window ... ok
+test analyzer_publishes_bounded_psd_and_slow_readers_keep_immutable_snapshots ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+
+running 2 tests
+test old_settings_default_to_windows_microphone_without_losing_paths ... ok
+test microphone_id_is_kept_in_the_same_settings_snapshot ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test closed_catalog_reports_both_pinned_model_files_and_exact_observations ... ignored, requires both pinned model files under models/
+test known_historical_turbo_path_rebinds_to_the_verified_test_catalog_path ... ignored, requires the pinned ggml-large-v3-turbo.bin under models/
+test missing_and_corrupt_models_are_reported_without_touching_the_catalog_root ... ok
+test model_hash_cache_reuses_physical_identity_and_rehashes_changed_fingerprints ... ok
+test model_hash_cache_serializes_concurrent_first_reads_and_fails_closed_on_missing_files ... ok
+
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 6 tests
+test unknown_v1_path_is_retained_for_diagnostics_and_does_not_map_to_turbo ... ok
+test conflicting_or_unwritable_backup_blocks_migration_and_preserves_v1 ... ok
+test concurrent_path_and_preference_writes_merge_after_v1_migration ... ok
+test matching_backup_is_reused_once_and_backup_io_failure_leaves_v1_untouched ... ok
+test path_write_before_preference_migration_preserves_paths_and_v1_backup ... ok
+test v1_backup_is_created_before_v2_and_is_byte_identical_and_never_replaced ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 17 tests
+test archive_admission_accepts_exactly_qualified_limit_and_refuses_one_extra_sample ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the exact qualified Parakeet runtime
+test gpu_pending_is_bound_to_the_qualified_physical_identity ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the qualified GPU worker/DLL set
+test modified_parakeet_model_is_refused_before_pending_after_cache_revalidation ... ignored, requires the qualified Parakeet GGUF model, R9 runtime and native CPU worker/DLLs
+test parakeet_archive_refuses_model_sha_divergence_before_pending_creation ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test parakeet_model_identity_prepares_persists_and_publishes_txt_srt ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test parakeet_pending_queue_resumes_only_the_same_model_source_and_prefix ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test pending_scan_and_resume_require_the_exact_qualified_test_key ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test r5_2_a4_product_route_publishes_french_and_english_txt_srt ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, MODEL, WORKER, NATIVE_DIR, FR/EN WAV corpus fixtures and CPU native DLLs
+test r5_2_b9_reports_noise_floor_silences_and_cut_plans ... ignored, requires PARAKEET_L2_NOISE_MINUS40_WAV, PARAKEET_L2_NOISE_MINUS30_WAV and PARAKEET_L2_NOISE_MINUS20_WAV corpus fixtures
+test r5_2_long_tests::en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy ... ignored, requires PARAKEET_L2_EN_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs
+test r5_2_long_tests::fr_synthetic_long_reference_and_vad_use_same_candidate ... ignored, requires PARAKEET_L2_FR_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs
+test r5_2_vad_recipe_is_scoped_and_desktop_test_import_is_rejected_before_pending ... ignored, requires PARAKEET_R7_EXEC_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_LONG_WAV
+test registered_personal_pending_cpu_and_gpu_scan_and_resume_without_qualification_feature ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, PARAKEET_L2_EN_WAV and the qualified CPU/GPU runtime
+test resume_refuses_over_limit_pending_and_preserves_its_bytes ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test retired_l2a_pending_remains_visible_but_cannot_be_resumed ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test retired_r5_2_pending_is_rejected_with_retirement_cause_and_preserved ... ignored, requires PARAKEET_L2_ARCHIVE_ROOT, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and PARAKEET_L2_EN_WAV
+test import_strategy_defaults_to_legacy_and_round_trips_explicit_versions ... ok
+
+test result: ok. 1 passed; 0 failed; 16 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test personal_archives_recognize_previous_workers_without_admitting_them_for_execution ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 2 tests
+test shutdown_v1_has_the_existing_wire_shape ... ok
+test transcribe_v1_accepts_legacy_and_explicit_gpu_fields ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test resumed_native_import_keeps_confirmed_prefix_once_and_publishes_once ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV
+test resumed_native_vad_import_keeps_confirmed_prefix_once_and_publishes_once ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and PARAKEET_L2_EN_LONG_WAV
+test stop_and_quit_at_preparation_and_publication_barriers_preserve_truthful_state ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV
+test stop_during_parakeet_inference_waits_for_exit_and_preserves_pending_without_publication ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV; runs real import
+test stop_kills_and_waits_for_the_isolated_worker_process ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR and PARAKEET_L2_MODEL
+test stop_queue_journal_failure_settles_runtime_and_allows_next_import ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_WORKER, PARAKEET_L2_NATIVE_DIR, PARAKEET_L2_MODEL and the declared input WAV
+
+test result: ok. 0 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 15 tests
+test gpu_app_en5 ... ignored, requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV
+test gpu_app_en5_timing_diagnostic ... ignored, requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV
+test gpu_app_en5_twice_release ... ignored, requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and PARAKEET_L3_EN5_WAV
+test gpu_app_fr_en_single_pass ... ignored, requires the L3B/L3C/L3D recipe selector, Parakeet model/worker/DLLs and pinned FR87, FR27 and EN15 WAVs
+test incompatible_native_dll_is_refused_by_product_and_fails_at_loader_boundary ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL, qualified Parakeet CPU/GPU workers and CUDA DLLs
+test incomplete_result_frame_is_rejected_as_transport_decode_failure ... ignored, requires PARAKEET_L2_MODEL, PARAKEET_L2_RUNTIME_ROOT and Parakeet CPU/GPU native DLLs for scoped process fixtures
+test killed_native_worker_is_reported_as_exit_without_result ... ignored, requires PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL, R8 execution root and qualified Parakeet CPU/GPU workers/DLLs
+test parakeet_worker_configuration_is_confined_to_the_l2a2_runtime ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the installed Parakeet worker/DLL set
+test product_route_incomplete_result_preserves_pending_source_and_rejects_completion ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL and qualified Parakeet CPU/GPU workers/DLLs
+test product_route_worker_death_preserves_pending_source_and_rejects_completion ... ignored, requires PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_EN_WAV, PARAKEET_L2_MODEL and qualified Parakeet CPU/GPU workers/DLLs
+test r6_application_single_pass_recipe ... ignored, requires PARAKEET_R6_CASE, PARAKEET_R6_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set
+test r7_application_timing ... ignored, requires PARAKEET_R7_CASE, PARAKEET_R7_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set
+test r9_application_recipe ... ignored, requires PARAKEET_R9_CASE, PARAKEET_R9_RECIPE_WAV, PARAKEET_L2_RUNTIME_ROOT, PARAKEET_L2_MODEL and the frozen Parakeet CPU worker/DLL set
+test gpu_recipe_selector_preserves_l3b_l3c_and_supports_explicit_l3d ... ok
+test gpu_identity_rejects_same_pci_with_a_different_windows_device ... ok
+
+test result: ok. 2 passed; 0 failed; 13 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test b9_reports_noise_floor_silence_counts_and_cut_plans ... ignored, requires PARAKEET_L2_NOISE_MINUS40_WAV, PARAKEET_L2_NOISE_MINUS30_WAV and PARAKEET_L2_NOISE_MINUS20_WAV corpus fixtures
+test en_sixty_minute_reference_and_vad_use_same_candidate_and_boundary_policy ... ignored, requires PARAKEET_L2_EN_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs
+test fr_synthetic_long_reference_and_vad_use_same_candidate ... ignored, requires PARAKEET_L2_FR_LONG_WAV, PARAKEET_L2_MODEL, runtime, CPU worker and native DLLs
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 2 tests
+test historical_gpu_rejects_invalid_log_root_and_qualification ... ok
+test support::personal_import_is_independent_of_historical_environment ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+
+
+running 18 tests
+test build_french_and_english_long_session_fixtures_from_voted_sps_clips ... ignored, requires WHISPER_PU_L4_BUILD_LONG_FIXTURES=1, WHISPER_L04_CAMPAIGN_RUN and the voted SPS source corpus
+test build_physical_rotation_fixture_over_one_gibibyte ... ignored, requires WHISPER_PU_L4_BUILD_ROTATION_FIXTURE=1 and WHISPER_L04_CAMPAIGN_RUN; creates a WAV over 1 GiB
+test native_personal_auto_imports_annotated_english_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU/GPU model/worker/DLLs, GPU candidate and annotated English 40-minute fixture
+test native_personal_auto_imports_annotated_french_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU/GPU model/worker/DLLs, GPU candidate and annotated French 35-minute fixture
+test native_personal_auto_without_candidate_reports_preaudio_cpu_fallback ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and guarded WHISPER_PU_L4_EN_SOURCE
+test native_personal_cpu_imports_annotated_english_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and annotated English 40-minute fixture
+test native_personal_cpu_imports_annotated_french_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and annotated French 35-minute fixture
+test native_personal_cpu_imports_french_mp3_through_the_unified_application ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet CPU model/worker/DLLs and guarded WHISPER_PU_L4_FR_SOURCE
+test native_personal_gpu_imports_annotated_english_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, current GPU identity and annotated English 40-minute fixture
+test native_personal_gpu_imports_annotated_french_long_audio ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, current GPU identity and annotated French 35-minute fixture
+test native_personal_gpu_imports_english_mp3_with_attested_candidate ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, real GPU identity and guarded WHISPER_PU_L4_EN_SOURCE
+test native_personal_gpu_imports_french_mp3_with_attested_candidate ... ignored, requires WHISPER_L04_CAMPAIGN_RUN, LOCALAPPDATA/Whisper Parakeet GPU model/worker/DLLs, real GPU identity and guarded WHISPER_PU_L4_FR_SOURCE
+test voxpopuli::english_long_auto_gpu ... ignored, requires the guarded VoxPopuli corpus, raw provenance inputs, personal GPU runtime, and a current CUDA candidate
+test voxpopuli::english_long_gpu ... ignored, requires the guarded VoxPopuli corpus, raw provenance inputs, personal GPU runtime, and a current CUDA candidate
+test voxpopuli::english_short_mp3_gpu ... ignored, requires the guarded VoxPopuli corpus, personal GPU runtime, and a current CUDA candidate
+test voxpopuli::french_long_auto_gpu ... ignored, requires the guarded VoxPopuli corpus, raw provenance inputs, personal GPU runtime, and a current CUDA candidate
+test voxpopuli::french_long_gpu ... ignored, requires the guarded VoxPopuli corpus, raw provenance inputs, personal GPU runtime, and a current CUDA candidate
+test voxpopuli::french_short_wav_and_mp3_gpu ... ignored, requires the guarded VoxPopuli corpus, personal GPU runtime, and a current CUDA candidate
+
+test result: ok. 0 passed; 0 failed; 18 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test publication_lock_preserves_contents_and_exclusion_until_drop ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test r11_application_baseline ... ignored, requires WHISPER_RTC_BASELINE_ROOT, real WHISPER_RTC_BASELINE_WAV_SHORT/WAV_LONG/MP3 fixtures and installed Parakeet CPU worker/model/DLLs
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test archive_characterization_cleanup_missing_object_before_progress_is_adopted ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test archive_characterization_cleanup_recorded_removed_but_present_is_preserved ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test durable_legacy_cleanup_replay_keeps_empty_parent_without_container_proof ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test reparse_container_is_rejected_before_any_old_artifact_is_removed ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test replace_all_publishes_first_stops_partial_cleanup_and_resumes_only_on_request ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test replaced_container_identity_is_rejected_and_both_directories_are_preserved ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test replacement_reservation_still_rejects_a_changed_verified_catalog ... ok
+test replacement_reservation_ignores_historical_rows_without_treatments ... ok
+
+test result: ok. 2 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+
+running 2 tests
+test application_create_new_processes_the_bound_snapshot_and_preserves_prior_publication ... ignored, requires models/ggml-large-v3-turbo.bin verified by LocalModelCatalog; mixed synthetic cleanup/admission scenario
+test create_new_publishes_only_its_internal_pair_and_preserves_existing_treatment ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 13 tests
+test malformed_global_registry_fails_closed ... ok
+test explicit_recovery_keeps_a_snapshot_with_a_publication_reservation ... ok
+test explicit_recovery_preserves_binding_when_another_generation_has_corrupt_pending ... ok
+test explicit_recovery_keeps_a_snapshot_referenced_by_the_durable_queue ... ok
+test interrupted_empty_reservation_is_not_reused_after_restart ... ok
+test explicit_recovery_preserves_active_and_incomplete_bindings ... ok
+test rebinding_operation_moves_only_its_owned_snapshot_and_record ... ok
+test same_size_snapshot_mutation_is_rejected_and_keeps_its_global_slot ... ok
+test conflicting_bound_snapshot_path_is_refused_and_keeps_both_slots ... ok
+test explicit_recovery_releases_only_verified_abandoned_slots_when_destination_is_empty ... ok
+test rebind_rejects_operation_identity_owned_in_another_destination ... ok
+test captures_once_reuses_snapshot_and_retire_releases_capacity ... ok
+test durable_global_capacity_spans_destinations_and_restarts ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+running 1 test
+test vad_accepts_only_20ms_mono_16khz_frames ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test capture_progress_does_not_hide_a_stalled_inference_obligation ... ok
+test missing_progress_warns_once_without_turning_into_a_stop ... ok
+test forced_gpu_fails_closed_when_worker_is_absent ... ok
+test auto_prefers_gpu_and_uses_cpu_when_gpu_binary_is_absent ... ok
+test cpu_choice_uses_only_cpu_worker_even_when_gpu_exists ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+
+running 42 tests
+test gui::tests::architecture_probe_uses_system_powershell_and_rejects_null_before_cast ... ok
+test gui::tests::store_action_is_available_only_for_native_arm64_result ... ok
+test gui::tests::architecture_query_errors_and_indeterminate_results_stay_distinct ... ok
+test gui::tests::probe_success_requires_success_exit_and_exact_marker ... ok
+test gui::tests::processor_architecture_ids_match_microsoft_values ... ok
+test installer::replacement::tests::close_poll_propagates_probe_errors ... ok
+test installer::replacement::tests::close_poll_skips_prompt_when_absent_and_succeeds_after_normal_close ... ok
+test installer::replacement::tests::close_poll_times_out_after_thirty_seconds_without_a_kill_action ... ok
+test installer::replacement::tests::free_space_threshold_covers_backup_staging_and_rollback_with_margin ... ok
+test installer::replacement::tests::free_space_threshold_rejects_overflow ... ok
+test installer::replacement::tests::free_space_threshold_uses_ceil_ten_percent_and_strict_boundaries ... ok
+test installer::tests::free_space_parser_requires_one_unsigned_integer ... ok
+test installer::tests::distribution_asset_tables_keep_turbo_and_dual_resources_separate ... ok
+test installer::tests::tasklist_parser_accepts_complete_process_and_supported_english_french_absence ... ok
+test installer::tests::tasklist_parser_rejects_empty_unrecognized_truncated_and_ambiguous_output ... ok
+test tests::cpu_preflight_admits_only_a_verified_v2_level ... ok
+test installer::preflight::tests::incorrect_model_is_rejected_before_installation ... ok
+test installer::preflight::tests::bundle_preflight_preserves_an_existing_destination ... ok
+test installer::replacement::tests::backup_copy_failure_does_not_modify_source ... ok
+test installer::preflight::tests::bundle_preflight_hashes_resources_without_creating_installation_state ... ok
+test installer::tests::below_v2_cpu_refuses_before_creating_the_installation_root ... ok
+test installer::tests::cancellation_returns_before_any_installation_mutation ... ok
+test installer::replacement::tests::publish_failure_restores_old_root_without_discarding_recovery_paths ... ok
+test installer::replacement::tests::failed_restore_reports_recovery_incomplete_and_keeps_all_paths ... ok
+test installer::tests::missing_bundle_resource_refuses_before_creating_a_final_root ... ok
+test installer::tests::indeterminate_cpu_refuses_the_real_install_path_before_filesystem_mutation ... ok
+test installer::replacement::tests::failed_publish_restores_verified_backup_and_preserves_artifacts ... ok
+test installer::replacement::tests::publication_boundary_rejects_reactivated_whisper_without_moving_root ... ok
+test installer::tests::missing_and_wrong_model_refuse_without_creating_a_final_root ... ok
+test installer::tests::an_existing_destination_is_refused_before_the_bundle_is_copied ... ok
+test installer::replacement::tests::missing_or_altered_immutable_resource_refuses_existing_install ... ok
+test installer::replacement::tests::migration_preserves_settings_and_logs_bytes_from_verified_backup ... ok
+test installer::tests::altered_resource_copy_is_detected_and_never_published ... ok
+test installer::replacement::tests::altered_or_omitted_migration_is_rejected_before_publication ... ok
+test installer::replacement::tests::post_publish_verification_failure_restores_old_root_and_preserves_new_tree ... ok
+test installer::tests::replaced_staging_directory_is_preserved_and_never_published ... ok
+test installer::replacement::tests::publish_success_keeps_verified_backup_and_previous_root ... ok
+test installer::replacement::tests::publication_boundary_rejects_changed_or_added_user_state_without_moving_root ... ok
+test installer::replacement::tests::recognized_install_allows_only_optional_ordinary_user_state ... ok
+test installer::tests::a_simultaneously_created_destination_is_preserved_without_overwrite ... ok
+test installer::tests::successful_install_publishes_verified_model_resources_and_notices_together ... ok
+test installer::replacement::tests::post_publish_user_state_mismatch_restores_old_root_and_keeps_new_tree ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 86 tests
+test application::runtime::tests::every_job_lifecycle_command_carries_identity ... ok
+test application::runtime::tests::close_blocks_direct_and_indirect_admissions_without_submitting_effects ... ok
+test application::runtime::tests::cancelling_duplicate_import_releases_only_the_new_source_snapshot ... ok
+test application::runtime::tests::destination_scan_stays_pending_until_history_and_queue_are_consumed ... ok
+test application::runtime::tests::close_removes_durable_queued_work_before_reporting_ready ... ok
+test application::runtime::tests::empty_snapshot_recovery_inspection_closes_dialog_and_reports_result ... ok
+test application::runtime::tests::direct_capture_and_engine_progress_independently_through_pre_ready_stop ... ok
+test application::runtime::tests::close_keeps_failed_queue_removal_recoverable_and_retries_it ... ok
+test application::runtime::tests::immediate_live_stop_does_not_reenter_capturing_on_late_ready ... ok
+test application::runtime::tests::import_can_be_enqueued_during_live_without_replacing_the_live_job ... ok
+test application::runtime::tests::microphone_test_owns_one_capture_then_releases_before_live_restart ... ok
+test application::runtime::tests::late_unified_gain_rejection_does_not_rollback_newer_capture_view ... ok
+test application::runtime::tests::late_automatic_import_failure_updates_only_its_capture_row ... ok
+test application::runtime::tests::live_auto_stop_acts_only_when_a_positive_speech_limit_is_configured ... ok
+test application::runtime::tests::direct_start_failure_before_live_started_keeps_a_capture_row_without_wav ... ok
+test application::runtime::tests::live_capture_failure_remains_recoverable_with_its_diagnostic ... ok
+test application::runtime::tests::live_state_advances_through_capture_drain_and_finalization ... ok
+test application::runtime::tests::microphone_gain_command_is_scoped_to_the_active_direct_capture ... ok
+test application::runtime::tests::microphone_test_gain_requested_during_open_survives_started_event ... ok
+test application::runtime::tests::failed_live_stop_retains_recoverable_diagnostic_and_confirmed_fragment ... ok
+test application::runtime::tests::final_stop_counters_allow_last_window_and_match_published_view ... ok
+test application::runtime::tests::parakeet_late_confirmation_keeps_identity_and_reorders_display_chronologically ... ok
+test application::runtime::tests::parakeet_automatic_final_import_stays_unverified_and_separate_from_confirmed_text ... ok
+test application::runtime::tests::queue_scan_failure_clears_pending_state_and_is_visible ... ok
+test application::runtime::tests::repeated_start_is_identifiable_and_stale_stop_does_not_target_new_generation ... ok
+test application::runtime::tests::parakeet_provisional_never_becomes_confirmed_without_a_confirmed_event ... ok
+test application::runtime::tests::model_guard_blocks_each_import_and_live_effect_route_before_submission ... ok
+test application::runtime::tests::request_close_waits_for_an_already_committing_import_result ... ok
+test application::runtime::tests::live_provisional_text_is_exposed_and_persisted_by_the_application ... ok
+test application::runtime::tests::live_stop_keeps_generation_until_segments_are_persisted_and_published ... ok
+test application::runtime::tests::microphone_test_failure_invalidates_its_meter_and_source ... ok
+test application::runtime::tests::queued_import_starts_only_after_live_publication_and_explicit_processing ... ok
+test application::runtime::tests::snapshot_recovery_completion_closes_dialog_and_keeps_error_and_protected_reason_visible ... ok
+test application::runtime::tests::stale_audio_pages_reset_revision_and_preserve_real_errors_and_request_identity ... ok
+test application::runtime::tests::stale_duplicate_dialog_response_cannot_submit_a_replacement ... ok
+test application::runtime::tests::stopped_import_ignores_late_segments_and_remains_cancelled ... ok
+test application::runtime::tests::successful_snapshot_recovery_completion_closes_dialog_and_reports_recovered_copies ... ok
+test application::runtime::tests::unified_capture_prepared_progress_end_publishes_only_after_total_is_known ... ok
+test application::runtime::tests::turbo_start_failure_before_live_started_does_not_create_parakeet_capture ... ok
+test application::runtime::tests::unified_capture_ready_records_the_effective_native_backend ... ok
+test application::runtime::tests::unified_capture_rejects_end_until_prepared_total_arrives ... ok
+test application::runtime::tests::unified_capture_rejects_progress_with_a_total_different_from_prepared_source ... ok
+test application::runtime::tests::unified_page_responses_and_errors_follow_latest_selection_request ... ok
+test application::runtime::tests::unified_session_card_cache_stays_bounded_at_eight ... ok
+test cpu_compatibility::tests::diagnostics_recompute_the_compatibility_result ... ok
+test cpu_compatibility::tests::accepts_complete_x86_64_v2_requirements ... ok
+test cpu_compatibility::tests::identifies_each_missing_v2_requirement ... ok
+test cpu_compatibility::tests::missing_required_leaf_is_indeterminate ... ok
+test audio::tests::almost_silent_file_end_produces_no_text ... ok
+test cpu_compatibility::tests::v3_and_v4_bits_are_observed_without_changing_the_v2_floor ... ok
+test domain::tests::generation_is_positive_and_monotonic ... ok
+test domain::tests::interrupted_import_needs_explicit_return_to_queue ... ok
+test audio::tests::short_word_after_silence_is_kept_for_transcription ... ok
+test domain::tests::live_lifecycle_requires_drain_before_finalization ... ok
+test domain::tests::source_range_rejects_empty_or_unclocked_ranges ... ok
+test ipc::tests::protocol_version_is_explicit_and_checked ... ok
+test microphone::tests::changed_id_requires_explicit_selection ... ok
+test microphone::tests::enumeration_failure_is_not_mistaken_for_missing_preferred_device ... ok
+test microphone::tests::preferred_id_survives_temporary_default_and_recovers_on_next_launch ... ok
+test microphone_level::tests::gain_bounds_are_inclusive_and_invalid_values_are_rejected ... ok
+test microphone_level::tests::gain_revisions_are_monotonic_and_checked ... ok
+test microphone_level::tests::selection_context_targets_only_its_current_identity_and_revision ... ok
+test microphone_level::tests::silence_and_absent_measurement_are_distinct ... ok
+test parakeet_scheduler::tests::a_third_nonterminal_session_is_refused ... ok
+test parakeet_scheduler::tests::final_sessions_alternate_and_old_incarnations_do_not_alias_requests ... ok
+test parakeet_scheduler::tests::preview_arriving_during_an_inflight_preview_survives_its_completion ... ok
+test parakeet_scheduler::tests::preview_is_replaceable_and_final_work_has_p1_priority ... ok
+test parakeet_scheduler::tests::preview_starvation_witness_fails_the_p1_contract ... ok
+test parakeet_scheduler::tests::recycling_waits_for_the_real_inflight_exit_and_preserves_other_session_attempts ... ok
+test parakeet_scheduler::tests::reserved_final_turn_covers_preparation_and_ready_wait ... ok
+test parakeet_scheduler::tests::unrecycled_table_growth_witness_fails_the_two_session_bound ... ok
+test parakeet_session::tests::final_revision_is_stable_and_cannot_be_revised ... ok
+test parakeet_session::tests::frontiers_are_distinct_monotonic_and_ordered ... ok
+test parakeet_session::tests::window_cursor_rejects_inconsistent_checkpoint_indices ... ok
+test parakeet_windows::tests::reference_limit_does_not_cap_product_window_planning ... ok
+test parakeet_windows::tests::word_center_has_one_owner_at_joint_boundary ... ok
+test parakeet_windows::tests::rms_64_frame_threshold_and_400ms_run_are_exact ... ok
+test path_settings::microphone_tests::invalid_gain_is_neutralized_alone_and_reported ... ok
+test path_settings::microphone_tests::microphone_preference_survives_path_save_and_reopen ... ok
+test path_settings::microphone_tests::microphone_gains_are_persisted_per_identity_and_neutral_is_absent ... ok
+test path_settings::microphone_tests::stale_save_ack_is_ignored_and_failed_latest_save_is_visible_without_losing_live_gain ... ok
+test parakeet_scheduler::tests::many_windows_reuse_two_session_records_without_growing_the_table ... ok
+test parakeet_session::tests::continuous_speech_falls_back_to_120_seconds_and_cursor_is_contiguous ... ok
+test parakeet_session::tests::window_cursor_checkpoint_restores_exact_next_window ... ok
+test parakeet_windows::tests::silence_is_centered_and_earliest_wins_equal_distance ... ok
+test application::runtime::tests::turbo_existing_matrix_dispatches_all_1206_requests_to_effect_submission ... ok
+
+test result: ok. 86 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+
+running 2 tests
+test legacy_start_live_is_rejected_without_effects ... ok
+test history_event_is_applied_without_an_active_job ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test auto_uses_gpu_when_available_and_allows_only_gpu_to_cpu_fallback ... ok
+test forced_cpu_never_selects_or_initializes_gpu ... ok
+test forced_gpu_failure_waits_for_a_human_choice ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 9 tests
+test invalid_or_grayed_language_is_refused_even_when_injected_directly ... ok
+test auto_and_manual_language_are_independent_and_projection_matches_admission ... ok
+test comparable_shortfall_is_checked_for_ram_vram_and_model_disk ... ok
+test no_admissible_language_mode_refuses_launch_and_unknown_is_not_unsupported ... ok
+test preferences_are_retained_while_unavailable_models_remain_unlaunchable ... ok
+test unknown_or_incomparable_resources_do_not_prove_insufficiency_but_comparable_shortfall_does ... ok
+test stale_generation_result_is_rejected_without_changing_current_preferences ... ok
+test existing_recognized_is_admissible_without_changing_the_l1a_qualified_api ... ok
+test turbo_qualification_does_not_admit_unqualified_parakeet_or_substitute_the_model ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 13 tests
+test app_publishes_partial_collection_and_failure_states ... ok
+test app_ignores_duplicate_terminal_response_until_a_new_generation_starts ... ok
+test app_publishes_qualified_partial_catalogue_and_rejects_late_or_duplicate_results ... ok
+test app_rejects_stale_responses_and_close_revokes_publication ... ok
+test ready_and_disabled_states_are_preserved ... ok
+test current_device_with_missing_properties_is_kept_as_unknown ... ok
+test enumeration_error_after_observations_keeps_observations_and_marks_partial ... ok
+test gpu_inventory_types_are_plain_owned_domain_data ... ok
+test inventory_keeps_homonymous_devices_and_excludes_confirmed_absence ... ok
+test qualified_inventory_distinguishes_absent_and_conflicting_ranks_and_preserves_failure_cause ... ok
+test qualified_inventory_keeps_homonyms_and_sourced_windows_ranks ... ok
+test completed_empty_inventory_is_distinct_from_partial_empty_inventory ... ok
+test unknown_or_conflicting_presence_is_not_reported_as_a_present_gpu ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test disabled_and_empty_identity_devices_are_never_gpu_candidates ... ok
+test default_uses_windows_rank_even_when_motor_order_and_names_are_reversed ... ok
+test duplicate_windows_rank_cannot_choose_an_arbitrary_first_device ... ok
+test incomplete_or_ambiguous_catalogue_waits_instead_of_claiming_no_gpu ... ok
+test only_confirmed_identity_support_and_availability_make_a_gpu_selectable ... ok
+test unavailable_preference_is_not_overwritten_and_substitution_uses_first_ranked_device ... ok
+test mode_and_preference_matrix_keeps_candidate_separate_from_effective_engine ... ok
+test preferred_compatible_device_wins_without_rank_and_missing_rank_never_becomes_default ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 12 tests
+test application_keeps_bounded_strategy_in_prepare_and_start_effects ... ok
+test application_publishes_only_after_end_and_synced_segment_receipt ... ok
+test disconnected_persist_queue_is_fatal_and_does_not_retry_the_segment ... ok
+test end_offset_and_segment_ranges_are_validated_before_publication ... ok
+test failed_stop_receipt_is_visible_and_does_not_leave_cancelling_stuck ... ok
+test invalid_wire_constructible_ranges_are_rejected_before_persistence ... ok
+test ready_and_following_failure_are_observable_on_separate_refreshes ... ok
+test persist_backpressure_retains_ninth_segment_until_queue_capacity_returns ... ok
+test refused_publish_never_becomes_complete ... ok
+test stop_during_preparation_and_after_end_never_completes_old_generation ... ok
+test stop_invalidates_generation_and_rejects_late_segment_but_accepts_stop_receipt ... ok
+test refresh_drains_at_most_four_events_and_waits_for_every_persisted_ack ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test explicit_live_publication_resolution_does_not_start_another_passage ... ok
+test forced_gpu_recovery_requires_an_explicit_cpu_finish_command ... ok
+test diagnostic_warning_is_visible_without_changing_job_state_and_stale_notice_is_ignored ... ok
+test logging_degradation_remains_visible_after_subsequent_progress ... ok
+test restored_live_recovery_is_visible_without_automatically_starting_a_new_passage ... ok
+test starting_live_emits_one_explicit_effect_and_initializes_separate_counters ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test absent_measurement_is_not_a_valid_silent_measurement ... ok
+test gain_validation_and_neutral_conversion_match_the_microphone_contract ... ok
+test retry_barrier_rejects_same_owner_spectrum_acquired_before_cpu_retry ... ok
+test command_context_rejects_old_selection_and_keeps_same_named_devices_distinct ... ok
+test windows_default_identity_resolves_before_open_and_is_refreshed_explicitly ... ok
+test spectrum_context_binds_source_and_rejects_stale_foreign_and_future_updates ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test a_qualification_for_one_configuration_does_not_transfer_to_another_revision ... ok
+test configuration_identity_includes_every_qualification_dimension ... ok
+test catalog_is_closed_to_the_two_planned_model_identities ... ok
+test qualification_does_not_transfer_to_a_different_worker_build ... ok
+test availability_states_keep_both_catalog_entries_and_disable_unavailable_models ... ok
+test uninspected_model_is_retained_but_never_admitted_before_ready ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test failed_or_stale_preference_ack_is_reported_without_reverting_the_session_choice ... ok
+test turbo_is_default_and_user_model_and_auto_preferences_are_saved_with_revisions ... ok
+test unknown_v1_model_path_is_preserved_as_a_diagnostic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 7 tests
+test known_historical_paths_are_case_and_separator_insensitive_but_exact ... ok
+test parakeet_live_is_admitted_only_through_the_live_guard ... ok
+test turbo_snapshot_with_only_a_new_existing_recognized_configuration_is_refused ... ok
+test existing_recognized_capability_outside_the_historical_matrix_stays_refused ... ok
+test qualified_parakeet_cpu_gpu_auto_and_invalid_language_selections_are_checked ... ok
+test turbo_existing_matrix_admits_all_1206_inputs_without_native_inference ... ok
+test turbo_existing_matrix_admits_and_submits_all_1206_guard_requests ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+running 6 tests
+test current_r6_cpu_and_l3b_cuda_test_keys_are_qualified ... ok
+test personal_release_keys_match_the_qualified_candidate_b_workers_and_dll_sets ... ok
+test parakeet_import_admits_long_product_input_but_rejects_wrong_hash ... ok
+test parakeet_duration_selects_adapter_profile_not_core_admission ... ok
+test turbo_live_guard_remains_available_through_legacy_constructor ... ok
+test only_qualified_cpu_import_with_automatic_language_is_admitted ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test parakeet_protocol_is_versioned_and_caps_are_explicit ... ok
+test result_contract_keeps_request_identity_and_owned_word_times ... ok
+test transcribe_command_carries_complete_build_runtime_profile_and_attempt_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test only_the_final_file_word_can_be_capped_by_one_tdt_frame ... ok
+test timestamps_use_cumulative_sample_offsets_and_reject_internal_overflow ... ok
+test silence_threshold_and_minimum_duration_are_inclusive ... ok
+test eof_short_tail_and_integral_silence_are_processed_without_forced_cuts ... ok
+test reference_profile_duration_is_bounded_and_window_margins_are_joint ... ok
+test extends_after_one_hundred_twenty_seconds_to_the_next_silence ... ok
+test chooses_earliest_of_equal_distance_silences_near_ninety_seconds ... ok
+test no_silence_before_native_bound_returns_an_explicit_error ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+
+running 4 tests
+test interrupted_resume_requires_an_explicit_command_and_advances_generation ... ok
+test enqueue_failure_is_visible_without_marking_a_job_active ... ok
+test enqueue_is_acknowledged_only_after_the_durable_queue_event ... ok
+test admission_and_restoration_never_start_a_worker_without_user_choice ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 59 tests
+test reactivity_log::tests::records_each_milestone_once_per_session ... ok
+test reactivity_log::tests::writer_preserves_event_order ... ok
+test ui::model::tests::import_enqueue_waits_during_live_capture ... ok
+test ui::model::tests::auto_stop_is_disabled_by_default_and_uses_speech_sample_clock_when_enabled ... ok
+test ui::model::tests::asynchronous_gpu_probe_sets_the_existing_startup_choice ... ok
+test ui::model::tests::catalog_inspection::newer_user_choice_survives_late_startup_preference_and_is_requested_once ... ok
+test reactivity_log::tests::formats_absolute_timestamp_and_duration_without_multiline_fields ... ok
+test ui::model::tests::catalog_inspection::command_model_observation_merges_without_changing_selection_or_dispatching ... ok
+test ui::model::tests::cuda_startup_selects_gpu_for_import_and_microphone ... ok
+test ui::model::tests::catalog_inspection::controller_waits_for_effective_startup_preference_before_requesting_any_model ... ok
+test ui::model::tests::direct_live_request_uses_explicit_microphone_without_changing_compute ... ok
+test ui::model::tests::enqueue_then_stop_still_targets_the_live_identity ... ok
+test ui::model::tests::desktop_parakeet_handlers_select_unified_routes_only_for_enabled_candidate ... ok
+test ui::model::tests::changing_catalog_snapshots_regray_and_restore_parakeet_in_the_open_ui ... ok
+test ui::model::tests::catalog_inspection::controller_does_not_offer_an_executable_artifact_for_missing_or_corrupt_observation ... ok
+test ui::model::tests::generic_composition_keeps_parakeet_selectable_and_inspectable ... ok
+test ui::model::tests::gpu_compute_control_requires_a_ready_qualified_runtime_catalog_entry ... ok
+test ui::model::tests::first_effective_action_is_not_recorded_when_application_rejects_start ... ok
+test ui::model::tests::gpu_startup_notice_uses_plain_language_and_hides_raw_failure_from_summary ... ok
+test ui::model::tests::auto_preference_is_sent_to_both_paths_without_becoming_cpu ... ok
+test ui::model::tests::import_uses_selected_gpu ... ok
+test ui::model::tests::manual_stop_is_available_while_micro_is_capturing ... ok
+test ui::model::tests::microphone_labels_keep_unique_names_and_hide_missing_names ... ok
+test ui::model::tests::microphone_labels_changed_windows_default_notice_keeps_identity_and_gain ... ok
+test reactivity_log::tests::dropping_logger_drains_all_previously_sent_entries ... ok
+test ui::model::tests::microphone_labels_number_homonyms_by_sorted_identity ... ok
+test ui::model::tests::gain_gesture_during_capture_open_targets_the_pinned_identity ... ok
+test ui::model::tests::microphone_saturation_badge_requires_current_identity_and_fresh_limiter_data ... ok
+test ui::model::tests::microphone_labels_selection_keeps_the_full_identity_in_commands ... ok
+test ui::model::tests::microphone_uses_selected_gpu ... ok
+test ui::model::tests::parakeet_preserves_the_selected_compute_preference ... ok
+test ui::model::tests::new_microphone_start_gets_a_new_group_while_continuation_keeps_its_identity ... ok
+test ui::model::tests::provisional_display_removes_only_a_proven_confirmed_prefix ... ok
+test ui::model::tests::queued_import_uses_current_compute_and_preserves_the_durable_request ... ok
+test ui::model::tests::resumed_import_uses_its_durable_compute_instead_of_the_global_selector ... ok
+test ui::model::tests::rejected_quit_admission_does_not_latch_pending_close ... ok
+test ui::model::tests::refused_ui_model_command_has_no_gpu_candidate_io_effect ... ok
+test ui::model::tests::unified_admission_keeps_direct_capture_and_other_busy_guards ... ok
+test ui::model::tests::starting_a_new_microphone_job_hides_the_previous_publication ... ok
+test ui::model::tests::window_stays_open_through_capture_and_drain ... ok
+test ui::model::tests::pending_and_late_gpu_inventory_does_not_change_compute_or_gate_transcription ... ok
+test ui::model::tests::turbo_composition_rejects_parakeet_projection_preference_and_inspection ... ok
+test ui::model::tests::unavailable_cuda_leaves_cpu_usable_and_explains_choice ... ok
+test reactivity_log::tests::writes_to_explicit_turbo_log_without_touching_personal_log ... ok
+test ui::model::tests::turbo_desktop_constructor_starts_only_the_explicit_turbo_log ... ok
+test ui::model::tests::empty_snapshot_recovery_result_does_not_render_a_blank_modal ... ok
+test ui::model::tests::first_render_timestamp_is_recorded_after_the_label_in_an_egui_frame ... ok
+test ui::model::tests::gpu_startup_and_partial_inventory_diagnostics_are_collapsed_and_expand_on_request ... ok
+test ui::model::tests::failed_inventory_is_collapsed_while_available_and_loading_states_remain_distinct ... ok
+test ui::model::tests::unified_ui_requests_only_the_selected_identity_pages ... ok
+test ui::model::tests::unified_finalizing_capture_keeps_live_button_available_for_second_capture_only ... ok
+test ui::model::tests::unified_capture_gain_slider_targets_the_current_source_and_revision ... ok
+test ui::model::tests::stale_audio_page_retries_are_delayed_and_corruption_does_not_retry ... ok
+test ui::model::tests::unified_audio_page_stays_visible_at_same_position_while_progress_refreshes ... ok
+test ui::model::tests::unified_ui_renders_one_bounded_page_preview_parts_outputs_and_wait_state ... ok
+test ui::model::tests::unified_wait_tracking_prunes_finished_evicted_sessions_and_keeps_selected_wait ... ok
+test ui::model::tests::turbo_completed_capture_allows_unified_parakeet_button_and_dispatch ... ok
+test ui::model::tests::microphone_test_button_stops_after_neutral_gain_ack_and_reopens ... ok
+test ui::model::tests::actual_probe_spectra_stay_visible_across_discarded_egui_passes ... ok
+
+test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+
+running 47 tests
+test root::model_catalog::tests::edition_tests::turbo_edition_ignores_but_does_not_rewrite_parakeet_preference ... ok
+test root::model_catalog::tests::edition_tests::generic_catalog_keeps_both_models ... ok
+test root::model_catalog::tests::edition_tests::turbo_edition_catalog_contains_only_large_v3_turbo ... ok
+test root::model_catalog::tests::edition_tests::turbo_install_root_is_below_local_app_data ... ok
+test root::model_catalog::tests::mailbox_coalesces_selection_and_deduplicates_commands_in_stable_priority_order ... ok
+test root::tests::fixture_root_accepts_only_the_canonical_l3c_campaign_root ... ignored, requires WHISPER_DESKTOP_TEST_ROOT pointing to the canonical L3c/L3d campaign root
+test root::tests::fixture_root_uses_canonical_l3b_campaign_root_when_configured ... ignored, requires WHISPER_DESKTOP_TEST_ROOT pointing to the canonical L3b/L3c/L3d campaign root
+test root::model_catalog::tests::absent_catalog_observation_projects_as_uninspected_instead_of_missing_or_ready ... ok
+test root::tests::parakeet_worker_key_changes_regray_and_readmit_without_restarting ... ignored, requires PARAKEET_L2_RUNTIME_ROOT and the installed Parakeet worker/DLLs
+test root::tests::parakeet_selection_and_admission_require_the_exact_test_key ... ok
+test root::tests::turbo_admission::dual_admission_uses_candidate_identities_and_preserves_other_profiles ... ok
+test root::tests::turbo_admission::dual_distribution_keeps_its_whisperturbo_contract_when_enabled ... ok
+test root::tests::turbo_admission::dual_distribution_uses_whisperturbo_root_and_keeps_parakeet_enabled ... ok
+test root::tests::composed_guard_rejects_direct_unknown_model_before_any_effect ... ok
+test root::tests::observed_missing_model_is_refused_before_any_effect ... ok
+test root::tests::active_job_refuses_interrupted_resume_without_gpu_candidate_effect ... ok
+test root::tests::valid_cpu_route_remains_ready_when_gpu_route_is_missing_or_mismatched ... ok
+test root::tests::refused_ui_request_drops_staged_gpu_candidate_and_refresh_keeps_notice ... ok
+test root::tests::turbo_admission::turbo_admission_rejects_injected_parakeet_catalog_and_command ... ok
+test root::tests::unified_live_start_applies_its_staged_candidate_before_the_start_effect ... ok
+test root::tests::terminal_job_state_allows_new_gpu_start_with_candidate_before_start_effect ... ok
+test root::model_catalog::tests::absent_identity_cannot_support_a_ready_publication ... ok
+test root::model_catalog::tests::disconnected_catalog_refuses_explicit_commands_instead_of_reusing_old_observations ... ok
+test root::model_catalog::tests::edition_tests::turbo_service_publishes_only_turbo_after_real_inspection ... ok
+test root::model_catalog::tests::parakeet_helpers_leave_uninspected_definitions_and_models_untouched ... ok
+test root::model_catalog::tests::process_queued_b_with_a_selected_requests_b_then_requires_fresh_click_and_gpu_proof ... ok
+test root::model_catalog::tests::final_catalog_publication_waits_until_application_admission_receives_it ... ok
+test root::tests::composed_catalog_rejects_turbo_changed_after_admission_before_worker_start ... ok
+test root::model_catalog::tests::closed_service_discards_inflight_observation_and_refuses_new_requests ... ok
+test root::model_catalog::tests::verified_command_b_is_available_while_newer_selection_a_is_still_pending ... ok
+test root::model_catalog::tests::resume_interrupted_b_with_a_selected_requests_b_then_requires_fresh_click_and_gpu_proof ... ok
+test root::model_catalog::tests::newer_inspection_of_same_model_discards_old_result_without_reselecting ... ok
+test root::model_catalog::tests::closing_before_command_observation_cannot_start_it_when_a_response_arrives ... ok
+test root::model_catalog::tests::actual_service_preserves_missing_and_corrupt_states_and_never_hashes_turbo_for_parakeet ... ok
+test root::model_catalog::tests::changed_selection_supersedes_same_model_observation_without_replaying_command ... ok
+test root::model_catalog::tests::identity_changed_during_observation_never_publishes_ready ... ok
+test root::model_catalog::tests::stop_during_observation_never_turns_its_result_into_a_start ... ok
+test root::model_catalog::tests::queue_removal_before_observation_does_not_replay_the_old_request ... ok
+test root::tests::artifact_metadata_detects_replacement_with_same_size_and_modified_time ... ok
+test root::model_catalog::tests::composed_service_starts_complete_uninspected_and_reads_only_effective_parakeet_including_qualification ... ok
+test root::model_catalog::tests::generation_changed_during_inspection_is_rechecked_before_any_new_gpu_effect ... ok
+test root::model_catalog::tests::r1_intermediate_a_publication_keeps_b_waiting_until_ready_for_process_and_resume ... ok
+test root::model_catalog::tests::missing_or_corrupt_command_model_reports_cause_without_restarting_or_repeating_inspection ... ok
+test root::model_catalog::tests::r2_removed_action_cannot_keep_monitoring_or_reinvite_after_inflight_completion ... ok
+test root::model_catalog::tests::r2_removing_one_action_preserves_another_current_need_for_the_same_model ... ok
+test root::model_catalog::tests::every_explicit_import_and_configured_live_entry_requests_inspection_before_any_effect ... ok
+test root::model_catalog::tests::r1_only_b_observation_reports_b_failure_or_identity_invalidation ... ok
+
+test result: ok. 44 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+
+running 6 tests
+test disabled_ambiguous_or_unranked_devices_are_never_green ... ok
+test inventory_status_does_not_render_the_removed_fixed_card_list ... ok
+test qualified_loading_and_uncertain_support_are_accessible_and_cpu_remains_available ... ok
+test qualified_catalogue_uses_green_gray_and_neutral_text_without_color_only_meaning ... ok
+test widget_shows_disabled_and_unknown_device_properties ... ok
+test status_area_distinguishes_loading_empty_partial_and_failure ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 6 tests
+test only_confirmed_available_and_unambiguous_gpu_is_selectable ... ok
+test homonymous_devices_get_numbered_labels_and_keep_distinct_internal_identity ... ok
+test selection_messages_are_plain_and_never_expose_internal_identity ... ok
+test uncertain_selection_is_neutral_and_save_acknowledgement_is_revisioned ... ok
+test selected_and_resolution_text_use_the_same_numbered_name ... ok
+test unique_names_have_no_suffix_and_real_combo_has_no_clear_preference_option ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 2 tests
+test meter_presentation_distinguishes_waiting_absent_silence_stale_and_old_capture ... ok
+test microphone_labels_changed_default_notice_uses_names_and_keeps_identity_comparison ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 11 tests
+test disconnected_preference_worker_reports_failed_model_and_compute_saves ... ok
+test parakeet_preserves_import_compute_preferences_and_legacy_live_availability_without_changing_turbo ... ok
+test preference_mailbox_is_bounded_and_keeps_the_latest_choice_per_field ... ok
+test preference_receiver_reports_disconnected_after_last_sender_drops ... ok
+test same_value_cpu_click_blocks_late_saved_auto_preference ... ok
+test late_saved_preferences_do_not_overwrite_a_newer_user_choice ... ok
+test parakeet_language_projection_follows_qualified_gpu_or_auto_preference ... ok
+test selection_ui_rendering_does_not_hash_model_or_runtime_files ... ok
+test uninspected_model_can_be_chosen_in_the_real_widget_without_becoming_admissible ... ok
+test snapshot_renders_catalog_models_and_all_turbo_languages_without_model_path_input ... ok
+test language_availability_uses_selected_backend_and_auto_intersection ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 2 tests
+test capacity_action_is_available_only_when_the_application_offers_recovery ... ok
+test recovery_ui_displays_protected_and_recoverable_entries_without_implicit_recovery ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

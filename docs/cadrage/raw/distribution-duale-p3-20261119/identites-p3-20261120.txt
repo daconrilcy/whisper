@@ -1,0 +1,50 @@
+P3 identity record — 2026-11-20
+Candidate root: target/parakeet-tests/distribution-duale-p3-20261119/candidate/
+Installed root: target/parakeet-tests/distribution-duale-p3-20261119/scratch/install-p3-final-20261120/profile/WhisperTurbo/
+Candidate file count: 44; deployed candidate payload: 43 (bootstrap is executed from candidate root).
+Candidate bytes: 3,972,008,597
+Installed files observed: 49 (43 payload files plus product-created first-run state).
+
+Key candidate identities (all matching installed files except bootstrap, which is not copied into the installation):
+whisper-bootstrap.exe | 509440 | 6c56f65fe6c37fd7c1bb8ab22f090bcf4a85e7a52951599535671c26cdc05d78
+app/whisper-desktop.exe | 15454720 | 3469f6947c277e8a9932337df2def6acc01952fa1fdd19a2156a5c40c2634010
+app/whisper-worker-cpu.exe | 2473472 | a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b
+app/whisper-worker-gpu.exe | 20939264 | d874136c6d9561ca06a80e7c2b150513e10a05e46e37edd4cb28ba6eaabd17a9
+worker/whisper-worker-parakeet-cpu.exe | 978432 | 759db5b29cf5b635255f835f3973543f96fb54a901f2d3692b8c73ce25443542
+worker/whisper-worker-parakeet-gpu.exe | 1083904 | 6427a184cbbe95f50293d75ab152cb4f53d1bc326d6142f77ad513e7fc237e6e
+models/ggml-large-v3-turbo.bin | 1624555275 | 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69
+models/parakeet-tdt-0.6b-v3.q8_0.gguf | 713975456 | e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e
+
+Installed native runtime file identities:
+native/cpu/ggml-base.dll | 680960 | 24e84c51f0fc48b86a69543fd3f1c0510872d3bc0467eeb7629f09b8707de2b4
+native/cpu/ggml-cpu.dll | 947200 | 235f6f5ec9e1b6d06788d34d0a2240759ad3e07ef43b18bdb73e9b2a7fa53d30
+native/cpu/ggml.dll | 61952 | b003bc596dabac2e56402896b614f65ae22966bd8fe7b4b35aca13c8fca32c15
+native/cpu/msvcp140.dll | 557728 | 0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9
+native/cpu/nemo_speech_asr_c.dll | 56320 | 4b9c27b4a505865e28025ccd53a98d2859280d69db51c5b576ddb62e2a6b710b
+native/cpu/nemo_speech_asr.dll | 4190720 | 907d1df481f9906089d64919bbdb57052c90e55204ca5b4a97eefe55d97ab959
+native/cpu/vcomp140.dll | 193152 | 55aba23cdcd6484fbb06f4155b8cab75adfce7a881f10afd0c49457165e677164
+native/cpu/vcruntime140_1.dll | 49792 | 1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f
+native/cpu/vcruntime140.dll | 124544 | d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066
+native/gpu/cublas64_12.dll | 102518272 | 52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82
+native/gpu/cublasLt64_12.dll | 668673536 | 71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5
+native/gpu/cudart64_12.dll | 583680 | 760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1
+native/gpu/ggml-base.dll | 680960 | 63930c007dea9b245fed557e80d766ef33de94d722d6920126c85b53fa417748
+native/gpu/ggml-cpu.dll | 947200 | c3d6d7bc89e8132c5c4542166ce872a352af6ae055ebcc6dac42f546209ef79f
+native/gpu/ggml-cuda.dll | 33209344 | f1bbf581b43fc334a2e6a11a85dc0f9dd22a0fb0a38af7fd6e4977c731748ad6
+native/gpu/ggml.dll | 61952 | da4098ca0be2f92c31f9d5bc5dd9defd0e8dee4e435cb03588b957b11a3d073f
+native/gpu/msvcp140.dll | 557728 | 0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9
+native/gpu/nemo_speech_asr_c.dll | 56320 | c082987836d5207bf79f52ba645d3d2ed1c150616d6405c09482f4c61195ebb
+native/gpu/nemo_speech_asr.dll | 4207616 | f5bec97ce59af32391b9956182acdac6777c6945dec0efb2892cf7813aa1ed53
+native/gpu/vcomp140.dll | 193152 | 55aba23cdcd6484fbb06f4155b8cab75adfce7a881f10afd0c49457165e677164
+native/gpu/vcruntime140_1.dll | 49792 | 1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f
+native/gpu/vcruntime140.dll | 124544 | d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066
+
+Observed external driver module during GPU worker: C:\Windows\System32\nvcuda.dll (system NVIDIA driver, not a bundled file).
+
+Worker diagnostic SHA-256: eaa4a98824f96a6a1e6106e51ad075b4f47bd27b17138245ca1b030759a55bf6
+Publication index SHA-256: 35adaa942c6d4f291dbab523c9811189f73a6c1bfcc4e804c55a81707f4e6240
+
+Source/results:
+CPU 4s job 1362404525521066102029896; source SHA 1841725ca1b9c019c8c53ac5983a13792d081f145f222f98355591c5964f50ad; backend cpu; progress 64000/64000.
+CPU 30s job 1362404525521223755151196; source SHA dc86235c75c80c2a4243050e6b2f2b6cac60932ea5449eabc1b9419baa19703c; backend cpu; progress 480000/480000; TXT SHA 78bf86ec2b686b37626397b008180c55639e78db5b2611a80be50ea3d64a2618; SRT SHA b63ae181245ac70532cf8434a6a7f386379de5a0f76dc74d33e8db77cc9ce02b.
+GPU 30s job 1362404525521277405924096; same source SHA; backend cuda; progress 480000/480000; TXT/SRT hashes equal CPU 30s output.
