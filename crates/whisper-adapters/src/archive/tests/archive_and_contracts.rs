@@ -27,6 +27,24 @@
     }
 
     #[test]
+    fn dual_cpu_identity_requires_the_compiled_worker_and_runtime_hashes() {
+        let key = ArchiveQualificationKey::parakeet_dual_cpu();
+        let expected = option_env!("WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256")
+            .zip(option_env!("WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256"));
+        assert_eq!(key.is_some(), expected.is_some_and(|(worker, runtime)| {
+            [worker, runtime].into_iter().all(|value| {
+                value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+        }));
+        if let (Some(key), Some((worker, runtime))) = (key, expected) {
+            assert_eq!(key.worker_build, worker.to_ascii_lowercase());
+            assert_eq!(key.runtime_build, runtime.to_ascii_lowercase());
+            assert_eq!(key.backend, "CPU");
+            assert!(key.gpu_uuid.is_none());
+        }
+    }
+
+    #[test]
     fn create_only_publication_returns_verified_internal_unified_artifacts_without_external_exports()
      {
         let scenario = InternalPublicationScenario::new();

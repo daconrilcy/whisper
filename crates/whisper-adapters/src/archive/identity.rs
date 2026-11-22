@@ -6,6 +6,11 @@ use super::{
     Sha256, cleanup_targets_match_intent, fs, generation_path, hex, read_cleanup_plan, sha256_file,
 };
 
+fn compiled_sha256(value: &'static str) -> Option<String> {
+    (value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then(|| value.to_ascii_lowercase())
+}
+
 impl ArchiveQualificationKey {
     pub(super) fn permits_bounded_resume_to(&self, current: &Self) -> bool {
         self.model == current.model
@@ -55,6 +60,15 @@ impl ArchiveQualificationKey {
         key
     }
 
+    pub fn parakeet_dual_cpu() -> Option<Self> {
+        let runtime_build = compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256")?)?;
+        let worker_build = compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256")?)?;
+        let mut key = Self::parakeet_cpu_test();
+        key.runtime_build = runtime_build;
+        key.worker_build = worker_build;
+        Some(key)
+    }
+
     fn parakeet_personal(backend: whisper_core::model_catalog::Backend) -> Self {
         let record = whisper_core::model_registry::model(
             whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
@@ -88,7 +102,9 @@ impl ArchiveQualificationKey {
         let gpu = Self::parakeet_personal(whisper_core::model_catalog::Backend::Gpu);
         let cpu_ready = cpu.worker_build.len() == 64 && cpu.runtime_build.len() == 64;
         let gpu_ready = gpu.worker_build.len() == 64 && gpu.runtime_build.len() == 64;
-        (cpu_ready && self == &cpu) || (gpu_ready && self == &gpu)
+        (cpu_ready && self == &cpu)
+            || (gpu_ready && self == &gpu)
+            || Self::parakeet_dual_cpu().is_some_and(|dual| self == &dual)
     }
 
     pub(crate) fn is_historical_personal_import(&self) -> bool {

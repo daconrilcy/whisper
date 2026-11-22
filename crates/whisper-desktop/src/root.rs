@@ -32,7 +32,7 @@ use whisper_desktop::ui::{
 mod distribution_edition;
 mod edition_admission;
 mod model_catalog;
-use distribution_edition::TURBO_DISTRIBUTION;
+use distribution_edition::{PACKAGED_DISTRIBUTION, TURBO_DISTRIBUTION};
 
 pub struct DesktopComposition {
     pub application: DesktopAdmissionApplication<AsyncImportIo>,
@@ -49,7 +49,7 @@ pub struct DesktopComposition {
 pub fn compose() -> DesktopComposition {
     let personal_root = personal_install_root();
     let turbo_root = distribution_edition::turbo_install_root(std::env::var_os("LOCALAPPDATA"));
-    let repository_root = if TURBO_DISTRIBUTION || cfg!(feature = "personal-install") {
+    let repository_root = if PACKAGED_DISTRIBUTION || cfg!(feature = "personal-install") {
         PathBuf::new()
     } else {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -199,7 +199,7 @@ pub fn compose() -> DesktopComposition {
         },
         path_port.unwrap_or_else(|| Box::new(WindowsPathPort::new_at(PathBuf::new()))),
     );
-    let executable = (!TURBO_DISTRIBUTION)
+    let executable = (!PACKAGED_DISTRIBUTION)
         .then(|| std::env::current_exe().ok())
         .flatten();
     let worker_path = |worker_name: &str| {
@@ -208,7 +208,7 @@ pub fn compose() -> DesktopComposition {
             executable.as_deref(),
             worker_name,
             cfg!(feature = "personal-install"),
-            TURBO_DISTRIBUTION,
+            PACKAGED_DISTRIBUTION,
         )
     };
     let workers = WorkerPaths {
@@ -285,7 +285,7 @@ pub fn compose() -> DesktopComposition {
             preference_events: preference_event_receiver,
             preference_commands: preference_command_sender,
         },
-        reactivity_log_path: if TURBO_DISTRIBUTION {
+        reactivity_log_path: if PACKAGED_DISTRIBUTION {
             turbo_log_paths.map(|(reactivity_log, _)| reactivity_log)
         } else {
             None
@@ -328,7 +328,23 @@ fn configured_parakeet_worker_for_edition(
 
 fn configured_gpu_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths>
 {
-    configured_gpu_parakeet_worker_for_edition(TURBO_DISTRIBUTION, |name| std::env::var_os(name))
+    configured_gpu_parakeet_worker_for_distribution(
+        distribution_edition::DUAL_DISTRIBUTION,
+        TURBO_DISTRIBUTION,
+        |name| std::env::var_os(name),
+    )
+}
+
+fn configured_gpu_parakeet_worker_for_distribution(
+    dual_distribution: bool,
+    turbo_distribution: bool,
+    variable: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    if dual_distribution {
+        None
+    } else {
+        configured_gpu_parakeet_worker_for_edition(turbo_distribution, variable)
+    }
 }
 
 fn configured_gpu_parakeet_worker_for_edition(
@@ -358,9 +374,10 @@ fn personal_install_root() -> Option<PathBuf> {
     if !cfg!(feature = "personal-install") {
         return None;
     }
-    std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .map(|root| root.join("Whisper"))
+    distribution_edition::private_install_root(
+        std::env::var_os("LOCALAPPDATA"),
+        distribution_edition::DUAL_DISTRIBUTION,
+    )
 }
 
 fn turbo_install_root(local_app_data: Option<std::ffi::OsString>) -> Option<PathBuf> {
@@ -378,7 +395,7 @@ fn personal_settings_path(root: &std::path::Path) -> PathBuf {
 }
 
 fn reprocessing_snapshot_registry_root(turbo_root: Option<&std::path::Path>) -> Option<PathBuf> {
-    if TURBO_DISTRIBUTION {
+    if PACKAGED_DISTRIBUTION {
         return turbo_root.map(|root| root.join("settings/reprocessing-snapshots"));
     }
     std::env::var_os("LOCALAPPDATA").map(|root| {
@@ -416,10 +433,12 @@ fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
         return;
     }
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
-    let key = if cfg!(feature = "personal-install") {
-        model_registry::personal_configuration_key(record, Backend::Cpu)
+    let key = if distribution_edition::DUAL_DISTRIBUTION {
+        whisper_adapters::archive::ArchiveQualificationKey::parakeet_dual_cpu()
+    } else if cfg!(feature = "personal-install") {
+        Some(model_registry::personal_configuration_key(record, Backend::Cpu))
     } else {
-        model_registry::configuration_key(record, Backend::Cpu)
+        Some(model_registry::configuration_key(record, Backend::Cpu))
     };
     let catalog_model_ready = snapshot.entries.iter().any(|entry| {
         entry.id == ModelId::ParakeetTdt06BV3
@@ -428,14 +447,16 @@ fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
             && entry.observed_size_bytes == Some(record.artifact.size_bytes)
     });
     let qualified = catalog_model_ready
-        && configured_parakeet_worker().is_some_and(|paths| {
-            paths
-                .verify_qualification(
-                    record.artifact.sha256,
-                    &key.runtime_build,
-                    &key.worker_build,
-                )
-                .is_ok()
+        && key.is_some_and(|key| {
+            configured_parakeet_worker().is_some_and(|paths| {
+                paths
+                    .verify_qualification(
+                        record.artifact.sha256,
+                        &key.runtime_build,
+                        &key.worker_build,
+                    )
+                    .is_ok()
+            })
         });
     apply_parakeet_key_availability(snapshot, qualified);
     apply_parakeet_gpu_availability(snapshot, parakeet_gpu_route_is_qualified(snapshot));

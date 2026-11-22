@@ -4,6 +4,8 @@ pub mod cpu_capabilities;
 pub mod decoder;
 mod direct_live;
 pub mod gpu_inventory;
+#[cfg(windows)]
+pub mod installer_ui;
 pub mod journal;
 pub mod microphone_probe;
 pub mod model_catalog;

@@ -5,10 +5,13 @@ param(
     [switch]$DryRun,
     [switch]$WithoutCargoTargetDir,
     [switch]$TurboEdition,
+    [switch]$DualCpuRebaseline,
     [string]$FreshTarget,
     [string]$ExistingTarget,
     [string]$PersonalParakeetModelPath,
     [string]$DesktopCpuWorkerSha256,
+    [string]$DualParakeetCpuWorkerSha256,
+    [string]$DualCpuRuntimeSha256,
     [string[]]$UnsetEnv = @(),
     [string[]]$CargoArgs = @(),
     [string]$CargoArgsJson,
@@ -18,7 +21,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $script:turboEditionEnabled = [bool]$TurboEdition
+$script:dualCpuRebaselineEnabled = [bool]$DualCpuRebaseline
 $script:turboEditionMarker = 'WHISPER_DISTRIBUTION_EDITION_TURBO'
+$script:dualEditionMarker = 'WHISPER_DISTRIBUTION_EDITION_DUAL'
+$script:dualEditionBuildActive = $false
+$script:authorizedDualParakeetCpuWorkerSha256 = $null
+$script:authorizedDualCpuRuntimeSha256 = $null
+$script:authorizedDualBootstrapAssetSha256 = @{}
 
 function Assert-DedicatedWorktree([string]$WorkingDirectory, [string]$RepositoryRoot) {
     $mainRoot = [IO.Path]::GetFullPath('C:/dev/whisper').TrimEnd('\', '/')
@@ -159,9 +168,45 @@ $gpuDistributionProfiles = [string[]]@(
 $script:cargoInvocationPolicies[$cpuDistributionRoot] = [string[]]$cpuDistributionProfiles.ToArray()
 $script:cargoInvocationPolicies[$gpuDistributionRoot] = $gpuDistributionProfiles
 
+$dualCpuRebaselineRoot = 'target/parakeet-tests/dual-cpu-r1'
+$dualCpuRebaselineProfiles = [Collections.Generic.List[string]]::new()
+foreach ($profile in @(
+    @('test','--no-fail-fast'),
+    @('fmt','--check'),
+    @('test','--no-run','-p','whisper-worker-cpu'),
+    @('test','-p','whisper-worker-cpu','--','--list'),
+    @('test','-p','whisper-worker-cpu'),
+    @('test','--no-run','-p','whisper-worker-parakeet-cpu'),
+    @('test','-p','whisper-worker-parakeet-cpu','--','--list'),
+    @('test','-p','whisper-worker-parakeet-cpu'),
+    @('test','--no-run','-p','whisper-worker-common'),
+    @('test','-p','whisper-worker-common','--','--list'),
+    @('test','-p','whisper-worker-common'),
+    @('build','--release','-p','whisper-worker-cpu','-vv'),
+    @('build','--release','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal','-vv'),
+    @('build','--release','-p','whisper-desktop','--features','personal-install','-vv'),
+    @('build','--release','-p','whisper-bootstrap','-vv')
+)) {
+    $dualCpuRebaselineProfiles.Add((ConvertTo-Json -InputObject ([string[]]$profile) -Compress))
+}
+$dualCpuRebaselineClippy = [Collections.Generic.List[string]]::new()
+$dualCpuRebaselineClippy.Add('clippy')
+foreach ($package in @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')) {
+    $dualCpuRebaselineClippy.Add('-p')
+    $dualCpuRebaselineClippy.Add($package)
+}
+foreach ($argument in @('--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity')) {
+    $dualCpuRebaselineClippy.Add($argument)
+}
+$dualCpuRebaselineProfiles.Add((ConvertTo-Json -InputObject ([string[]]$dualCpuRebaselineClippy.ToArray()) -Compress))
+$script:cargoInvocationPolicies[$dualCpuRebaselineRoot] = [string[]]$dualCpuRebaselineProfiles.ToArray()
+
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
     $CargoArgs = Convert-CargoArgsJson $CargoArgsJson
+}
+if (($DualParakeetCpuWorkerSha256 -or $DualCpuRuntimeSha256) -and -not $DualCpuRebaseline) {
+    throw 'Dual worker/runtime SHA inputs require -DualCpuRebaseline.'
 }
 
 function Test-DesktopCpuWorkerSha256Policy([string]$Mode, [string]$Digest, [string[]]$Arguments, [string]$Root) {
@@ -179,12 +224,20 @@ function Test-DesktopCpuWorkerSha256Policy([string]$Mode, [string]$Digest, [stri
 
 function Test-DesktopCpuWorkerInvocation([string[]]$Arguments) {
     $profile = @($Arguments | Where-Object { $_ -cne '--offline' -and $_ -cne '--locked' })
-    $expected = @('build','--release','-p','whisper-desktop','-vv')
-    if ($profile.Count -ne $expected.Count) { return $false }
-    for ($index = 0; $index -lt $expected.Count; $index++) {
-        if ($profile[$index] -cne $expected[$index]) { return $false }
+    $allowedProfiles = [Collections.Generic.List[string[]]]::new()
+    $allowedProfiles.Add([string[]]@('build','--release','-p','whisper-desktop','-vv'))
+    if ($script:dualCpuRebaselineEnabled) {
+        $allowedProfiles.Add([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv'))
     }
-    return $true
+    foreach ($expected in $allowedProfiles) {
+        if ($profile.Count -ne $expected.Count) { continue }
+        $matches = $true
+        for ($index = 0; $index -lt $expected.Count; $index++) {
+            if ($profile[$index] -cne $expected[$index]) { $matches = $false; break }
+        }
+        if ($matches) { return $true }
+    }
+    return $false
 }
 
 $script:authorizedDesktopCpuWorkerSha256 = $null
@@ -278,6 +331,51 @@ function Assert-CargoEditionEnvironment([System.Collections.IDictionary]$Environ
     }
     if (-not $Turbo -and $Environment.Contains($script:turboEditionMarker)) {
         throw 'Generic Cargo child environment inherited a Turbo edition marker.'
+    }
+}
+
+function Set-CargoDualEditionEnvironment([System.Collections.IDictionary]$Environment, [bool]$Dual) {
+    if ($Dual) { $Environment[$script:dualEditionMarker] = '1' }
+    else { [void]$Environment.Remove($script:dualEditionMarker) }
+}
+
+function Assert-CargoDualEditionEnvironment([System.Collections.IDictionary]$Environment, [bool]$Dual) {
+    if ($Dual -and $Environment[$script:dualEditionMarker] -cne '1') {
+        throw 'Dual edition compile marker is missing or invalid in the Cargo child environment.'
+    }
+    if (-not $Dual -and $Environment.Contains($script:dualEditionMarker)) {
+        throw 'Generic Cargo child environment inherited a dual edition marker.'
+    }
+}
+
+function Assert-CargoDualBuildIdentityEnvironment([System.Collections.IDictionary]$Environment, [bool]$CargoInvocation) {
+    $expected = @{}
+    if ($CargoInvocation -and $script:authorizedDesktopCpuWorkerSha256) {
+        $expected['WHISPER_EXPECTED_CPU_WORKER_SHA256'] = $script:authorizedDesktopCpuWorkerSha256
+    }
+    if ($CargoInvocation -and $script:dualEditionBuildActive) {
+        if ($script:authorizedDualParakeetCpuWorkerSha256) {
+            $expected['WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256'] = $script:authorizedDualParakeetCpuWorkerSha256
+            $expected['WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256'] = $script:authorizedDualCpuRuntimeSha256
+        }
+        foreach ($name in $script:authorizedDualBootstrapAssetSha256.Keys) {
+            $expected[$name] = $script:authorizedDualBootstrapAssetSha256[$name]
+        }
+    }
+    foreach ($name in @(
+        'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256',
+        'WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256',
+        'WHISPER_EXPECTED_CPU_WORKER_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_DESKTOP_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_TURBO_CPU_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256'
+    )) {
+        $actual = [string]$Environment[$name]
+        if ($expected.ContainsKey($name)) {
+            if ($actual -cne $expected[$name]) { throw "Dual build identity variable differs in Cargo child environment: $name" }
+        } elseif ($Environment.Contains($name)) {
+            throw "Unauthorized dual build identity variable reached Cargo: $name"
+        }
     }
 }
 
@@ -537,6 +635,9 @@ function Get-CargoInvocationPolicySignature([string[]]$Arguments) {
 
 function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
     $policyKey = Get-PackagePolicyKey $Root
+    if ($policyKey -ceq $dualCpuRebaselineRoot -and -not $script:dualCpuRebaselineEnabled) {
+        throw "Cargo lot '$policyKey' requires -DualCpuRebaseline; Cargo not launched."
+    }
     if (-not $script:cargoInvocationPolicies.ContainsKey($policyKey)) {
         if ($script:packageSetPolicies.ContainsKey($policyKey) -or $policyKey -ceq 'target/parakeet-tests/garde-n1-categories') { return $false }
         throw "No versioned package policy is registered for lot root '$policyKey'; Cargo not launched."
@@ -546,6 +647,267 @@ function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
         if ($signature -ceq $profile) { return $true }
     }
     throw "Cargo invocation does not match a versioned profile for lot root '$policyKey'; Cargo not launched. Arguments: $signature"
+}
+
+function Assert-DualCpuRebaselineInvocation(
+    [string[]]$Arguments,
+    [string]$Root,
+    [string]$SelectedFreshTarget,
+    [string]$SelectedExistingTarget,
+    [bool]$NoCargoTargetDir,
+    [string]$DualParakeetCpuWorkerSha256 = '',
+    [string]$DualCpuRuntimeSha256 = ''
+) {
+    if (-not $script:dualCpuRebaselineEnabled) { return }
+    $desktopBuild = ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress
+    if ($script:turboEditionEnabled -or
+        (Get-FullPath $Root) -ine (Resolve-LotRoot $dualCpuRebaselineRoot) -or
+        $SelectedFreshTarget -notin @('dual-cpu-r1',$null,'') -or
+        $SelectedExistingTarget -notin @('dual-cpu-r1',$null,'') -or
+        ($SelectedFreshTarget -and $SelectedExistingTarget)) {
+        throw '-DualCpuRebaseline requires its exact lot root and target name, without another edition profile.'
+    }
+    $signature = Get-CargoInvocationPolicySignature $Arguments
+    if (($DualParakeetCpuWorkerSha256 -or $DualCpuRuntimeSha256) -and $signature -cne $desktopBuild) {
+        throw 'Dual worker/runtime SHA inputs are accepted only for the exact desktop build.'
+    }
+    $n1 = ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress
+    $fmt = ConvertTo-Json -InputObject ([string[]]@('fmt','--check')) -Compress
+    $isN1 = $signature -ceq $n1
+    $isFmt = $signature -ceq $fmt
+    if ($isN1) {
+        if ($SelectedFreshTarget -cne 'dual-cpu-r1' -or $SelectedExistingTarget -or -not $NoCargoTargetDir) {
+            throw 'Dual CPU rebaseline N1 requires a fresh target and no CARGO_TARGET_DIR.'
+        }
+        if ($script:personalModel -cne (Get-FullPath 'C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf')) {
+            throw 'Dual CPU rebaseline N1 requires the verified personal Parakeet model path.'
+        }
+        return
+    }
+    if ($SelectedFreshTarget -or $SelectedExistingTarget -cne 'dual-cpu-r1') {
+        throw 'Dual CPU rebaseline commands after N1 require the existing dual-cpu-r1 target.'
+    }
+    if ($isFmt) {
+        if ($NoCargoTargetDir) { throw 'Dual CPU rebaseline fmt uses the existing target without no-variable mode.' }
+        if ($DualParakeetCpuWorkerSha256 -or $DualCpuRuntimeSha256) { throw 'Dual build identities are valid only for the desktop build.' }
+        return
+    }
+    if ($NoCargoTargetDir -ne (-not ($signature -match '"build"'))) {
+        throw 'Dual CPU rebaseline target-variable mode does not match the registered command.'
+    }
+    if ($signature -match 'whisper-worker-parakeet-cpu' -and $signature -match '"test"' -and
+        $script:personalModel -cne (Get-FullPath 'C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf')) {
+        throw 'Parakeet CPU test profiles require the verified personal model path.'
+    }
+    if ($signature -ceq $desktopBuild) {
+        if ($DualParakeetCpuWorkerSha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+            $DualCpuRuntimeSha256.ToLowerInvariant() -cne 'df69460841635b9d3ff080015ee678b8bb74ec08148e04142a234403247dbc31') {
+            throw 'The dual desktop build requires the verified Parakeet worker SHA and P7 CPU runtime identity.'
+        }
+        $workerPath = Join-Path $script:targetRoot 'release/whisper-worker-parakeet-cpu.exe'
+        Assert-NoReparseChain $workerPath 'dual Parakeet worker build identity'
+        if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) { throw 'The guarded Parakeet CPU worker output is absent before the dual desktop build.' }
+        $observedWorkerSha = (Get-FileHash -LiteralPath $workerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($observedWorkerSha -cne $DualParakeetCpuWorkerSha256.ToLowerInvariant()) {
+            throw 'The guarded Parakeet CPU worker SHA differs from the desktop build identity input.'
+        }
+        $script:authorizedDualParakeetCpuWorkerSha256 = $observedWorkerSha
+        $script:authorizedDualCpuRuntimeSha256 = $DualCpuRuntimeSha256.ToLowerInvariant()
+        $turboWorkerPath = Join-Path $script:targetRoot 'release/whisper-worker-cpu.exe'
+        Assert-NoReparseChain $turboWorkerPath 'dual Turbo CPU worker build identity'
+        if (-not (Test-Path -LiteralPath $turboWorkerPath -PathType Leaf)) { throw 'The guarded Turbo CPU worker output is absent before the dual desktop build.' }
+        $script:authorizedDesktopCpuWorkerSha256 = (Get-FileHash -LiteralPath $turboWorkerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    } elseif ($DualParakeetCpuWorkerSha256 -or $DualCpuRuntimeSha256) {
+        throw 'Dual Parakeet worker/runtime SHA inputs are allowed only for the exact desktop build.'
+    }
+    $bootstrapBuild = ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-bootstrap','-vv')) -Compress
+    if ($signature -ceq $bootstrapBuild) {
+        foreach ($asset in @(
+            @{ Name='whisper-desktop.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_DESKTOP_SHA256' },
+            @{ Name='whisper-worker-cpu.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_TURBO_CPU_SHA256' },
+            @{ Name='whisper-worker-parakeet-cpu.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256' }
+        )) {
+            $assetPath = Join-Path $script:targetRoot (Join-Path 'release' $asset.Name)
+            Assert-NoReparseChain $assetPath 'dual bootstrap executable identity'
+            if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) { throw "Dual bootstrap input is absent: $($asset.Name)" }
+            $script:authorizedDualBootstrapAssetSha256[$asset.Variable] = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+}
+
+function Invoke-DualCpuRebaselinePolicySelfTests {
+    $root = Join-Path $repo $dualCpuRebaselineRoot
+    $members = @('whisper-core','whisper-adapters','whisper-worker-common','whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-desktop','whisper-bootstrap')
+    $positive = 0
+    $negative = 0
+    $fixtureTarget = Join-Path $runRoot 'dual-cpu-policy-fixture'
+    $fixtureRelease = Join-Path $fixtureTarget 'release'
+    Initialize-Directory $fixtureRelease 'dual CPU policy fixture'
+    foreach ($name in @('whisper-worker-parakeet-cpu.exe','whisper-worker-cpu.exe','whisper-desktop.exe')) {
+        Set-Content -LiteralPath (Join-Path $fixtureRelease $name) -Value "self-test fixture: $name" -Encoding Ascii
+    }
+    $savedTargetRoot = $script:targetRoot
+    $savedDesktopWorkerSha = $script:authorizedDesktopCpuWorkerSha256
+    $savedAuthorizedBootstrap = @{}
+    foreach ($name in $script:authorizedDualBootstrapAssetSha256.Keys) {
+        $savedAuthorizedBootstrap[$name] = $script:authorizedDualBootstrapAssetSha256[$name]
+    }
+    $script:targetRoot = $fixtureTarget
+    $registered = [string[]]$script:cargoInvocationPolicies[$dualCpuRebaselineRoot]
+    if ($registered.Count -ne 16) { throw 'Dual CPU rebaseline profile count changed unexpectedly.' }
+    try {
+        $workerFixture = Join-Path $fixtureRelease 'whisper-worker-parakeet-cpu.exe'
+        $workerSha = (Get-FileHash -LiteralPath $workerFixture -Algorithm SHA256).Hash.ToLowerInvariant()
+        $runtimeSha = 'df69460841635b9d3ff080015ee678b8bb74ec08148e04142a234403247dbc31'
+        $desktopBuild = ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress
+        $n1Args = [string[]]@('test','--no-fail-fast')
+        $savedPersonalModel = $script:personalModel
+        try {
+            $script:personalModel = $null
+            $rejected = $false
+            try { Assert-DualCpuRebaselineInvocation $n1Args $root 'dual-cpu-r1' $null $true } catch { $rejected = $true }
+            if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted N1 without the verified personal Parakeet model.' }
+            $negative++
+        } finally { $script:personalModel = $savedPersonalModel }
+        foreach ($profileJson in $registered) {
+            $profile = [string[]](Convert-CargoArgsJson $profileJson)
+            $checked = Test-CargoArguments $profile $members -SkipMemberValidation
+            $candidateRoot = $root
+            $fresh = $null
+            $existing = 'dual-cpu-r1'
+            $noVariable = $checked.Args[0] -ne 'build' -and $checked.Args[0] -ne 'fmt'
+            if ($profileJson -ceq (ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress)) {
+                $fresh = 'dual-cpu-r1'
+                $existing = $null
+                $noVariable = $true
+            } elseif ($checked.Args[0] -ceq 'fmt') {
+                $existing = 'dual-cpu-r1'
+                $noVariable = $false
+            }
+            $identity = @{}
+            if ((Get-CargoInvocationPolicySignature $checked.Args) -ceq $desktopBuild) {
+                $identity = @{ DualParakeetCpuWorkerSha256=$workerSha; DualCpuRuntimeSha256=$runtimeSha }
+            }
+            Assert-DualCpuRebaselineInvocation $checked.Args $candidateRoot $fresh $existing $noVariable @identity
+            if (-not (Assert-CargoInvocationPolicy $checked.Args $candidateRoot)) { throw "Dual CPU rebaseline SelfTest rejected: $profileJson" }
+            $positive++
+        }
+        $turboWorkerFixture = Join-Path $fixtureRelease 'whisper-worker-cpu.exe'
+        $turboWorkerFixtureSha = (Get-FileHash -LiteralPath $turboWorkerFixture -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($script:authorizedDesktopCpuWorkerSha256 -cne $turboWorkerFixtureSha) {
+            throw 'Dual CPU rebaseline SelfTest did not pin the Turbo CPU worker SHA for the desktop build.'
+        }
+        $desktopArgs = [string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')
+        $rejected = $false
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1' $false '' $runtimeSha } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a desktop build without the verified Parakeet worker SHA.' }
+        $negative++
+        $rejected = $false
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1' $false $workerSha ('0' * 64) } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted an unpinned Parakeet runtime identity.' }
+        $negative++
+        $rejected = $false
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1' $false ('b' * 64) $runtimeSha } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a Parakeet worker digest that differs from the fixture.' }
+        $negative++
+    } finally {
+        $script:targetRoot = $savedTargetRoot
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDesktopWorkerSha
+        foreach ($name in @($script:authorizedDualBootstrapAssetSha256.Keys)) { $script:authorizedDualBootstrapAssetSha256.Remove($name) }
+        foreach ($name in $savedAuthorizedBootstrap.Keys) { $script:authorizedDualBootstrapAssetSha256[$name] = $savedAuthorizedBootstrap[$name] }
+    }
+    $badCases = @(
+        @{ Args=@('build','--release','-p','whisper-worker-gpu','-vv'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1'; NoVariable=$false },
+        @{ Args=@('build','--release','-p','whisper-worker-cpu','-vv','--features','native-tests'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1'; NoVariable=$false },
+        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo 'target/parakeet-tests/cpu-distribution-x64-20261115'); Fresh='dual-cpu-r1'; Existing=$null; NoVariable=$true },
+        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1'; NoVariable=$true },
+        @{ Args=@('fmt','--check','--all'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1'; NoVariable=$false }
+    )
+    foreach ($bad in $badCases) {
+        $rejected = $false
+        try {
+            $checked = Test-CargoArguments $bad.Args $members -SkipMemberValidation
+            Assert-DualCpuRebaselineInvocation $checked.Args $bad.Root $bad.Fresh $bad.Existing $bad.NoVariable
+            [void](Assert-CargoInvocationPolicy $checked.Args $bad.Root)
+        } catch { $rejected = $true }
+        if (-not $rejected) { throw "Dual CPU rebaseline SelfTest accepted: $($bad.Args -join ' ')" }
+        $negative++
+    }
+    $saved = $script:dualCpuRebaselineEnabled
+    try {
+        $script:dualCpuRebaselineEnabled = $false
+        $rejected = $false
+        try { [void](Assert-CargoInvocationPolicy @('test','--offline','--locked','--no-fail-fast') $root) } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted the profile without its switch.' }
+        $negative++
+    } finally { $script:dualCpuRebaselineEnabled = $saved }
+    $probe = [Diagnostics.ProcessStartInfo]::new()
+    foreach ($name in @($script:dualEditionMarker,'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256','WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256')) {
+        [void]$probe.Environment.Remove($name)
+    }
+    Set-CargoDualEditionEnvironment $probe.Environment $true
+    Assert-CargoDualEditionEnvironment $probe.Environment $true
+    Set-CargoDualEditionEnvironment $probe.Environment $false
+    Assert-CargoDualEditionEnvironment $probe.Environment $false
+    $positive += 2
+    $savedDualActive = $script:dualEditionBuildActive
+    $savedDesktopWorkerSha = $script:authorizedDesktopCpuWorkerSha256
+    $savedDualEnabled = $script:dualCpuRebaselineEnabled
+    try {
+        $script:dualEditionBuildActive = $false
+        $script:authorizedDesktopCpuWorkerSha256 = 'e' * 64
+        $probe.Environment['WHISPER_EXPECTED_CPU_WORKER_SHA256'] = $script:authorizedDesktopCpuWorkerSha256
+        Assert-CargoDualBuildIdentityEnvironment $probe.Environment $true
+        $positive++
+        $probe.Environment['WHISPER_EXPECTED_CPU_WORKER_SHA256'] = 'f' * 64
+        $rejected = $false
+        try { Assert-CargoDualBuildIdentityEnvironment $probe.Environment $true } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a changed desktop worker identity during guarded Cargo metadata.' }
+        $negative++
+        $desktopArgs = [string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')
+        if (-not (Test-DesktopCpuWorkerInvocation $desktopArgs)) { throw 'Dual CPU rebaseline SelfTest rejected the exact personal-install desktop profile.' }
+        $positive++
+        $script:dualCpuRebaselineEnabled = $false
+        if (Test-DesktopCpuWorkerInvocation $desktopArgs) { throw 'Dual CPU rebaseline SelfTest accepted its desktop profile without the dual switch.' }
+        $negative++
+    } finally {
+        $script:dualEditionBuildActive = $savedDualActive
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDesktopWorkerSha
+        $script:dualCpuRebaselineEnabled = $savedDualEnabled
+    }
+    $savedDualActive = $script:dualEditionBuildActive
+    $savedWorkerSha = $script:authorizedDualParakeetCpuWorkerSha256
+    $savedRuntimeSha = $script:authorizedDualCpuRuntimeSha256
+    $savedDesktopWorkerSha = $script:authorizedDesktopCpuWorkerSha256
+    try {
+        $script:dualEditionBuildActive = $true
+        $script:authorizedDesktopCpuWorkerSha256 = 'c' * 64
+        $script:authorizedDualParakeetCpuWorkerSha256 = 'a' * 64
+        $script:authorizedDualCpuRuntimeSha256 = 'df69460841635b9d3ff080015ee678b8bb74ec08148e04142a234403247dbc31'
+        $probe.Environment['WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256'] = $script:authorizedDualParakeetCpuWorkerSha256
+        $probe.Environment['WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256'] = $script:authorizedDualCpuRuntimeSha256
+        $probe.Environment['WHISPER_EXPECTED_CPU_WORKER_SHA256'] = $script:authorizedDesktopCpuWorkerSha256
+        Assert-CargoDualBuildIdentityEnvironment $probe.Environment $true
+        $positive++
+        $probe.Environment['WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256'] = 'b' * 64
+        $rejected = $false
+        try { Assert-CargoDualBuildIdentityEnvironment $probe.Environment $true } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a changed worker identity in the Cargo child environment.' }
+        $negative++
+        $probe.Environment['WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256'] = $script:authorizedDualParakeetCpuWorkerSha256
+        $probe.Environment['WHISPER_EXPECTED_CPU_WORKER_SHA256'] = 'd' * 64
+        $rejected = $false
+        try { Assert-CargoDualBuildIdentityEnvironment $probe.Environment $true } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a changed Turbo worker identity in the Cargo child environment.' }
+        $negative++
+    } finally {
+        $script:dualEditionBuildActive = $savedDualActive
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDesktopWorkerSha
+        $script:authorizedDesktopCpuWorkerSha256 = $savedDesktopWorkerSha
+        $script:authorizedDualParakeetCpuWorkerSha256 = $savedWorkerSha
+        $script:authorizedDualCpuRuntimeSha256 = $savedRuntimeSha
+    }
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
 }
 
 function Assert-TurboEditionInvocation(
@@ -759,9 +1121,16 @@ function Assert-WriteRoots {
     if (@(Get-ChildItem -LiteralPath $env:LOCALAPPDATA -Force).Count -ne 0) { throw 'LOCALAPPDATA must be empty before every run.' }
     foreach ($entry in Get-ChildItem Env:) {
         if ($entry.Name -ceq $script:turboEditionMarker) { continue }
+        if ($entry.Name -ceq $script:dualEditionMarker -and $script:dualEditionBuildActive -and $entry.Value -ceq '1') { continue }
         if ($entry.Name -ceq 'WHISPER_EXPECTED_CPU_WORKER_SHA256' -and
             $script:authorizedDesktopCpuWorkerSha256 -and
             $entry.Value -ceq $script:authorizedDesktopCpuWorkerSha256) { continue }
+        $dualExpected = switch -CaseSensitive ($entry.Name) {
+            'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256' { $script:authorizedDualParakeetCpuWorkerSha256 }
+            'WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256' { $script:authorizedDualCpuRuntimeSha256 }
+            default { $script:authorizedDualBootstrapAssetSha256[$entry.Name] }
+        }
+        if ($dualExpected -and $entry.Value -ceq $dualExpected) { continue }
         if ($entry.Name -match '^(WHISPER_|PARAKEET_)') { throw "Campaign variable was not cleared: $($entry.Name)" }
     }
     if ([Environment]::GetEnvironmentVariable('N1_TEST_PERSONAL_PARAKEET_MODEL','Process') -cne $script:personalModel) { throw 'Personal model test path differs from the validated selection.' }
@@ -782,9 +1151,12 @@ function Invoke-Captured([string]$Executable, [string[]]$Arguments, [string]$Lab
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     Set-CargoEditionEnvironment $start.Environment ([bool]($script:turboEditionEnabled -and $CargoInvocation))
+    Set-CargoDualEditionEnvironment $start.Environment ([bool]($script:dualEditionBuildActive -and $CargoInvocation))
     if ($CargoInvocation) {
         Assert-CargoEditionEnvironment $start.Environment $script:turboEditionEnabled
+        Assert-CargoDualEditionEnvironment $start.Environment ([bool]$script:dualEditionBuildActive)
     }
+    Assert-CargoDualBuildIdentityEnvironment $start.Environment $CargoInvocation
     if ($script:useConfigTarget) {
         [void]$start.Environment.Remove('CARGO_TARGET_DIR')
         if ($start.Environment.ContainsKey('CARGO_TARGET_DIR')) { throw 'CARGO_TARGET_DIR remains in the Cargo child environment; process launch refused.' }
@@ -1149,8 +1521,36 @@ function Set-CleanEnvironment {
     Set-ProcessEnvironmentValue 'N1_TEST_PERSONAL_PARAKEET_MODEL' $script:personalModel
 }
 
-function Set-CargoCommandEnvironment([string]$Subcommand) {
+function Set-CargoCommandEnvironment([string]$Subcommand, [string[]]$Arguments = @()) {
     if ($Subcommand -eq 'clippy') { Set-ProcessEnvironmentValue 'RUSTFLAGS' $null }
+    Set-ProcessEnvironmentValue $script:dualEditionMarker $null
+    foreach ($name in @(
+        'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256',
+        'WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_DESKTOP_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_TURBO_CPU_SHA256',
+        'WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256'
+    )) { Set-ProcessEnvironmentValue $name $null }
+    $script:dualEditionBuildActive = $false
+    if (-not $script:dualCpuRebaselineEnabled -or $Subcommand -cne 'build') { return }
+    $signature = Get-CargoInvocationPolicySignature $Arguments
+    $dualBuildProfiles = @(
+        (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal','-vv')) -Compress),
+        (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress),
+        (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-bootstrap','-vv')) -Compress)
+    )
+    if ($signature -cnotin $dualBuildProfiles) { return }
+    $script:dualEditionBuildActive = $true
+    Set-ProcessEnvironmentValue $script:dualEditionMarker '1'
+    if ($signature -ceq $dualBuildProfiles[1]) {
+        Set-ProcessEnvironmentValue 'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256' $script:authorizedDualParakeetCpuWorkerSha256
+        Set-ProcessEnvironmentValue 'WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256' $script:authorizedDualCpuRuntimeSha256
+    }
+    if ($signature -ceq $dualBuildProfiles[2]) {
+        foreach ($name in $script:authorizedDualBootstrapAssetSha256.Keys) {
+            Set-ProcessEnvironmentValue $name $script:authorizedDualBootstrapAssetSha256[$name]
+        }
+    }
 }
 
 function Initialize-Roots {
@@ -1651,6 +2051,12 @@ function Invoke-SelfTests {
     $cpuDistributionPolicyTests.Summary
     $pCount += $cpuDistributionPolicyTests.Positive
     $nCount += $cpuDistributionPolicyTests.Negative
+    if ($script:dualCpuRebaselineEnabled) {
+        $dualCpuPolicyTests = Invoke-DualCpuRebaselinePolicySelfTests
+        "DUAL_CPU_REBASELINE_POLICY_SELFTEST positive=$($dualCpuPolicyTests.Positive) negative=$($dualCpuPolicyTests.Negative)"
+        $pCount += $dualCpuPolicyTests.Positive
+        $nCount += $dualCpuPolicyTests.Negative
+    }
     $turboEditionPolicyTests = Invoke-TurboEditionPolicySelfTests
     "TURBO_EDITION_POLICY_SELFTEST positive=$($turboEditionPolicyTests.Positive) negative=$($turboEditionPolicyTests.Negative)"
     $pCount += $turboEditionPolicyTests.Positive
@@ -1965,6 +2371,14 @@ if ($FreshTarget) {
 else { $script:targetRoot = $cargoRoot }
 if ($Mode -eq 'Structure' -and $CargoArgs.Count -gt 0) { throw 'Structure mode does not accept Cargo arguments.' }
 Assert-TurboEditionInvocation $CargoArgs $lotRoot $FreshTarget $ExistingTarget $WithoutCargoTargetDir
+if ($DualCpuRebaseline) {
+    if ((Get-FullPath $lotRoot) -ine (Resolve-LotRoot $dualCpuRebaselineRoot)) {
+        throw '-DualCpuRebaseline requires -LotRoot target/parakeet-tests/dual-cpu-r1.'
+    }
+    if (-not $SelfTest -and $CargoArgs.Count -gt 0) {
+        Assert-DualCpuRebaselineInvocation $CargoArgs $lotRoot $FreshTarget $ExistingTarget $WithoutCargoTargetDir $DualParakeetCpuWorkerSha256 $DualCpuRuntimeSha256
+    }
+}
 Initialize-Roots
 Set-CleanEnvironment
 Assert-WriteRoots
@@ -1995,7 +2409,7 @@ if ($CargoArgs.Count -gt 0 -and $CargoArgs[0] -ceq 'fetch') {
     $members = $preflight.Metadata.Members
     $checked = Test-CargoArguments $CargoArgs $members
 }
-Set-CargoCommandEnvironment $checked.Args[0]
+Set-CargoCommandEnvironment $checked.Args[0] $checked.Args
 $script:structuralClippyActive = Test-StructuralClippyInvocation $checked.Args
 $cargoArgs = @($checked.Args)
 if ($script:useConfigTarget -and $checked.Args[0] -cne 'fmt') {

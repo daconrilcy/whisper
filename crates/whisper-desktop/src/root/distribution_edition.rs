@@ -3,11 +3,27 @@ use whisper_adapters::model_catalog::CatalogSnapshot;
 use whisper_core::model_catalog::ModelId;
 
 pub(super) const TURBO_DISTRIBUTION: bool = whisper_desktop::TURBO_EDITION;
+pub(super) const DUAL_DISTRIBUTION: bool =
+    option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some();
+pub(super) const PACKAGED_DISTRIBUTION: bool = TURBO_DISTRIBUTION || DUAL_DISTRIBUTION;
 
 pub(super) fn turbo_install_root(local_app_data: Option<std::ffi::OsString>) -> Option<PathBuf> {
     local_app_data
         .map(PathBuf::from)
         .map(|root| root.join("WhisperTurbo"))
+}
+
+pub(super) fn private_install_root(
+    local_app_data: Option<std::ffi::OsString>,
+    dual_distribution: bool,
+) -> Option<PathBuf> {
+    local_app_data.map(|root| {
+        PathBuf::from(root).join(if dual_distribution {
+            "WhisperTurbo"
+        } else {
+            "Whisper"
+        })
+    })
 }
 
 pub(super) fn settings_path(root: &Path) -> PathBuf {
@@ -46,9 +62,9 @@ pub(super) fn worker_path(
     executable: Option<&Path>,
     worker_name: &str,
     personal_install: bool,
-    turbo_distribution: bool,
+    packaged_distribution: bool,
 ) -> PathBuf {
-    if turbo_distribution {
+    if packaged_distribution {
         return turbo_root
             .map(|root| root.join("app").join(worker_name))
             .unwrap_or_else(|| PathBuf::from("\0"));

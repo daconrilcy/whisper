@@ -17,3 +17,13 @@ fn personal_worker_accepts_only_published_root_or_a_direct_staging_child() {
         personal
     ));
 }
+
+#[test]
+fn personal_root_name_tracks_the_compiled_distribution_edition() {
+    let expected = if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+        "WhisperTurbo"
+    } else {
+        "Whisper"
+    };
+    assert_eq!(personal_install_directory(), expected);
+}

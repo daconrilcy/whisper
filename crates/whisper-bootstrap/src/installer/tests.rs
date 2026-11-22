@@ -11,6 +11,9 @@ use std::thread;
 use whisper_adapters::archive::sha256_file;
 use whisper_core::cpu_compatibility::{CpuCompatibility, CpuCompatibilityLevel, CpuRequirement};
 
+#[cfg(test)]
+mod distribution_assets;
+
 static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 struct TestArea(PathBuf);

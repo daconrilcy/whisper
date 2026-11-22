@@ -68,10 +68,13 @@ impl ParakeetWorkerPaths {
         let Some(local_app_data) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
             return false;
         };
-        let Ok(personal_root) = local_app_data.join("Whisper").canonicalize() else {
+        let Ok(private_root) = local_app_data
+            .join(PERSONAL_INSTALL_DIRECTORY)
+            .canonicalize()
+        else {
             return false;
         };
-        if !personal_runtime_path_is_allowed(root, &personal_root) {
+        if !personal_runtime_path_is_allowed(root, &private_root) {
             return false;
         }
         let (worker_name, native_name) = if self
@@ -134,6 +137,20 @@ impl ParakeetWorkerPaths {
             return Err("ProfileUnavailable: archive key profile is not an import profile".into());
         }
         self.validate()?;
+        if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+            if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
+                return Err(
+                    "ProfileUnavailable: dual CPU workers support single-pass import only".into(),
+                );
+            }
+            let actual = self.personal_qualification_key("CPU")?;
+            let expected = crate::archive::ArchiveQualificationKey::parakeet_dual_cpu()
+                .ok_or_else(|| "QualificationUnavailable: dual CPU identity is not pinned".to_owned())?;
+            if actual != expected {
+                return Err("QualificationMismatch: dual CPU identity differs".into());
+            }
+            return Ok(expected);
+        }
         if self.is_personal_runtime() {
             if profile != PARAKEET_PROFILE_IMPORT_SINGLE_PASS {
                 return Err(
@@ -180,6 +197,9 @@ impl ParakeetWorkerPaths {
             );
         }
         self.validate()?;
+        if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+            return Err("BackendUnavailable: dual CPU edition has no Parakeet GPU identity".into());
+        }
         if self.is_personal_runtime() {
             return self.personal_qualification_key("CUDA0");
         }
@@ -302,6 +322,13 @@ impl ParakeetWorkerPaths {
         Ok(())
     }
 }
+
+const PERSONAL_INSTALL_DIRECTORY: &str =
+    if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+        "WhisperTurbo"
+    } else {
+        "Whisper"
+    };
 
 fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
     root == personal_root

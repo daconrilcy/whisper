@@ -72,11 +72,20 @@ fn personal_runtime_root_is_allowed(root: &Path) -> bool {
     let Some(local_app_data) = env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
         return false;
     };
-    let personal_root = local_app_data.join("Whisper");
+    let personal_root = local_app_data.join(personal_install_directory());
     let Ok(personal_root) = personal_root.canonicalize() else {
         return false;
     };
     personal_runtime_path_is_allowed(root, &personal_root)
+}
+
+#[cfg(feature = "parakeet-personal")]
+fn personal_install_directory() -> &'static str {
+    if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+        "WhisperTurbo"
+    } else {
+        "Whisper"
+    }
 }
 
 #[cfg(feature = "parakeet-personal")]

@@ -1,13 +1,28 @@
 #![forbid(unsafe_code)]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod installer;
+#[cfg(windows)]
+mod gui;
 
+#[cfg(not(windows))]
 use std::io::{self, Write};
+#[cfg(not(windows))]
 use std::path::PathBuf;
 use std::process::ExitCode;
 use whisper_core::cpu_compatibility::{CpuCompatibility, CpuCompatibilityLevel};
 
 fn main() -> ExitCode {
+    #[cfg(windows)]
+    {
+        return gui::run();
+    }
+    #[cfg(not(windows))]
+    run_console()
+}
+
+#[cfg(not(windows))]
+fn run_console() -> ExitCode {
     let compatibility = whisper_adapters::cpu_capabilities::current_cpu_compatibility();
     if let Err(message) = preflight_message(&compatibility) {
         eprintln!("{message}");
@@ -69,6 +84,7 @@ fn preflight_message(compatibility: &CpuCompatibility) -> Result<&'static str, &
     }
 }
 
+#[cfg(not(windows))]
 fn prompt_model_path() -> io::Result<Option<PathBuf>> {
     print!("Chemin du modèle ggml-large-v3-turbo.bin (Entrée pour annuler) : ");
     io::stdout().flush()?;
@@ -78,6 +94,7 @@ fn prompt_model_path() -> io::Result<Option<PathBuf>> {
     Ok((!input.is_empty()).then(|| PathBuf::from(input)))
 }
 
+#[cfg(not(windows))]
 fn prompt_confirmation() -> io::Result<bool> {
     print!("Installer WhisperTurbo dans %LOCALAPPDATA%\\WhisperTurbo ? [o/N] : ");
     io::stdout().flush()?;
