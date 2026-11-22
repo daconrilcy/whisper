@@ -64,18 +64,21 @@ fn dual_cpu_distribution_routes_parakeet_only_through_private_cpu_assets() {
         ),
         Some(root.to_path_buf())
     );
-    let cpu = super::super::personal_worker_paths(
-        root,
-        whisper_core::model_catalog::Backend::Cpu,
+    let cpu = super::super::personal_worker_paths(root, whisper_core::model_catalog::Backend::Cpu);
+    assert_eq!(
+        cpu.executable,
+        root.join("worker/whisper-worker-parakeet-cpu.exe")
     );
-    assert_eq!(cpu.executable, root.join("worker/whisper-worker-parakeet-cpu.exe"));
     assert_eq!(cpu.native_dir, root.join("native/cpu"));
-    assert_eq!(cpu.model, root.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf"));
+    assert_eq!(
+        cpu.model,
+        root.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
+    );
     let inherited = |name: &str| Some(std::ffi::OsString::from(format!("C:/injected/{name}")));
-    assert!(super::super::configured_gpu_parakeet_worker_for_distribution(
-        true, false, inherited
-    )
-    .is_none());
+    assert!(
+        super::super::configured_gpu_parakeet_worker_for_distribution(true, false, inherited)
+            .is_none()
+    );
 
     let legacy_desktop = std::path::Path::new(r"C:\personal\app\whisper-desktop.exe");
     assert_eq!(
@@ -83,7 +86,9 @@ fn dual_cpu_distribution_routes_parakeet_only_through_private_cpu_assets() {
             Some(std::ffi::OsString::from(r"C:\Users\tester\AppData\Local")),
             false,
         ),
-        Some(std::path::PathBuf::from(r"C:\Users\tester\AppData\Local\Whisper"))
+        Some(std::path::PathBuf::from(
+            r"C:\Users\tester\AppData\Local\Whisper"
+        ))
     );
     assert_eq!(
         super::super::distribution_edition::worker_path(
@@ -93,6 +98,9 @@ fn dual_cpu_distribution_routes_parakeet_only_through_private_cpu_assets() {
             true,
             false,
         ),
-        legacy_desktop.parent().unwrap().join("whisper-worker-cpu.exe")
+        legacy_desktop
+            .parent()
+            .unwrap()
+            .join("whisper-worker-cpu.exe")
     );
 }

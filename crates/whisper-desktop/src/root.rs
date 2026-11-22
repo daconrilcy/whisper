@@ -433,12 +433,16 @@ fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
         return;
     }
     let record = model_registry::model(ModelId::ParakeetTdt06BV3);
-    let key = if distribution_edition::DUAL_DISTRIBUTION {
+    let qualification_builds = if distribution_edition::DUAL_DISTRIBUTION {
         whisper_adapters::archive::ArchiveQualificationKey::parakeet_dual_cpu()
-    } else if cfg!(feature = "personal-install") {
-        Some(model_registry::personal_configuration_key(record, Backend::Cpu))
+            .map(|key| (key.runtime_build, key.worker_build))
     } else {
-        Some(model_registry::configuration_key(record, Backend::Cpu))
+        let key = if cfg!(feature = "personal-install") {
+            model_registry::personal_configuration_key(record, Backend::Cpu)
+        } else {
+            model_registry::configuration_key(record, Backend::Cpu)
+        };
+        Some((key.runtime_build, key.worker_build))
     };
     let catalog_model_ready = snapshot.entries.iter().any(|entry| {
         entry.id == ModelId::ParakeetTdt06BV3
@@ -447,14 +451,10 @@ fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
             && entry.observed_size_bytes == Some(record.artifact.size_bytes)
     });
     let qualified = catalog_model_ready
-        && key.is_some_and(|key| {
+        && qualification_builds.is_some_and(|(runtime_build, worker_build)| {
             configured_parakeet_worker().is_some_and(|paths| {
                 paths
-                    .verify_qualification(
-                        record.artifact.sha256,
-                        &key.runtime_build,
-                        &key.worker_build,
-                    )
+                    .verify_qualification(record.artifact.sha256, &runtime_build, &worker_build)
                     .is_ok()
             })
         });
