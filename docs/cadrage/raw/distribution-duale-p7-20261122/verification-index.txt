@@ -1,0 +1,10 @@
+P7 evidence archive verification
+Generated UTC: 2026-11-22T15:57:47.8129414Z
+Evidence entries: 107
+Evidence ZIP bytes: 194533
+Evidence ZIP SHA-256: cef081fc261732c3682b0db278247ca6ba5ef1d5267be1100c95be3100b90437
+CPU ZIP SHA-256: b3231dbc6e05fa10495a0ef23e96e2e3cf18c4be96e8c8add3d4f0ff7a1b72db
+CPU manifest SHA-256: 81692e3080775e0b10636aded3a6951d67723f03362d70139625f44306d1a305
+NVIDIA ZIP SHA-256: 82f059632e0b2fd2a2051a825cbb4295a7824458f27a9bdf65719833df85e959
+NVIDIA manifest SHA-256: cbaf342fa9ddc52353734627cb03b327e390a68c61e76c3d6128acfa232637ef
+All archive paths unique; source run trees and relative run names preserved.
