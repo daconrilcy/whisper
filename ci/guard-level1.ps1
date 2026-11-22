@@ -662,8 +662,8 @@ function Assert-DualCpuRebaselineInvocation(
     $desktopBuild = ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress
     if ($script:turboEditionEnabled -or
         (Get-FullPath $Root) -ine (Resolve-LotRoot $dualCpuRebaselineRoot) -or
-        $SelectedFreshTarget -notin @('dual-cpu-r1-retry-03',$null,'') -or
-        $SelectedExistingTarget -notin @('dual-cpu-r1-retry-03',$null,'') -or
+        $SelectedFreshTarget -notin @('dual-cpu-r1-retry-04',$null,'') -or
+        $SelectedExistingTarget -notin @('dual-cpu-r1-retry-04',$null,'') -or
         ($SelectedFreshTarget -and $SelectedExistingTarget)) {
         throw '-DualCpuRebaseline requires its exact lot root and retry target name, without another edition profile.'
     }
@@ -676,7 +676,7 @@ function Assert-DualCpuRebaselineInvocation(
     $isN1 = $signature -ceq $n1
     $isFmt = $signature -ceq $fmt
     if ($isN1) {
-        if ($SelectedFreshTarget -cne 'dual-cpu-r1-retry-03' -or $SelectedExistingTarget -or -not $NoCargoTargetDir) {
+        if ($SelectedFreshTarget -cne 'dual-cpu-r1-retry-04' -or $SelectedExistingTarget -or -not $NoCargoTargetDir) {
             throw 'Dual CPU rebaseline N1 requires a fresh target and no CARGO_TARGET_DIR.'
         }
         if ($script:personalModel -cne (Get-FullPath 'C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf')) {
@@ -684,8 +684,8 @@ function Assert-DualCpuRebaselineInvocation(
         }
         return
     }
-    if ($SelectedFreshTarget -or $SelectedExistingTarget -cne 'dual-cpu-r1-retry-03') {
-        throw 'Dual CPU rebaseline commands after N1 require the existing dual-cpu-r1-retry-03 target.'
+    if ($SelectedFreshTarget -or $SelectedExistingTarget -cne 'dual-cpu-r1-retry-04') {
+        throw 'Dual CPU rebaseline commands after N1 require the existing dual-cpu-r1-retry-04 target.'
     }
     if ($isFmt) {
         if ($NoCargoTargetDir) { throw 'Dual CPU rebaseline fmt uses the existing target without no-variable mode.' }
@@ -765,7 +765,7 @@ function Invoke-DualCpuRebaselinePolicySelfTests {
         try {
             $script:personalModel = $null
             $rejected = $false
-            try { Assert-DualCpuRebaselineInvocation $n1Args $root 'dual-cpu-r1-retry-03' $null $true } catch { $rejected = $true }
+            try { Assert-DualCpuRebaselineInvocation $n1Args $root 'dual-cpu-r1-retry-04' $null $true } catch { $rejected = $true }
             if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted N1 without the verified personal Parakeet model.' }
             $negative++
         } finally { $script:personalModel = $savedPersonalModel }
@@ -774,14 +774,14 @@ function Invoke-DualCpuRebaselinePolicySelfTests {
             $checked = Test-CargoArguments $profile $members -SkipMemberValidation
             $candidateRoot = $root
             $fresh = $null
-            $existing = 'dual-cpu-r1-retry-03'
+            $existing = 'dual-cpu-r1-retry-04'
             $noVariable = $checked.Args[0] -ne 'build' -and $checked.Args[0] -ne 'fmt'
             if ($profileJson -ceq (ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress)) {
-                $fresh = 'dual-cpu-r1-retry-03'
+                $fresh = 'dual-cpu-r1-retry-04'
                 $existing = $null
                 $noVariable = $true
             } elseif ($checked.Args[0] -ceq 'fmt') {
-                $existing = 'dual-cpu-r1-retry-03'
+                $existing = 'dual-cpu-r1-retry-04'
                 $noVariable = $false
             }
             $identity = @{}
@@ -799,15 +799,15 @@ function Invoke-DualCpuRebaselinePolicySelfTests {
         }
         $desktopArgs = [string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')
         $rejected = $false
-        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-03' $false '' $runtimeSha } catch { $rejected = $true }
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-04' $false '' $runtimeSha } catch { $rejected = $true }
         if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a desktop build without the verified Parakeet worker SHA.' }
         $negative++
         $rejected = $false
-        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-03' $false $workerSha ('0' * 64) } catch { $rejected = $true }
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-04' $false $workerSha ('0' * 64) } catch { $rejected = $true }
         if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted an unpinned Parakeet runtime identity.' }
         $negative++
         $rejected = $false
-        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-03' $false ('b' * 64) $runtimeSha } catch { $rejected = $true }
+        try { Assert-DualCpuRebaselineInvocation $desktopArgs $root $null 'dual-cpu-r1-retry-04' $false ('b' * 64) $runtimeSha } catch { $rejected = $true }
         if (-not $rejected) { throw 'Dual CPU rebaseline SelfTest accepted a Parakeet worker digest that differs from the fixture.' }
         $negative++
     } finally {
@@ -817,17 +817,19 @@ function Invoke-DualCpuRebaselinePolicySelfTests {
         foreach ($name in $savedAuthorizedBootstrap.Keys) { $script:authorizedDualBootstrapAssetSha256[$name] = $savedAuthorizedBootstrap[$name] }
     }
     $badCases = @(
-        @{ Args=@('build','--release','-p','whisper-worker-gpu','-vv'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-03'; NoVariable=$false },
-        @{ Args=@('build','--release','-p','whisper-worker-cpu','-vv','--features','native-tests'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-03'; NoVariable=$false },
-        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo 'target/parakeet-tests/cpu-distribution-x64-20261115'); Fresh='dual-cpu-r1-retry-03'; Existing=$null; NoVariable=$true },
-        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-03'; NoVariable=$true },
+        @{ Args=@('build','--release','-p','whisper-worker-gpu','-vv'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-04'; NoVariable=$false },
+        @{ Args=@('build','--release','-p','whisper-worker-cpu','-vv','--features','native-tests'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-04'; NoVariable=$false },
+        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo 'target/parakeet-tests/cpu-distribution-x64-20261115'); Fresh='dual-cpu-r1-retry-04'; Existing=$null; NoVariable=$true },
+        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-04'; NoVariable=$true },
         @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh='dual-cpu-r1'; Existing=$null; NoVariable=$true },
         @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh='dual-cpu-r1-retry-01'; Existing=$null; NoVariable=$true },
         @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh='dual-cpu-r1-retry-02'; Existing=$null; NoVariable=$true },
         @{ Args=@('fmt','--check'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1'; NoVariable=$false },
         @{ Args=@('fmt','--check'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-01'; NoVariable=$false },
         @{ Args=@('fmt','--check'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-02'; NoVariable=$false },
-        @{ Args=@('fmt','--check','--all'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-03'; NoVariable=$false }
+        @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh='dual-cpu-r1-retry-03'; Existing=$null; NoVariable=$true },
+        @{ Args=@('fmt','--check'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-03'; NoVariable=$false },
+        @{ Args=@('fmt','--check','--all'); Root=(Join-Path $repo $dualCpuRebaselineRoot); Fresh=$null; Existing='dual-cpu-r1-retry-04'; NoVariable=$false }
     )
     foreach ($bad in $badCases) {
         $rejected = $false

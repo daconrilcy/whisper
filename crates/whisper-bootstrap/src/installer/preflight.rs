@@ -1,4 +1,6 @@
-use super::{InstallError, InstallRequest, MODEL_SHA256, assets, require_compatible_cpu, validate_inputs};
+use super::{
+    InstallError, InstallRequest, MODEL_SHA256, assets, require_compatible_cpu, validate_inputs,
+};
 use std::path::{Path, PathBuf};
 use whisper_core::cpu_compatibility::CpuCompatibility;
 

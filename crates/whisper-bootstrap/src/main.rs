@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-mod installer;
 #[cfg(windows)]
 mod gui;
+mod installer;
 
 #[cfg(not(windows))]
 use std::io::{self, Write};

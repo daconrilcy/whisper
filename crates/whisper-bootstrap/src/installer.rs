@@ -13,8 +13,7 @@ pub(crate) use preflight::{bundled_turbo_model, preflight_bundle};
 const INSTALL_DIRECTORY: &str = "WhisperTurbo";
 const MODEL_FILE: &str = "ggml-large-v3-turbo.bin";
 const MODEL_SHA256: &str = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69";
-pub(crate) const DUAL_EDITION: bool =
-    option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some();
+pub(crate) const DUAL_EDITION: bool = option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some();
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
