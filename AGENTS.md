@@ -109,15 +109,15 @@ Les `AGENTS.md` des huit crates complètent ce fichier pour leur sous-arborescen
 
 ### Structure, nommage et tests
 
-| Règle | Cible pour le code nouveau |
+| Règle | Limite pour les fichiers Rust créés ou modifiés dans un lot |
 |---|---|
-| Taille d'un fichier de production | 1 500 lignes de production maximum |
+| Taille d'un fichier Rust (production et tests) | 600 lignes physiques maximum après `rustfmt` |
 | Taille d'une fonction | 100 lignes selon `clippy::too_many_lines` |
 | Complexité cognitive | 25 selon `clippy::cognitive_complexity` |
 | Nombre d'arguments | 7 selon `clippy::too_many_arguments` |
 | Complexité des types | 250 selon `clippy::type_complexity` |
 
-- Ces cibles guident la revue locale. `clippy.toml` règle les seuils mais n'active pas les lints et ne bloque pas seul les dépassements. `ci/check-structure.rs` et `ci/tests-baseline.txt` existent et contrôlent la classification des tests ; ils ne remplacent pas le cliquet Clippy structurel. La référence Clippy versionnée est `ci/clippy-structure-baseline.tsv`.
+- Ces limites guident la revue locale. `clippy.toml` règle les seuils mais n'active pas les lints et ne bloque pas seul les dépassements. `ci/check-structure.rs` et `ci/tests-baseline.txt` existent et contrôlent la classification des tests ; ils ne remplacent pas le cliquet Clippy structurel. La référence Clippy versionnée est `ci/clippy-structure-baseline.tsv`.
 - La création de `ci/check-structure` est permise dans un lot dédié et local, avec plan accepté, périmètre et accord écrit précis dans la session en cours. Ce lot doit définir les contrôles des retours anticipés silencieux dans les tests (« NOT RUN », « skip ») et des seuils de structure, ainsi que le traitement explicite de l'existant. Le script est lancé par la garde de niveau 1, sans surveillance du système de fichiers, avec les prérequis et l'arrêt sur échec de ce niveau. Cette permission ne crée ni le script ni une autorisation d'implémentation du lot. Aucun contrôle CI distant (GitHub ou autre) n'est demandé ou autorisé par ces consignes.
 - Ne pas aggraver sans justification les gros fichiers ou fonctions existants. Préférer une extraction limitée lorsqu'elle sert le changement accepté. Si elle dépasse les chemins ou le lot autorisés, exposer l'écart et demander uniquement l'arbitrage nécessaire ; ne pas étendre le refactoring automatiquement.
 - Nommer le nouveau code selon sa responsabilité produit, sans identifiant de lot ou de campagne. Préserver les identifiants historiques qui font partie d'un contrat existant (protocole, variable d'environnement, trace ou script) tant que leur migration n'est pas autorisée.
