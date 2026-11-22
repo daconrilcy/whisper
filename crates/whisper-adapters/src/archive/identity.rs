@@ -61,8 +61,10 @@ impl ArchiveQualificationKey {
     }
 
     pub fn parakeet_dual_cpu() -> Option<Self> {
-        let runtime_build = compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256")?)?;
-        let worker_build = compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256")?)?;
+        let runtime_build =
+            compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256")?)?;
+        let worker_build =
+            compiled_sha256(option_env!("WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256")?)?;
         let mut key = Self::parakeet_cpu_test();
         key.runtime_build = runtime_build;
         key.worker_build = worker_build;

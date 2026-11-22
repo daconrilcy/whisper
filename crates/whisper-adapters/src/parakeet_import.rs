@@ -145,7 +145,9 @@ impl ParakeetWorkerPaths {
             }
             let actual = self.personal_qualification_key("CPU")?;
             let expected = crate::archive::ArchiveQualificationKey::parakeet_dual_cpu()
-                .ok_or_else(|| "QualificationUnavailable: dual CPU identity is not pinned".to_owned())?;
+                .ok_or_else(|| {
+                    "QualificationUnavailable: dual CPU identity is not pinned".to_owned()
+                })?;
             if actual != expected {
                 return Err("QualificationMismatch: dual CPU identity differs".into());
             }
