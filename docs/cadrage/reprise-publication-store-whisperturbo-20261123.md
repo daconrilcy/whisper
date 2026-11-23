@@ -55,3 +55,5 @@ La certification Microsoft, la décision de publication et la disponibilité pub
 ## Critère de reprise
 
 La prochaine tâche peut commencer quand le propriétaire aura confirmé que son compte individuel Partner Center est créé et vérifié, qu’il aura donné les identités exactes et qu’il aura choisi le nombre de fiches. Jusque-là, les agents peuvent lire ces références et préparer la liste des besoins, mais ne doivent pas démarrer le processus Partner ni modifier les identités prototypes en supposant des valeurs.
+
+Statut de mise en attente : [suivi des étapes Store suspendues jusqu’à l’inscription Partner Center](attente-publication-store-20261123.md).
