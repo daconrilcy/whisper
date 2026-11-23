@@ -8,7 +8,7 @@ use whisper_core::cpu_compatibility::{CpuCompatibility, CpuCompatibilityLevel};
 
 mod assets;
 mod preflight;
-pub(crate) use preflight::{bundled_turbo_model, preflight_bundle};
+pub(crate) use preflight::{bundled_turbo_model, preflight_bundle, preflight_packaged_bundle};
 
 const INSTALL_DIRECTORY: &str = "WhisperTurbo";
 const MODEL_FILE: &str = "ggml-large-v3-turbo.bin";
@@ -178,19 +178,41 @@ fn validate_inputs(
     assets: &[BundleAsset],
     model_sha256: &str,
 ) -> Result<ValidatedInputs, InstallError> {
-    let local_app_data = request
-        .local_app_data
-        .as_deref()
-        .ok_or(InstallError::LocalAppDataUnavailable)?;
-    let local_app_data =
-        existing_directory(local_app_data).map_err(|_| InstallError::LocalAppDataUnavailable)?;
+    let local_app_data = validate_local_app_data(request)?;
+    let install_path = require_install_destination_available(&local_app_data)?;
+    let (bundle_root, model_path) = validate_bundle_resources(request, assets, model_sha256)?;
+    Ok(ValidatedInputs {
+        local_app_data,
+        bundle_root,
+        model_path,
+        model_sha256: model_sha256.to_owned(),
+        install_path,
+    })
+}
+
+fn require_install_destination_available(local_app_data: &Path) -> Result<PathBuf, InstallError> {
     let install_path = local_app_data.join(INSTALL_DIRECTORY);
     if path_exists(&install_path)
         .map_err(|error| InstallError::Io("le contrôle de destination", error.to_string()))?
     {
         return Err(InstallError::DestinationExists);
     }
+    Ok(install_path)
+}
 
+fn validate_local_app_data(request: &InstallRequest) -> Result<PathBuf, InstallError> {
+    let local_app_data = request
+        .local_app_data
+        .as_deref()
+        .ok_or(InstallError::LocalAppDataUnavailable)?;
+    existing_directory(local_app_data).map_err(|_| InstallError::LocalAppDataUnavailable)
+}
+
+fn validate_bundle_resources(
+    request: &InstallRequest,
+    assets: &[BundleAsset],
+    model_sha256: &str,
+) -> Result<(PathBuf, PathBuf), InstallError> {
     let bundle_root = request
         .bundle_root
         .as_deref()
@@ -199,13 +221,7 @@ fn validate_inputs(
         existing_directory(bundle_root).map_err(|_| InstallError::BundleUnavailable)?;
     validate_assets(&bundle_root, assets)?;
     let model_path = validate_model(&request.model_path, model_sha256)?;
-    Ok(ValidatedInputs {
-        local_app_data,
-        bundle_root,
-        model_path,
-        model_sha256: model_sha256.to_owned(),
-        install_path,
-    })
+    Ok((bundle_root, model_path))
 }
 
 fn validate_assets(bundle_root: &Path, assets: &[BundleAsset]) -> Result<(), InstallError> {

@@ -32,6 +32,11 @@ use whisper_desktop::ui::{
 mod distribution_edition;
 mod edition_admission;
 mod model_catalog;
+#[cfg(test)]
+use distribution_edition::personal_worker_paths;
+#[cfg(test)]
+#[path = "root/tests/msix_paths.rs"]
+mod msix_paths_tests;
 use distribution_edition::{PACKAGED_DISTRIBUTION, TURBO_DISTRIBUTION};
 
 pub struct DesktopComposition {
@@ -47,8 +52,30 @@ pub struct DesktopComposition {
 }
 
 pub fn compose() -> DesktopComposition {
-    let personal_root = personal_install_root();
-    let turbo_root = distribution_edition::turbo_install_root(std::env::var_os("LOCALAPPDATA"));
+    let runtime_roots = if PACKAGED_DISTRIBUTION {
+        distribution_edition::current_runtime_roots()
+    } else {
+        Ok(None)
+    };
+    let runtime_root_error = runtime_roots.as_ref().err().cloned();
+    let runtime_roots = runtime_roots.ok().flatten();
+    let personal_root = distribution_edition::personal_root(runtime_roots.as_ref()).or_else(|| {
+        runtime_root_error
+            .is_none()
+            .then(personal_install_root)
+            .flatten()
+    });
+    let turbo_root = distribution_edition::data_root(runtime_roots.as_ref()).or_else(|| {
+        runtime_root_error
+            .is_none()
+            .then(|| distribution_edition::turbo_install_root(std::env::var_os("LOCALAPPDATA")))?
+    });
+    let asset_root = distribution_edition::assets_root(runtime_roots.as_ref()).or_else(|| {
+        runtime_root_error
+            .is_none()
+            .then(|| turbo_root.clone())
+            .flatten()
+    });
     let repository_root = if PACKAGED_DISTRIBUTION || cfg!(feature = "personal-install") {
         PathBuf::new()
     } else {
@@ -59,7 +86,7 @@ pub fn compose() -> DesktopComposition {
             .to_path_buf()
     };
     let model_root = distribution_edition::model_root(
-        turbo_root.as_deref(),
+        asset_root.as_deref(),
         personal_root.as_deref(),
         cfg!(feature = "personal-install"),
         repository_root,
@@ -76,11 +103,12 @@ pub fn compose() -> DesktopComposition {
         .with_parakeet_enabled(!TURBO_DISTRIBUTION);
     let (preference_event_sender, preference_event_receiver) = std::sync::mpsc::sync_channel(4);
     let personal_install = cfg!(feature = "personal-install");
-    let preference_root = if TURBO_DISTRIBUTION {
-        turbo_root.as_ref()
-    } else {
-        personal_root.as_ref()
-    };
+    let preference_root =
+        if TURBO_DISTRIBUTION || runtime_roots.as_ref().is_some_and(|roots| roots.msix) {
+            turbo_root.as_ref()
+        } else {
+            personal_root.as_ref()
+        };
     let preference_file = preference_root.map(|root| distribution_edition::settings_path(root));
     let preference_model_path = if TURBO_DISTRIBUTION {
         model_root
@@ -172,7 +200,8 @@ pub fn compose() -> DesktopComposition {
             }
         }
     });
-    let path_port = if TURBO_DISTRIBUTION {
+    let path_port = if TURBO_DISTRIBUTION || runtime_roots.as_ref().is_some_and(|roots| roots.msix)
+    {
         turbo_root.as_ref().map(|root| {
             Box::new(WindowsPathPort::new_at(
                 distribution_edition::settings_path(root),
@@ -204,7 +233,7 @@ pub fn compose() -> DesktopComposition {
         .flatten();
     let worker_path = |worker_name: &str| {
         distribution_edition::worker_path(
-            turbo_root.as_deref(),
+            asset_root.as_deref(),
             executable.as_deref(),
             worker_name,
             cfg!(feature = "personal-install"),
@@ -257,20 +286,24 @@ pub fn compose() -> DesktopComposition {
         TURBO_DISTRIBUTION,
     )
     .with_inspection_requests(inspection_requests);
-    let gpu_inventory = if TURBO_DISTRIBUTION {
-        let inventory = WindowsGpuInventoryPort::new(inventory_worker);
-        match turbo_log_paths.as_ref() {
-            Some((_, gpu_log)) => inventory.with_log_path(gpu_log.clone()),
-            None => inventory.without_log(),
-        }
-    } else {
-        WindowsGpuInventoryPort::new(inventory_worker)
+    let gpu_log_route = distribution_edition::gpu_inventory_log_route(
+        turbo_root.as_deref(),
+        runtime_roots.as_ref().is_some_and(|roots| roots.msix) || runtime_root_error.is_some(),
+        TURBO_DISTRIBUTION,
+    );
+    let inventory = WindowsGpuInventoryPort::new(inventory_worker);
+    let gpu_inventory = match gpu_log_route {
+        distribution_edition::GpuInventoryLogRoute::Default => inventory,
+        distribution_edition::GpuInventoryLogRoute::Disabled => inventory.without_log(),
+        distribution_edition::GpuInventoryLogRoute::Explicit(path) => inventory.with_log_path(path),
     };
     DesktopComposition {
         application,
         compute_choice: ComputeChoice::Cpu,
         unified_candidate_enabled: native_candidate_enabled,
-        startup_message: if TURBO_DISTRIBUTION && turbo_root.is_none() {
+        startup_message: if let Some(error) = runtime_root_error {
+            Some(format!("Racines MSIX indisponibles : {error}"))
+        } else if TURBO_DISTRIBUTION && turbo_root.is_none() {
             Some("Édition Turbo indisponible : LOCALAPPDATA n'est pas défini.".into())
         } else if cfg!(feature = "personal-install") && personal_root.is_none() {
             Some("Profil Perso indisponible : LOCALAPPDATA n'est pas défini.".into())
@@ -294,6 +327,14 @@ pub fn compose() -> DesktopComposition {
 }
 
 fn configured_parakeet_worker() -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    if PACKAGED_DISTRIBUTION {
+        let Ok(Some(roots)) = distribution_edition::current_runtime_roots() else {
+            return None;
+        };
+        if roots.msix {
+            return distribution_edition::msix_cpu_parakeet_worker(Some(&roots));
+        }
+    }
     configured_parakeet_worker_for_edition(TURBO_DISTRIBUTION, |name| std::env::var_os(name))
 }
 
@@ -306,7 +347,7 @@ fn configured_parakeet_worker_for_edition(
     }
     if cfg!(feature = "personal-install") {
         let root = personal_install_root()?;
-        return Some(personal_worker_paths(
+        return Some(distribution_edition::personal_worker_paths(
             &root,
             whisper_core::model_catalog::Backend::Cpu,
         ));
@@ -356,7 +397,7 @@ fn configured_gpu_parakeet_worker_for_edition(
     }
     if cfg!(feature = "personal-install") {
         let root = personal_install_root()?;
-        return Some(personal_worker_paths(
+        return Some(distribution_edition::personal_worker_paths(
             &root,
             whisper_core::model_catalog::Backend::Gpu,
         ));
@@ -386,10 +427,6 @@ fn turbo_install_root(local_app_data: Option<std::ffi::OsString>) -> Option<Path
         .map(|root| root.join("WhisperTurbo"))
 }
 
-fn personal_model_root(root: &std::path::Path) -> PathBuf {
-    root.join("models")
-}
-
 fn personal_settings_path(root: &std::path::Path) -> PathBuf {
     distribution_edition::settings_path(root)
 }
@@ -403,26 +440,6 @@ fn reprocessing_snapshot_registry_root(turbo_root: Option<&std::path::Path>) -> 
             .join("Whisper")
             .join("settings/reprocessing-snapshots")
     })
-}
-
-fn personal_worker_paths(
-    root: &std::path::Path,
-    backend: whisper_core::model_catalog::Backend,
-) -> whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-    let (worker, native) = match backend {
-        whisper_core::model_catalog::Backend::Cpu => {
-            ("whisper-worker-parakeet-cpu.exe", "native/cpu")
-        }
-        whisper_core::model_catalog::Backend::Gpu => {
-            ("whisper-worker-parakeet-gpu.exe", "native/gpu")
-        }
-    };
-    whisper_adapters::parakeet_import::ParakeetWorkerPaths {
-        executable: root.join("worker").join(worker),
-        native_dir: root.join(native),
-        model: personal_model_root(root).join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
-        runtime_root: root.to_path_buf(),
-    }
 }
 
 fn qualify_parakeet_catalog_entry(snapshot: &mut CatalogSnapshot) {
@@ -1996,8 +2013,14 @@ mod tests {
     #[test]
     fn personal_profile_uses_only_the_stable_model_worker_and_settings_layout() {
         let root = PathBuf::from(r"C:\Users\tester\AppData\Local\Whisper");
-        assert_eq!(personal_model_root(&root), root.join("models"));
-        let cpu = personal_worker_paths(&root, whisper_core::model_catalog::Backend::Cpu);
+        assert_eq!(
+            distribution_edition::personal_model_root(&root),
+            root.join("models")
+        );
+        let cpu = distribution_edition::personal_worker_paths(
+            &root,
+            whisper_core::model_catalog::Backend::Cpu,
+        );
         assert_eq!(
             cpu.executable,
             root.join("worker/whisper-worker-parakeet-cpu.exe")
@@ -2007,7 +2030,10 @@ mod tests {
             cpu.model,
             root.join("models/parakeet-tdt-0.6b-v3.q8_0.gguf")
         );
-        let gpu = personal_worker_paths(&root, whisper_core::model_catalog::Backend::Gpu);
+        let gpu = distribution_edition::personal_worker_paths(
+            &root,
+            whisper_core::model_catalog::Backend::Gpu,
+        );
         assert_eq!(
             gpu.executable,
             root.join("worker/whisper-worker-parakeet-gpu.exe")

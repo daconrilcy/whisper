@@ -69,6 +69,27 @@ pub(crate) fn required_runtime_root(profile: &str) -> Result<PathBuf, String> {
 
 #[cfg(feature = "parakeet-personal")]
 fn personal_runtime_root_is_allowed(root: &Path) -> bool {
+    #[cfg(not(feature = "parakeet-cuda"))]
+    if option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some() {
+        if let Ok(executable) = env::current_exe() {
+            if executable
+                .ancestors()
+                .any(|path| path.file_name().is_some_and(|name| name == "WindowsApps"))
+            {
+                let Ok(executable) = executable.canonicalize() else {
+                    return false;
+                };
+                let Some(program_files) = env::var_os("ProgramFiles").map(PathBuf::from) else {
+                    return false;
+                };
+                let Ok(windows_apps) = program_files.join("WindowsApps").canonicalize() else {
+                    return false;
+                };
+                return msix_cpu_package_root_is_allowed(root, &executable, &windows_apps);
+            }
+        }
+    }
+
     let Some(local_app_data) = env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
         return false;
     };
@@ -77,6 +98,29 @@ fn personal_runtime_root_is_allowed(root: &Path) -> bool {
         return false;
     };
     personal_runtime_path_is_allowed(root, &personal_root)
+}
+
+#[cfg(all(feature = "parakeet-personal", not(feature = "parakeet-cuda")))]
+fn msix_cpu_package_root_is_allowed(
+    runtime_root: &Path,
+    executable: &Path,
+    windows_apps: &Path,
+) -> bool {
+    let Some(worker_directory) = executable.parent() else {
+        return false;
+    };
+    let Some(package_root) = worker_directory.parent() else {
+        return false;
+    };
+    worker_directory
+        .file_name()
+        .is_some_and(|name| name == "worker")
+        && executable
+            .file_name()
+            .is_some_and(|name| name == "whisper-worker-parakeet-cpu.exe")
+        && package_root != windows_apps
+        && package_root.starts_with(windows_apps)
+        && runtime_root == package_root
 }
 
 #[cfg(feature = "parakeet-personal")]
@@ -189,6 +233,9 @@ pub(crate) fn ensure_inside(path: &Path, root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(all(test, feature = "parakeet-personal", not(feature = "parakeet-cuda")))]
+#[path = "runtime_paths/msix_tests.rs"]
+mod msix_tests;
 #[cfg(all(test, feature = "parakeet-personal"))]
 mod personal_tests;
 #[cfg(test)]

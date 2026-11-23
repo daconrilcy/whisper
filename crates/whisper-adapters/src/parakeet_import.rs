@@ -1,6 +1,7 @@
 //! Isolated process client for the qualified Parakeet import worker.
 
 mod historical_runtime;
+mod msix_paths;
 
 use sha2::{Digest, Sha256};
 #[cfg(feature = "recette-hooks")]
@@ -29,11 +30,25 @@ pub struct ParakeetWorkerPaths {
 }
 
 impl ParakeetWorkerPaths {
+    pub fn from_msix_cpu_package(package_root: &Path) -> Self {
+        msix_paths::worker_paths(package_root)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
+        self.validate_with_desktop_executable(std::env::current_exe().ok().as_deref())
+    }
+
+    fn validate_with_desktop_executable(
+        &self,
+        desktop_executable: Option<&Path>,
+    ) -> Result<(), String> {
         let root = self
             .runtime_root
             .canonicalize()
             .map_err(|error| format!("MissingRuntime: {error}"))?;
+        if self.matches_msix_cpu_package(&root, desktop_executable) {
+            return Ok(());
+        }
         if self.matches_personal_layout(&root) {
             return Ok(());
         }
@@ -57,11 +72,17 @@ impl ParakeetWorkerPaths {
             .model
             .canonicalize()
             .map_err(|error| format!("model unavailable: {error}"))?;
-        let shared_model = historical_runtime::is_shared_model(&root, &model)?;
-        if !model.starts_with(&root) && !shared_model {
-            return Err("PathOutsideRuntime: model must be under runtime or the read-only qualified models directory".into());
+        if !model.starts_with(&root) {
+            let shared_model = historical_runtime::is_shared_model(&root, &model)?;
+            if !shared_model {
+                return Err("PathOutsideRuntime: model must be under runtime or the read-only qualified models directory".into());
+            }
         }
         Ok(())
+    }
+
+    fn matches_msix_cpu_package(&self, root: &Path, desktop_executable: Option<&Path>) -> bool {
+        msix_paths::matches_package(self, root, desktop_executable)
     }
 
     fn matches_personal_layout(&self, root: &Path) -> bool {
@@ -101,10 +122,10 @@ impl ParakeetWorkerPaths {
     }
 
     pub(crate) fn is_personal_runtime(&self) -> bool {
-        self.runtime_root
-            .canonicalize()
-            .ok()
-            .is_some_and(|root| self.matches_personal_layout(&root))
+        self.runtime_root.canonicalize().ok().is_some_and(|root| {
+            self.matches_personal_layout(&root)
+                || self.matches_msix_cpu_package(&root, std::env::current_exe().ok().as_deref())
+        })
     }
 
     pub fn verify_qualification(
@@ -332,6 +353,10 @@ const PERSONAL_INSTALL_DIRECTORY: &str =
         "Whisper"
     };
 
+#[cfg(test)]
+#[path = "parakeet_import/msix_path_tests.rs"]
+mod msix_path_tests;
+
 fn personal_runtime_path_is_allowed(root: &Path, personal_root: &Path) -> bool {
     root == personal_root
         || (root.parent() == Some(personal_root.join(".staging").as_path())
@@ -431,59 +456,29 @@ impl ParakeetProcess {
         profile: &str,
         session_log_root: Option<&Path>,
     ) -> Result<Self, String> {
-        paths.validate()?;
-        let model_sha256 = whisper_core::model_registry::model(
-            whisper_core::model_catalog::ModelId::ParakeetTdt06BV3,
+        Self::spawn_profile_with_desktop_executable(
+            paths,
+            profile,
+            session_log_root,
+            std::env::current_exe().ok(),
         )
-        .artifact
-        .sha256;
-        let mut command = Command::new(&paths.executable);
-        command
-            .arg("--model")
-            .arg(&paths.model)
-            .arg("--model-sha256")
-            .arg(model_sha256)
-            .arg("--native-dir")
-            .arg(&paths.native_dir);
-        if profile == PROFILE_IMPORT_VAD {
-            command.args(["--profile", PROFILE_IMPORT_VAD]);
-        } else if profile == PROFILE_QUALIFICATION_REFERENCE {
-            command.arg("--qualification-reference");
-        }
-        if paths.is_personal_runtime() {
-            for name in [
-                "PARAKEET_R6_TIMING_LOG",
-                "PARAKEET_R6_CASE",
-                "PARAKEET_R7_TIMING_ACTIVE",
-                "PARAKEET_R7_EXEC_ROOT",
-                "PARAKEET_R7_TIMING_LOG",
-                "PARAKEET_L3C_EXEC_ROOT",
-                "PARAKEET_L3D_EXEC_ROOT",
-            ] {
-                command.env_remove(name);
-            }
-        }
-        let cpu_read_runtime = if paths.is_personal_runtime() {
-            None
-        } else {
-            historical_runtime::l3b_r6_cpu_read_runtime_root(paths)?
-        };
-        let (stderr, worker_log) =
-            worker_stderr_log(paths, cpu_read_runtime.is_some(), session_log_root)?;
-        let worker_runtime_root = cpu_read_runtime.unwrap_or_else(|| paths.runtime_root.clone());
-        if paths
-            .executable
-            .file_name()
-            .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe")
-            && let Some(asr_log) = worker_log.as_ref()
-        {
-            command.env("PARAKEET_L3_ASR_LOG", asr_log);
-        }
+    }
+
+    fn spawn_profile_with_desktop_executable(
+        paths: &ParakeetWorkerPaths,
+        profile: &str,
+        session_log_root: Option<&Path>,
+        desktop_executable: Option<PathBuf>,
+    ) -> Result<Self, String> {
+        let mut command = prepare_profile_worker_command(
+            paths,
+            profile,
+            session_log_root,
+            desktop_executable.as_deref(),
+        )?;
         let mut child = command
-            .env("PARAKEET_L2_RUNTIME_ROOT", worker_runtime_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(stderr)
             .spawn()
             .map_err(|error| format!("WorkerStart: {error}"))?;
         let input = child
@@ -705,6 +700,71 @@ impl ParakeetProcess {
     }
 }
 
+fn prepare_profile_worker_command(
+    paths: &ParakeetWorkerPaths,
+    profile: &str,
+    session_log_root: Option<&Path>,
+    desktop_executable: Option<&Path>,
+) -> Result<Command, String> {
+    paths.validate_with_desktop_executable(desktop_executable)?;
+    let package_runtime = paths
+        .runtime_root
+        .canonicalize()
+        .ok()
+        .is_some_and(|root| paths.matches_msix_cpu_package(&root, desktop_executable));
+    let private_runtime = paths.is_personal_runtime() || package_runtime;
+    let model_sha256 =
+        whisper_core::model_registry::model(whisper_core::model_catalog::ModelId::ParakeetTdt06BV3)
+            .artifact
+            .sha256;
+    let mut command = Command::new(&paths.executable);
+    command
+        .arg("--model")
+        .arg(&paths.model)
+        .arg("--model-sha256")
+        .arg(model_sha256)
+        .arg("--native-dir")
+        .arg(&paths.native_dir);
+    if profile == PROFILE_IMPORT_VAD {
+        command.args(["--profile", PROFILE_IMPORT_VAD]);
+    } else if profile == PROFILE_QUALIFICATION_REFERENCE {
+        command.arg("--qualification-reference");
+    }
+    if private_runtime {
+        for name in [
+            "PARAKEET_R6_TIMING_LOG",
+            "PARAKEET_R6_CASE",
+            "PARAKEET_R7_TIMING_ACTIVE",
+            "PARAKEET_R7_EXEC_ROOT",
+            "PARAKEET_R7_TIMING_LOG",
+            "PARAKEET_L3C_EXEC_ROOT",
+            "PARAKEET_L3D_EXEC_ROOT",
+        ] {
+            command.env_remove(name);
+        }
+    }
+    let cpu_read_runtime = if private_runtime {
+        None
+    } else {
+        historical_runtime::l3b_r6_cpu_read_runtime_root(paths)?
+    };
+    let (stderr, worker_log) =
+        worker_stderr_log(paths, cpu_read_runtime.is_some(), session_log_root)?;
+    let worker_runtime_root = cpu_read_runtime.unwrap_or_else(|| paths.runtime_root.clone());
+    if paths
+        .executable
+        .file_name()
+        .is_some_and(|name| name == "whisper-worker-parakeet-gpu.exe")
+        && let Some(asr_log) = worker_log.as_ref()
+    {
+        command.env("PARAKEET_L3_ASR_LOG", asr_log);
+    }
+    command
+        .env("PARAKEET_L2_RUNTIME_ROOT", worker_runtime_root)
+        .stderr(stderr);
+    Ok(command)
+}
+
 fn worker_stderr_log(
     paths: &ParakeetWorkerPaths,
     is_l3b_r6_cpu_worker: bool,
@@ -816,26 +876,6 @@ fn worker_log_prefix(is_gpu_worker: bool, l3c_gpu_log: bool, l3d_gpu_log: bool) 
 }
 
 #[cfg(test)]
-mod worker_log_mode_tests {
-    #[test]
-    fn gpu_log_prefix_preserves_l3b_and_scopes_l3c_names() {
-        assert_eq!(super::worker_log_prefix(true, false, false), "parakeet-asr");
-        assert_eq!(
-            super::worker_log_prefix(true, true, false),
-            "l3c-parakeet-asr"
-        );
-        assert_eq!(
-            super::worker_log_prefix(true, false, true),
-            "l3d-parakeet-asr"
-        );
-        assert_eq!(
-            super::worker_log_prefix(false, false, false),
-            "parakeet-worker-cpu"
-        );
-    }
-}
-
-#[cfg(test)]
 mod worker_log_tests;
 
 #[cfg(test)]
@@ -942,48 +982,5 @@ impl Drop for ParakeetProcess {
             let _ = self.child.kill();
             let _ = self.child.wait();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn paths_reject_a_worker_outside_the_runtime_root() {
-        let root = std::env::var_os("PARAKEET_L2_RUNTIME_ROOT")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::temp_dir().join("whisper-parakeet-runtime-tests"));
-        std::fs::create_dir_all(&root).unwrap();
-        let paths = ParakeetWorkerPaths {
-            executable: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
-            native_dir: root.join("native"),
-            model: root.join("runtime/model/parakeet-tdt-0.6b-v3.q8_0.gguf"),
-            runtime_root: root,
-        };
-        assert!(
-            paths
-                .validate()
-                .unwrap_err()
-                .starts_with("PathOutsideRuntime")
-        );
-    }
-
-    #[test]
-    fn personal_runtime_root_is_published_or_direct_staging_child_only() {
-        let personal = Path::new(r"C:\Users\tester\AppData\Local\Whisper");
-        assert!(personal_runtime_path_is_allowed(personal, personal));
-        assert!(personal_runtime_path_is_allowed(
-            Path::new(r"C:\Users\tester\AppData\Local\Whisper\.staging\candidate"),
-            personal,
-        ));
-        assert!(!personal_runtime_path_is_allowed(
-            Path::new(r"C:\dev\whisper\target\parakeet-tests\l6-perso"),
-            personal,
-        ));
-        assert!(!personal_runtime_path_is_allowed(
-            Path::new(r"C:\Users\tester\AppData\Local\Whisper\.staging\candidate\nested"),
-            personal,
-        ));
     }
 }

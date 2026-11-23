@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use whisper_adapters::model_catalog::CatalogSnapshot;
 use whisper_core::model_catalog::ModelId;
 
@@ -6,6 +7,139 @@ pub(super) const TURBO_DISTRIBUTION: bool = whisper_desktop::TURBO_EDITION;
 pub(super) const DUAL_DISTRIBUTION: bool =
     option_env!("WHISPER_DISTRIBUTION_EDITION_DUAL").is_some();
 pub(super) const PACKAGED_DISTRIBUTION: bool = TURBO_DISTRIBUTION || DUAL_DISTRIBUTION;
+
+#[derive(Clone, Debug)]
+pub(super) struct RuntimeRoots {
+    pub(super) assets: PathBuf,
+    pub(super) data: PathBuf,
+    pub(super) installation: PathBuf,
+    pub(super) msix: bool,
+}
+
+pub(super) enum GpuInventoryLogRoute {
+    Default,
+    Disabled,
+    Explicit(PathBuf),
+}
+
+static RUNTIME_ROOTS: OnceLock<Result<Option<RuntimeRoots>, String>> = OnceLock::new();
+
+pub(super) fn current_runtime_roots() -> Result<Option<RuntimeRoots>, String> {
+    if !PACKAGED_DISTRIBUTION {
+        return Ok(None);
+    }
+    RUNTIME_ROOTS
+        .get_or_init(|| {
+            runtime_roots_from(
+                whisper_adapters::path_settings::current_msix_local_data_root()?,
+                std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
+                std::env::current_exe().ok().as_deref(),
+            )
+        })
+        .clone()
+}
+
+pub(super) fn personal_root(roots: Option<&RuntimeRoots>) -> Option<PathBuf> {
+    roots
+        .filter(|roots| roots.msix)
+        .map(|roots| roots.installation.clone())
+}
+
+pub(super) fn data_root(roots: Option<&RuntimeRoots>) -> Option<PathBuf> {
+    roots.map(|roots| roots.data.clone())
+}
+
+pub(super) fn assets_root(roots: Option<&RuntimeRoots>) -> Option<PathBuf> {
+    roots.map(|roots| roots.assets.clone())
+}
+
+pub(super) fn msix_cpu_parakeet_worker(
+    roots: Option<&RuntimeRoots>,
+) -> Option<whisper_adapters::parakeet_import::ParakeetWorkerPaths> {
+    roots.filter(|roots| roots.msix).map(|roots| {
+        whisper_adapters::parakeet_import::ParakeetWorkerPaths::from_msix_cpu_package(&roots.assets)
+    })
+}
+
+pub(super) fn personal_model_root(root: &Path) -> PathBuf {
+    root.join("models")
+}
+
+pub(super) fn personal_worker_paths(
+    root: &Path,
+    backend: whisper_core::model_catalog::Backend,
+) -> whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+    let (worker, native) = match backend {
+        whisper_core::model_catalog::Backend::Cpu => {
+            ("whisper-worker-parakeet-cpu.exe", "native/cpu")
+        }
+        whisper_core::model_catalog::Backend::Gpu => {
+            ("whisper-worker-parakeet-gpu.exe", "native/gpu")
+        }
+    };
+    whisper_adapters::parakeet_import::ParakeetWorkerPaths {
+        executable: root.join("worker").join(worker),
+        native_dir: root.join(native),
+        model: personal_model_root(root).join("parakeet-tdt-0.6b-v3.q8_0.gguf"),
+        runtime_root: root.to_path_buf(),
+    }
+}
+
+pub(super) fn runtime_roots_from(
+    msix_local_folder: Option<PathBuf>,
+    local_app_data: Option<PathBuf>,
+    executable: Option<&Path>,
+) -> Result<Option<RuntimeRoots>, String> {
+    if let Some(local_folder) = msix_local_folder {
+        if !local_folder.is_absolute() {
+            return Err("MSIX LocalFolder path is not absolute".into());
+        }
+        let executable = executable.ok_or_else(|| "MSIX desktop path unavailable".to_owned())?;
+        let app_directory = executable
+            .parent()
+            .filter(|path| path.file_name().is_some_and(|name| name == "app"))
+            .ok_or_else(|| "MSIX desktop is not under the package app directory".to_owned())?;
+        let package_root = app_directory
+            .parent()
+            .filter(|path| path.is_absolute())
+            .ok_or_else(|| "MSIX package root unavailable".to_owned())?
+            .to_path_buf();
+        let data = local_folder.join("WhisperTurbo");
+        return Ok(Some(RuntimeRoots {
+            assets: package_root.clone(),
+            data,
+            installation: package_root,
+            msix: true,
+        }));
+    }
+    Ok(local_app_data.map(|local| {
+        let root = local.join("WhisperTurbo");
+        RuntimeRoots {
+            assets: root.clone(),
+            data: root.clone(),
+            installation: root,
+            msix: false,
+        }
+    }))
+}
+
+pub(super) fn gpu_inventory_log_route(
+    data_root: Option<&Path>,
+    msix: bool,
+    turbo_distribution: bool,
+) -> GpuInventoryLogRoute {
+    if msix {
+        return data_root.map_or(GpuInventoryLogRoute::Disabled, |root| {
+            GpuInventoryLogRoute::Explicit(log_paths(root).1)
+        });
+    }
+    if turbo_distribution {
+        return data_root.map_or(GpuInventoryLogRoute::Disabled, |root| {
+            GpuInventoryLogRoute::Explicit(log_paths(root).1)
+        });
+    }
+    GpuInventoryLogRoute::Default
+}
 
 pub(super) fn turbo_install_root(local_app_data: Option<std::ffi::OsString>) -> Option<PathBuf> {
     local_app_data

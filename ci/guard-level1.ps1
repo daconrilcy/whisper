@@ -6,6 +6,7 @@ param(
     [switch]$WithoutCargoTargetDir,
     [switch]$TurboEdition,
     [switch]$DualCpuRebaseline,
+    [switch]$MsixCpuPrototype,
     [string]$FreshTarget,
     [string]$ExistingTarget,
     [string]$PersonalParakeetModelPath,
@@ -22,6 +23,8 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $script:turboEditionEnabled = [bool]$TurboEdition
 $script:dualCpuRebaselineEnabled = [bool]$DualCpuRebaseline
+$script:msixCpuPrototypeEnabled = [bool]$MsixCpuPrototype
+$script:msixCpuPrototypeSelfTest = $false
 $script:turboEditionMarker = 'WHISPER_DISTRIBUTION_EDITION_TURBO'
 $script:dualEditionMarker = 'WHISPER_DISTRIBUTION_EDITION_DUAL'
 $script:dualEditionBuildActive = $false
@@ -201,12 +204,32 @@ foreach ($argument in @('--all-targets','--message-format=json','--','-W','clipp
 $dualCpuRebaselineProfiles.Add((ConvertTo-Json -InputObject ([string[]]$dualCpuRebaselineClippy.ToArray()) -Compress))
 $script:cargoInvocationPolicies[$dualCpuRebaselineRoot] = [string[]]$dualCpuRebaselineProfiles.ToArray()
 
+$msixCpuPrototypeRoot = 'target/parakeet-tests/msix-cpu-prototype-20261122'
+$msixCpuPrototypeProfiles = [Collections.Generic.List[string]]::new()
+foreach ($profile in @(
+    @('fmt','--check'),
+    @('test','--no-fail-fast'),
+    @('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal'),
+    @('test','--no-run','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal'),
+    @('clippy','-p','whisper-core','-p','whisper-adapters','-p','whisper-desktop','-p','whisper-bootstrap','-p','whisper-worker-common','-p','whisper-worker-parakeet-cpu','--all-targets','--message-format=json','--','-W','clippy::too_many_lines','-W','clippy::cognitive_complexity','-W','clippy::too_many_arguments','-W','clippy::type_complexity'),
+    @('build','--release','-p','whisper-worker-cpu','-vv'),
+    @('build','--release','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal','-vv'),
+    @('build','--release','-p','whisper-desktop','--features','personal-install','-vv'),
+    @('build','--release','-p','whisper-bootstrap','-vv')
+)) {
+    $msixCpuPrototypeProfiles.Add((ConvertTo-Json -InputObject ([string[]]$profile) -Compress))
+}
+$script:cargoInvocationPolicies[$msixCpuPrototypeRoot] = [string[]]$msixCpuPrototypeProfiles.ToArray()
+
 if ($CargoArgsJson) {
     if ($CargoArgs.Count -gt 0) { throw 'Use either -CargoArgs or -CargoArgsJson, not both.' }
     $CargoArgs = Convert-CargoArgsJson $CargoArgsJson
 }
 if (($DualParakeetCpuWorkerSha256 -or $DualCpuRuntimeSha256) -and -not $DualCpuRebaseline) {
     throw 'Dual worker/runtime SHA inputs require -DualCpuRebaseline.'
+}
+if ($MsixCpuPrototype -and ($TurboEdition -or $DualCpuRebaseline)) {
+    throw '-MsixCpuPrototype cannot be combined with another edition profile.'
 }
 
 function Test-DesktopCpuWorkerSha256Policy([string]$Mode, [string]$Digest, [string[]]$Arguments, [string]$Root) {
@@ -226,8 +249,11 @@ function Test-DesktopCpuWorkerInvocation([string[]]$Arguments) {
     $profile = @($Arguments | Where-Object { $_ -cne '--offline' -and $_ -cne '--locked' })
     $allowedProfiles = [Collections.Generic.List[string[]]]::new()
     $allowedProfiles.Add([string[]]@('build','--release','-p','whisper-desktop','-vv'))
-    if ($script:dualCpuRebaselineEnabled) {
+    if ($script:dualCpuRebaselineEnabled -or $script:msixCpuPrototypeEnabled) {
         $allowedProfiles.Add([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv'))
+    }
+    if ($script:msixCpuPrototypeEnabled) {
+        $allowedProfiles.Add([string[]]@('build','--release','-p','whisper-bootstrap','-vv'))
     }
     foreach ($expected in $allowedProfiles) {
         if ($profile.Count -ne $expected.Count) { continue }
@@ -238,6 +264,10 @@ function Test-DesktopCpuWorkerInvocation([string[]]$Arguments) {
         if ($matches) { return $true }
     }
     return $false
+}
+
+function Test-MsixP7TurboCpuWorkerSha256([string]$Digest) {
+    return $Digest -ceq 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
 }
 
 $script:authorizedDesktopCpuWorkerSha256 = $null
@@ -635,6 +665,9 @@ function Get-CargoInvocationPolicySignature([string[]]$Arguments) {
 
 function Assert-CargoInvocationPolicy([string[]]$Arguments, [string]$Root) {
     $policyKey = Get-PackagePolicyKey $Root
+    if ($policyKey -ceq $msixCpuPrototypeRoot -and -not $script:msixCpuPrototypeEnabled) {
+        throw "Cargo lot '$policyKey' requires -MsixCpuPrototype; Cargo not launched."
+    }
     if ($policyKey -ceq $dualCpuRebaselineRoot -and -not $script:dualCpuRebaselineEnabled) {
         throw "Cargo lot '$policyKey' requires -DualCpuRebaseline; Cargo not launched."
     }
@@ -672,8 +705,10 @@ function Assert-DualCpuRebaselineInvocation(
         throw 'Dual worker/runtime SHA inputs are accepted only for the exact desktop build.'
     }
     $n1 = ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress
+    $personalN1 = ConvertTo-Json -InputObject ([string[]]@('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal')) -Compress
     $fmt = ConvertTo-Json -InputObject ([string[]]@('fmt','--check')) -Compress
     $isN1 = $signature -ceq $n1
+    $isPersonalN1 = $signature -ceq $personalN1
     $isFmt = $signature -ceq $fmt
     if ($isN1) {
         if ($SelectedFreshTarget -cne 'dual-cpu-r1-retry-05' -or $SelectedExistingTarget -or -not $NoCargoTargetDir) {
@@ -733,6 +768,180 @@ function Assert-DualCpuRebaselineInvocation(
             $script:authorizedDualBootstrapAssetSha256[$asset.Variable] = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
         }
     }
+}
+
+function Assert-MsixCpuPrototypeInvocation(
+    [string[]]$Arguments,
+    [string]$Root,
+    [string]$SelectedFreshTarget,
+    [string]$SelectedExistingTarget,
+    [bool]$NoCargoTargetDir
+) {
+    if (-not $script:msixCpuPrototypeEnabled) { return }
+    if ((Get-FullPath $Root) -ine (Resolve-LotRoot $msixCpuPrototypeRoot) -or
+        $SelectedFreshTarget -notin @('msix-cpu',$null,'') -or
+        $SelectedExistingTarget -notin @('msix-cpu',$null,'') -or
+        ($SelectedFreshTarget -and $SelectedExistingTarget)) {
+        throw '-MsixCpuPrototype requires its exact lot root and target name.'
+    }
+    $signature = Get-CargoInvocationPolicySignature $Arguments
+    $n1 = ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress
+    $personalN1 = ConvertTo-Json -InputObject ([string[]]@('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal')) -Compress
+    $personalPreflight = ConvertTo-Json -InputObject ([string[]]@('test','--no-run','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal')) -Compress
+    $fmt = ConvertTo-Json -InputObject ([string[]]@('fmt','--check')) -Compress
+    $isN1 = $signature -ceq $n1
+    $isPersonalN1 = $signature -ceq $personalN1
+    $isPersonalPreflight = $signature -ceq $personalPreflight
+    $isFmt = $signature -ceq $fmt
+    if ($isFmt) {
+        if (($SelectedFreshTarget -cne 'msix-cpu' -and $SelectedExistingTarget -cne 'msix-cpu') -or $NoCargoTargetDir) {
+            throw 'MSIX CPU fmt requires the fresh or existing msix-cpu target.'
+        }
+    } elseif ($isN1 -or $isPersonalN1 -or $isPersonalPreflight) {
+        if ($SelectedFreshTarget -or $SelectedExistingTarget -cne 'msix-cpu' -or -not $NoCargoTargetDir) {
+            throw 'MSIX CPU N1 requires WithoutCargoTargetDir and the existing msix-cpu target.'
+        }
+    } elseif ($SelectedFreshTarget -or $SelectedExistingTarget -cne 'msix-cpu' -or $NoCargoTargetDir) {
+        throw 'MSIX CPU follow-up commands require the existing msix-cpu target.'
+    }
+    if (-not $script:msixCpuPrototypeSelfTest -and ($isN1 -or $isPersonalN1 -or $isPersonalPreflight -or $signature -match '"clippy"') -and
+        $script:personalModel -cne (Get-FullPath 'C:/dev/whisper/models/parakeet-tdt-0.6b-v3.q8_0.gguf')) {
+        throw 'MSIX CPU N1/Clippy requires the verified Parakeet model path.'
+    }
+    if (-not (Assert-CargoInvocationPolicy $Arguments $Root)) {
+        throw 'MSIX CPU profile is not in its exact allowlist; Cargo not launched.'
+    }
+    if ($script:msixCpuPrototypeSelfTest) { return }
+    if ($signature -ceq (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress)) {
+        $parakeet = Join-Path $script:targetRoot 'release/whisper-worker-parakeet-cpu.exe'
+        $turbo = Join-Path $script:targetRoot 'release/whisper-worker-cpu.exe'
+        foreach ($path in @($parakeet,$turbo)) { Assert-NoReparseChain $path 'MSIX dual desktop build identity' }
+        if (-not (Test-Path -LiteralPath $parakeet -PathType Leaf)) {
+            throw 'MSIX Parakeet CPU worker output is absent before the desktop build.'
+        }
+        if (-not (Test-Path -LiteralPath $turbo -PathType Leaf) -or
+            -not (Test-MsixP7TurboCpuWorkerSha256 ((Get-FileHash -LiteralPath $turbo -Algorithm SHA256).Hash.ToLowerInvariant()))) {
+            throw 'MSIX Turbo CPU worker differs from the final P7 CPU package.'
+        }
+        $script:authorizedDualParakeetCpuWorkerSha256 = (Get-FileHash -LiteralPath $parakeet -Algorithm SHA256).Hash.ToLowerInvariant()
+        $script:authorizedDualCpuRuntimeSha256 = 'df69460841635b9d3ff080015ee678b8bb74ec08148e04142a234403247dbc31'
+        $script:authorizedDesktopCpuWorkerSha256 = 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b'
+    }
+    if ($signature -ceq (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-bootstrap','-vv')) -Compress)) {
+        $turbo = Join-Path $script:targetRoot 'release/whisper-worker-cpu.exe'
+        Assert-NoReparseChain $turbo 'MSIX bootstrap Turbo worker identity'
+        if (-not (Test-Path -LiteralPath $turbo -PathType Leaf) -or
+            -not (Test-MsixP7TurboCpuWorkerSha256 ((Get-FileHash -LiteralPath $turbo -Algorithm SHA256).Hash.ToLowerInvariant()))) {
+            throw 'MSIX bootstrap Turbo CPU worker differs from the final P7 CPU package.'
+        }
+        foreach ($asset in @(
+            @{ Name='whisper-desktop.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_DESKTOP_SHA256' },
+            @{ Name='whisper-worker-cpu.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_TURBO_CPU_SHA256' },
+            @{ Name='whisper-worker-parakeet-cpu.exe'; Variable='WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256' }
+        )) {
+            $path = Join-Path $script:targetRoot (Join-Path 'release' $asset.Name)
+            Assert-NoReparseChain $path 'MSIX bootstrap identity input'
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "MSIX bootstrap input is absent: $($asset.Name)" }
+            $script:authorizedDualBootstrapAssetSha256[$asset.Variable] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        $script:authorizedDualParakeetCpuWorkerSha256 = $script:authorizedDualBootstrapAssetSha256['WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256']
+        $script:authorizedDualCpuRuntimeSha256 = 'df69460841635b9d3ff080015ee678b8bb74ec08148e04142a234403247dbc31'
+        $script:authorizedDesktopCpuWorkerSha256 = $script:authorizedDualBootstrapAssetSha256['WHISPER_DUAL_BOOTSTRAP_TURBO_CPU_SHA256']
+    }
+}
+
+function Invoke-MsixCpuPrototypePolicySelfTests {
+    $root = Join-Path $repo $msixCpuPrototypeRoot
+    $members = @('whisper-core','whisper-adapters','whisper-desktop','whisper-bootstrap','whisper-worker-common','whisper-worker-parakeet-cpu')
+    $registered = [string[]]$script:cargoInvocationPolicies[$msixCpuPrototypeRoot]
+    if ($registered.Count -ne 9) { throw 'MSIX CPU prototype SelfTest expected nine exact Cargo profiles.' }
+    $desktopBuild = [string[]]@('build','--offline','--locked','--release','-p','whisper-desktop','--features','personal-install','-vv')
+    if (-not (Test-DesktopCpuWorkerInvocation $desktopBuild)) {
+        throw 'MSIX CPU prototype SelfTest rejected the exact P8 desktop digest handoff profile.'
+    }
+    $bootstrapBuild = [string[]]@('build','--offline','--locked','--release','-p','whisper-bootstrap','-vv')
+    if (-not (Test-DesktopCpuWorkerInvocation $bootstrapBuild)) {
+        throw 'MSIX CPU prototype SelfTest rejected the exact P8 bootstrap digest handoff profile.'
+    }
+    $before = $script:cargoProcessLaunchCount
+    $positive = 0
+    $negative = 0
+    if (-not (Test-MsixP7TurboCpuWorkerSha256 'a16a5452610ab1dae8af349b2d97d1eea36f44a263125a15fd884288a3ec960b')) {
+        throw 'MSIX CPU prototype SelfTest did not recognize the exact final P7 Turbo worker SHA.'
+    }
+    $positive++
+    if (Test-MsixP7TurboCpuWorkerSha256 ('0' * 64)) {
+        throw 'MSIX CPU prototype SelfTest accepted a Turbo worker SHA not present in the final P7 CPU package.'
+    }
+    $negative++
+    if (Test-DesktopCpuWorkerInvocation @('build','--release','-p','whisper-worker-cpu','-vv')) {
+        throw 'MSIX CPU prototype SelfTest accepted a non-desktop digest handoff profile.'
+    }
+    $negative++
+    $script:msixCpuPrototypeEnabled = $false
+    if (Test-DesktopCpuWorkerInvocation $desktopBuild) {
+        throw 'MSIX CPU prototype SelfTest accepted the P8 digest handoff without its selector.'
+    }
+    $negative++
+    if (Test-DesktopCpuWorkerInvocation $bootstrapBuild) {
+        throw 'MSIX CPU prototype SelfTest accepted the bootstrap P8 digest handoff without its selector.'
+    }
+    $negative++
+    $script:msixCpuPrototypeEnabled = $true
+    $saved = $script:msixCpuPrototypeSelfTest
+    try {
+        $script:msixCpuPrototypeSelfTest = $true
+        foreach ($json in $registered) {
+            $profile = [string[]](Convert-CargoArgsJson $json)
+            $checked = Test-CargoArguments $profile $members -SkipMemberValidation
+            $signature = Get-CargoInvocationPolicySignature $checked.Args
+            $isN1 = $signature -ceq (ConvertTo-Json -InputObject ([string[]]@('test','--no-fail-fast')) -Compress)
+            $isPersonalN1 = $signature -ceq (ConvertTo-Json -InputObject ([string[]]@('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal')) -Compress)
+            $isPersonalPreflight = $signature -ceq (ConvertTo-Json -InputObject ([string[]]@('test','--no-run','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal')) -Compress)
+            $isFmt = $signature -ceq (ConvertTo-Json -InputObject ([string[]]@('fmt','--check')) -Compress)
+            $fresh = if ($isFmt) { 'msix-cpu' } else { $null }
+            $existing = if ($isFmt) { $null } else { 'msix-cpu' }
+            $noVariable = $isN1 -or $isPersonalN1 -or $isPersonalPreflight
+            Assert-MsixCpuPrototypeInvocation $checked.Args $root $fresh $existing $noVariable
+            $positive++
+        }
+        Assert-MsixCpuPrototypeInvocation @('fmt','--check') $root $null 'msix-cpu' $false
+        $positive++
+        $bad = @(
+            @{ Args=@('build','--release','-p','whisper-worker-gpu','-vv'); Root=$root; Fresh=$null; Existing='msix-cpu'; NoVariable=$false },
+            @{ Args=@('fmt','--check','--all'); Root=$root; Fresh=$null; Existing='msix-cpu'; NoVariable=$false },
+            @{ Args=@('test','--no-fail-fast'); Root=(Join-Path $repo 'target/parakeet-tests/cpu-distribution-x64-20261115'); Fresh='msix-cpu'; Existing=$null; NoVariable=$true },
+            @{ Args=@('test','--no-fail-fast'); Root=$root; Fresh='other-target'; Existing=$null; NoVariable=$true },
+            @{ Args=@('fmt','--check'); Root=$root; Fresh=$null; Existing='other-target'; NoVariable=$false },
+            @{ Args=@('fmt','--check'); Root=$root; Fresh=$null; Existing=$null; NoVariable=$false },
+            @{ Args=@('fmt','--check'); Root=$root; Fresh='msix-cpu'; Existing=$null; NoVariable=$true },
+            @{ Args=@('test','--no-fail-fast'); Root=$root; Fresh='msix-cpu'; Existing=$null; NoVariable=$true },
+            @{ Args=@('test','--no-fail-fast'); Root=$root; Fresh=$null; Existing='msix-cpu'; NoVariable=$false },
+            @{ Args=@('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal'); Root=$root; Fresh='msix-cpu'; Existing=$null; NoVariable=$true },
+            @{ Args=@('test','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal'); Root=$root; Fresh=$null; Existing='msix-cpu'; NoVariable=$false },
+            @{ Args=@('test','--no-run','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal'); Root=$root; Fresh='msix-cpu'; Existing=$null; NoVariable=$true },
+            @{ Args=@('test','--no-run','-p','whisper-worker-parakeet-cpu'); Root=$root; Fresh=$null; Existing='msix-cpu'; NoVariable=$true }
+        )
+        foreach ($case in $bad) {
+            $rejected = $false
+            try {
+                $checked = Test-CargoArguments $case.Args $members -SkipMemberValidation
+                Assert-MsixCpuPrototypeInvocation $checked.Args $case.Root $case.Fresh $case.Existing $case.NoVariable
+            } catch { $rejected = $true }
+            if (-not $rejected) { throw "MSIX CPU prototype SelfTest accepted invalid profile: $($case.Args -join ' ')." }
+            $negative++
+        }
+        $script:msixCpuPrototypeEnabled = $false
+        $rejected = $false
+        try { [void](Assert-CargoInvocationPolicy @('fmt','--check') $root) } catch { $rejected = $true }
+        if (-not $rejected) { throw 'MSIX CPU prototype SelfTest accepted its profile without the selector switch.' }
+        $negative++
+    } finally {
+        $script:msixCpuPrototypeSelfTest = $saved
+        $script:msixCpuPrototypeEnabled = $true
+    }
+    if ($script:cargoProcessLaunchCount -ne $before) { throw 'MSIX CPU prototype SelfTest launched Cargo.' }
+    return [pscustomobject]@{ Positive=$positive; Negative=$negative }
 }
 
 function Invoke-DualCpuRebaselinePolicySelfTests {
@@ -1248,8 +1457,16 @@ function Invoke-WorkerHarnessImportGate([string]$Package, [string[]]$ExecutableP
     return $index
 }
 
-function Invoke-WorkerHarnessPreflight([string]$Package, [string]$Phase) {
+function Invoke-WorkerHarnessPreflight([string]$Package, [string]$Phase, [string[]]$RequestedArguments) {
     $preflightArgs = [string[]]@('test','--offline','--locked','--no-run','-p',$Package)
+    if ($Package -ceq 'whisper-worker-parakeet-cpu' -and $RequestedArguments -contains '--features') {
+        $featureIndex = [Array]::IndexOf($RequestedArguments,'--features')
+        if ($featureIndex -lt 0 -or $featureIndex + 1 -ge $RequestedArguments.Count -or
+            $RequestedArguments[$featureIndex + 1] -cne 'parakeet-personal') {
+            throw 'Worker harness preflight received an unprofiled feature; Cargo not launched.'
+        }
+        $preflightArgs += @('--features','parakeet-personal')
+    }
     [void](Assert-CargoInvocationPolicy $preflightArgs $lotRoot)
     [void](Assert-CargoPackagePolicy $preflightArgs $lotRoot)
     if ($script:useConfigTarget) { $preflightArgs += @('--config',('build.target-dir=' + (ConvertTo-Json -Compress $script:targetRoot))) }
@@ -1542,6 +1759,33 @@ function Set-CargoCommandEnvironment([string]$Subcommand, [string[]]$Arguments =
         'WHISPER_DUAL_BOOTSTRAP_PARAKEET_CPU_SHA256'
     )) { Set-ProcessEnvironmentValue $name $null }
     $script:dualEditionBuildActive = $false
+    if ($script:msixCpuPrototypeEnabled -and $Subcommand -eq 'build') {
+        $signature = Get-CargoInvocationPolicySignature $Arguments
+        $dualBuildProfiles = @(
+            (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-worker-cpu','-vv')) -Compress),
+            (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-worker-parakeet-cpu','--features','parakeet-personal','-vv')) -Compress),
+            (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-desktop','--features','personal-install','-vv')) -Compress),
+            (ConvertTo-Json -InputObject ([string[]]@('build','--release','-p','whisper-bootstrap','-vv')) -Compress)
+        )
+        if ($signature -cnotin $dualBuildProfiles) { return }
+        $script:dualEditionBuildActive = $true
+        Set-ProcessEnvironmentValue $script:dualEditionMarker '1'
+        if ($signature -ceq $dualBuildProfiles[2] -or $signature -ceq $dualBuildProfiles[3]) {
+            $parakeetWorker = Join-Path $script:targetRoot 'release/whisper-worker-parakeet-cpu.exe'
+            if (-not (Test-Path -LiteralPath $parakeetWorker -PathType Leaf)) {
+                throw 'The guarded Parakeet CPU worker output is absent before the dual package build.'
+            }
+            Set-ProcessEnvironmentValue 'WHISPER_DUAL_PARAKEET_CPU_WORKER_SHA256' $script:authorizedDualParakeetCpuWorkerSha256
+            Set-ProcessEnvironmentValue 'WHISPER_DUAL_PARAKEET_CPU_RUNTIME_SHA256' $script:authorizedDualCpuRuntimeSha256
+            Set-ProcessEnvironmentValue 'WHISPER_EXPECTED_CPU_WORKER_SHA256' $script:authorizedDesktopCpuWorkerSha256
+        }
+        if ($signature -ceq $dualBuildProfiles[3]) {
+            foreach ($name in $script:authorizedDualBootstrapAssetSha256.Keys) {
+                Set-ProcessEnvironmentValue $name $script:authorizedDualBootstrapAssetSha256[$name]
+            }
+        }
+        return
+    }
     if (-not $script:dualCpuRebaselineEnabled -or $Subcommand -cne 'build') { return }
     $signature = Get-CargoInvocationPolicySignature $Arguments
     $dualBuildProfiles = @(
@@ -2067,6 +2311,12 @@ function Invoke-SelfTests {
         $pCount += $dualCpuPolicyTests.Positive
         $nCount += $dualCpuPolicyTests.Negative
     }
+    if ($script:msixCpuPrototypeEnabled) {
+        $msixCpuPolicyTests = Invoke-MsixCpuPrototypePolicySelfTests
+        "MSIX_CPU_PROTOTYPE_POLICY_SELFTEST positive=$($msixCpuPolicyTests.Positive) negative=$($msixCpuPolicyTests.Negative)"
+        $pCount += $msixCpuPolicyTests.Positive
+        $nCount += $msixCpuPolicyTests.Negative
+    }
     $turboEditionPolicyTests = Invoke-TurboEditionPolicySelfTests
     "TURBO_EDITION_POLICY_SELFTEST positive=$($turboEditionPolicyTests.Positive) negative=$($turboEditionPolicyTests.Negative)"
     $pCount += $turboEditionPolicyTests.Positive
@@ -2389,6 +2639,14 @@ if ($DualCpuRebaseline) {
         Assert-DualCpuRebaselineInvocation $CargoArgs $lotRoot $FreshTarget $ExistingTarget $WithoutCargoTargetDir $DualParakeetCpuWorkerSha256 $DualCpuRuntimeSha256
     }
 }
+if ($MsixCpuPrototype) {
+    if ((Get-FullPath $lotRoot) -ine (Resolve-LotRoot $msixCpuPrototypeRoot)) {
+        throw '-MsixCpuPrototype requires -LotRoot target/parakeet-tests/msix-cpu-prototype-20261122.'
+    }
+    if (-not $SelfTest -and $CargoArgs.Count -gt 0) {
+        Assert-MsixCpuPrototypeInvocation $CargoArgs $lotRoot $FreshTarget $ExistingTarget $WithoutCargoTargetDir
+    }
+}
 Initialize-Roots
 Set-CleanEnvironment
 Assert-WriteRoots
@@ -2448,7 +2706,7 @@ if ($script:authorizedDesktopCpuWorkerSha256) {
 if ($checked.Args[0] -ceq 'test' -and '--no-run' -cnotin $checked.Args) {
     $scope = Get-CargoPackageScope $checked.Args
     if ($scope.Packages.Count -eq 1 -and $scope.Packages[0] -in @('whisper-worker-cpu','whisper-worker-parakeet-cpu','whisper-worker-common')) {
-        Invoke-WorkerHarnessPreflight $scope.Packages[0] 'before-test'
+        Invoke-WorkerHarnessPreflight $scope.Packages[0] 'before-test' $checked.Args
     }
 }
 $result = Invoke-CargoCaptured $cargoArgs 'cargo-command'

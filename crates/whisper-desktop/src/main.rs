@@ -3,6 +3,11 @@
 mod root;
 
 fn main() -> eframe::Result {
+    #[cfg(windows)]
+    let has_msix_identity = matches!(
+        whisper_adapters::path_settings::current_msix_local_data_root(),
+        Ok(Some(_))
+    );
     whisper_adapters::cpu_capabilities::emit_desktop_startup_diagnostic();
     let process_started_at_unix_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -18,7 +23,7 @@ fn main() -> eframe::Result {
         model_selection,
         reactivity_log_path,
     } = root::compose();
-    whisper_desktop::run(
+    let result = whisper_desktop::run(
         application,
         whisper_desktop::DesktopStartup {
             compute_choice,
@@ -33,5 +38,21 @@ fn main() -> eframe::Result {
             parakeet_edition_enabled: !whisper_desktop::TURBO_EDITION,
             reactivity_log_path,
         },
-    )
+    );
+
+    #[cfg(windows)]
+    match result {
+        Err(error)
+            if has_msix_identity
+                && whisper_adapters::installer_ui::show_msix_glow_startup_error(
+                    &error.to_string(),
+                ) =>
+        {
+            Ok(())
+        }
+        other => other,
+    }
+
+    #[cfg(not(windows))]
+    result
 }

@@ -16,6 +16,50 @@ use whisper_core::{
     },
 };
 
+const APPMODEL_ERROR_NO_PACKAGE_HRESULT: u32 = 0x8007_3D54;
+
+/// Returns the package's writable LocalFolder when this process has MSIX identity.
+/// Other identity or storage failures remain errors so packaged callers fail closed.
+#[cfg(windows)]
+pub fn current_msix_local_data_root() -> Result<Option<PathBuf>, String> {
+    use windows::Storage::ApplicationData;
+
+    match ApplicationData::Current() {
+        Ok(application_data) => {
+            let folder = application_data
+                .LocalFolder()
+                .map_err(|error| format!("MSIX LocalFolder unavailable: {error}"))?;
+            let path = folder
+                .Path()
+                .map_err(|error| format!("MSIX LocalFolder path unavailable: {error}"))?;
+            validate_msix_local_data_root(true, Some(PathBuf::from(path.to_string())))
+        }
+        Err(error) if error.code().0 as u32 == APPMODEL_ERROR_NO_PACKAGE_HRESULT => {
+            validate_msix_local_data_root(false, None)
+        }
+        Err(error) => Err(format!("MSIX package identity unavailable: {error}")),
+    }
+}
+
+#[cfg(not(windows))]
+pub fn current_msix_local_data_root() -> Result<Option<PathBuf>, String> {
+    Ok(None)
+}
+
+fn validate_msix_local_data_root(
+    has_package_identity: bool,
+    local_folder: Option<PathBuf>,
+) -> Result<Option<PathBuf>, String> {
+    if !has_package_identity {
+        return Ok(None);
+    }
+    let root = local_folder.ok_or_else(|| "MSIX LocalFolder missing".to_owned())?;
+    if !root.is_absolute() {
+        return Err("MSIX LocalFolder path is not absolute".into());
+    }
+    Ok(Some(root))
+}
+
 pub struct WindowsPathPort {
     file: PathBuf,
     sender: Option<Sender<(u64, StoredPaths)>>,
@@ -63,6 +107,10 @@ impl Default for WindowsPathPort {
         Self::new()
     }
 }
+
+#[cfg(test)]
+#[path = "path_settings/msix_data_root_tests.rs"]
+mod msix_data_root_tests;
 
 impl Drop for WindowsPathPort {
     fn drop(&mut self) {
