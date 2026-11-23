@@ -1,5 +1,5 @@
-Avancée : décomposition de la maquette mise à jour avec les décisions utilisateur du 23 novembre 2026.
-Blocage : quelques détails de cycle de vie restent à préciser avant un plan d'implémentation.
+Avancée : les décisions de fluidité demandées ont été arrêtées et intégrées à la décomposition.
+Blocage : aucun pour le cadrage ; un plan reste nécessaire avant toute implémentation.
 Décision : brief de conception uniquement ; aucune refonte ni implémentation n'est autorisée par ce document.
 
 # Brief UI — maquette du transcripteur Whisper
@@ -10,7 +10,7 @@ Ce brief décompose l'image jointe le 23 novembre 2026 et intègre les décision
 
 L'image est une référence de composition et d'apparence. Ses noms de fichiers, dates, durées, extraits, modèle/GPU affichés et message de reprise sont des données ou états illustratifs, sauf décision explicite rapportée dans ce brief.
 
-Les décisions marquées **confirmées** viennent de l'objectif produit ou des précisions utilisateur. Les propositions de style et les détails indiqués « à décider » ne deviennent des exigences qu'après acceptation.
+Les décisions marquées **confirmées** viennent de l'objectif produit ou des précisions utilisateur. La section 12 consigne les choix de cadrage arrêtés par la session principale à la demande de l'utilisateur, pour favoriser une utilisation fluide. Ils précisent le comportement attendu sans autoriser l'implémentation.
 
 ## 2. Référence visuelle et sources
 
@@ -54,7 +54,7 @@ Ces décisions modifient certains comportements existants ; elles ne se limitent
 | ID | Module | Responsabilité et référence |
 |---|---|---|
 | UI-01 | Coque et composition | Fond, largeur utile, cartes, adaptation au redimensionnement. En-tête et bandeau en haut, import/micro côte à côte, traitements en dessous. |
-| UI-02 | En-tête et état effectif | Marque, moteur/modèle réellement utilisés et engrenage vers les réglages avancés. |
+| UI-02 | En-tête et état effectif | Marque, moteur/modèle réellement utilisés, raccourci « Dossier de sortie » et engrenage vers les réglages avancés. |
 | UI-03 | Configuration avancée | Moteur, Auto/CPU/GPU, modèle, réglages et chemins par défaut, en réutilisant les vues et contrôleurs existants. |
 | UI-04 | Import audio | Sélection du fichier, action principale import+traitement, menu « Importer seulement », dialogue de doublon et lien vers le dossier source. |
 | UI-05 | Microphone et spectre | Source, actualisation, test, jauge, spectre restylé, gain et démarrage. |
@@ -69,9 +69,9 @@ La maquette n'affiche pas le parcours en traitement. Une variante active est né
 
 ### Composition de la façade
 
-La façade met en évidence les deux modes d'entrée et les traitements récents. Le moteur effectif reste identifiable. Le bouton engrenage est le point d'entrée vers la configuration avancée ; les réglages détaillés n'encombrent pas la façade.
+La façade met en évidence les deux modes d'entrée et les traitements récents. Le moteur effectif reste identifiable. Le raccourci « Dossier de sortie » ouvre le dossier de sortie actuellement configuré ; le bouton engrenage ouvre la configuration avancée sans encombrer la façade avec les réglages détaillés.
 
-La capture ne précise pas si la barre système Windows est remplacée. Le chrome personnalisé, les effets de lueur et le niveau de fidélité pixel sont des choix visuels à confirmer. Les espacements et couleurs tirés de la capture sont des estimations, pas encore des tokens mesurés.
+La barre système Windows standard est conservée. Les espacements et couleurs tirés de la capture servent de repères visuels estimés ; ils ne sont pas des tokens mesurés et la fidélité pixel exacte n'est pas exigée.
 
 ### Configuration avancée
 
@@ -83,7 +83,7 @@ Le panneau regroupe au minimum :
 
 Réutiliser notamment `view/settings.rs`, `PathSettingsApp`, `SelectionWidgetState` et les contrôleurs de préférences. La préférence choisie et le moteur effectif ne doivent pas être confondus. Les règles actuelles de verrouillage pendant une tâche restent à appliquer.
 
-« Dossiers par défaut » doit être raccordé aux concepts existants. L'UI conserve notamment le dernier dossier audio et la destination ; certains chemins sont composés par `root` et ne sont pas aujourd'hui des réglages utilisateur. Ne pas exposer automatiquement les chemins de workers, DLL ou installation. Le périmètre exact des dossiers réglables reste à confirmer.
+Le panneau permet de régler le dossier initial de recherche audio et le dossier de sortie par défaut. La recherche audio privilégie le dernier dossier valide, puis le dossier initial configuré, puis la valeur de secours existante. Le modèle reste sélectionné par le catalogue actuel. Les chemins de workers, DLL, installation, caches et journaux ne sont pas exposés comme réglages utilisateur. Une nouvelle destination s'applique aux nouveaux traitements ; les entrées déjà admises conservent leur destination.
 
 ## 6. UI-04 — Import à deux modes
 
@@ -100,8 +100,8 @@ La sélection multiple et le glisser-déposer sont visibles/suggérés par la r�
 
 | Mode | Résultat d'admission | Suite |
 |---|---|---|
-| Importer et transcrire | Une entrée admise est identifiée dans la file. | Le traitement démarre sans second clic « Traiter ». |
-| Importer seulement | Une ligne « Importé » apparaît. | L'utilisateur peut ensuite choisir « Traiter » ou « Annuler ». |
+| Importer et transcrire | Une entrée admise est identifiée dans la file avec l'intention de traitement. | Le traitement démarre dès que le moteur est libre, sans second clic « Traiter ». Si un traitement est actif, l'entrée affiche « En attente » et sa position. |
+| Importer seulement | Une ligne « Importé » apparaît. | Aucun traitement ne démarre sans clic ultérieur sur « Traiter ». |
 | Doublon, dans l'un ou l'autre mode | Une fenêtre supplémentaire demande une décision. | Après résolution, le mode choisi initialement reste respecté. Annuler le dialogue n'engage ni remplacement ni traitement. |
 
 Le comportement de doublon ne doit pas perdre l'intention initiale. Un choix qui résout un doublon ne doit pas démarrer le traitement si l'utilisateur avait choisi « Importer seulement ».
@@ -110,7 +110,7 @@ Le comportement de doublon ne doit pas perdre l'intention initiale. Un choix qui
 
 Actuellement, `controller/actions.rs::start_import` envoie `AppCommand::EnqueueImport`; `view/queue.rs` envoie plus tard `AppCommand::ProcessQueued` depuis le bouton « Traiter ». L'admission est asynchrone et peut résoudre l'identité de la nouvelle entrée. Le nouveau parcours doit attendre la confirmation et traiter l'identité effectivement admise, jamais une entrée supposée.
 
-Si le moteur est déjà occupé, définir si l'admission immédiate est refusée avec un message ou si elle attend en file pour démarrer ensuite. Recommandation de cadrage : rendre l'attente et son état explicites, sans lancer un deuxième traitement simultané.
+Les demandes « Importer et transcrire » et les demandes « Traiter » ajoutées par l'utilisateur entrent dans une file FIFO selon l'ordre de leur admission. Un seul traitement de cette file démarre à la fois ; un traitement ou une capture micro déjà actifs ne sont pas interrompus. La file démarre l'entrée suivante lorsque la ressource est libérée. Un import seul ne rejoint cette file qu'après le clic « Traiter ». Une entrée bloquée sur un dialogue de doublon ne bloque pas les autres entrées ; après résolution, elle rejoint la file selon l'ordre de confirmation. L'attente d'une capture micro affiche « En attente de la fin de l'enregistrement », sans estimation de durée. La fermeture de l'application convertit les intentions de traitement non démarrées en entrées interrompues à confirmer au prochain lancement ; elle ne lance pas un traitement de façon inattendue au démarrage.
 
 Le nom du fichier source est cliquable et ouvre son répertoire contenant. La cible doit être le chemin réel de la source, y compris si le chemin de sortie diffère.
 
@@ -132,11 +132,11 @@ La rangée de la maquette fait environ 675 × 24 pixels raster et ressemble à u
 - Piste arrondie bleu sombre par bande ; portion remplie verticalement depuis le bas en turquoise/vert selon l'amplitude spectrale de cette bande.
 - Valeur d'une fréquence représentée indépendamment des autres ; pas d'animation simulée lorsque les données n'évoluent pas.
 - Hauteur de référence proche de 24 pixels raster ; capsules fines et régulièrement espacées, environ 7–8 pixels de large avec 4 pixels d'intervalle à l'échelle de la capture. Adapter aux unités logiques et DPI sans imposer ces mesures raster.
-- Agréger les 1025 bins en bandes d'affichage selon la largeur disponible. La règle d'agrégation doit préserver la relation d'amplitude et documenter l'unité ; le nombre de bandes exact reste à décider.
+- Agréger les 1025 bins en 64 bandes fixes de fréquence linéaire entre 0 Hz et Nyquist. Pour chaque bande, calculer la moyenne pondérée de la puissance linéaire, puis la présenter en dBFS/Hz. Le nombre de bandes et leur signification fréquentielle restent stables au redimensionnement ; seule leur largeur visuelle change.
 - Indiquer la plage −120 à 0 dBFS/Hz et les extrêmes fréquentiels, ou fournir ces informations accessibles au clavier/lecteur d'écran.
 - Silence : pistes neutres et état « Silence ». Aucune mesure : état d'attente. Mesure périmée (>500 ms selon le contrat actuel) : état neutre avec indication visible. La saturation est affichée séparément.
 
-Le choix de présenter en façade la série après gain seulement, ou les vues avant/après, reste à décider. Recommandation : série après gain/limiteur sur la façade et comparaison avant/après dans les détails avancés. Ce choix déplacerait un élément actuellement visible et doit être accepté dans le cadrage.
+La façade affiche la série après gain/limiteur. La comparaison avant/après est disponible dans les détails avancés. La plage verticale reste −120 à 0 dBFS/Hz. Chaque capsule représente une bande indépendante, dont la hauteur remplie depuis le bas suit l'amplitude normalisée ; les pistes inactives restent bleu sombre et le signal est turquoise. La saturation demeure un indicateur séparé.
 
 ## 8. UI-06 — Traitement Parakeet et résultat définitif
 
@@ -150,7 +150,7 @@ Proposition de parcours : préparation → capture/traitement avec affichage des
 
 À l'arrêt du microphone, le parcours produit doit rendre accessibles TXT, SRT et WAV de même nom après finalisation. L'absence ou l'échec de publication d'un des fichiers doit rester visible et ne pas être présenté comme une finalisation réussie.
 
-La portée exacte de « traitement Parakeet » doit être reliée aux flux concernés (import, capture historique, session unifiée). La présente décision supprime l'étape de vérification humaine ; elle ne supprime pas par défaut un calcul automatique complet déjà prévu par un flux. Si un second calcul automatique est visé, son coût et le document faisant autorité doivent être décidés séparément.
+La fin du traitement Parakeet inclut tout calcul automatique final déjà requis par le flux, ses contrôles techniques, et la publication. Cette séquence reste une seule opération utilisateur : aucun bouton de vérification, relecture obligatoire ou statut brouillon. Le calcul automatique final n'est pas supprimé par cette décision. Import, capture historique et session unifiée utilisent le résultat publié comme document définitif selon leur contrat existant ; aucun deuxième calcul n'est ajouté à la session unifiée pour harmoniser l'interface.
 
 ## 9. UI-07 — Liste, statuts, annulation et liens
 
@@ -158,22 +158,22 @@ La portée exacte de « traitement Parakeet » doit être reliée aux flux conce
 
 | Libellé demandé | Sens proposé | Précaution |
 |---|---|---|
-| Importé | Admission confirmée, traitement non démarré. | Ne pas confondre avec une admission en attente de choix ou échouée. |
+| Importé | Admission confirmée en mode « Importer seulement », traitement non demandé. | Ne pas confondre avec une admission en attente de choix ou échouée. |
 | Traité | Traitement et publication du résultat définitif achevés. | Ne pas l'afficher à la fin du calcul si la publication échoue. |
-| Annulé | L'utilisateur a annulé une entrée importée en attente. | Conserver la ligne si le statut doit rester consultable ; ne pas supprimer le fichier source. |
+| Annulé | L'utilisateur a annulé une demande en attente ou un traitement actif. | Conserver la ligne dans l'historique ; ne pas supprimer source ni résultat déjà publié. |
 
 Ces trois états ne suffisent pas à décrire le cycle en cours. « Traitement… », « Annulation… », « Interrompu » et « Échec » peuvent être nécessaires. Les états transitoires doivent rester distincts d'« Annulé » : une erreur ou interruption n'est pas une annulation utilisateur.
 
-La file actuelle porte `Queued`, `AwaitingChoice`, `Running` et `Interrupted`; « Retirer » enlève une entrée en attente. L'arrêt d'un travail actif est une autre opération. Le libellé « Annuler » doit conduire à une action définie selon que l'entrée est en attente ou en cours. La décision de ne pas effacer les sources/résultats par annulation doit être conservée, sauf décision produit ultérieure explicite.
+La file actuelle porte `Queued`, `AwaitingChoice`, `Running` et `Interrupted`; « Retirer » enlève une entrée en attente. La nouvelle liste conserve les états « En attente », « Traitement… », « Annulation… », « Interrompu » et « Échec » en plus des trois statuts demandés. « Annuler » enlève une intention en attente ou demande l'arrêt coopératif d'un traitement actif ; la ligne reste dans l'historique et les fichiers ne sont pas supprimés. Si la publication a réussi avant la confirmation d'arrêt, l'état reste « Traité ». Une annulation suivie d'un nouvel essai crée une nouvelle entrée et identité ; les règles de doublon continuent de s'appliquer aux fichiers déjà publiés, pas au seul fait qu'une entrée précédente a été annulée. Les annulations sont conservées avec l'historique, sans expiration propre à ce statut.
 
 ### Liens vers les dossiers
 
 - Une ligne importée expose le nom de la source comme lien vers le répertoire parent de cette source.
-- Une ligne traitée expose un nom associé au résultat publié comme lien vers le répertoire parent du résultat.
-- Si source et résultat sont dans des dossiers différents, présenter deux liens nommés explicitement plutôt qu'une cible qui change selon l'état.
+- Une ligne traitée conserve le lien du nom audio vers le dossier source et ajoute le nom TXT publié comme lien vers le répertoire contenant les résultats.
+- Si source et résultat sont dans des dossiers différents, les deux liens restent visibles et nommés explicitement ; une même cible ne change pas selon l'état.
 - Un chemin devenu indisponible déclenche un message clair ; l'application ne crée pas de répertoire et ne substitue pas silencieusement une autre cible.
 
-La cible exacte du nom affiché après traitement doit être fixée (fichier source, TXT, SRT ou dossier des résultats). Le bouton « Ouvrir » de la maquette n'est pas nécessaire s'il duplique le lien ; une action séparée pour ouvrir un document est à accepter explicitement.
+Le nom TXT est le lien principal du résultat, car il ouvre le dossier commun aux fichiers TXT/SRT/WAV de même nom. Le bouton « Ouvrir » de la maquette est remplacé par les liens source/résultat pour éviter une cible ambiguë. Le lien ouvre le dossier contenant, sans lancer d'éditeur ou de lecteur.
 
 L'archive actuelle ne fournit pas directement toutes les colonnes de la maquette (date, durée, extrait, nom convivial). La projection de données nécessaires et la portée de l'historique restent à concevoir avant de promettre ces colonnes.
 
@@ -193,8 +193,10 @@ Les messages partagés couvrent les erreurs de source, de traitement, de publica
 | IMP-02 | Confirmé | « Importer seulement » crée une entrée importée et ne démarre aucun traitement avant « Traiter ». |
 | IMP-03 | Confirmé | Un doublon déclenche un dialogue et, après résolution, respecte le choix initial entre traitement immédiat et import seul. |
 | IMP-04 | Confirmé | Annuler le dialogue de doublon n'engage ni traitement ni remplacement. |
-| STA-01 | Libellés confirmés, sémantique à valider | Les statuts Importé/Traité/Annulé correspondent aux transitions définies ; erreur, interruption et traitement en cours restent distinguables. |
-| STA-02 | Proposition | L'annulation d'une entrée importée laisse la source intacte et n'efface pas un résultat déjà publié. |
+| STA-01 | Confirmé | Les statuts Importé/Traité/Annulé correspondent aux transitions définies en §9/§12 ; erreur, interruption, attente et traitement en cours restent distinguables. |
+| STA-02 | Confirmé | L'annulation d'une entrée laisse la source intacte et n'efface pas un résultat déjà publié ; le statut reste dans l'historique. |
+| IMP-05 | Choix de cadrage retenu | Avec un traitement A actif, admettre B en mode immédiat ; B attend puis démarre après A. Importer C en mode import seul, cliquer « Traiter » pendant B, puis vérifier que C démarre après B, dans cet ordre et sans traitements simultanés. |
+| IMP-06 | Choix de cadrage retenu | Fermer l'application avec une demande immédiate en attente ; au lancement suivant, elle apparaît interrompue et ne redémarre qu'après confirmation. |
 | PAR-01 | Confirmé | Après publication réussie du résultat Parakeet, il est marqué définitif sans validation/lecture humaine obligatoire ni libellé « brouillon/non vérifié ». |
 | PAR-02 | Confirmé | Pendant la capture micro, les blocs confirmés sont visibles et identifiés comme confirmés, distincts du résultat définitif et de tout texte provisoire. |
 | PAR-03 | Confirmé | Après arrêt et finalisation micro réussis, TXT, SRT et WAV de même nom sont accessibles ; aucun succès final n'est annoncé si l'un des fichiers attendus n'est pas publié. |
@@ -202,22 +204,37 @@ Les messages partagés couvrent les erreurs de source, de traitement, de publica
 | SPE-01 | Confirmé | Un signal fréquentiel sur une plage donnée modifie les capsules correspondantes, pas toute la rangée comme une jauge unique. |
 | SPE-02 | Proposition | Silence, mesure absente, périmée et saturation ont des états distincts visibles. |
 | CFG-01 | Confirmé | L'engrenage ouvre la configuration avancée où sont accessibles les choix moteur/calcul et les dossiers par défaut acceptés. |
+| CFG-02 | Choix de cadrage retenu | Le raccourci « Dossier de sortie » ouvre le dossier de sortie courant ; si le dossier n'est pas accessible, un message l'indique sans créer un répertoire de remplacement. |
 | LNK-01 | Confirmé | Le lien du nom d'une source importée ouvre le dossier contenant la source. |
 | LNK-02 | Confirmé | Le lien d'un résultat traité ouvre le dossier contenant le résultat associé. |
-| LNK-03 | Proposition | Si le dossier n'est plus accessible, l'interface signale l'échec sans créer ni substituer un dossier. |
-| VIS-01 | Proposition | À viewport et DPI fixés, l'accueil respecte la hiérarchie de la référence : en-tête, entrées côte à côte, puis liste. |
+| LNK-03 | Choix de cadrage retenu | Si le dossier n'est plus accessible, l'interface signale l'échec sans créer ni substituer un dossier. |
+| VIS-01 | Choix de cadrage retenu | À 1536 × 864 unités logiques, l'accueil respecte la hiérarchie de la référence ; sous 1200 unités, les cartes s'empilent et l'historique devient compact. |
 | ACC-01 | Proposition | Contrôles nommés, focus visible et états lisibles sans dépendre de la couleur seule. |
 
 La validation finale du rendu dans la fenêtre Windows reste à observer par l'utilisateur selon le lot autorisé. Aucun de ces critères n'a été exécuté dans ce travail de cadrage.
 
-## 12. Questions de cadrage restantes
+## 12. Décisions retenues pour la fluidité
 
-1. Quand le moteur est occupé, le traitement immédiat attend-il en file ou affiche-t-il une indisponibilité ?
-2. « Annuler » conserve-t-il une ligne annulée dans la liste, et combien de temps ? Comment un fichier annulé est-il réimporté ?
-3. Quel fichier exact le lien d'une entrée traitée désigne-t-il lorsque TXT/SRT/WAV sont produits dans un dossier distinct ?
-4. Quels dossiers par défaut sont configurables depuis le panneau avancé, au-delà des dossiers audio et sortie ?
-5. Pour Parakeet, la décision retire-t-elle uniquement l'étape de vérification humaine, ou aussi un calcul final automatique distinct ? Recommandation : conserver le calcul automatique tant qu'un changement de qualité/coût et la source faisant autorité n'ont pas été cadrés.
-6. Le spectre affiche-t-il avant et après gain ensemble, ou seulement la série après traitement en façade ? Quelle règle d'agrégation des bins est acceptée ?
-7. Quelles tailles logiques/DPI et quel niveau de fidélité visuelle servent à vérifier la maquette ?
+À la demande de l'utilisateur, la session principale a choisi les précisions ci-dessous pour rendre les parcours fluides et prévisibles. Elles complètent DU-01 à DU-07 sans autoriser le code. Elles devront figurer dans un plan avant toute implémentation.
 
-Les réponses sont nécessaires avant le plan d'implémentation de la nouvelle UI. Le présent brief ne modifie pas le code et ne crée pas d'autorisation de le modifier.
+| Sujet | Décision retenue |
+|---|---|
+| Moteur occupé | File FIFO automatique pour les actions « Importer et transcrire » et les « Traiter » explicites. Un seul travail démarre à la fois ; aucun préemptage. Les attentes et leur position sont visibles. Les imports seuls ne sont jamais lancés automatiquement. |
+| Annulation | Une ligne « Annulé » reste consultable dans l'historique, sans expiration propre à ce statut. Annuler ne supprime pas l'audio source ni un résultat publié. Une annulation en cours est coopérative ; un résultat déjà publié reste « Traité ». |
+| Réessai | Un nouvel essai crée une nouvelle entrée. L'annulation précédente ne compte pas comme transcription terminée ; les protections anti-doublon restent actives pour les résultats déjà publiés. |
+| Liens | Nom audio → dossier source. Nom TXT final → dossier des résultats contenant TXT/SRT/WAV. Les deux liens restent distincts. |
+| Dossiers | Panneau avancé : dossier initial de recherche audio et dossier de sortie par défaut. La recherche audio utilise d'abord le dernier dossier valide. La sélection du modèle conserve son mécanisme actuel ; aucun dossier technique n'est exposé. |
+| Parakeet | Supprimer le statut et l'étape de vérification humaine. Garder les calculs automatiques finaux existants et les contrôles techniques dans une opération unique ; le résultat devient définitif après publication réussie. |
+| Spectre | 64 bandes linéaires stables, agrégées en puissance, série après gain/limiteur en façade et avant/après dans les détails. Capsules turquoise remplies depuis le bas selon l'amplitude de chaque bande. |
+| Fenêtre | Chrome Windows standard. Viewport de référence 1536 × 864 unités logiques à 100 %, adaptation compacte à 1024 × 720, minimum 960 × 640. Empiler import puis microphone sous 1200 unités de largeur ; contrôler aussi l'échelle Windows à 150 % et 200 %. |
+
+### Contrôles et détails d'interaction
+
+- Les demandes immédiates sont ordonnées au moment où l'admission est confirmée. Si l'application ferme avant le début du traitement, elles réapparaissent comme interrompues et demandent confirmation avant de reprendre ; aucun calcul ne démarre de façon inattendue à l'ouverture.
+- Une entrée qui attend une décision de doublon ne bloque pas la file ; après résolution elle rejoint la file FIFO. Le choix initial (immédiat ou import seul) reste associé au parcours.
+- Une entrée importée seule reste dans cet état jusqu'au clic « Traiter ». Une erreur, interruption ou annulation ne devient jamais le statut « Traité ».
+- L'historique conserve les entrées annulées selon sa politique générale. Les annulations seules ne déclenchent ni nouvelle règle d'effacement de fichiers ni suppression automatique de sources.
+- Le regroupement des 1025 bins en 64 bandes utilise une moyenne pondérée de puissance linéaire par intervalle fréquentiel, puis une conversion en dBFS/Hz. Les bornes restent régulières entre 0 Hz et Nyquist.
+- Tailles de fenêtre en unités logiques ; les cibles pixel de la capture ne sont pas appliquées telles quelles aux écrans DPI élevés. Sous 1200 unités, cartes empilées et liste d'historique compacte avec défilement vertical ; l'action d'arrêt reste accessible pendant une capture.
+
+Ces décisions ferment les questions de comportement de la version précédente du brief. Le plan devra encore définir les détails de mise en œuvre, leurs critères de test et la validation Windows. Aucun test ni contrôle dans la fenêtre n'a été exécuté pour ce cadrage.
