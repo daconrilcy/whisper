@@ -42,6 +42,7 @@ Suite de référence niveau 1 pour les tests CPU sans CUDA : `cargo test` (membr
 Paramètres de chaque appel :
 - Racine de lot explicitement contrôlée dans le worktree ; `CARGO_HOME`, `TEMP`, `TMP` et `LOCALAPPDATA` canoniquement isolés ; contrôle des jonctions et liens, espace libre minimal de 30 Gio.
 - `CARGO_TARGET_DIR` : cible partagée existante `C:/dev/whisper/target/parakeet-tests/cargo-shared/`, ou répertoire **neuf** sous la racine du lot via `-FreshTarget <nom>`. Pour le niveau 1, cette possibilité prévaut sur l’exigence historique de cible unique ci-dessous.
+- Pour les validations et corrections successives d’un lot N1, réutiliser par défaut la cible partagée autorisée, y compris lors du passage entre implémenteur et relecteur. Réserver `-FreshTarget` à une compilation propre exigée par le plan ou nécessaire à un diagnostic reproductible. Avant de créer une cible neuve, préciser le contrôle qui l’exige et la cible à supprimer à la clôture. Une correction ou une nouvelle revue ne justifie pas à elle seule une nouvelle cible.
 - `-p` accepte uniquement les membres du workspace lus dans `cargo metadata` exécuté avec les mêmes contrôles. Les auto-tests de validation utilisent des fixtures de membres sans lancer Cargo pour les cas négatifs.
 - `-UnsetEnv` retire explicitement seulement `CUDA_PATH`, `CUDA_PATH_V*`, `GGML_*`, `WHISPER_*`, `PARAKEET_*` ; le nettoyage existant des variables Whisper et Parakeet reste actif.
 - `CARGO_HOME` de niveau 1 : emplacement persistant déclaré `target/cargo-home-shared/` sous le worktree, contrôlé canoniquement sans lien ni jonction. Cette racine distincte du lot est autorisée pour le cache uniquement et protégée par la rétention ; `TEMP`, `TMP` et `LOCALAPPDATA` restent isolés sous le lot. Les dispositions de ce paragraphe prévalent sur l’isolation historique de `CARGO_HOME` sous le lot.
@@ -72,6 +73,7 @@ Dérogations historiques : [lot 1 Parakeet micro et FEAS-PM-01](docs/cadrage/der
 
 - Pendant les campagnes, fixer dans l'environnement `CARGO_INCREMENTAL=0` et `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, sans modifier `Cargo.toml` pour ces réglages.
 - À la clôture du lot, archiver les petites preuves en préservant leur arborescence et en vérifiant nombre et SHA-256. Après cette vérification, supprimer les cibles de compilation propres au lot (dont les cibles neuves `-FreshTarget`) et ses caches `cargo-home` isolés : ces intermédiaires ne sont pas conservés avec les preuves. Avant suppression, identifier les chemins exacts, vérifier que leurs chemins absolus résolus restent dans le dépôt et appartiennent au lot, sans lien ni jonction menant ailleurs, et qu'aucun processus ni lot actif ne les utilise. Si ces conditions ne sont pas établies, conserver les chemins concernés et signaler le blocage ; ne pas élargir la suppression à leur dossier parent.
+- Pour une recette ou un assemblage, utiliser directement l’entrée de référence ou un staging déjà préparé lorsque le plan, la garde et le routage du produit le permettent. Lorsque la recette exige une copie isolée, réutiliser cette copie entre scénarios compatibles du même lot. Éviter une deuxième copie du même modèle, runtime ou paquet sauf si l’isolation ou le scénario l’exige. À la clôture, conserver les livrables, résultats et petites preuves nécessaires, puis appliquer la rétention aux copies de staging et aux cibles jetables. L’orchestrateur transmet ces règles lors de la reprise d’un lot depuis un worktree antérieur.
 - Préserver le cache partagé canonique `target/parakeet-tests/cargo-shared/`, le cache Cargo persistant déclaré `target/cargo-home-shared/` de chaque worktree et toute référence déclarée d’un contrôle permanent, ainsi que les preuves archivées, les livrables, les modèles, les audios sources et toute entrée encore nécessaire à un lot actif. Les caches persistants ne sont pas des caches isolés propres au lot à supprimer lors de sa clôture. Les copies et WAV temporaires restent supprimables uniquement s'ils figurent dans un manifeste approuvé. Consigner les chemins supprimés et l'espace libre après nettoyage dans le bilan avant de le figer ; tout nettoyage ultérieur fait l'objet d'un nouveau document selon la règle de clôture des bilans.
 - L'agent exécute la suppression lorsque son outil l'autorise. Si l'outil refuse la suppression, l'agent produit la liste exacte des chemins, leur taille, la vérification d'archivage des preuves et la commande à exécuter ; l'utilisateur supprime, puis l'agent vérifie l'absence des chemins. Un refus de l'outil ne doit pas être contourné par un autre mécanisme de suppression.
 
@@ -143,3 +145,77 @@ Commencer les rapports par trois lignes : `Avancée : ...`, `Blocage : ...`, `D�
 
 - Un bilan est figé à la clôture de son lot. Tout fait nouveau (validation, correction, remise, nettoyage ou autre complément) est consigné dans un nouveau document ; le bilan peut uniquement recevoir un lien vers ce document, sans ajout de récit ni réécriture de son état de clôture. L'accumulation de compléments ou de paragraphes denses ne doit pas contourner la limite d'une page.
 - Les règles destinées aux agents et leurs modifications figurent dans les `AGENTS.md` applicables. Un bilan peut y renvoyer, mais ne porte aucune règle nouvelle ni dérogation normative.
+
+<!-- BEGIN AWS Agent Toolkit rules -->
+# AWS Guidance for the new AWS experience
+
+This user has signed up for the new AWS experience. This experience lets you sign into AWS using a social provider and requires the following additional context.
+
+Where this guidance conflicts with the project's own instructions, the project's instructions take precedence.
+
+## Context
+### Terminology:
+- Say "project" instead of "account" — a project contains an AWS account and settings for sharing with other collaborators
+- Say "team member" instead of "IAM user" — users are invited by email, not created or federated in IAM
+- Say "AWS Settings" when referring to management tasks at https://settings.aws.com/ (project management, billing, team members, spend limits). Users view their actual AWS resources in the AWS Management Console.
+- Say "selected Region" when referring to the user's Region — not "home Region"
+- The user has a managed IAM experience. This includes a managed service control policies (SCP) and resource control policies (RCP) that govern the use of AWS. They will still need to use IAM to create policies to let services work with each other. If there are questions about the SCPs or RCPs, go to the documentation at https://docs.aws.amazon.com/accounts/latest/reference/scps-and-rcps-for-projects.html
+
+### Constraints:
+- MUST NOT access or use any AWS service or invoke an AWS service API, including read-only calls, through AWS CLI, MCP, SDK, console, or another interface unless the user has expressly approved the specific service and action in the current session. Toolkit setup, authentication, or approval for a different action does not grant this authorization.
+- All projects share a single AWS Region determined by the user's contact address. Resources cannot be created in other Regions
+- When developing:
+  - MUST create all Regional resources in the project's assigned Region
+  - You CAN create AWS WAF and Cloudwatch Logs resources in us-east-1 when there are global resources (like a global WAF instance) that require a connection to dependencies in us-east-1. You should not use these for any other reason, because resources in the selected Region will provide lower cost (due to no cross-Region traffic), increased availability (due to no cross-Region traffic), and easier manageability (due to not needing to look in another Region).
+When you need to do an inventory of resources, you need to look in both the selected Region and us-east-1 for Cloudwatch Logs or WAF resources.
+  - MUST NOT attempt to create Lambda, API Gateway, or other Regional resources in any other Region
+  - MUST direct users to confirm their Region in AWS Settings > View all projects > Overview > Additional Info > Region. If the user cannot confirm their Region, check in ~/.aws/config
+  - MUST NOT use Lambda@Edge — excluded from both Lambda and CloudFront
+  - MUST NOT use CloudFormation StackSets — no multi-account or multi-Region deployments
+  - MUST NOT attempt cross-Region actions — no cross-Region replication for DynamoDB/S3/RDS, no multi-Region KMS keys
+  - MUST NOT use Route 53 cross-Region routing — geolocation, latency-based, and failover routing policies are not available
+  - CloudFront is a global service and its actions ARE allowed in us-east-1. A user can create a CloudFront distribution pointing to their project-region Lambda function URL or API Gateway. However, Lambda and API Gateway themselves MUST NOT be created in us-east-1 — they must be in the project Region.
+  - Reduced availability in eu-north-1 specifically: Amazon Rekognition, Amazon Textract, Amazon Personalize, AWS App Runner are not available in that Region.
+- IAM permissions for human access are managed by AWS. Don't assign roles to team members unless absolutely necessary
+- The user may have a spend limit if they are on the paid plan. The limit that pauses their project if it's exceeded. If resources suddenly become inaccessible, ask if they have a spend limit configured. Only project owners can modify a spend limit.
+- When developing:
+  - MUST ask about spend limit status if the user reports sudden "Access Denied" errors on operations that previously worked
+  - MUST direct users to check spend status in AWS Settings > Billing
+  - MUST check if a user has upgraded their account to the paid plan
+  - MUST ask the user if they want to clean up the successfully created resources or keep them to reduce cost
+- The user sets up billing, creates spend limits, and retrieves and pays invoices in AWS Settings. The user creates budgets and optimizes their costs in the AWS Billing and Cost Management console
+- Not all AWS services are available. If a service isn't working, do the following:
+  1. Run the command aws freetier get-account-plan-state
+  2. If accountPlanType is FREE, check the Free Tier supported services list: https://docs.aws.amazon.com/accounts/latest/reference/supported-services-sign-up-new.html#supported-services-free-tier
+  3. If accountPlanType is PAID, check the Paid Tier supported services list: https://docs.aws.amazon.com/accounts/latest/reference/supported-services-sign-up-new.html#supported-services-paid-plan
+  4. If neither list shows the service, check the Not supported for this experience list: https://docs.aws.amazon.com/accounts/latest/reference/supported-services-sign-up-new.html#unsupported-services. The user will need to activate advanced features to access the service.
+- Users can activate advanced AWS services and capabilities for their account.
+- For any AWS task or question — building, configuring, migrating, debugging, or operating a service, writing SDK code, authoring CDK/CloudFormation, or answering how a service works — first call aws___search_documentation with topic agent_skills and load the matching skill with aws___retrieve_skill. Do this even when you believe you know the answer: skills carry current service behavior that your training may not. Prefer the skill's guidance over general knowledge.
+Skip it only for work that does not involve AWS.
+
+### Help level
+
+- help_level (required): LOW, MEDIUM, or HIGH. While a user is building, you MUST ask the user: "How much guidance would you like from me? Low (I only flag security risks), medium (I ask a couple of clarifying questions if something seems off), or high (I explain what I'm doing, suggest alternatives, and flag best practices)."
+
+You CAN update this rule file to save a user's help_level.
+
+Constraints for each level:
+
+**LOW:**
+- MUST follow all constraints in this context file
+- MUST execute the user's request without modification
+- MUST NOT ask clarifying questions unless the action would create a security vulnerability
+- MUST NOT suggest alternatives or improvements
+
+**MEDIUM:**
+- MUST execute the user's request
+- MAY ask up to two clarifying questions per task if the request has an ambiguity or a potential issue
+- MUST NOT repeat a question or suggestion the user has already dismissed
+- MUST NOT explain trade-offs or alternatives unless the user asks
+
+**HIGH:**
+- MUST explain what each step does and why before executing it
+- MUST suggest alternatives when a better approach exists
+- MUST flag best practices and explain trade-offs
+- MUST still execute the user's choice if they disagree with a suggestion
+<!-- END AWS Agent Toolkit rules -->
